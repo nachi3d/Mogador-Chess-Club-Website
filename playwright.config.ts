@@ -40,10 +40,46 @@ export default defineConfig({
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
     { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
-    { name: 'webkit', use: { ...devices['Desktop Safari'] } },
+
+    /**
+     * WEBKIT RUNS FILE-PARALLEL, NOT TEST-PARALLEL.
+     *
+     * The Windows WebKit build crashes under the default fan-out: with six
+     * workers, roughly a quarter of the specs die with "Target page, context or
+     * browser has been closed" — the browser process itself goes away
+     * mid-test. The same specs pass 24/24 in ~15s on a single worker, so this
+     * is a WebKit-on-Windows resource problem and NOT an application bug.
+     *
+     * `fullyParallel: false` here overrides the global setting for these two
+     * projects only: spec FILES still run concurrently, but tests within a file
+     * run in sequence, which keeps the number of live WebKit contexts low
+     * enough to be stable. Chromium and Firefox keep the full fan-out.
+     *
+     * They also get a retry locally (the other projects get none), because two
+     * WebKit projects running side by side still lose a context now and then.
+     * This does not mask application bugs: a real failure is deterministic and
+     * fails the retry too. Only the crash-on-startup flake is absorbed.
+     *
+     * If a WebKit spec ever fails with a "browser has been closed" message,
+     * suspect this before suspecting the site — and re-check with
+     * `--workers=1` before changing any application code.
+     */
+    {
+      name: 'webkit',
+      fullyParallel: false,
+      retries: process.env['CI'] ? 2 : 1,
+      use: { ...devices['Desktop Safari'] },
+    },
+
     // Club members will overwhelmingly arrive on a phone.
     { name: 'pixel-5', use: { ...devices['Pixel 5'] } },
-    { name: 'iphone-13', use: { ...devices['iPhone 13'] } },
+    // WebKit-based — same constraint as above.
+    {
+      name: 'iphone-13',
+      fullyParallel: false,
+      retries: process.env['CI'] ? 2 : 1,
+      use: { ...devices['iPhone 13'] },
+    },
   ],
 
   webServer: {

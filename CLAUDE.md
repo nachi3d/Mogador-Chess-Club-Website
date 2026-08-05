@@ -341,6 +341,23 @@ Playwright + axe-core. Specs live in `tests/e2e/` and run against the **built** 
 
 Scripts: `npm run test:e2e` (full matrix), `npm run test:e2e:chromium` (branch default).
 
+### WebKit on Windows is flaky — read this before debugging a WebKit failure
+
+The Windows WebKit build crashes under Playwright's default fan-out. With six
+workers, roughly a quarter of the specs die with **"Target page, context or
+browser has been closed"** — the browser process itself disappears mid-test. The
+same specs pass 24/24 on `--workers=1` in about 15 seconds, so this is a browser
+build problem, **not** an application bug.
+
+The `webkit` and `iphone-13` projects therefore carry `fullyParallel: false`
+(spec files still run concurrently; tests within a file run in sequence) plus one
+local retry. Chromium and Firefox keep the full fan-out and no retries.
+
+**If you see "browser has been closed" in a WebKit run, suspect this first.**
+Re-check with `--workers=1` before touching any application code. A genuine
+failure is deterministic and fails the retry too; only the startup crash is
+absorbed. A run reporting `N passed, 1 flaky` on WebKit is green.
+
 ### Verification policy
 
 - **Default (every feature branch):** `npx playwright test --project=chromium <touched specs>` — sufficient to merge to `dev`.

@@ -24,6 +24,10 @@ Foundation only: no real content, no interactive board yet.
   theme-override surface documented in CLAUDE.md for the Phase 2 board
 - Playwright + `@axe-core/playwright`, five-project matrix, served by `astro preview`
   over the real build
+- WebKit projects (`webkit`, `iphone-13`) pinned to file-level parallelism with one
+  retry: the Windows WebKit build crashes under the default fan-out with
+  "browser has been closed". Diagnosed as a browser-build issue, not an app bug —
+  the same specs pass 24/24 on a single worker. Documented in CLAUDE.md.
 
 **Design**
 - `src/styles/tokens.css` — the "old chess club" palette: deep green (baize),
