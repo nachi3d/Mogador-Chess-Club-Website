@@ -1,0 +1,81 @@
+---
+/**
+ * The server side of the board island.
+ *
+ * Two jobs, both deliberately kept OUT of the browser:
+ *
+ * 1. PARSE THE PGN AT BUILD TIME. chess.js never reaches the client bundle for
+ *    replay mode — the island receives a plain array of positions. A bad PGN
+ *    fails `npm run build` instead of rendering an empty board in production.
+ *
+ * 2. RESOLVE THE STRINGS. Labels are translated here from `src/i18n/ui.ts` and
+ *    passed down, so the island does not import the i18n layer (which would
+ *    drag `src/config/site.ts` and both string tables into the bundle).
+ *
+ * Hydration is `client:visible` — never `client:load`. See CLAUDE.md.
+ */
+import type { Locale } from '@config/site';
+import { useTranslations } from '@i18n/ui';
+import { parseReplay, serializeReplay } from '@lib/chess/replay';
+import ChessBoard, {
+  type ReplayComment,
+  type ReplayShapes,
+} from '@components/board/ChessBoard.tsx';
+
+interface Props {
+  locale: Locale;
+  /** Standard, language-neutral PGN. Commentary never lives inside it. */
+  pgn: string;
+  /** Bilingual commentary from the collection, resolved to `locale` here. */
+  moveComments?: readonly { ply: number; fr: string; en: string }[];
+  shapes?: readonly {
+    ply: number;
+    arrows?: readonly (readonly [string, string])[];
+    circles?: readonly string[];
+  }[];
+  orientation?: 'white' | 'black';
+}
+
+const { locale, pgn, moveComments = [], shapes = [], orientation = 'white' } = Astro.props;
+const t = useTranslations(locale);
+
+// Throws at build time on a malformed PGN — exactly what we want.
+const replay = serializeReplay(parseReplay(pgn));
+
+const comments: ReplayComment[] = moveComments.map((c) => ({
+  ply: c.ply,
+  text: locale === 'fr' ? c.fr : c.en,
+}));
+
+const boardShapes: ReplayShapes[] = shapes.map((s) => ({
+  ply: s.ply,
+  ...(s.arrows ? { arrows: s.arrows } : {}),
+  ...(s.circles ? { circles: s.circles } : {}),
+}));
+
+const labels = {
+  board: t('replay.board'),
+  start: t('replay.start'),
+  prev: t('replay.prev'),
+  next: t('replay.next'),
+  end: t('replay.end'),
+  moveList: t('replay.moveList'),
+  controls: t('replay.controls'),
+  commentary: t('replay.commentary'),
+  checkmate: t('replay.checkmate'),
+  startLabel: t('replay.startLabel'),
+  intro: t('replay.intro'),
+};
+---
+
+<ChessBoard
+  client:visible
+  mode="replay"
+  startFen={replay.startFen}
+  plies={replay.plies}
+  orientation={orientation}
+  coordinates={true}
+  comments={comments}
+  shapes={boardShapes}
+  labels={labels}
+/>

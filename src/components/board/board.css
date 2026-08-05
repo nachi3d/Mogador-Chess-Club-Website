@@ -1,0 +1,115 @@
+/* ============================================================
+   Chessground theme — Mogador Chess Club
+   ------------------------------------------------------------
+   Replaces `chessground.brown.css`, which we deliberately do NOT
+   import. Every colour here comes from src/styles/tokens.css.
+
+   The brown theme paints dark squares as black at 20% opacity
+   over the light colour. That cannot produce our exact
+   --mcc-board-dark, so the checker is drawn with a conic
+   gradient instead: two real token colours, no opacity trick.
+   ============================================================ */
+
+/* ---------- Sizing ---------- */
+/* The board is square, fills its column on mobile, and stops growing at a
+   size where a piece is still comfortably tappable but the move list can sit
+   beside it on a desktop. --mcc-board-max is the token (34rem ≈ 544px). */
+.mcc-board {
+  width: 100%;
+  max-width: var(--mcc-board-max);
+  margin-inline: auto;
+}
+
+.mcc-board-host {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border: 3px solid var(--mcc-board-border);
+  border-radius: 2px;
+  box-shadow: var(--shadow-board);
+  /* Chessground measures the element on init; without an explicit box it can
+     come up zero-height inside a flex/grid parent on first paint. */
+  display: block;
+}
+
+/* ---------- Squares ---------- */
+cg-board {
+  background-color: var(--mcc-board-light);
+  /* 8×8 checker from two flat token colours. `repeating-conic-gradient` tiles
+     a 2×2 square block, which is exactly a chessboard. */
+  background-image: repeating-conic-gradient(
+    var(--mcc-board-dark) 0% 25%,
+    var(--mcc-board-light) 0% 50%
+  );
+  background-size: 25% 25%;
+  background-position: top left;
+}
+
+/* ---------- Move / analysis overlays ---------- */
+cg-board square.last-move {
+  background-color: var(--mcc-board-last-move);
+}
+
+cg-board square.selected {
+  background-color: var(--mcc-board-selected);
+}
+
+cg-board square.check {
+  background: radial-gradient(
+    ellipse at center,
+    var(--mcc-board-check) 0%,
+    var(--mcc-board-check) 32%,
+    rgb(159 60 45 / 0) 78%
+  );
+}
+
+/* Legal-move hints. Unused in replay (viewOnly), styled now so the exercise
+   and play modes inherit a themed board rather than a lichess-green one. */
+cg-board square.move-dest {
+  background: radial-gradient(var(--mcc-board-hint) 20%, rgb(0 0 0 / 0) 22%);
+}
+
+cg-board square.oc.move-dest {
+  background: radial-gradient(transparent 0%, transparent 79%, var(--mcc-board-hint) 80%);
+}
+
+/* ---------- Coordinates ---------- */
+/*
+  AA, per CLAUDE.md: coordinates are real text sitting ON a square, so each
+  square colour needs the ink that clears 4.5:1 against IT. Chessground
+  alternates coordinate colour by square parity; we feed both inks in.
+    ink-950  on --mcc-board-light ... 13.7:1
+    cream-50 on --mcc-board-dark  ...  5.5:1
+  One ink for both would fail on one of them. That is why two tokens exist.
+*/
+.cg-wrap coords {
+  font-family: var(--font-notation);
+  font-size: 0.6875em;
+  font-weight: 600;
+}
+
+.orientation-white .ranks :nth-child(odd),
+.orientation-white .files :nth-child(even),
+.orientation-black .ranks :nth-child(even),
+.orientation-black .files :nth-child(odd),
+coords.squares:nth-of-type(odd) :nth-child(even),
+coords.squares:nth-of-type(even) :nth-child(odd) {
+  color: var(--mcc-board-dark-ink);
+}
+
+.orientation-white .ranks :nth-child(even),
+.orientation-white .files :nth-child(odd),
+.orientation-black .ranks :nth-child(odd),
+.orientation-black .files :nth-child(even),
+coords.squares:nth-of-type(odd) :nth-child(odd),
+coords.squares:nth-of-type(even) :nth-child(even) {
+  color: var(--mcc-board-light-ink);
+}
+
+/* Motion accessibility: the piece slide is decorative. Chessground's animation
+   is driven from JS, but killing the CSS transition removes the visible
+   movement for anyone who asked not to see it. */
+@media (prefers-reduced-motion: reduce) {
+  .cg-wrap piece.anim {
+    transition: none !important;
+  }
+}

@@ -45,6 +45,17 @@ Changing venue is a one-commit change in one file. Keep it that way.
 - ❌ **No online play between humans** in v1. That is v2 — see "Online play (v2)".
 - ❌ No CMS. Content lives in the repo as typed content collections.
 - ❌ No payments, no memberships.
+- ❌ **No in-app communication. Ever.** See the rule below.
+
+### No in-app communication — a permanent rule, not a v1 limitation
+
+The site carries **no chat, no comments, no forum, no reactions, no user-submitted content of any kind**. This is not a "later" item; it is a standing decision and it does not expire with v2's online play (which carries moves between two players in a room, and nothing else — no message channel alongside it).
+
+Why it is written as a hard rule: this is a club that teaches **children**. Any channel where a stranger can send a message to a minor turns a static teaching site into a moderation obligation, a safeguarding obligation, and a GDPR/Law 09-08 data-processing obligation — none of which a volunteer club can staff. There is no version of "just a small comment box" that avoids this.
+
+**Sharing is outbound only.** The WhatsApp share button hands the *reader's own* device a prefilled message and gets out of the way — `wa.me/?text=…` with **no recipient number**. We never post anything, store anything, or receive anything. Any future share follows the same shape.
+
+Anything that looks like an inbox belongs off-site: the club's own WhatsApp number in `src/config/site.ts`, or the association's Instagram.
 
 ---
 
@@ -58,6 +69,9 @@ Changing venue is a one-commit change in one file. Keep it that way.
   - `src/styles/global.css` imports `tailwindcss/index.css`, **not** the bare `tailwindcss` specifier. Vite resolves CSS `@import` before the Tailwind PostCSS plugin runs and its resolver ignores the package `exports` map, so the bare specifier fails the build. Don't "tidy" it back. (Lesson imported from Claraloha.)
 - **chess.js** — rules, legality, SAN/FEN/PGN parsing. The single source of chess truth; never hand-roll move legality.
 - **Chessground** (lichess's board) — rendering and input only. It knows nothing about rules.
+  **GPL-3.0-or-later** — see "Third-party licences" before assuming this is settled.
+- **Preact** (`@astrojs/preact`) — present solely so the board can be a `client:visible` island.
+  The board is the ONLY hydrated component on the site; everything else is static `.astro`.
 - **Stockfish** — Phase 2, **lazy-loaded, never precached**. See "Service worker".
 - **PWA** — generated manifest + Workbox precache.
 - **Cloudflare Pages** hosting + **Umami** analytics (env-driven; omitted entirely when unset).
@@ -134,7 +148,42 @@ Corollaries:
 - If a page needs several diagrams, they are static images or a single board the reader steps through — not N live boards.
 - Chessground renders and takes input. **chess.js owns legality.** Never let the board decide whether a move is legal.
 
-> ⚠️ **Open decision (session 1):** Astro's `client:*` directives only apply to *framework* components (React/Preact/Svelte/Vue/Solid/Lit). A plain `.astro` component cannot take `client:visible`. So the island needs either a small framework integration (**Preact** is the lightest and the recommendation) or a hand-rolled custom element with an `IntersectionObserver`. **No framework was installed in session 1** because the scaffold spec's install list was explicit (chess.js, chessground). Decide before the board is built.
+**Preact is the island framework** (decided Session 2, approved by Seàn). Astro's `client:*` directives only apply to framework components — a plain `.astro` component cannot take `client:visible` at all, which is the entire reason `@astrojs/preact` is installed. It is **not** a licence to write the site in Preact: everything that can be static HTML stays `.astro`, and the board is the only hydrated component on the site.
+
+### The files, and what each is allowed to know
+
+| File | Role | Must NOT |
+|---|---|---|
+| `src/lib/chess/replay.ts` | Pure PGN → plies. No DOM, no Preact, no Chessground. | reach for a board or a network |
+| `src/components/board/BoardSurface.tsx` | The **only** file importing Chessground | know about PGN, commentary or modes |
+| `src/components/board/ChessBoard.tsx` | THE island. Dispatches on `mode`. | import the i18n layer or fetch anything |
+| `src/components/board/ReplayBoard.astro` | Server side: parses the PGN, resolves labels, mounts with `client:visible` | render a board itself |
+
+**The PGN is parsed at BUILD time**, and the island receives a plain array of positions. chess.js therefore never enters the client bundle for replay mode (~40 KB saved), and a malformed PGN fails `npm run build` instead of rendering an empty board in production. The exercise and play modes *will* need chess.js in the browser for legality checking — they should **lazy-import** it then, not make the replayer pay for it now.
+
+### Preact gotchas that have already bitten
+
+1. **Adjacent JSX text children break hydration.** `{n}.` server-renders as one text node `"1."`; Preact hydrates expecting two children, finds one, and **appends** the missing `"."` — the browser shows `1..` while the HTML says `1.`. Interpolate into a single node instead: `` {`${n}.`} ``.
+2. **Never compute a state target from the closed-over value in an event handler.** The keyboard handler originally did `step(cursor + 1)`; two arrow presses in the same frame both read the same stale `cursor`, so the second was silently swallowed and holding the key dropped moves. Use functional updates — `setCursor(prev => …)` — and keep the listener bound once. `tests/e2e/replayer.spec.ts` has a rapid-press regression test.
+3. **Chessground owns its DOM.** Render one empty `<div>` and hand it over; never give that element VDOM children, or Preact will diff away Chessground's work. Updates go through `api.set()`.
+4. `lastMove: undefined` does **not** clear an existing highlight — Chessground's config merge skips undefined keys. Pass `[]`.
+
+### Third-party licences — READ THIS
+
+| Dependency | Licence | Consequence |
+|---|---|---|
+| **Chessground** | **GPL-3.0-or-later** | ⚠️ See below |
+| cburnett piece set | CC BY-SA 3.0 — by **Colin M.L. Burnett**, via Wikimedia Commons | attribution + share-alike |
+| chess.js | BSD-2-Clause | permissive |
+| Preact, Astro | MIT | permissive |
+
+⚠️ **Chessground is GPL.** Its README states it plainly: *"When you use Chessground for your website, your combined work may be distributed only under the GPL. You must release your source code to the users of your website."* Shipping Chessground in the bundle therefore points at publishing this repository under the GPL.
+
+That is Seàn's call, not a code decision — and for a free community club project it is a very plausible yes. It is written down here so it is a **choice** and not an accident.
+
+The containment is deliberate: `BoardSurface.tsx` is the only file that imports Chessground, and everything else talks to its `BoardProps`. If the answer turns out to be no, swapping in a permissively-licensed board (or hand-rolling one — a board is a CSS grid and a piece sprite sheet) is a rewrite of **that one file**. The cburnett sprites would have to go too, since they arrive inside `chessground.cburnett.css`.
+
+Wherever the piece set is used, credit **Colin M.L. Burnett (CC BY-SA 3.0)** in the site's legal/credits page.
 
 ### Chessground integration notes (verified at scaffold time)
 
@@ -158,7 +207,9 @@ import 'chessground/assets/chessground.cburnett.css';    // piece sprites
 | `square.check` | `--mcc-board-check` |
 | coordinate labels | `--mcc-board-light-ink` / `--mcc-board-dark-ink` |
 
-Note the brown theme paints dark squares as *black at 20% opacity over the light colour*. To get our exact `--mcc-board-dark` we need our own checker (SVG or a CSS gradient), not an opacity overlay.
+Note the brown theme paints dark squares as *black at 20% opacity over the light colour*. To get our exact `--mcc-board-dark` we use our own checker — a `repeating-conic-gradient` of the two flat token colours in `src/components/board/board.css` — not an opacity overlay.
+
+Arrow/circle **brush colours cannot be read from the tokens at draw time** (Chessground wants literal colours in its config, and a `getComputedStyle` round-trip per draw is not worth it). The four brushes in `BoardSurface.tsx` are mirrored from `tokens.css` by hand — there is exactly one pair to keep in sync.
 
 Coordinates are real text and Chessground already alternates their colour by square. Feed it **both** inks — `ink-950` on light squares (13.7:1) and `cream-50` on dark squares (5.5:1). One ink for both fails AA on one of them; that is exactly why two tokens exist.
 
@@ -191,7 +242,9 @@ Two reasons:
 1. A PGN can carry only one language of commentary and this site ships two.
 2. A clean PGN stays paste-able into Lichess, SCID or a printed handout, unchanged.
 
-All prose lives in the frontmatter `notes` array, keyed to a **ply index** (0-based half-move) with `text_fr` / `text_en`. `scripts/check-content.mjs` fails the build-time check if a PGN contains braces, or if a note points past the end of the game.
+All prose lives in the frontmatter `moveComments` array, keyed to a **ply index** with `fr` / `en`. **Ply 0 is the first half-move** (`1. e4`); `-1` is the starting position. `src/lib/chess/replay.ts`, the schemas and `scripts/check-content.mjs` all use that one scheme.
+
+`scripts/check-content.mjs` fails the check if a PGN contains braces, if a comment or shape points past the end of the game, if either language of a comment is empty, or if an arrow starts from an empty square. That last one is not theoretical — it caught an arrow drawn `f3→e5` on the ply where the knight had *already left* f3 (shapes are drawn on the position **after** the ply, and the move highlight shows the move itself anyway). Circles **may** sit on empty squares: marking a weak square is normal teaching.
 
 Piece letters in the notation stay English (`N`, `B`, `Q`) — that is what "standard" means. If French piece letters are ever wanted for display (`C`, `F`, `D`), that is a **rendering** transform applied from the parsed move list, never a second stored PGN.
 
@@ -221,7 +274,15 @@ Astro 7 deltas to remember: config lives at `src/content.config.ts`, each collec
 
 `level` is `debutant | intermediaire | avance` everywhere. Every collection has `draft: boolean` (default false) so an entry can be parked without deleting it.
 
-**Lesson ordering within a course is still open.** `cours` is deliberately minimal — one ordered entry per course. When lessons become their own documents, add a `lessons` collection with a `reference('cours')` back-link rather than reshaping this one.
+### `cours` long-form bodies → per-locale Markdown (DECIDED, not yet implemented)
+
+Decided in Session 2. Course *bodies* will be **per-locale Markdown pairs** — `les-bases.fr.md` and `les-bases.en.md` — not more `*_fr` / `*_en` frontmatter fields.
+
+A lesson is prose: headings, lists, diagrams, worked examples. That is what Markdown is for, and a `summary_fr`-style string field is the wrong shape for three screens of teaching. One file per language keeps each body in exactly one language, which is the same reason the rest of the content is JSON — the constraint is honoured, just at file granularity instead of field granularity.
+
+The JSON entry stays as the course **index record** (title, level, order, summary). **Do not add body fields to the `cours` schema in the meantime.**
+
+Lesson *ordering within* a course is still open — see the open questions. When lessons become their own documents, add a `lessons` collection with a `reference('cours')` back-link rather than reshaping this one.
 
 ### Content validity is checked, not assumed
 
@@ -237,7 +298,8 @@ FR at the root, EN under `/en/...`. **Route segments are not translated** (`/en/
 |---|---|---|
 | `/` | `/en/` | Home — hero, CTAs into cours and pièges |
 | `/cours/` | `/en/cours/` | Course index (cards) |
-| `/pieges/` | `/en/pieges/` | Trap index (cards, ECO shown) |
+| `/pieges/` | `/en/pieges/` | Trap index (cards, ECO + theme chips) — **no board mounted here** |
+| `/pieges/[slug]/` | `/en/pieges/[slug]/` | Trap detail — the replayer, commentary, outbound WhatsApp share |
 | `/exercices/` | `/en/exercices/` | Exercise index — **no board mounted here** |
 | `/agenda/` | `/en/agenda/` | Sessions; venue falls back to site config |
 | `/contact/` | `/en/contact/` | WhatsApp CTA, venue, socials |
@@ -245,7 +307,7 @@ FR at the root, EN under `/en/...`. **Route segments are not translated** (`/en/
 
 Each route file is a two-line shell that renders a shared component from `src/components/pages/` with a `locale` prop, so the two locales cannot drift apart structurally.
 
-Detail routes (`/pieges/[slug]/`, `/exercices/[slug]/`, `/cours/[slug]/`) are **not built yet** — Phase 2.
+Detail routes take their URL from the content's **`slug` field, not the filename**, so renaming a file can never silently move a published URL. `/exercices/[slug]/` and `/cours/[slug]/` are still to come.
 
 ---
 
@@ -341,6 +403,30 @@ Playwright + axe-core. Specs live in `tests/e2e/` and run against the **built** 
 
 Scripts: `npm run test:e2e` (full matrix), `npm run test:e2e:chromium` (branch default).
 
+### ⚠️ A stale preview server will serve you a stale build
+
+`webServer.reuseExistingServer` is `!CI`, so if **anything** is already listening on 4321, Playwright skips its `npm run build && npm run preview` entirely and tests whatever is on disk from before. This has already cost real debugging time: a fixed bug kept "failing" because the old bundle was still being served.
+
+If a test fails in a way that contradicts the source, **kill stray preview servers and re-run** before touching code. Confirm the fix is actually in `dist/_astro/*.js` — `grep` the built bundle.
+
+### Never pipe the test run into `tail`
+
+`npx playwright test | tail -12` reports **tail's** exit code, not Playwright's, and truncates the failure summary — a run with 14 failures reads as "196 passed", exit 0. Redirect to a file and check the status explicitly:
+
+```sh
+npx playwright test --reporter=line > /tmp/full.log 2>&1
+echo "EXIT: $?"
+grep -E "passed|failed|flaky" /tmp/full.log | tail -5
+```
+
+Sanity check the arithmetic too: the matrix is 5 projects, so the total must be `5 ×` the per-project count. A passed count that is not the full total means tests failed or never ran.
+
+### Hydration is what the board specs wait on
+
+`<cg-board>` is created by Chessground inside a `useEffect`, so it exists **only after the island has hydrated**. Waiting on it is a genuine hydration signal. Waiting on `[data-testid="replayer"]` is **not** — Astro server-renders the Preact markup, so that element is in the HTML whether or not any JS ran.
+
+**A board spec must scroll the board into view before waiting on it.** The island is `client:visible`; on the phone projects the board starts below the fold and legitimately never hydrates until scrolled. The iPhone 13 project caught exactly this — 14 failures that were the *application behaving correctly* and the spec being wrong. `openReplayer()` in `replayer.spec.ts` does the scroll; use it rather than hand-rolling a `goto`.
+
 ### WebKit on Windows is flaky — read this before debugging a WebKit failure
 
 The Windows WebKit build crashes under Playwright's default fan-out. With six
@@ -373,7 +459,11 @@ absorbed. A run reporting `N passed, 1 flaky` on WebKit is green.
 - Generated manifest carries the token theme colours and an installable icon set
 - `sw.js` mentions neither `stockfish` nor `.wasm`
 - No third-party requests when Umami is unconfigured
-- *(as they land)* the board never hydrates on an index page; `onlyMove: false` never reports a winning alternative as wrong
+- **No `astro-island` and no `cg-board` on any index page** — the one-board rule, enforced rather than trusted
+- The replayer: next/prev/jump/keyboard all move the highlight; **rapid** arrow presses drop nothing
+- Légal's mate ends in checkmate, in both locales — if the PGN or the parser drifts, this fails rather than teaching a wrong pattern
+- The WhatsApp share link is `wa.me` with **no recipient** (outbound-only rule)
+- *(as it lands)* `onlyMove: false` never reports a winning alternative as wrong
 
 ### Manual checklist before PR to `main`
 
@@ -397,12 +487,14 @@ absorbed. A run reporting `N passed, 1 flaky` on WebKit is green.
 - ✅ Content collections + Zod schemas, one placeholder entry each, chess-validity checker
 - ✅ PWA plumbing (generated manifest, Workbox precache, icons)
 - ✅ Playwright + axe-core foundation
-- Real content: first courses, first traps
+- ✅ First real trap (Légal's mate); courses still to write
 
 ### Phase 2 — The board
-- Decide the island framework (see the open decision above)
-- The one Chessground island + our token-driven board theme
-- Trap detail pages (step through the PGN with bilingual notes)
+- ✅ Preact island framework (`@astrojs/preact`), `client:visible`
+- ✅ The one Chessground island + our token-driven board theme
+- ✅ Replay mode: controls, keyboard, move list, per-ply commentary and arrows/circles
+- ✅ Trap detail pages + outbound WhatsApp share; first real trap (Légal's mate)
+- Course detail pages (per-locale Markdown bodies — see the content model)
 - Exercise detail pages + the validator (respecting `onlyMove`)
 - Stockfish, lazy-loaded, runtime-cached
 - `localStorage` progress
@@ -416,14 +508,16 @@ absorbed. A run reporting `N passed, 1 flaky` on WebKit is green.
 
 ## Open questions for Seàn
 
-- **Board island framework:** Preact (recommended, ~4 kB) or a hand-rolled custom element? Blocks Phase 2.
+- **⚠️ Chessground's GPL:** are we publishing this repository under the GPL? Shipping Chessground points that way (see "Third-party licences"). A "no" means swapping `BoardSurface.tsx` for a permissively-licensed or hand-rolled board — contained, but best decided before more is built on top.
+- **Credits page:** the cburnett piece set needs a visible **Colin M.L. Burnett / CC BY-SA 3.0** attribution. Where does it live — `/mentions-legales`, or the footer?
 - **Domain:** is `mogadorchess.ma` registered / registrable? `.ma` needs a Moroccan registrar and can require paperwork.
 - **WhatsApp number** — currently a placeholder (`+212 6 00 00 00 00`). Must be real before launch.
 - **Club email** — create one, or route to Seàn's inbox?
 - **Socials** — does the club have its own Instagram, or does it post through the association's account? A Lichess team for v2?
 - **Brand mark** — the current one is an explicit placeholder (a board in a brass frame). Commission a real one?
 - **Dar Souiri address** — what exact street line may be published?
-- **Lesson granularity** — is a course one page, or a course with N lesson pages? Drives the `cours` schema.
+- **Lesson granularity** — is a course one page, or a course with N lesson pages? The body format is settled (per-locale Markdown); the ordering model is not.
+- **`youtube` field** — now on `traps` and `cours` but nothing renders it. When it does: privacy-preserving facade (click-to-load, `youtube-nocookie`), or a plain iframe? A plain iframe sets third-party cookies on page load, which would break the "no third-party requests" test and the current privacy posture.
 - **Arabic / Darija** — a third locale is a real question in Essaouira. The i18n layer supports it structurally, but RTL would need design work. Worth it?
 
 ---

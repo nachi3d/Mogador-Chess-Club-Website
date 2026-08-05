@@ -4,31 +4,73 @@
   "slug": "legal",
   "eco": "C41",
   "level": "debutant",
-  "themes": ["sacrifice-de-dame", "mat", "developpement"],
-  "pgn": "1. e4 e5 2. Nf3 Nc6 3. Bc4 d6 4. Nc3 Bg4 5. Nxe5 Bxd1 6. Bxf7+ Ke7 7. Nd5#",
-  "notes": [
+  "themes": ["mat", "clouage", "ouverture"],
+  "pgn": "1. e4 e5 2. Nf3 d6 3. Bc4 Bg4 4. Nc3 g6 5. Nxe5 Bxd1 6. Bxf7+ Ke7 7. Nd5#",
+  "moveComments": [
+    {
+      "ply": 3,
+      "fr": "La défense Philidor. En jouant d6 plutôt que Cc6, les Noirs solidifient le pion e5 — mais ils ouvrent aussi la diagonale c8-h3 à leur fou de cases blanches.",
+      "en": "The Philidor Defence. By playing d6 rather than Nc6, Black props up the e5 pawn — but also opens the c8–h3 diagonal for the light-squared bishop."
+    },
+    {
+      "ply": 5,
+      "fr": "Le fou vient clouer le cavalier f3 contre la dame. Le clouage semble absolu : si le cavalier bouge, la dame tombe. C'est précisément ce que les Blancs veulent faire croire.",
+      "en": "The bishop pins the f3 knight against the queen. The pin looks absolute: move the knight and the queen falls. That is exactly what White wants Black to believe."
+    },
     {
       "ply": 7,
-      "text_fr": "Le clouage. Le fou en g4 semble immobiliser le cavalier f3 : s'il bouge, la dame tombe. C'est exactement ce que les Noirs croient.",
-      "text_en": "The pin. The bishop on g4 appears to freeze the f3 knight: if it moves, the queen falls. That is precisely what Black believes."
+      "fr": "Un coup lent. Les Noirs préparent le fianchetto au lieu de développer, et laissent aux Blancs le temps qu'il leur faut.",
+      "en": "A slow move. Black prepares a fianchetto instead of developing, and hands White the time needed."
     },
     {
       "ply": 8,
-      "text_fr": "Le sacrifice. Les Blancs jouent le cavalier quand même et offrent la dame — le clouage n'était qu'apparent.",
-      "text_en": "The sacrifice. White moves the knight anyway and offers the queen — the pin was only an illusion."
+      "fr": "Le cavalier part quand même, et offre la dame. Le clouage n'était qu'apparent : ce que les Blancs abandonnent en dame, ils le récupèrent en mat.",
+      "en": "The knight moves anyway, offering the queen. The pin was only an illusion: what White gives up in queen, White collects in mate."
     },
     {
       "ply": 9,
-      "text_fr": "L'erreur décisive. Prendre la dame perd sur-le-champ. 6...dxe5 était nécessaire : les Noirs restent avec une pièce de moins mais la partie continue.",
-      "text_en": "The losing move. Taking the queen loses on the spot. 6...dxe5 was necessary: Black stays a piece down but the game goes on."
+      "fr": "L'erreur décisive — et la seule qui perde. Il fallait jouer 5...dxe5 : après 6.Dxg4 les Noirs sont un pion de moins, mais bien vivants. Prendre la dame perd la partie en trois coups.",
+      "en": "The losing move — and the only one that loses. 5...dxe5 was correct: after 6.Qxg4 Black is a pawn down but perfectly alive. Taking the queen loses the game in three moves."
+    },
+    {
+      "ply": 10,
+      "fr": "Le fou se sacrifie sur la case la plus faible de la position. Le roi noir n'a pas roqué : il doit prendre ou avancer, et les deux le condamnent.",
+      "en": "The bishop lands on the weakest square in the position. The black king has not castled: it must take or step forward, and both lose."
+    },
+    {
+      "ply": 11,
+      "fr": "Le roi monte. Prendre en f7 perdait tout autant — mais désormais le roi est enfermé par ses propres pièces : la dame occupe d8, le fou occupe f8.",
+      "en": "The king steps up. Taking on f7 lost just as badly — but now the king is boxed in by its own pieces: the queen sits on d8, the bishop on f8."
     },
     {
       "ply": 12,
-      "text_fr": "Mat. Trois pièces mineures suffisent quand le roi adverse n'a pas bougé.",
-      "text_en": "Mate. Three minor pieces are enough when the enemy king has never moved."
+      "fr": "Mat. Trois pièces mineures suffisent : le cavalier d5 fait échec, le cavalier e5 couvre d7, le fou f7 couvre e6 et e8. La dame et le fou noirs bouchent eux-mêmes les deux dernières cases. Voilà pourquoi on développe avant de prendre du matériel.",
+      "en": "Mate. Three minor pieces are enough: the d5 knight gives check, the e5 knight covers d7, the f7 bishop covers e6 and e8. Black's own queen and bishop block the last two squares. This is why you develop before grabbing material."
     }
   ],
-  "summary_fr": "Un clouage qui n'en est pas un. Les Blancs offrent leur dame et matent avec trois pièces mineures — le piège le plus célèbre de l'histoire du jeu.",
-  "summary_en": "A pin that isn't one. White offers the queen and mates with three minor pieces — the most famous trap in the game's history.",
+  "shapes": [
+    {
+      "ply": 5,
+      "arrows": [["g4", "d1"]],
+      "circles": ["f3"]
+    },
+    {
+      "ply": 8,
+      "arrows": [["g4", "d1"]],
+      "circles": ["d1", "e5"]
+    },
+    {
+      "ply": 9,
+      "arrows": [["c4", "f7"]],
+      "circles": ["f7"]
+    },
+    {
+      "ply": 12,
+      "arrows": [["d5", "e7"]],
+      "circles": ["d5", "e5", "f7"]
+    }
+  ],
+  "summary_fr": "Les Noirs clouent le cavalier f3 et croient la dame blanche immobilisée. Elle ne l'est pas : les Blancs jouent le cavalier quand même, laissent prendre la dame, et matent deux coups plus tard avec trois pièces mineures. Le piège le plus célèbre du jeu — et une leçon sur le développement bien plus que sur la gourmandise.",
+  "summary_en": "Black pins the f3 knight and assumes the white queen is stuck. She isn't: White moves the knight anyway, lets the queen go, and mates two moves later with three minor pieces. The most famous trap in chess — and a lesson about development far more than about greed.",
   "draft": false
 }

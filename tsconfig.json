@@ -8,6 +8,10 @@
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,
     "verbatimModuleSyntax": true,
+    // Preact JSX. `jsxImportSource` keeps React out of the picture entirely —
+    // .tsx files compile against preact/jsx-runtime, not react/jsx-runtime.
+    "jsx": "react-jsx",
+    "jsxImportSource": "preact",
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],

@@ -51,16 +51,76 @@ for (const { file, data } of readCollection('traps')) {
 
   // RULE 1: commentary must live in frontmatter, never inside the PGN.
   if (data.pgn.includes('{') || data.pgn.includes('}')) {
-    fail(file, 'PGN contains {...} commentary — bilingual prose belongs in `notes` (see CLAUDE.md)');
+    fail(
+      file,
+      'PGN contains {...} commentary — bilingual prose belongs in `moveComments` (see CLAUDE.md)',
+    );
   }
 
-  for (const note of data.notes ?? []) {
-    if (note.ply >= plies) {
-      fail(file, `notes[].ply ${note.ply} is past the end of the game (${plies} plies)`);
+  /**
+   * Ply bounds. A comment or an arrow pointing past the end of the game is
+   * invisible in the replayer — it simply never fires. Silence is the worst
+   * failure mode for content: the author believes the note shipped.
+   * Numbering: ply 0 is the FIRST half-move. See src/lib/chess/replay.ts.
+   */
+  const checkPly = (value, where) => {
+    if (!Number.isInteger(value) || value < 0) {
+      fail(file, `${where} ply ${JSON.stringify(value)} is not a non-negative integer`);
+      return false;
+    }
+    if (value >= plies) {
+      fail(file, `${where} ply ${value} is past the end of the game (${plies} plies, 0-based)`);
+      return false;
+    }
+    return true;
+  };
+
+  const comments = data.moveComments ?? [];
+  for (const comment of comments) {
+    if (!checkPly(comment.ply, 'moveComments[].')) continue;
+    // A half-translated comment renders an empty box in one language only,
+    // which is exactly the kind of gap nobody notices until a reader reports it.
+    if (!comment.fr?.trim()) fail(file, `moveComments[ply ${comment.ply}].fr is empty`);
+    if (!comment.en?.trim()) fail(file, `moveComments[ply ${comment.ply}].en is empty`);
+  }
+
+  const shapes = data.shapes ?? [];
+  const board = new Chess();
+  const history = game.history({ verbose: true });
+
+  for (const shape of shapes) {
+    if (!checkPly(shape.ply, 'shapes[].')) continue;
+
+    /**
+     * Shapes are checked against the position the replayer actually DISPLAYS
+     * at this ply — the one *after* the move. This is the check that caught
+     * an arrow drawn f3→e5 at the ply where the knight had already left f3:
+     * the move highlight shows that move anyway, so the arrow was both wrong
+     * and redundant.
+     *
+     * An ARROW must start on a piece: an arrow means "this piece acts on that
+     * square", and one starting from thin air is an authoring mistake.
+     * A CIRCLE may sit on an empty square — marking a weak or key square
+     * (f7 before anything lands there, an escape square that is covered) is a
+     * normal teaching device, not an error.
+     */
+    board.load(history[shape.ply].after);
+
+    for (const [from, to] of shape.arrows ?? []) {
+      if (!board.get(from)) {
+        fail(
+          file,
+          `shapes[ply ${shape.ply}] arrow starts on empty square "${from}" ` +
+            '(shapes are drawn on the position AFTER this ply)',
+        );
+      }
+      if (from === to) fail(file, `shapes[ply ${shape.ply}] arrow "${from}" points at itself`);
     }
   }
 
-  console.log(`  ok  ${file} — ${plies} plies, ${(data.notes ?? []).length} note(s)`);
+  console.log(
+    `  ok  ${file} — ${plies} plies, ${comments.length} comment(s), ${shapes.length} shape group(s)`,
+  );
 }
 
 /* ─────────────────────────── exercices ─────────────────────────── */

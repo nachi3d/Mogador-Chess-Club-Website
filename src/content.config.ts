@@ -54,13 +54,57 @@ const uciMove = z
   .string()
   .regex(/^[a-h][1-8][a-h][1-8][qrbn]?$/, 'expected a UCI move such as "e2e4" or "e7e8q"');
 
-/** Bilingual commentary attached to a half-move index within the PGN. */
-const moveNote = z.object({
-  /** 0-based index into the game's half-move (ply) list. */
-  ply: z.number().int().nonnegative(),
-  text_fr: z.string(),
-  text_en: z.string(),
+/**
+ * A board square, e.g. "e4". Used by the arrow/circle overlays.
+ */
+const square = z.string().regex(/^[a-h][1-8]$/, 'expected a square such as "e4"');
+
+/**
+ * PLY NUMBERING — shared by `moveComments` and `shapes`, and matched exactly by
+ * `src/lib/chess/replay.ts`:
+ *   ply 0 = the FIRST half-move (1. e4)
+ *   ply 1 = the reply          (1... e5)
+ * `scripts/check-content.mjs` fails the check if a ply points past the end of
+ * its PGN, so a comment can never silently attach to nothing.
+ */
+const ply = z.number().int().nonnegative();
+
+/**
+ * Bilingual commentary attached to one half-move.
+ *
+ * RULE (see CLAUDE.md → PGN language rule): this is the ONLY place trap prose
+ * lives. The PGN itself stays standard, language-neutral notation with no
+ * `{...}` comments, because a PGN carries one language and this site ships two.
+ */
+const moveComment = z.object({
+  ply,
+  fr: z.string(),
+  en: z.string(),
 });
+
+/**
+ * Arrows and circles drawn on the board at a given ply, via Chessground's
+ * drawable API. Language-neutral by construction — a diagram needs no
+ * translation, which is exactly why the visual emphasis lives here rather than
+ * being described in prose twice.
+ */
+const plyShapes = z.object({
+  ply,
+  /** [from, to] pairs, e.g. [["f3","e5"]]. */
+  arrows: z.array(z.tuple([square, square])).optional(),
+  circles: z.array(square).optional(),
+});
+
+/**
+ * A YouTube video ID (not a URL) — e.g. "dQw4w9WgXcQ".
+ * Stored as an ID so the embed/privacy decision (nocookie domain, lazy
+ * facade, consent) is made once at render time and not baked into content.
+ * FIELD ONLY in this session; nothing renders it yet.
+ */
+const youtubeId = z
+  .string()
+  .regex(/^[A-Za-z0-9_-]{11}$/, 'expected an 11-character YouTube video ID, not a URL')
+  .optional();
 
 /* ────────────────────────────── traps ────────────────────────────── */
 
@@ -84,9 +128,12 @@ const traps = defineCollection({
      */
     pgn: z.string(),
     /** RULE 1 — the bilingual commentary, keyed to plies of the PGN above. */
-    notes: z.array(moveNote).default([]),
+    moveComments: z.array(moveComment).default([]),
+    /** Optional board annotations, keyed to the same plies. */
+    shapes: z.array(plyShapes).default([]),
     summary_fr: z.string(),
     summary_en: z.string(),
+    youtube: youtubeId,
     /** Hidden from the index without deleting the file. */
     draft: z.boolean().default(false),
   }),
@@ -95,11 +142,15 @@ const traps = defineCollection({
 /* ────────────────────────────── cours ────────────────────────────── */
 
 /**
- * Deliberately minimal: lesson ordering WITHIN a course is still an open
- * question (see CLAUDE.md → Open questions). Today a course is a single
- * ordered entry; when lessons become their own documents this grows a
- * `lessons` collection with a `reference('cours')` back-link rather than
- * being reshaped.
+ * Deliberately minimal, and staying that way for now.
+ *
+ * DECIDED (Session 2), NOT YET IMPLEMENTED: course long-form bodies will move
+ * to **per-locale Markdown pairs** — `les-bases.fr.md` / `les-bases.en.md` —
+ * rather than growing more `*_fr` / `*_en` frontmatter fields. A lesson is
+ * prose with headings, diagrams and lists; that is what Markdown is for, and
+ * one file per language keeps a body in exactly one language (the reason the
+ * rest of the content is JSON). This metadata block stays as the course index
+ * record. Do not add body fields here in the meantime.
  */
 const cours = defineCollection({
   loader: glob({ base: './src/content/cours', pattern: '**/*.{md,mdx,json}' }),
@@ -112,6 +163,7 @@ const cours = defineCollection({
     order: z.number().int().nonnegative(),
     summary_fr: z.string(),
     summary_en: z.string(),
+    youtube: youtubeId,
     draft: z.boolean().default(false),
   }),
 });

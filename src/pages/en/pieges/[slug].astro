@@ -1,0 +1,18 @@
+---
+// Route shell. All page content lives in @components/pages/TrapPage.astro,
+// shared by both locales — the two route files differ only by `locale`.
+import { getCollection } from 'astro:content';
+import type { GetStaticPaths } from 'astro';
+import TrapPage from '@components/pages/TrapPage.astro';
+
+export const getStaticPaths = (async () => {
+  const traps = await getCollection('traps', ({ data }) => !data.draft);
+  // Slugs are NOT translated — /en/pieges/legal/ mirrors /pieges/legal/ exactly,
+  // which is what lets the language switcher stay a pure prefix swap.
+  return traps.map((entry) => ({ params: { slug: entry.data.slug }, props: { entry } }));
+}) satisfies GetStaticPaths;
+
+const { entry } = Astro.props;
+---
+
+<TrapPage locale="en" entry={entry} />

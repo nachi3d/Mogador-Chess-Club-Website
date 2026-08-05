@@ -11,6 +11,80 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### [0.2.0] — The board
+
+Preact island, Chessground replayer, and the first real trap.
+
+#### Added
+
+**Board**
+- `@astrojs/preact` + `preact`, present solely so the board can hydrate with
+  `client:visible`; the board is the only hydrated component on the site
+- `src/lib/chess/replay.ts` — pure PGN → plies. No DOM, no Chessground, no Preact,
+  per the transport-agnostic rule
+- `src/components/board/BoardSurface.tsx` — the **only** file importing Chessground,
+  so the library is swappable in one place
+- `src/components/board/ChessBoard.tsx` — THE board island. `mode: replay` implemented;
+  `exercise` and `play` reserved and rendering a static position
+- Board theme from the tokens: a `repeating-conic-gradient` checker in the two real
+  board colours (the stock theme uses a black-at-20% overlay, which cannot produce
+  `--mcc-board-dark`), plus per-square-colour coordinate ink for AA
+
+**Replayer**
+- Start / prev / next / end controls, arrow keys, Home/End
+- Move list as an `<ol>` with the current move highlighted by fill and weight,
+  click to jump, auto-scrolled into view
+- Per-ply bilingual commentary in a polite live region, plus a checkmate flag
+- Per-ply arrows and circles via Chessground's drawable API, in brand brushes
+- Jumps render instantly; single steps animate (a nine-ply leap animates into
+  a meaningless scramble)
+
+**Content**
+- Schema: `moveComments[]{ply,fr,en}` (replaces `notes[]`), `shapes[]{ply,arrows,circles}`,
+  and an optional `youtube` video-ID field on `traps` and `cours` (field only, nothing
+  renders it yet)
+- Légal's mate written properly: the historical line, eight commentary plies, four
+  shape groups, and a summary that teaches development over greed
+- `check-content.mjs` now validates comment/shape ply bounds, empty translations, and
+  arrows starting from empty squares
+
+**Pages**
+- `/pieges/` cards gain theme chips and link to the detail page
+- `/pieges/[slug]/` in both locales — replayer, summary, outbound WhatsApp share,
+  OG title/description from the content
+
+#### Fixed
+
+- **Hydration mismatch in the move list.** `{n}.` server-renders as one text node;
+  Preact hydrated expecting two children and appended the missing `"."`, so move
+  numbers read `1..` in the browser and `1.` in the HTML.
+- **`client:visible` is now proved, not assumed.** A spec asserts that on a small
+  viewport the board markup is present but Chessground has *not* run, and that it
+  hydrates once scrolled to. Switching the island to `client:load` fails the suite.
+- **Rapid arrow presses dropped moves.** The keydown handler computed its target
+  from the closed-over cursor, so two presses in the same frame both resolved to the
+  same ply and the second was swallowed. Now a functional state update; the listener
+  binds once. Covered by a regression test.
+
+#### Decided (not implemented)
+
+- Course long-form bodies will be **per-locale Markdown pairs** (`x.fr.md` / `x.en.md`),
+  not more `*_fr` / `*_en` frontmatter fields. The JSON entry stays the index record.
+- **No in-app communication, ever** — no chat, comments, forum or reactions, and this
+  does not expire with v2's online play. The club teaches children; a message channel
+  would create moderation, safeguarding and data-protection duties a volunteer club
+  cannot staff. Sharing is outbound only.
+
+#### Notes
+
+- ⚠️ **Chessground is GPL-3.0-or-later.** Its README: *"When you use Chessground for
+  your website, your combined work may be distributed only under the GPL. You must
+  release your source code to the users of your website."* Flagged for Seàn's decision;
+  the dependency is contained to one file so a swap stays cheap. The cburnett piece set
+  is CC BY-SA 3.0 (Colin M.L. Burnett) and needs a visible credit.
+- The PGN is parsed at **build time**, so chess.js never enters the client bundle for
+  replay mode. Island total: **58.7 KB raw / 20.5 KB brotli**.
+
 ### [0.1.0] — Scaffold
 
 Foundation only: no real content, no interactive board yet.
