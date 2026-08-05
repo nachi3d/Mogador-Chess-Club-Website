@@ -12,6 +12,10 @@ export interface CardItem {
   readonly summary: string;
   readonly level: keyof typeof LEVEL_KEYS;
   readonly meta?: string | undefined;
+  /** When set, the whole card becomes a link to the detail page. */
+  readonly href?: string | undefined;
+  /** Free tags rendered as chips. Content vocabulary, not translated. */
+  readonly themes?: readonly string[] | undefined;
 }
 
 interface Props {
@@ -29,12 +33,31 @@ const { locale, items, emptyMessage } = Astro.props;
   ) : (
     <ul class="card-grid">
       {items.map((item) => (
-        <li class="card">
+        <li class:list={['card', { 'card-linked': item.href }]}>
           <div class="card-head">
-            <h2>{item.title}</h2>
+            <h2>
+              {/* The <a> wraps only the title, but is stretched over the whole
+                  card by CSS. That keeps ONE link per card in the a11y tree —
+                  wrapping the summary and chips too would make the accessible
+                  name a paragraph long. */}
+              {item.href ? (
+                <a class="card-link" href={item.href}>
+                  {item.title}
+                </a>
+              ) : (
+                item.title
+              )}
+            </h2>
             <LevelBadge locale={locale} level={item.level} />
           </div>
           <p class="card-summary">{item.summary}</p>
+          {item.themes && item.themes.length > 0 && (
+            <ul class="card-themes">
+              {item.themes.map((theme) => (
+                <li class="chip">{theme}</li>
+              ))}
+            </ul>
+          )}
           {item.meta && <p class="card-meta">{item.meta}</p>}
         </li>
       ))}
@@ -60,6 +83,46 @@ const { locale, items, emptyMessage } = Astro.props;
     box-shadow: var(--shadow-lift);
   }
 
+  /* Whole-card click target, single link in the a11y tree. */
+  .card-linked {
+    position: relative;
+    transition:
+      border-color var(--duration-fast) var(--ease-soft),
+      transform var(--duration-fast) var(--ease-soft);
+  }
+
+  .card-linked:hover {
+    border-color: var(--mcc-accent);
+    transform: translateY(-2px);
+  }
+
+  .card-link::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: var(--radius-card);
+  }
+
+  .card-link {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .card-link:hover {
+    text-decoration: underline;
+  }
+
+  /* The stretched pseudo-element carries no outline, so focus is drawn on the
+     card instead — otherwise a keyboard user sees a ring around nothing. */
+  .card-linked:focus-within {
+    outline: 2px solid var(--mcc-focus-ring);
+    outline-offset: 3px;
+  }
+
+  .card-link:focus-visible {
+    outline: none;
+  }
+
   .card-head {
     display: flex;
     align-items: flex-start;
@@ -79,6 +142,25 @@ const { locale, items, emptyMessage } = Astro.props;
     color: var(--mcc-text-secondary);
     font-size: 0.9375rem;
     line-height: 1.55;
+  }
+
+  .card-themes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin: 0.85rem 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .chip {
+    padding: 0.15rem 0.55rem;
+    background-color: var(--mcc-surface-sunken);
+    border: 1px solid var(--mcc-border-subtle);
+    border-radius: var(--radius-pill);
+    color: var(--mcc-text-secondary);
+    font-size: var(--text-2xs);
+    letter-spacing: 0.02em;
   }
 
   .card-meta {

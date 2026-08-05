@@ -67,3 +67,10 @@ export type Route = (typeof ROUTES)[number];
 
 /** Home in either locale. */
 export const homePath = (locale: Locale): string => localizePath('/', locale);
+
+/** A trap detail page in either locale. Slugs are content data, never translated. */
+export const trapPath = (slug: string, locale: Locale): string =>
+  localizePath(`/pieges/${slug}/`, locale);
+
+/** The traps index in either locale. */
+export const trapsPath = (locale: Locale): string => localizePath('/pieges/', locale);

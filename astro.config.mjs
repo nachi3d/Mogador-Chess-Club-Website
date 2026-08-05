@@ -1,8 +1,20 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
+import preact from '@astrojs/preact';
 
 // https://astro.build/config
 export default defineConfig({
+  /**
+   * Preact is here for EXACTLY ONE REASON: Astro's `client:*` directives only
+   * work on framework components, and the board island must hydrate lazily
+   * with `client:visible`. A plain `.astro` component cannot take that
+   * directive at all.
+   *
+   * It is not a licence to write the site in Preact. Everything that can be
+   * static HTML stays `.astro`; the ONLY hydrated component is the board.
+   * See CLAUDE.md → "Architecture rule — ONE board island".
+   */
+  integrations: [preact()],
   // TODO(domain): mogadorchess.ma is planned, not yet registered. Keep in sync
   // with `site.url` in src/config/site.ts.
   site: 'https://mogadorchess.ma',

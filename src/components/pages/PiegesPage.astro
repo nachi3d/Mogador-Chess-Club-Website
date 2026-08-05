@@ -1,6 +1,7 @@
 ---
 import { getCollection } from 'astro:content';
 import type { Locale } from '@config/site';
+import { trapPath } from '@i18n/paths';
 import { useTranslations } from '@i18n/ui';
 import BaseLayout from '@layouts/BaseLayout.astro';
 import PageIntro from '@components/PageIntro.astro';
@@ -21,6 +22,8 @@ const items: CardItem[] = entries.map(({ data }) => ({
   title: locale === 'fr' ? data.title_fr : data.title_en,
   summary: locale === 'fr' ? data.summary_fr : data.summary_en,
   level: data.level,
+  themes: data.themes,
+  href: trapPath(data.slug, locale),
   // ECO is language-neutral notation — shown as-is in both locales.
   meta: data.eco,
 }));
@@ -28,5 +31,7 @@ const items: CardItem[] = entries.map(({ data }) => ({
 
 <BaseLayout locale={locale} title={t('traps.title')} description={t('traps.intro')}>
   <PageIntro title={t('traps.title')} intro={t('traps.intro')} />
+  {/* No board here. The replayer lives on the detail route — an index never
+      mounts a board (CLAUDE.md → ONE board island). */}
   <CardGrid locale={locale} items={items} emptyMessage={t('agenda.empty')} />
 </BaseLayout>
