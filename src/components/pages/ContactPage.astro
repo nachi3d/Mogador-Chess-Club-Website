@@ -1,0 +1,112 @@
+---
+import type { Locale } from '@config/site';
+import { site, hasVenue, venueAddress, whatsappUrl, publishedSocials } from '@config/site';
+import { useTranslations } from '@i18n/ui';
+import BaseLayout from '@layouts/BaseLayout.astro';
+import PageIntro from '@components/PageIntro.astro';
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const t = useTranslations(locale);
+const address = venueAddress();
+---
+
+<BaseLayout locale={locale} title={t('contact.title')} description={t('contact.intro')}>
+  <PageIntro title={t('contact.title')} intro={t('contact.intro')} />
+
+  <div class="contact-blocks">
+    <section class="block">
+      <a class="btn-primary" href={whatsappUrl(locale)} rel="noopener noreferrer" target="_blank">
+        {t('contact.whatsapp')}
+      </a>
+      <p class="muted">{site.contact.whatsappDisplay}</p>
+      {
+        site.contact.email && (
+          <p>
+            <a href={`mailto:${site.contact.email}`}>{site.contact.email}</a>
+          </p>
+        )
+      }
+    </section>
+
+    {
+      hasVenue() && (
+        <section class="block">
+          <h2>{t('venue.heading')}</h2>
+          <p>{address ?? `${site.venue.city}, ${site.venue.country}`}</p>
+          {site.venue.mapUrl && (
+            <p>
+              <a href={site.venue.mapUrl} rel="noopener noreferrer" target="_blank">
+                {t('venue.map')}
+              </a>
+            </p>
+          )}
+        </section>
+      )
+    }
+
+    {
+      publishedSocials.length > 0 && (
+        <section class="block">
+          <h2>{site.association.name}</h2>
+          <ul class="socials">
+            {publishedSocials.map((s) => (
+              <li>
+                <a href={s.url} rel="noopener noreferrer" target="_blank">
+                  {s.label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )
+    }
+  </div>
+</BaseLayout>
+
+<style>
+  .contact-blocks {
+    display: grid;
+    gap: 2rem;
+    grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  }
+
+  .block h2 {
+    margin: 0 0 0.6rem;
+    font-size: 1.0625rem;
+  }
+
+  .block p {
+    margin: 0 0 0.4rem;
+  }
+
+  .btn-primary {
+    display: inline-block;
+    margin-bottom: 0.75rem;
+    padding: 0.7rem 1.4rem;
+    background-color: var(--mcc-primary);
+    color: var(--mcc-primary-contrast);
+    border-radius: var(--radius-card);
+    font-weight: 500;
+    text-decoration: none;
+  }
+
+  .btn-primary:hover {
+    background-color: var(--mcc-primary-hover);
+  }
+
+  .muted {
+    color: var(--mcc-text-secondary);
+    font-family: var(--font-notation);
+    font-size: 0.9375rem;
+  }
+
+  .socials {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+</style>

@@ -1,0 +1,30 @@
+---
+import { getCollection } from 'astro:content';
+import type { Locale } from '@config/site';
+import { useTranslations } from '@i18n/ui';
+import BaseLayout from '@layouts/BaseLayout.astro';
+import PageIntro from '@components/PageIntro.astro';
+import CardGrid, { type CardItem } from '@components/CardGrid.astro';
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const t = useTranslations(locale);
+
+const entries = (await getCollection('cours', ({ data }) => !data.draft)).sort(
+  (a, b) => a.data.order - b.data.order,
+);
+
+const items: CardItem[] = entries.map(({ data }) => ({
+  title: locale === 'fr' ? data.title_fr : data.title_en,
+  summary: locale === 'fr' ? data.summary_fr : data.summary_en,
+  level: data.level,
+}));
+---
+
+<BaseLayout locale={locale} title={t('courses.title')} description={t('courses.intro')}>
+  <PageIntro title={t('courses.title')} intro={t('courses.intro')} />
+  <CardGrid locale={locale} items={items} emptyMessage={t('agenda.empty')} />
+</BaseLayout>

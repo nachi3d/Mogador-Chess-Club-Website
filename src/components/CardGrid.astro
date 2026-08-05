@@ -1,0 +1,96 @@
+---
+/**
+ * Generic card grid used by the cours / pièges / exercices index pages.
+ * Skeleton — the cards are unstyled beyond the token palette. Real design later.
+ */
+import type { Locale } from '@config/site';
+import type { LEVEL_KEYS } from '@i18n/ui';
+import LevelBadge from '@components/LevelBadge.astro';
+
+export interface CardItem {
+  readonly title: string;
+  readonly summary: string;
+  readonly level: keyof typeof LEVEL_KEYS;
+  readonly meta?: string | undefined;
+}
+
+interface Props {
+  locale: Locale;
+  items: readonly CardItem[];
+  emptyMessage: string;
+}
+
+const { locale, items, emptyMessage } = Astro.props;
+---
+
+{
+  items.length === 0 ? (
+    <p class="empty">{emptyMessage}</p>
+  ) : (
+    <ul class="card-grid">
+      {items.map((item) => (
+        <li class="card">
+          <div class="card-head">
+            <h2>{item.title}</h2>
+            <LevelBadge locale={locale} level={item.level} />
+          </div>
+          <p class="card-summary">{item.summary}</p>
+          {item.meta && <p class="card-meta">{item.meta}</p>}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+<style>
+  .card-grid {
+    display: grid;
+    gap: 1.25rem;
+    grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .card {
+    padding: 1.25rem;
+    background-color: var(--mcc-surface-raised);
+    border: 1px solid var(--mcc-border-subtle);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-lift);
+  }
+
+  .card-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.6rem;
+  }
+
+  .card-head h2 {
+    margin: 0;
+    font-size: 1.125rem;
+    line-height: 1.25;
+  }
+
+  .card-summary {
+    margin: 0;
+    color: var(--mcc-text-secondary);
+    font-size: 0.9375rem;
+    line-height: 1.55;
+  }
+
+  .card-meta {
+    margin: 0.75rem 0 0;
+    color: var(--mcc-text-secondary);
+    font-family: var(--font-notation);
+    font-size: var(--text-2xs);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .empty {
+    color: var(--mcc-text-secondary);
+  }
+</style>
