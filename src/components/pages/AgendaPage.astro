@@ -1,0 +1,125 @@
+---
+import { getCollection } from 'astro:content';
+import type { Locale } from '@config/site';
+import { site } from '@config/site';
+import { useTranslations } from '@i18n/ui';
+import BaseLayout from '@layouts/BaseLayout.astro';
+import PageIntro from '@components/PageIntro.astro';
+import LevelBadge from '@components/LevelBadge.astro';
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const t = useTranslations(locale);
+
+const sessions = (await getCollection('agenda', ({ data }) => !data.draft)).sort(
+  (a, b) => a.data.date.getTime() - b.data.date.getTime(),
+);
+
+const dateFormat = new Intl.DateTimeFormat(locale === 'fr' ? 'fr-FR' : 'en-GB', {
+  weekday: 'long',
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
+});
+---
+
+<BaseLayout locale={locale} title={t('agenda.title')} description={t('agenda.intro')}>
+  <PageIntro title={t('agenda.title')} intro={t('agenda.intro')} />
+
+  {
+    sessions.length === 0 ? (
+      <p class="empty">{t('agenda.empty')}</p>
+    ) : (
+      <ul class="sessions">
+        {sessions.map(({ data }) => {
+          const note = locale === 'fr' ? data.note_fr : data.note_en;
+          // A session's own venue wins; otherwise fall back to site config.
+          // Nothing venue-related is hardcoded here.
+          const venue = data.venue ?? site.venue.name;
+          return (
+            <li class="session">
+              <div class="session-when">
+                <time datetime={data.date.toISOString().slice(0, 10)}>
+                  {dateFormat.format(data.date)}
+                </time>
+                <span class="session-time">{data.time}</span>
+              </div>
+              <div class="session-what">
+                <LevelBadge locale={locale} level={data.level} />
+                {venue && <p class="session-venue">{venue}</p>}
+                {note && <p class="session-note">{note}</p>}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    )
+  }
+</BaseLayout>
+
+<style>
+  .sessions {
+    display: grid;
+    gap: 1rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .session {
+    display: grid;
+    gap: 0.5rem 1.5rem;
+    padding: 1.25rem;
+    background-color: var(--mcc-surface-raised);
+    border: 1px solid var(--mcc-border-subtle);
+    border-left: 4px solid var(--mcc-primary);
+    border-radius: var(--radius-card);
+  }
+
+  @media (min-width: 640px) {
+    .session {
+      grid-template-columns: 16rem 1fr;
+      align-items: start;
+    }
+  }
+
+  .session-when {
+    font-family: var(--font-display);
+    font-size: 1.0625rem;
+    line-height: 1.35;
+  }
+
+  .session-when time {
+    display: block;
+    /* First letter of a French weekday is lowercase from Intl — a capital
+       reads better as a heading without changing the locale data. */
+    text-transform: capitalize;
+  }
+
+  .session-time {
+    display: block;
+    color: var(--mcc-text-secondary);
+    font-family: var(--font-notation);
+    font-size: 0.875rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .session-venue {
+    margin: 0.5rem 0 0;
+    font-weight: 500;
+  }
+
+  .session-note {
+    margin: 0.25rem 0 0;
+    color: var(--mcc-text-secondary);
+    font-size: 0.9375rem;
+    line-height: 1.55;
+  }
+
+  .empty {
+    color: var(--mcc-text-secondary);
+  }
+</style>

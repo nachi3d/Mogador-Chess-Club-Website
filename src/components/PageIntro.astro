@@ -1,0 +1,38 @@
+---
+/**
+ * The h1 + lede block every index page opens with. One component so the
+ * heading level and the lede width stay consistent across the six routes.
+ */
+interface Props {
+  title: string;
+  intro: string;
+}
+
+const { title, intro } = Astro.props;
+---
+
+<div class="page-intro">
+  <h1>{title}</h1>
+  <p class="lede">{intro}</p>
+</div>
+
+<style>
+  .page-intro {
+    margin-bottom: var(--mcc-section-gap);
+  }
+
+  .page-intro h1 {
+    margin: 0 0 0.75rem;
+    font-size: clamp(2rem, 5vw, 3rem);
+    line-height: 1.1;
+  }
+
+  .lede {
+    max-width: 46ch;
+    margin: 0;
+    color: var(--mcc-text-secondary);
+    font-size: 1.125rem;
+    line-height: 1.6;
+    text-wrap: pretty;
+  }
+</style>

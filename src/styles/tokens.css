@@ -1,0 +1,230 @@
+/* ============================================================
+   Mogador Chess Club — Design tokens
+   ------------------------------------------------------------
+   Source of record for palette, type, spacing and motion.
+   Components NEVER hardcode a colour or a font — they consume
+   the Tailwind utilities generated from the @theme block below,
+   or the semantic `--mcc-*` aliases in :root.
+
+   DIRECTION: "old chess club" — a wood-panelled room with a
+   green baize table, brass lamps and yellowing score sheets.
+   Classy and warm, deliberately unlike the other Labs projects
+   (Claraloha's ink-on-cream gallery, Baby Club's terracotta).
+
+     • green  — the baize. Primary, CTAs, header/footer.
+     • cream  — the paper. Page background.
+     • brass  — the lamp. Accent, focus, emphasis.
+     • wood   — the panelling. Secondary accent, board pieces.
+     • ink    — the pencil. Text.
+
+   EVERY pair rendered by the site is proved against WCAG AA by
+   `node scripts/check-contrast.mjs`. Re-run it after touching a
+   hex here — that script is the reason the two rules below are
+   stated as rules and not as folklore.
+   ============================================================ */
+
+@theme {
+  /* ---------- Colour: green (the baize) — PRIMARY ---------- */
+  --color-green-50: #eef3ef;
+  --color-green-100: #d7e4da;
+  --color-green-200: #b0c9b7;
+  --color-green-300: #82a98d; /* ≥4.5:1 on green-800 — muted text on dark surfaces */
+  --color-green-400: #558467;
+  --color-green-500: #37674b;
+  --color-green-600: #27523a;
+  --color-green-700: #1d4230; /* primary CTA fill — cream label at 11:1 */
+  --color-green-800: #163425; /* header / footer surface */
+  --color-green-900: #10261b;
+  --color-green-950: #0a170f;
+
+  /* ---------- Colour: cream (the paper) ---------- */
+  --color-cream-50: #fffdf7;
+  --color-cream-100: #faf4e6; /* page background */
+  --color-cream-200: #f3ead4;
+  --color-cream-300: #eaddbf;
+  --color-cream-400: #dccca7; /* subtle borders */
+
+  /* ---------- Colour: brass (the lamp) — ACCENT ---------- */
+  /* See "Brass contrast rule" below before using any of these as text. */
+  --color-brass-100: #f6ecd2;
+  --color-brass-300: #d9bd77; /* the accent on DARK surfaces — 7.4:1 on green-800 */
+  --color-brass-500: #ab8534; /* fill only */
+  --color-brass-600: #8d6c26; /* fill + focus ring only — 4.45:1 as text, JUST under AA */
+  --color-brass-700: #6e5419; /* the accent AS TEXT on cream — 6.5:1 */
+  --color-brass-900: #42320d;
+
+  /* ---------- Colour: wood (the panelling) ---------- */
+  --color-wood-200: #e0c6ab;
+  --color-wood-400: #a17048; /* fill only — 3.9:1 as text */
+  --color-wood-600: #6f4a2c; /* wood AS TEXT on cream — 7.1:1 */
+  --color-wood-800: #422b19;
+
+  /* ---------- Colour: ink (the pencil) ---------- */
+  /* Warm-shifted neutrals so they sit with cream instead of fighting it. */
+  --color-ink-400: #8b8578; /* ≥3:1 on cream — control borders, non-text only */
+  --color-ink-500: #6d6759; /* ≥4.5:1 on cream — the floor for secondary text */
+  --color-ink-700: #3b372e;
+  --color-ink-900: #1e1b15; /* body text */
+  --color-ink-950: #14120e; /* headings */
+
+  /* ---------- Typography ---------- */
+  /* Fraunces: an old-style serif with real stroke contrast and a slightly
+     wonky, hand-cut warmth — a club sign painted in 1953, not a fashion
+     masthead. Inter carries the body, where notation and long lesson prose
+     need to stay boring and legible. Both self-hosted via fontsource
+     (no Google Fonts request, no third-party origin). */
+  --font-display: 'Fraunces Variable', Georgia, 'Times New Roman', serif;
+  --font-body: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  /* Move lists, PGN dumps and FEN strings — figures must align in columns. */
+  --font-notation: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
+
+  --text-2xs: 0.6875rem;
+
+  /* ---------- Motion ---------- */
+  /* A board should settle, not bounce. Piece movement is the only motion that
+     really matters here and it wants to feel weighted. */
+  --ease-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-soft: cubic-bezier(0.55, 0, 0.55, 0.2);
+  --duration-fast: 150ms;
+  --duration-base: 300ms;
+  --duration-slow: 600ms;
+
+  /* ---------- Radii & elevation ---------- */
+  --radius-card: 3px; /* club stationery, not a SaaS dashboard */
+  --radius-pill: 999px;
+
+  --shadow-lift: 0 1px 2px rgb(20 18 14 / 0.06), 0 10px 28px -12px rgb(20 18 14 / 0.18);
+  /* The board sits on the table — a tighter, heavier shadow than a card. */
+  --shadow-board: 0 2px 4px rgb(20 18 14 / 0.12), 0 18px 40px -18px rgb(20 18 14 / 0.35);
+}
+
+/* ============================================================
+   Semantic aliases — what components should reference when a
+   raw scale step would be the wrong abstraction.
+   ============================================================ */
+:root {
+  --mcc-surface-page: var(--color-cream-100);
+  --mcc-surface-raised: var(--color-cream-50);
+  --mcc-surface-sunken: var(--color-cream-200);
+  --mcc-surface-inverse: var(--color-green-800);
+
+  --mcc-text-primary: var(--color-ink-900);
+  --mcc-text-heading: var(--color-ink-950);
+  --mcc-text-secondary: var(--color-ink-500);
+  --mcc-text-inverse: var(--color-cream-100);
+  --mcc-text-on-inverse-muted: var(--color-green-300);
+
+  --mcc-border-subtle: var(--color-cream-400);
+  --mcc-border-strong: var(--color-ink-400);
+
+  /* Primary = the baize. CTA fill and its guaranteed-AA label. */
+  --mcc-primary: var(--color-green-700);
+  --mcc-primary-hover: var(--color-green-800);
+  --mcc-primary-contrast: var(--color-cream-50);
+
+  /* Accent = the brass lamp. Focus rings, small emphasis, active nav. */
+  --mcc-accent: var(--color-brass-600);
+  --mcc-accent-text: var(--color-brass-700); /* the deep variant — see rule below */
+  --mcc-accent-on-inverse: var(--color-brass-300);
+
+  --mcc-link: var(--color-green-700);
+  --mcc-focus-ring: var(--color-brass-600);
+  --mcc-focus-ring-inverse: var(--color-brass-300);
+
+  /* ---------- Board ---------- */
+  /* Harmonised with the palette rather than borrowed from a chess site:
+     the light square is a step off the page cream toward wood, the dark
+     square is the baize lifted until it separates cleanly from the light
+     square (4.1:1) while still reading as the same green family.
+     Coordinates take a DIFFERENT ink per square colour — see the board rule. */
+  --mcc-board-light: #e8dcbe;
+  --mcc-board-dark: #4f7053;
+  --mcc-board-light-ink: var(--color-ink-950); /* 13.7:1 */
+  --mcc-board-dark-ink: var(--color-cream-50); /* 5.5:1  */
+  --mcc-board-border: var(--color-wood-800); /* the frame around the squares */
+
+  /* Move / analysis overlays. Alpha so the square colour still reads through. */
+  --mcc-board-last-move: rgb(217 189 119 / 0.55); /* brass-300 wash */
+  --mcc-board-selected: rgb(110 84 25 / 0.4); /* brass-700 wash */
+  --mcc-board-check: rgb(159 60 45 / 0.55);
+  --mcc-board-hint: rgb(29 66 48 / 0.28); /* legal-move dots */
+
+  /* ---------- Level badges (débutant / intermédiaire / avancé) ---------- */
+  /* Fills, always with ink-950 or cream label — never used as text. */
+  --mcc-level-debutant: var(--color-green-300);
+  --mcc-level-intermediaire: var(--color-brass-300);
+  --mcc-level-avance: var(--color-wood-400);
+
+  /* ---------- Layout rhythm ---------- */
+  --mcc-container-max: 74rem;
+  --mcc-gutter: 1.25rem;
+  --mcc-section-gap: 4rem;
+  /* The board is the one element that must never be cramped or overscaled. */
+  --mcc-board-max: 34rem;
+}
+
+@media (min-width: 768px) {
+  :root {
+    --mcc-gutter: 2.5rem;
+    --mcc-section-gap: 6rem;
+  }
+}
+
+/* Motion accessibility — non-negotiable. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 1ms;
+    --duration-base: 1ms;
+    --duration-slow: 1ms;
+  }
+}
+
+/* ============================================================
+   BRASS CONTRAST RULE — global, unlayered override (gotcha)
+   ------------------------------------------------------------
+   Brass is a mid-tone metallic. It works as a FILL and as a
+   FOCUS RING, and fails as TEXT on cream:
+
+     brass-500 on cream-100 .... 3.12:1  ✗
+     brass-600 on cream-100 .... 4.45:1  ✗  (just under — the dangerous one)
+     brass-700 on cream-100 .... 6.50:1  ✓  ← the deep variant
+
+   So, exactly as Baby Club does with terracotta:
+
+     .text-brass   renders in brass-700, not the nominal accent.
+     .bg-brass-*   fills carry ink-950 labels, never white.
+
+   WHY THIS BITES: Tailwind v4 emits utilities inside the
+   `utilities` cascade layer, and UNLAYERED CSS ALWAYS BEATS
+   LAYERED CSS regardless of source order or specificity. So on
+   a `.bg-brass-500` element, a `text-white` utility silently
+   does nothing — it loses to the unlayered rule below. That is
+   intentional: it enforces AA app-wide with no per-component
+   vigilance. It is also non-obvious, hence this comment.
+
+   OPT OUT (rare — prefer the AA-safe default): use Tailwind's
+   important modifier, e.g. `text-cream-50!`, which emits
+   !important and beats the non-important unlayered rule. Do NOT
+   add a second unlayered `.bg-brass-500` rule.
+
+   Wood behaves the same way (wood-400 as text = 3.89:1), but
+   wood is never used as text in v1, so only the fill rule ships.
+   ============================================================ */
+.text-brass {
+  color: var(--color-brass-700);
+}
+
+.bg-brass-300,
+.bg-brass-500,
+.bg-brass-600 {
+  color: var(--color-ink-950);
+}
+
+.bg-wood-400 {
+  color: var(--color-ink-950);
+}
+
+.bg-wood-600,
+.bg-wood-800 {
+  color: var(--color-cream-100);
+}

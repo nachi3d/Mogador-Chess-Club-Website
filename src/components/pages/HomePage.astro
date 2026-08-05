@@ -1,0 +1,93 @@
+---
+import type { Locale } from '@config/site';
+import { site } from '@config/site';
+import { localizePath } from '@i18n/paths';
+import { useTranslations } from '@i18n/ui';
+import BaseLayout from '@layouts/BaseLayout.astro';
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const t = useTranslations(locale);
+---
+
+<BaseLayout locale={locale} title={t('home.title')}>
+  <section class="hero">
+    <p class="eyebrow">{site.venue.city}, {site.venue.country}</p>
+    <h1>{site.name}</h1>
+    <p class="lede">{t('home.intro')}</p>
+    <p class="actions">
+      <a class="btn btn-primary" href={localizePath('/cours/', locale)}>{t('home.cta.courses')}</a>
+      <a class="btn btn-ghost" href={localizePath('/pieges/', locale)}>{t('home.cta.traps')}</a>
+    </p>
+  </section>
+</BaseLayout>
+
+<style>
+  .hero {
+    max-width: 42ch;
+    padding-block: 2rem 1rem;
+  }
+
+  .eyebrow {
+    margin: 0 0 0.75rem;
+    /* brass-700, not the nominal accent — brass fails AA as text on cream.
+       See the brass contrast rule in tokens.css. */
+    color: var(--mcc-accent-text);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .hero h1 {
+    margin: 0 0 1rem;
+    font-size: clamp(2.5rem, 7vw, 4rem);
+    line-height: 1.05;
+  }
+
+  .lede {
+    margin: 0 0 2rem;
+    color: var(--mcc-text-secondary);
+    font-size: 1.1875rem;
+    line-height: 1.6;
+    text-wrap: pretty;
+  }
+
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin: 0;
+  }
+
+  .btn {
+    display: inline-block;
+    padding: 0.7rem 1.4rem;
+    border-radius: var(--radius-card);
+    font-weight: 500;
+    text-decoration: none;
+    transition: background-color var(--duration-fast) var(--ease-soft);
+  }
+
+  .btn-primary {
+    background-color: var(--mcc-primary);
+    color: var(--mcc-primary-contrast);
+    border: 1px solid var(--mcc-primary);
+  }
+
+  .btn-primary:hover {
+    background-color: var(--mcc-primary-hover);
+  }
+
+  .btn-ghost {
+    border: 1px solid var(--mcc-border-strong);
+    color: var(--mcc-link);
+  }
+
+  .btn-ghost:hover {
+    background-color: var(--mcc-surface-sunken);
+  }
+</style>

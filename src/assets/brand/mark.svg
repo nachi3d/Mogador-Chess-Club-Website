@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  PLACEHOLDER brand mark — a board in a brass frame.
+  Deliberately generic: it says "chess club" without pretending to be the
+  identity Seàn will eventually commission. Colours are taken straight from
+  src/styles/tokens.css (green-800 / board-light / board-dark / brass-300).
+  Replace this file and re-run `node scripts/build-icons.mjs`.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Mogador Chess Club">
+  <rect width="512" height="512" rx="96" fill="#163425"/>
+  <g>
+    <rect x="112" y="112" width="288" height="288" fill="#e8dcbe"/>
+    <g fill="#4f7053">
+      <rect x="112" y="112" width="72" height="72"/>
+      <rect x="256" y="112" width="72" height="72"/>
+      <rect x="184" y="184" width="72" height="72"/>
+      <rect x="328" y="184" width="72" height="72"/>
+      <rect x="112" y="256" width="72" height="72"/>
+      <rect x="256" y="256" width="72" height="72"/>
+      <rect x="184" y="328" width="72" height="72"/>
+      <rect x="328" y="328" width="72" height="72"/>
+    </g>
+  </g>
+  <rect x="104" y="104" width="304" height="304" fill="none" stroke="#d9bd77" stroke-width="16"/>
+</svg>

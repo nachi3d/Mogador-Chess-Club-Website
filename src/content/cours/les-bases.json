@@ -1,0 +1,10 @@
+{
+  "title_fr": "Les bases : le plateau et les pièces",
+  "title_en": "The basics: the board and the pieces",
+  "slug": "les-bases",
+  "level": "debutant",
+  "order": 1,
+  "summary_fr": "Comment se place l'échiquier, comment bouge chaque pièce, et les trois règles que tout le monde oublie : le roque, la prise en passant et la promotion.",
+  "summary_en": "How the board is set up, how each piece moves, and the three rules everybody forgets: castling, en passant and promotion.",
+  "draft": false
+}
