@@ -1,0 +1,489 @@
+---
+/**
+ * `/parametres/` — appearance settings, in both locales.
+ *
+ * ── NOT AN ISLAND, on purpose ──────────────────────────────────────────────
+ * CLAUDE.md: the board is the only hydrated component on the site. This page
+ * is native form controls — radios and two `<input type="color">` — wired up by
+ * a plain `<script>`, exactly as the solved-ticks on `/exercices/` are. A
+ * Preact island here would buy nothing: there is no shared state, no rendering
+ * loop, and the browser already implements every control.
+ *
+ * Everything is server-rendered and labelled before the script runs, so the
+ * page is readable (if inert) without JS. The `noscript` note says so.
+ *
+ * ── The previews are the real thing ────────────────────────────────────────
+ * Each preset tile carries the SAME `.board-<id>` class that the theme script
+ * puts on `<html>`, so the swatch is painted by the rule that will paint the
+ * board. No second copy of the colours, and a preset that looks wrong here
+ * looks wrong there too.
+ */
+import type { Locale } from '@config/site';
+import { BOARD_THEMES, boardThemeClass } from '@config/board-themes';
+import { useTranslations } from '@i18n/ui';
+import BaseLayout from '@layouts/BaseLayout.astro';
+import PageIntro from '@components/PageIntro.astro';
+import MiniBoard from '@components/MiniBoard.astro';
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const t = useTranslations(locale);
+
+const MODES = [
+  { id: 'light', label: t('settings.mode.light') },
+  { id: 'dark', label: t('settings.mode.dark') },
+  { id: 'system', label: t('settings.mode.system') },
+] as const;
+---
+
+<BaseLayout locale={locale} title={t('settings.title')} description={t('settings.intro')}>
+  <PageIntro title={t('settings.title')} intro={t('settings.intro')} />
+
+  <noscript>
+    <p class="settings-noscript">{t('settings.noJs')}</p>
+  </noscript>
+
+  <div class="settings">
+    {/* ── Mode ─────────────────────────────────────────────────────────── */}
+    <section>
+      <fieldset class="settings-fieldset">
+        <legend>{t('settings.mode.heading')}</legend>
+        <div class="settings-options">
+          {
+            MODES.map((mode) => (
+              <label class="settings-option">
+                <input type="radio" name="mcc-mode" value={mode.id} data-mode-input />
+                <span>{mode.label}</span>
+              </label>
+            ))
+          }
+        </div>
+        <p class="settings-hint">{t('settings.mode.systemHint')}</p>
+      </fieldset>
+    </section>
+
+    {/* ── Board presets ────────────────────────────────────────────────── */}
+    <section>
+      <fieldset class="settings-fieldset">
+        <legend>{t('settings.board.heading')}</legend>
+        <p class="settings-hint">{t('settings.board.hint')}</p>
+        <div class="settings-boards">
+          {
+            BOARD_THEMES.map((theme) => (
+              <label class="settings-board" data-board-label={theme.id}>
+                <input type="radio" name="mcc-board" value={theme.id} data-board-input />
+                <span class="settings-board-inner">
+                  {/* The preset's own class — the swatch IS the board. */}
+                  <MiniBoard class={boardThemeClass(theme.id)} />
+                  <span class="settings-board-name">{t(theme.labelKey)}</span>
+                </span>
+              </label>
+            ))
+          }
+        </div>
+      </fieldset>
+    </section>
+
+    {/* ── Custom colours ───────────────────────────────────────────────── */}
+    <section>
+      <fieldset class="settings-fieldset">
+        <legend>{t('settings.custom.heading')}</legend>
+        <p class="settings-hint">{t('settings.custom.hint')}</p>
+
+        <div class="settings-custom">
+          <div class="settings-pickers">
+            <label class="settings-picker">
+              <span>{t('settings.custom.light')}</span>
+              <input type="color" value="#e8dcbe" data-custom-light />
+            </label>
+            <label class="settings-picker">
+              <span>{t('settings.custom.dark')}</span>
+              <input type="color" value="#4f7053" data-custom-dark />
+            </label>
+          </div>
+
+          {/* Live preview of the reader's own pair, painted from inline
+              properties the script sets — the same mechanism as the real board. */}
+          <MiniBoard class="settings-custom-preview" testid="custom-preview" />
+        </div>
+
+        {/* Live contrast readout. Numbers, not just a verdict: someone nudging
+            a colour can see which direction helps. */}
+        <p class="settings-contrast" data-contrast-readout>
+          <span>{t('settings.custom.contrast')}</span>
+          <span class="settings-ratio" data-ratio-light>—</span>
+          <span class="settings-ratio" data-ratio-dark>—</span>
+        </p>
+
+        {/* Always in the DOM, empty when fine: an inserted `role="alert"`
+            announces unreliably, and a reserved line stops the buttons jumping. */}
+        <div class="settings-warning" role="alert" data-contrast-warning hidden>
+          <strong>{t('settings.warning.low')}</strong>
+          <span>{t('settings.warning.detail')}</span>
+        </div>
+
+        <div class="settings-actions">
+          <button type="button" class="settings-button is-primary" data-custom-apply>
+            {t('settings.custom.apply')}
+          </button>
+          <button type="button" class="settings-button" data-custom-reset>
+            {t('settings.custom.reset')}
+          </button>
+        </div>
+      </fieldset>
+    </section>
+  </div>
+
+  {/* Polite: a setting applying is a confirmation, not an interruption.
+      The confirmation TEXT rides on a data attribute so the script stays free
+      of hardcoded FR/EN — every user-facing string goes through the i18n
+      layer, including the ones only JavaScript ever shows. */}
+  <p
+    class="sr-only"
+    role="status"
+    aria-live="polite"
+    data-settings-status
+    data-saved={t('settings.saved')}
+  >
+  </p>
+</BaseLayout>
+
+<script>
+  import {
+    AA_TEXT,
+    applyTheme,
+    bestInkFor,
+    clearCustomBoard,
+    normaliseHex,
+    readTheme,
+    writeTheme,
+    type ThemeMode,
+  } from '@lib/theme';
+  import { isBoardThemeId } from '@config/board-themes';
+
+  const root = document.documentElement;
+  const status = document.querySelector<HTMLElement>('[data-settings-status]');
+  /** Supplied by the server so no user-facing string is written in JS. */
+  const SAVED = status?.dataset['saved'] ?? '';
+
+  /** Announce politely. The visual change is its own feedback for most readers. */
+  const announce = () => {
+    if (status) status.textContent = SAVED;
+  };
+
+  const modeInputs = [...document.querySelectorAll<HTMLInputElement>('[data-mode-input]')];
+  const boardInputs = [...document.querySelectorAll<HTMLInputElement>('[data-board-input]')];
+  const lightPicker = document.querySelector<HTMLInputElement>('[data-custom-light]');
+  const darkPicker = document.querySelector<HTMLInputElement>('[data-custom-dark]');
+  const preview = document.querySelector<HTMLElement>('[data-testid="custom-preview"]');
+  const ratioLight = document.querySelector<HTMLElement>('[data-ratio-light]');
+  const ratioDark = document.querySelector<HTMLElement>('[data-ratio-dark]');
+  const warning = document.querySelector<HTMLElement>('[data-contrast-warning]');
+  const applyButton = document.querySelector<HTMLButtonElement>('[data-custom-apply]');
+  const resetButton = document.querySelector<HTMLButtonElement>('[data-custom-reset]');
+
+  /** Paint the reader's candidate pair onto the little preview board. */
+  function paintPreview(light: string, dark: string) {
+    if (!preview) return;
+    preview.style.setProperty('--mcc-board-light', light);
+    preview.style.setProperty('--mcc-board-dark', dark);
+    preview.style.setProperty('--mcc-board-light-ink', bestInkFor(light).ink);
+    preview.style.setProperty('--mcc-board-dark-ink', bestInkFor(dark).ink);
+  }
+
+  /**
+   * Show the ratio for each square, and warn below AA.
+   *
+   * The reader is NOT blocked — it is their board. The warning simply stays
+   * while the colours are in use, here and as a badge in the header of this
+   * section, so an unreadable board is a choice rather than an accident.
+   */
+  function updateContrast(light: string, dark: string) {
+    const lightInk = bestInkFor(light);
+    const darkInk = bestInkFor(dark);
+    if (ratioLight) ratioLight.textContent = `${lightInk.ratio.toFixed(1)}:1`;
+    if (ratioDark) ratioDark.textContent = `${darkInk.ratio.toFixed(1)}:1`;
+
+    const poor = lightInk.ratio < AA_TEXT || darkInk.ratio < AA_TEXT;
+    ratioLight?.toggleAttribute('data-low', lightInk.ratio < AA_TEXT);
+    ratioDark?.toggleAttribute('data-low', darkInk.ratio < AA_TEXT);
+    if (warning) warning.hidden = !poor;
+    return poor;
+  }
+
+  function currentPickerPair(): { light: string; dark: string } {
+    const light = normaliseHex(lightPicker?.value) ?? '#e8dcbe';
+    const dark = normaliseHex(darkPicker?.value) ?? '#4f7053';
+    return { light, dark };
+  }
+
+  function refreshPickers() {
+    const { light, dark } = currentPickerPair();
+    paintPreview(light, dark);
+    updateContrast(light, dark);
+  }
+
+  /* ── Initial state, read once ─────────────────────────────────────────── */
+  const initial = readTheme();
+
+  for (const input of modeInputs) input.checked = input.value === initial.mode;
+  for (const input of boardInputs) input.checked = input.value === initial.boardTheme;
+  if (initial.custom) {
+    if (lightPicker) lightPicker.value = initial.custom.light;
+    if (darkPicker) darkPicker.value = initial.custom.dark;
+  }
+  refreshPickers();
+
+  /* ── Wiring ───────────────────────────────────────────────────────────── */
+  for (const input of modeInputs) {
+    input.addEventListener('change', () => {
+      if (!input.checked) return;
+      applyTheme(writeTheme({ mode: input.value as ThemeMode }), root);
+      announce();
+    });
+  }
+
+  for (const input of boardInputs) {
+    input.addEventListener('change', () => {
+      if (!input.checked || !isBoardThemeId(input.value)) return;
+      /* Choosing a preset DROPS the custom colours. The two cannot both be
+         "the board", and quietly leaving custom on top would make every tile
+         in this grid look broken while appearing to be selected. */
+      writeTheme({ boardTheme: input.value });
+      applyTheme(clearCustomBoard(), root);
+      announce();
+    });
+  }
+
+  for (const picker of [lightPicker, darkPicker]) {
+    picker?.addEventListener('input', refreshPickers);
+  }
+
+  applyButton?.addEventListener('click', () => {
+    const { light, dark } = currentPickerPair();
+    applyTheme(writeTheme({ custom: { light, dark } }), root);
+    updateContrast(light, dark);
+    announce();
+  });
+
+  resetButton?.addEventListener('click', () => {
+    applyTheme(clearCustomBoard(), root);
+    refreshPickers();
+    announce();
+  });
+</script>
+
+<style>
+  .settings {
+    display: grid;
+    gap: 2rem;
+    max-width: 44rem;
+  }
+
+  .settings-noscript {
+    max-width: 44rem;
+    margin-bottom: 1.5rem;
+    padding: 0.9rem 1rem;
+    background-color: var(--mcc-surface-sunken);
+    border-inline-start: 3px solid var(--mcc-accent);
+    border-radius: var(--radius-card);
+    font-size: 0.9375rem;
+  }
+
+  .settings-fieldset {
+    margin: 0;
+    padding: 1.1rem 1.2rem 1.3rem;
+    background-color: var(--mcc-surface-raised);
+    border: 1px solid var(--mcc-border-subtle);
+    border-radius: var(--radius-card);
+  }
+
+  .settings-fieldset legend {
+    padding-inline: 0.4rem;
+    color: var(--mcc-text-secondary);
+    font-family: var(--font-body);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .settings-hint {
+    margin: 0.35rem 0 0.9rem;
+    color: var(--mcc-text-secondary);
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+
+  .settings-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.5rem;
+  }
+
+  .settings-option {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    min-height: 2.75rem;
+    cursor: pointer;
+    font-size: 0.9375rem;
+  }
+
+  .settings-option input,
+  .settings-board input {
+    width: 1.15rem;
+    height: 1.15rem;
+    accent-color: var(--mcc-primary);
+    cursor: pointer;
+  }
+
+  /* ---------- Preset grid ---------- */
+  .settings-boards {
+    display: grid;
+    gap: 0.75rem;
+    grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr));
+  }
+
+  .settings-board {
+    cursor: pointer;
+  }
+
+  .settings-board-inner {
+    display: grid;
+    gap: 0.5rem;
+    justify-items: center;
+    padding: 0.6rem;
+    border: 1px solid var(--mcc-border-subtle);
+    border-radius: var(--radius-card);
+  }
+
+  .settings-board input:checked + .settings-board-inner {
+    border-color: var(--mcc-accent);
+    /* Not colour alone — the selected tile also gains a ring. */
+    box-shadow: 0 0 0 2px var(--mcc-accent);
+  }
+
+  .settings-board input {
+    /* Visually hidden but focusable, so the tile is the target and the ring
+       below shows where focus is. */
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .settings-board input:focus-visible + .settings-board-inner {
+    outline: 2px solid var(--mcc-focus-ring);
+    outline-offset: 3px;
+  }
+
+  .settings-board-name {
+    font-size: 0.875rem;
+  }
+
+  /* ---------- Custom ---------- */
+  .settings-custom {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 1.25rem;
+  }
+
+  .settings-pickers {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .settings-picker {
+    display: grid;
+    gap: 0.3rem;
+    font-size: 0.875rem;
+  }
+
+  .settings-picker input {
+    width: 4.5rem;
+    height: 2.75rem;
+    padding: 2px;
+    background-color: var(--mcc-surface-raised);
+    border: 1px solid var(--mcc-border-strong);
+    border-radius: var(--radius-card);
+    cursor: pointer;
+  }
+
+  .settings-contrast {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.5rem 0.9rem;
+    margin: 1rem 0 0;
+    color: var(--mcc-text-secondary);
+    font-size: 0.875rem;
+  }
+
+  .settings-ratio {
+    font-family: var(--font-notation);
+    font-variant-numeric: tabular-nums;
+    color: var(--mcc-text-primary);
+  }
+
+  .settings-ratio[data-low] {
+    color: var(--mcc-danger-text);
+    font-weight: 600;
+  }
+
+  .settings-warning {
+    display: grid;
+    gap: 0.25rem;
+    margin-top: 0.75rem;
+    padding: 0.75rem 0.9rem;
+    background-color: var(--mcc-surface-sunken);
+    border-inline-start: 3px solid var(--mcc-danger-text);
+    border-radius: var(--radius-card);
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+
+  .settings-warning strong {
+    color: var(--mcc-danger-text);
+  }
+
+  .settings-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 1rem;
+  }
+
+  .settings-button {
+    min-height: 2.75rem;
+    padding: 0.6rem 1.1rem;
+    background-color: var(--mcc-surface-raised);
+    color: var(--mcc-text-primary);
+    border: 1px solid var(--mcc-border-strong);
+    border-radius: var(--radius-card);
+    font: inherit;
+    font-size: 0.9375rem;
+    cursor: pointer;
+  }
+
+  .settings-button.is-primary {
+    background-color: var(--mcc-primary);
+    color: var(--mcc-primary-contrast);
+    border-color: var(--mcc-primary);
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+</style>

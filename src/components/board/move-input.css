@@ -50,7 +50,7 @@
 }
 
 .mcc-move-input-field[aria-invalid='true'] {
-  border-color: var(--color-wood-600);
+  border-color: var(--mcc-danger-text);
   /* Not colour alone: the border thickens, and the message below says why. */
   border-width: 2px;
 }
@@ -94,7 +94,7 @@
 .mcc-move-input-error {
   min-height: 1.25rem;
   margin: 0;
-  color: var(--color-wood-600);
+  color: var(--mcc-danger-text);
   font-size: 0.8125rem;
   font-weight: 600;
   line-height: 1.25;

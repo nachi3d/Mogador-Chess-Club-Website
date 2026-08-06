@@ -9,6 +9,7 @@ import { site } from '@config/site';
 import { localizePath, stripLocale } from '@i18n/paths';
 import { NAV_ITEMS, useTranslations } from '@i18n/ui';
 import LangSwitcher from '@components/LangSwitcher.astro';
+import ThemeToggle from '@components/ThemeToggle.astro';
 
 interface Props {
   locale: Locale;
@@ -49,13 +50,16 @@ const current = stripLocale(pathname);
       </ul>
     </nav>
 
-    <LangSwitcher locale={locale} pathname={pathname} />
+    <div class="header-tools">
+      <ThemeToggle locale={locale} />
+      <LangSwitcher locale={locale} pathname={pathname} />
+    </div>
   </div>
 </header>
 
 <style>
   .site-header {
-    border-bottom: 1px solid var(--color-green-900);
+    border-bottom: 1px solid var(--mcc-border-on-inverse);
   }
 
   .header-inner {
@@ -84,6 +88,12 @@ const current = stripLocale(pathname);
     font-size: 1.125rem;
     font-weight: 600;
     letter-spacing: -0.01em;
+  }
+
+  .header-tools {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
   }
 
   .site-nav ul {

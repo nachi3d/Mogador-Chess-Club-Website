@@ -148,6 +148,44 @@ const fr = {
   'level.avance': 'Avancé',
   'level.label': 'Niveau',
 
+  'settings.title': 'Paramètres',
+  'settings.intro':
+    "L'apparence du site et de l'échiquier. Tout est enregistré sur cet appareil uniquement — rien n'est envoyé nulle part.",
+  'settings.mode.heading': 'Apparence',
+  'settings.mode.light': 'Clair',
+  'settings.mode.dark': 'Sombre',
+  'settings.mode.system': 'Comme le système',
+  'settings.mode.systemHint': "Suit le réglage de votre téléphone ou de votre ordinateur.",
+  'settings.board.heading': "Échiquier",
+  'settings.board.hint': 'Choisissez un damier. Les coordonnées restent lisibles sur chacun.',
+  'settings.custom.heading': 'Vos propres couleurs',
+  'settings.custom.hint':
+    "Choisissez les deux couleurs des cases. La couleur des coordonnées est calculée automatiquement pour rester la plus lisible possible.",
+  'settings.custom.light': 'Cases claires',
+  'settings.custom.dark': 'Cases sombres',
+  'settings.custom.apply': 'Appliquer mes couleurs',
+  'settings.custom.reset': 'Revenir au damier choisi',
+  'settings.custom.active': 'Vos couleurs sont actives.',
+  'settings.custom.contrast': 'Contraste des coordonnées',
+  'settings.warning.low': 'Lisibilité réduite',
+  'settings.warning.detail':
+    "Les coordonnées passent sous le seuil de lisibilité recommandé (4,5:1) sur au moins une des deux couleurs. Vous pouvez les garder — l'avertissement restera affiché tant qu'elles sont actives.",
+  'settings.preview.label': 'Aperçu du damier',
+  'settings.saved': 'Réglage enregistré.',
+  'settings.noJs':
+    "Les réglages d'apparence ont besoin de JavaScript. Sans lui, le site s'affiche en thème clair et reste entièrement utilisable.",
+
+  'board.classique': 'Classique',
+  'board.bois': 'Bois',
+  'board.tournoi': 'Vert tournoi',
+  'board.bleu': 'Bleu',
+  'board.glace': 'Glace',
+
+  'theme.toggle': "Changer l'apparence",
+  'theme.now.light': 'Apparence : claire',
+  'theme.now.dark': 'Apparence : sombre',
+  'theme.now.system': 'Apparence : comme le système',
+
   'venue.heading': 'Où nous trouver',
   'venue.map': 'Voir sur la carte',
   'footer.credit': 'Site créé par',
@@ -324,6 +362,44 @@ const en: Record<keyof typeof fr, string> = {
   'level.intermediaire': 'Intermediate',
   'level.avance': 'Advanced',
   'level.label': 'Level',
+
+  'settings.title': 'Settings',
+  'settings.intro':
+    'How the site and the board look. Everything is saved on this device only — nothing is sent anywhere.',
+  'settings.mode.heading': 'Appearance',
+  'settings.mode.light': 'Light',
+  'settings.mode.dark': 'Dark',
+  'settings.mode.system': 'Match the system',
+  'settings.mode.systemHint': 'Follows the setting on your phone or computer.',
+  'settings.board.heading': 'Board',
+  'settings.board.hint': 'Pick a board. The coordinates stay legible on every one of them.',
+  'settings.custom.heading': 'Your own colours',
+  'settings.custom.hint':
+    'Choose the two square colours. The coordinate colour is worked out automatically to stay as legible as possible.',
+  'settings.custom.light': 'Light squares',
+  'settings.custom.dark': 'Dark squares',
+  'settings.custom.apply': 'Use my colours',
+  'settings.custom.reset': 'Back to the chosen board',
+  'settings.custom.active': 'Your colours are in use.',
+  'settings.custom.contrast': 'Coordinate contrast',
+  'settings.warning.low': 'Reduced legibility',
+  'settings.warning.detail':
+    'The coordinates fall below the recommended legibility threshold (4.5:1) on at least one of the two colours. You may keep them — this warning will stay while they are in use.',
+  'settings.preview.label': 'Board preview',
+  'settings.saved': 'Setting saved.',
+  'settings.noJs':
+    'Appearance settings need JavaScript. Without it the site renders in the light theme and stays fully usable.',
+
+  'board.classique': 'Classic',
+  'board.bois': 'Wood',
+  'board.tournoi': 'Tournament green',
+  'board.bleu': 'Blue',
+  'board.glace': 'Ice',
+
+  'theme.toggle': 'Change the appearance',
+  'theme.now.light': 'Appearance: light',
+  'theme.now.dark': 'Appearance: dark',
+  'theme.now.system': 'Appearance: match the system',
 
   'venue.heading': 'Where to find us',
   'venue.map': 'View on the map',

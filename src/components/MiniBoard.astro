@@ -1,0 +1,51 @@
+---
+/**
+ * A tiny static chessboard, in pure CSS.
+ *
+ * Used for the preset swatches and the custom-colour preview on
+ * `/parametres/`. It is NOT Chessground and must never become it: the settings
+ * page shows six boards at once, and six hydrated islands to preview a colour
+ * would be absurd — as well as breaking the one-board-island rule outright.
+ *
+ * It paints itself from `--mcc-board-light` / `--mcc-board-dark` using the same
+ * `repeating-conic-gradient` checker as the real board (`board.css`), so a
+ * swatch and the board it previews cannot disagree. Give it a `.board-<id>`
+ * class to show a preset, or set the properties inline to show anything else.
+ *
+ * Decorative by construction: no pieces, no coordinates, no text. It carries
+ * `aria-hidden` because the accessible name lives on the control that wraps it.
+ */
+interface Props {
+  class?: string | undefined;
+  /** Optional test hook, for the custom preview. */
+  testid?: string | undefined;
+}
+
+const { class: className, testid } = Astro.props;
+---
+
+<span
+  class:list={['mini-board', className]}
+  aria-hidden="true"
+  {...(testid ? { 'data-testid': testid } : {})}
+></span>
+
+<style>
+  .mini-board {
+    display: block;
+    width: 100%;
+    max-width: 5.5rem;
+    aspect-ratio: 1 / 1;
+    border: 2px solid var(--mcc-board-border, var(--color-wood-800));
+    border-radius: 2px;
+    /* The same two-flat-colours checker as cg-board — an opacity overlay would
+       not reproduce the real dark square. See board.css. */
+    background-color: var(--mcc-board-light);
+    background-image: repeating-conic-gradient(
+      var(--mcc-board-dark) 0% 25%,
+      var(--mcc-board-light) 0% 50%
+    );
+    background-size: 25% 25%;
+    background-position: top left;
+  }
+</style>

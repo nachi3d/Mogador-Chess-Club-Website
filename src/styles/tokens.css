@@ -55,7 +55,12 @@
 
   /* ---------- Colour: wood (the panelling) ---------- */
   --color-wood-200: #e0c6ab;
-  --color-wood-400: #a17048; /* fill only — 3.9:1 as text */
+  /* Fill only — 3.5:1 as text, so still the deep-variant case.
+     ⚠️ Lightened from #a17048 in Session 5. At the old value the ink-950 label
+     on an "avancé" level badge sat at 4.39:1 — under AA, and unnoticed because
+     the contrast audit checked the brass fills but never the level fills. The
+     rewritten auditor checks every fill/label pair; this was its first catch. */
+  --color-wood-400: #a87850;
   --color-wood-600: #6f4a2c; /* wood AS TEXT on cream — 7.1:1 */
   --color-wood-800: #422b19;
 
@@ -132,11 +137,12 @@
   --mcc-focus-ring-inverse: var(--color-brass-300);
 
   /* ---------- Board ---------- */
-  /* Harmonised with the palette rather than borrowed from a chess site:
-     the light square is a step off the page cream toward wood, the dark
-     square is the baize lifted until it separates cleanly from the light
-     square (4.1:1) while still reading as the same green family.
-     Coordinates take a DIFFERENT ink per square colour — see the board rule. */
+  /* ⚠️ These four are DEFAULTS ONLY, and they are overridden on every page:
+     `src/styles/board-themes.css` sets them from the `.board-<id>` class the
+     theme script puts on <html>, and a reader's own colours override that
+     again as inline properties. They stay here so a board still renders if
+     the script never runs (JS off, or a failure before first paint).
+     The values match `.board-classique`, which is the default preset. */
   --mcc-board-light: #e8dcbe;
   --mcc-board-dark: #4f7053;
   --mcc-board-light-ink: var(--color-ink-950); /* 13.7:1 */
@@ -161,6 +167,88 @@
   --mcc-section-gap: 4rem;
   /* The board is the one element that must never be cramped or overscaled. */
   --mcc-board-max: 34rem;
+}
+
+/* ============================================================
+   DARK MODE — the club room at night, not a grey dark mode.
+   ------------------------------------------------------------
+   Same five materials, seen by lamplight: the baize goes almost
+   black but stays green, the paper becomes the only light in the
+   room (cream text rather than white), and the brass lamp gets
+   BRIGHTER because that is the thing still catching the light.
+   Wood keeps the board frame warm.
+
+   ⚠️ ONLY the `--mcc-*` semantic layer is overridden. The raw
+   `--color-*` scales above are the palette itself and never
+   change — which is exactly why a component that reaches past
+   the semantic layer for a raw scale step will NOT follow the
+   theme. If a colour must flip, it goes through an `--mcc-*`.
+
+   `:root[data-theme='dark']` and nothing else: the theme script
+   resolves `system` to a concrete light/dark before first paint,
+   so there is ONE dark block rather than the same declarations
+   duplicated into a `prefers-color-scheme` media query. The
+   trade is that theming needs JS — see CLAUDE.md → Theming.
+
+   Every pair below is proved by `node scripts/check-contrast.mjs`,
+   which runs the whole matrix against BOTH palettes.
+   ============================================================ */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --mcc-surface-page: #101a14; /* the room */
+  --mcc-surface-raised: #18261e; /* a card catching the lamp */
+  --mcc-surface-sunken: #0b120e; /* a recess */
+  --mcc-surface-inverse: #1b2c22; /* header/footer — LIFTED, not darker */
+
+  --mcc-text-primary: var(--color-cream-100); /* 16.2:1 */
+  --mcc-text-heading: var(--color-cream-50); /* 17.5:1 */
+  --mcc-text-secondary: #b3ab97; /*  7.8:1 — warm, like aged paper */
+  --mcc-text-inverse: var(--color-cream-100);
+  --mcc-text-on-inverse-muted: #9fb8a8; /*  6.9:1 on the header */
+
+  --mcc-border-subtle: #2b3c31;
+  --mcc-border-strong: #5a6b60; /*  3.1:1 — control borders are non-text */
+
+  /* The baize has to lift off an almost-black page: green-700 would be a
+     button-shaped hole. This clears 3:1 as a shape AND 5:1 for its label. */
+  --mcc-primary: #3a7a56;
+  --mcc-primary-hover: #46916a;
+  --mcc-primary-contrast: var(--color-cream-50);
+
+  /* Brass is the one thing that gets brighter at night. brass-600/700 are
+     mid-tones that vanish here, so the accent moves to the 300 step. */
+  --mcc-accent: var(--color-brass-300);
+  --mcc-accent-text: var(--color-brass-300); /*  9.7:1 */
+  --mcc-accent-on-inverse: var(--color-brass-300);
+
+  /* Green links disappear on a green-black page; the accent carries them. */
+  --mcc-link: #dcc180; /* 10.2:1 */
+  --mcc-focus-ring: var(--color-brass-300);
+  --mcc-focus-ring-inverse: var(--color-brass-300);
+
+  /* Board overlays. The same washes read weaker over a dark room, so the
+     move highlight and the legal-move dots are strengthened. */
+  --mcc-board-last-move: rgb(217 189 119 / 0.62);
+  --mcc-board-selected: rgb(217 189 119 / 0.38);
+  --mcc-board-check: rgb(224 139 122 / 0.6);
+  --mcc-board-hint: rgb(250 244 230 / 0.34);
+
+  /* Errors and warnings: wood-600 is unreadable here. */
+  --mcc-danger-text: #e08b7a; /*  6.9:1 */
+  /* The peak of the solve celebration, and the footer rule. */
+  --mcc-accent-strong: #f0d89b;
+  --mcc-border-on-inverse: #2b4436;
+}
+
+/* Light-mode values for the aliases introduced alongside dark mode. They live
+   in their own block because every one of them replaced a raw `--color-*`
+   reference in a component — the reason those components were stuck in one
+   palette. Anything that must follow the theme goes through `--mcc-*`. */
+:root {
+  --mcc-danger-text: var(--color-wood-600);
+  --mcc-accent-strong: var(--color-brass-500);
+  --mcc-border-on-inverse: var(--color-green-900);
 }
 
 @media (min-width: 768px) {
@@ -214,6 +302,26 @@
   color: var(--color-brass-700);
 }
 
+/*
+  IN DARK MODE THE RULE INVERTS. brass-700 is a deep mid-tone chosen to be
+  readable ON CREAM; against a green-black page it is nearly invisible (1.5:1).
+  The same reasoning that picks the deep variant in light picks the light
+  variant here — the rule is "brass as text takes whichever step clears AA
+  against the surface", and the surface changed.
+
+  Specificity: `:root[data-theme='dark'] .text-brass` (0,2,1) beats the
+  unlayered `.text-brass` (0,1,0), and both still beat any layered Tailwind
+  utility. The app-wide AA guarantee holds in both palettes.
+*/
+:root[data-theme='dark'] .text-brass {
+  color: var(--color-brass-300);
+}
+
+/*
+  FILLS DO NOT CHANGE, in either palette. A brass or wood fill is the same
+  colour at night, so its label is the same colour too — these rules are about
+  the pair, not about the page behind them. The level badges rely on this.
+*/
 .bg-brass-300,
 .bg-brass-500,
 .bg-brass-600 {

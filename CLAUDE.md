@@ -156,9 +156,11 @@ Every session that reaches a merge updates all three, in the same commit as the 
 7. **WhatsApp number correctness** — always via `whatsappUrl()` from `src/config/site.ts`, never hardcoded per page.
 8. **The GPL source link is in the footer of every page.** It is how the licence's distribution requirement is met, not decoration. See "Licence".
 9. **No third-party request without an explicit reader click.** See the rule below. The engine obeys the same rule for its own 3.6 MB.
-10. **`localStorage` never breaks the page.** Every access goes through `src/lib/progress.ts` and fails silent.
+10. **`localStorage` never breaks the page.** Every access goes through `src/lib/progress.ts` or `src/lib/theme.ts` and fails silent.
 11. **Every board is playable without a pointer.** `MoveInput` feeds the same path as a drag; see "Both inputs, one path".
 12. **Code and content are licensed separately.** Substance vs structure — see "Licence".
+13. **Both palettes clear AA.** `check-contrast.mjs` runs light AND dark, plus every board preset, as the first step of the build.
+14. **No flash of the wrong theme.** The head script applies it before `<body>` exists; a spec proves it.
 
 ---
 
@@ -489,6 +491,7 @@ FR at the root, EN under `/en/...`. **Route segments are not translated** (`/en/
 | `/agenda/` | `/en/agenda/` | Sessions; venue falls back to site config |
 | `/contact/` | `/en/contact/` | WhatsApp CTA, venue, socials |
 | `/mentions-legales/` | `/en/mentions-legales/` | Legal notice + credits. **Footer only, not in the nav.** |
+| `/parametres/` | `/en/parametres/` | Appearance settings. Footer only; the header carries a quick toggle. |
 | `/manifest.webmanifest` | — | Generated from `src/config/site.ts` |
 
 Each route file is a two-line shell that renders a shared component from `src/components/pages/` with a `locale` prop, so the two locales cannot drift apart structurally.
@@ -517,7 +520,9 @@ Type: **Fraunces Variable** (display) + **Inter Variable** (body) + a system mon
 
 ### Contrast is proved, not eyeballed
 
-`node scripts/check-contrast.mjs` audits every rendered pair against WCAG AA and **exits non-zero on failure**. Run it after touching any hex. It also asserts that the pairs behind the deep-variant rules still fail — so a rule can never quietly become stale.
+`node scripts/check-contrast.mjs` audits every rendered pair against WCAG AA and **exits non-zero on failure**. It is the FIRST step of `npm run build`, so a regression stops the build before anything else is spent.
+
+It parses `tokens.css` and `board-themes.css` rather than keeping its own copy of the hexes, and runs the whole matrix against **both palettes** and **every board preset**. It also asserts that the pairs behind the deep-variant rules still fail — so a rule can never quietly become stale. See "Theming" for the details and for the pre-existing bug it caught.
 
 ### Brass contrast rule — global unlayered override (gotcha)
 
@@ -540,6 +545,65 @@ So, exactly as Baby Club does with terracotta:
 **Opt out** (rare — prefer the AA-safe default): Tailwind's important modifier, e.g. `text-cream-50!`. Do **not** add a second unlayered `.bg-brass-500` rule.
 
 Level badges follow the same logic: the three level colours are mid-tones, used as fills with `ink-950` labels, never as text.
+
+---
+
+## Theming — three tiers, one source of truth each
+
+`/parametres/` (+ `/en/parametres/`). Everything is device-local, in `localStorage`, under the same rules as progress.
+
+| Tier | What | Where the values live |
+|---|---|---|
+| 1 | Light / dark / system | `:root[data-theme='dark']` in `tokens.css` |
+| 2 | Five board presets | `.board-<id>` in `board-themes.css` |
+| 3 | The reader's own two square colours | inline properties on `<html>` |
+
+Each layer overrides the one above it by ordinary cascade — class beats `:root`, inline beats class. There is no specificity fight and no `!important`.
+
+### `src/lib/theme.ts` is the single migration point
+
+`mcc:theme:v1`, version in the key, guarded access, normalised field by field on read, silent on failure — the same file-for-file conventions as `src/lib/progress.ts`, for the same reasons. **Nothing else may touch `localStorage` or know the key.**
+
+A malformed record falls back to the defaults rather than to a half-applied theme: a custom pair with one valid colour is not a board, so it is discarded whole.
+
+### ⚠️ The head script duplicates `applyTheme()`, deliberately
+
+`BaseLayout.astro` carries an `is:inline` script that reads the stored theme and sets `data-theme`, the board class and any custom properties **before first paint**. It cannot import `src/lib/theme.ts` — that would reintroduce the module fetch it exists to avoid, and a dark-mode reader would get a white flash on every navigation.
+
+So the two must be kept in step by hand. `tests/e2e/theme.spec.ts` has a **no-flash test** that records the attribute at the moment `<body>` first appears; if the script is ever moved out of the head, made a module, or made async, that is what fails.
+
+The script also adds `js` to `<html>`, which is how the header toggle is revealed without a frame of visible-but-inert button, and re-applies on `astro:after-swap` so the theme cannot silently break on the commit that adds view transitions.
+
+### System mode is resolved in JS, so `data-theme` is always concrete
+
+`data-theme` only ever holds `light` or `dark` — `system` is resolved before it is written, and a `matchMedia` listener re-resolves it live. That keeps ONE dark block instead of the same thirty declarations duplicated into a `prefers-color-scheme` media query, which is the kind of duplication that drifts.
+
+**The trade: theming needs JavaScript.** Without it the site renders light and is fully usable; the toggle simply never appears. That is a deliberate choice, not an oversight — a no-JS dark mode costs a second copy of the whole palette.
+
+### Only the `--mcc-*` layer flips
+
+The raw `--color-*` scales are the palette and never change. **A component that reaches past the semantic layer for a raw scale step will not follow the theme** — that is exactly why `--mcc-danger-text`, `--mcc-accent-strong` and `--mcc-border-on-inverse` were added: each one replaced a hardcoded `var(--color-wood-600)` or similar that would have stayed light-mode-only at night.
+
+Fills are the exception and are correct as-is: a brass or wood fill is the same colour at night, so its ink label is too. That is why the unlayered `.bg-*` rules have no dark variant — but `.text-brass` does, because brass-700 was chosen to be readable on *cream* and is nearly invisible on a green-black page (2.5:1). The rule is "brass as text takes whichever step clears AA against the surface"; the surface changed.
+
+### Custom colours are board-only. DECIDED, v1.
+
+Two pickers: light square and dark square. **Site-wide custom colours are not offered and are not planned.** A reader choosing their own page and text colours would have to be validated pair by pair across every surface the site has, in both modes — and the failure mode is an unreadable site rather than an unusual board. The board is bounded: two colours, two derived inks, one thing to check.
+
+Coordinate inks are **derived, never chosen**: `bestInkFor()` picks whichever of the two inks clears the higher ratio against each square, exactly as the presets do explicitly. The settings page shows the resulting ratio live and warns below AA — and **lets the reader proceed**. It is their board; an unreadable one should be a choice rather than an accident, so the warning stays visible while the colours are in use.
+
+### The contrast audit parses the real CSS
+
+`scripts/check-contrast.mjs` no longer keeps its own copy of the palette. It reads `tokens.css` and `board-themes.css`, resolves the `var()` chains, and runs the full pair matrix against **both** palettes plus every board preset. Add a preset to the CSS and it is audited on the next build; there is no list to remember to update.
+
+It runs as the **first** step of `npm run build`, so a contrast regression fails the build before anything else is spent.
+
+Two things it does that are worth keeping:
+
+- It reads **all** blocks for a selector, not the first. `:root` is declared several times in `tokens.css`, as the cascade allows; reading only the first reported `--mcc-danger-text` as unresolved.
+- The colour maths is a **second, independent implementation** of the one in `theme.ts`. An auditor sharing its formula with the code it audits would agree with its own bugs.
+
+Its first run in this shape found a **real pre-existing bug**: the `ink-950` label on an "avancé" level badge sat at 4.39:1, under AA, because the old script checked the brass fills but never the level fills. `--color-wood-400` was lightened to fix it.
 
 ---
 
@@ -783,6 +847,10 @@ It is a **living document**: keep it in step with the site, in the same commit a
 - Course detail pages (per-locale Markdown bodies — see the content model)
 - **The engine-backed validator that finally lets `onlyMove: false` accept a winning alternative.** The engine is now here; this is the remaining half of the exercise-validation rule.
 
+**Theming** (Session 5)
+- ✅ Dark mode, five board presets, custom board colours, `/parametres/`
+- ✅ The contrast audit parses the real CSS and covers both palettes
+
 ### Phase 3 — Growth
 - Online play via room codes + Durable Objects (v2)
 - OG images per trap/exercise, sitemap/SEO
@@ -793,6 +861,8 @@ It is a **living document**: keep it in step with the site, in the same commit a
 ## Open questions for Seàn
 
 - ~~**The exercise board cannot be played with a keyboard.**~~ RESOLVED (Session 4) — `MoveInput` feeds the same judge path on both the exercise and play boards. See "Both inputs, one path".
+- **Custom colours are board-only, and that is a v1 decision rather than a limitation** — see Theming. If site-wide theming is ever wanted it needs a validation story first, not a second colour picker.
+- **The board does not change with light/dark**, by design. Worth a look on a real phone in a dark room: if Classique feels too bright at night, the answer is probably a sixth preset rather than coupling the two systems.
 - **Should the level presets show an Elo number?** They currently show names only. The vendored build has no `UCI_Elo`, so the design targets (~800 / ~1400 / ~2000) are hand-set `Skill Level` + depth and have never been measured. Printing a rating would be inventing a fact; measuring one properly means playing rated opposition. Names-only is the honest default until someone wants to do that work.
 - **Pass-and-play (2 players, 1 device)** was scoped as an optional bonus and **skipped**. It is not free from `PlayView`: no engine, no thinking state, a board that flips or does not, and a second result vocabulary ("White wins" rather than "you win"). It is a small separate mode, not a flag — worth doing deliberately if wanted.
 - **Promotion:** the pointer path auto-queens (and, in an exercise, adopts the expected move's piece when the squares match, so nobody is failed for an under-promotion they were never asked about). The **typed** path honours what you type — `e8=D` under-promotes correctly. So a keyboard player has strictly more control than a mouse user here, which is backwards. A picker on the pointer path would fix it; no current exercise promotes, and in a real game against the engine a queen is right ~99% of the time.

@@ -83,6 +83,9 @@ export const ROUTES = [
    * The visible link label IS translated ("Mentions légales" / "Legal notice").
    */
   '/mentions-legales/',
+  /** Appearance settings. Footer only, like the legal notice — and the same
+      no-translated-segments rule applies: `/en/parametres/`. */
+  '/parametres/',
 ] as const;
 export type Route = (typeof ROUTES)[number];
 
@@ -105,3 +108,6 @@ export const exercisesPath = (locale: Locale): string => localizePath('/exercice
 
 /** The legal notice in either locale. See the ROUTES note on the EN segment. */
 export const legalPath = (locale: Locale): string => localizePath('/mentions-legales/', locale);
+
+/** Appearance settings in either locale. */
+export const settingsPath = (locale: Locale): string => localizePath('/parametres/', locale);

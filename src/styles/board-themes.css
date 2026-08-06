@@ -1,0 +1,72 @@
+/* ============================================================
+   Board presets — THE source of the square colours.
+
+   One class per preset, applied to `:root` by the theme script
+   AND to each mini preview in the settings grid. One definition,
+   two uses: the swatch a reader picks from is painted by the
+   exact rule that will paint their board.
+
+   `src/config/board-themes.ts` carries only the ids and ordering.
+   `scripts/check-contrast.mjs` PARSES THIS FILE and fails the
+   build if any preset's coordinates drop below AA or its two
+   square colours stop separating. Add a preset here and it is
+   audited automatically; there is no list to remember to update.
+
+   ── THE TWO-INK RULE, stated per preset ──────────────────────
+   Coordinates are real text sitting ON a square, so each square
+   colour takes whichever ink clears the higher ratio against IT.
+   That is why some presets take ink on both squares and others
+   take cream on the dark one — it is derived from the colour,
+   not a house style. `bestInkFor()` in src/lib/theme.ts is the
+   same rule as a function, for the reader's own colours.
+
+   Values verified: see the ratios in each comment.
+   ============================================================ */
+
+/* Cream squares, baize green. The site's own tokens — the default, and the
+   pair every other part of the palette was designed around. */
+.board-classique {
+  --mcc-board-light: #e8dcbe;
+  --mcc-board-dark: #4f7053;
+  --mcc-board-light-ink: #14120e; /* 13.73 */
+  --mcc-board-dark-ink: #fffdf7; /*  5.47 */
+  --mcc-board-border: var(--color-wood-800);
+}
+
+/* The panelling of the club room. */
+.board-bois {
+  --mcc-board-light: #e6cfa8;
+  --mcc-board-dark: #8a5a34;
+  --mcc-board-light-ink: #14120e; /* 12.34 */
+  --mcc-board-dark-ink: #fffdf7; /*  5.75 */
+  --mcc-board-border: var(--color-wood-800);
+}
+
+/* A tournament hall: buff and green. Note BOTH squares take ink — the dark
+   square is light enough that cream would fail on it. */
+.board-tournoi {
+  --mcc-board-light: #eeeed2;
+  --mcc-board-dark: #6b8b4c;
+  --mcc-board-light-ink: #14120e; /* 15.85 */
+  --mcc-board-dark-ink: #14120e; /*  4.83 */
+  --mcc-board-border: #4a5f34;
+}
+
+/* Cool slate. */
+.board-bleu {
+  --mcc-board-light: #dbe4ec;
+  --mcc-board-dark: #456a8c;
+  --mcc-board-light-ink: #14120e; /* 14.54 */
+  --mcc-board-dark-ink: #fffdf7; /*  5.59 */
+  --mcc-board-border: #2f4a63;
+}
+
+/* Pale and high-key, for a bright room — and the easiest preset to read for
+   anyone who finds the darker boards heavy. */
+.board-glace {
+  --mcc-board-light: #eef3f7;
+  --mcc-board-dark: #6d8aa0;
+  --mcc-board-light-ink: #14120e; /* 16.75 */
+  --mcc-board-dark-ink: #14120e; /*  5.16 */
+  --mcc-board-border: #4c687c;
+}
