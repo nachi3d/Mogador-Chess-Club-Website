@@ -29,7 +29,7 @@ const items: CardItem[] = entries.map(({ data }) => ({
 }));
 ---
 
-<BaseLayout locale={locale} title={t('traps.title')} description={t('traps.intro')}>
+<BaseLayout locale={locale} title={t('traps.title')} description={t('traps.intro')} reveals>
   <PageIntro title={t('traps.title')} intro={t('traps.intro')} />
   {/* No board here. The replayer lives on the detail route — an index never
       mounts a board (CLAUDE.md → ONE board island). */}

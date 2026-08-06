@@ -39,9 +39,9 @@ const { locale, items, emptyMessage, solvedLabel } = Astro.props;
   items.length === 0 ? (
     <p class="empty">{emptyMessage}</p>
   ) : (
-    <ul class="card-grid">
+    <ul class="card-grid" data-reveal-stagger>
       {items.map((item) => (
-        <li class:list={['card', { 'card-linked': item.href }]}>
+        <li class:list={['card', { 'card-linked': item.href }]} data-reveal>
           <div class="card-head">
             <h2>
               {/* The <a> wraps only the title, but is stretched over the whole

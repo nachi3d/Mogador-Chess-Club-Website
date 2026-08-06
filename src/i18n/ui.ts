@@ -30,8 +30,21 @@ const fr = {
   'home.title': 'Mogador Chess Club',
   'home.intro':
     "Le club d'échecs d'Essaouira. Des cours progressifs, une bibliothèque de pièges d'ouverture, et des exercices pour s'entraîner — en français comme en anglais.",
-  'home.cta.courses': 'Commencer les cours',
-  'home.cta.traps': 'Explorer les pièges',
+  'home.cta.play': 'Jouer',
+  'home.cta.traps': 'Découvrir les pièges',
+
+  /* The three pillars. Order is the learning path, not the nav order:
+     you learn, then you drill, then you play. */
+  'home.pillars.title': 'Trois façons de progresser',
+  'home.pillar.learn.title': 'Apprendre',
+  'home.pillar.learn.text':
+    "Des leçons progressives, du déplacement des pièces jusqu'aux finales.",
+  'home.pillar.practise.title': "S'entraîner",
+  'home.pillar.practise.text':
+    'Des positions à résoudre sur un échiquier interactif, avec indice et solution.',
+  'home.pillar.play.title': 'Jouer',
+  'home.pillar.play.text':
+    "Une partie contre l'ordinateur, directement dans le navigateur. Trois niveaux.",
 
   'courses.title': 'Cours',
   'courses.intro': "Des leçons progressives, du premier déplacement de pièce à la finale de tours.",
@@ -253,8 +266,17 @@ const en: Record<keyof typeof fr, string> = {
   'home.title': 'Mogador Chess Club',
   'home.intro':
     "Essaouira's chess club. Progressive courses, an opening-trap library, and exercises to practise on — in English as well as French.",
-  'home.cta.courses': 'Start the courses',
-  'home.cta.traps': 'Explore the traps',
+  'home.cta.play': 'Play',
+  'home.cta.traps': 'Explore traps',
+
+  'home.pillars.title': 'Three ways to get better',
+  'home.pillar.learn.title': 'Learn',
+  'home.pillar.learn.text': 'Step-by-step lessons, from moving the pieces to endgames.',
+  'home.pillar.practise.title': 'Practise',
+  'home.pillar.practise.text':
+    'Positions to solve on an interactive board, with a hint and a solution.',
+  'home.pillar.play.title': 'Play',
+  'home.pillar.play.text': 'A game against the computer, right in your browser. Three levels.',
 
   'courses.title': 'Courses',
   'courses.intro': 'Step-by-step lessons, from your first piece move to rook endgames.',

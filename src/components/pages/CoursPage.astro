@@ -24,7 +24,7 @@ const items: CardItem[] = entries.map(({ data }) => ({
 }));
 ---
 
-<BaseLayout locale={locale} title={t('courses.title')} description={t('courses.intro')}>
+<BaseLayout locale={locale} title={t('courses.title')} description={t('courses.intro')} reveals>
   <PageIntro title={t('courses.title')} intro={t('courses.intro')} />
   <CardGrid locale={locale} items={items} emptyMessage={t('agenda.empty')} />
 </BaseLayout>

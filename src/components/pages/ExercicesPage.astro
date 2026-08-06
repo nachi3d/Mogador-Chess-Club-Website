@@ -31,7 +31,7 @@ const items: CardItem[] = entries.map(({ data }) => ({
 }));
 ---
 
-<BaseLayout locale={locale} title={t('exercises.title')} description={t('exercises.intro')}>
+<BaseLayout locale={locale} title={t('exercises.title')} description={t('exercises.intro')} reveals>
   <PageIntro title={t('exercises.title')} intro={t('exercises.intro')} />
   {/* NOTE: no board is mounted here. The single Chessground island is
       client:visible and belongs on the exercise DETAIL route, never on an

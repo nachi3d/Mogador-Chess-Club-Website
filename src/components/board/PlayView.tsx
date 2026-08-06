@@ -27,6 +27,7 @@
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import BoardSurface from './BoardSurface';
 import MoveInput, { type MoveInputLabels } from './MoveInput';
+import { delay, remainingFloorMs, thinkingFloorMs } from '@lib/motion';
 import type { MoveProvider } from '@lib/chess/opponent';
 import type { EngineLevel, LevelId } from '@lib/engine/stockfish';
 import type { MoveTextResult } from '@lib/chess/notation';
@@ -175,6 +176,13 @@ export default function PlayView(props: PlayViewProps) {
 
     const mine = generation.current;
     setThinking(true);
+
+    /* The apparent thinking time is a FLOOR, not an added wait — see motion.ts.
+       Fixed per move, before the search starts, so the randomisation cannot be
+       influenced by how long the engine happened to take. */
+    const startedAt = Date.now();
+    const floorMs = thinkingFloorMs();
+
     let uci: string | null = null;
     try {
       uci = await provider.nextMove(game.fen());
@@ -185,6 +193,22 @@ export default function PlayView(props: PlayViewProps) {
     }
     // Superseded by a new game, a resign, or an unmount.
     if (mine !== generation.current) return;
+
+    /* Hold the "thinking" state for whatever is left of the floor. At Débutant
+       the search returns in single-digit ms, so without this the reply lands in
+       the same frame as the reader's own move and reads as a glitch rather than
+       as an opponent. When the search outlasts the floor this is zero and the
+       move plays immediately. */
+    const remaining = remainingFloorMs(startedAt, floorMs);
+    if (remaining > 0) {
+      await delay(remaining);
+      /* Re-checked AFTER the wait, not only before it. A new game, a resign or
+         an unmount during the floor would otherwise drop the previous game's
+         move onto the new board — the same class of bug `generation` exists for,
+         reachable through a second await. */
+      if (mine !== generation.current) return;
+    }
+
     setThinking(false);
     if (!uci) return;
 
