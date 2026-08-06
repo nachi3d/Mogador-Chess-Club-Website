@@ -13,8 +13,8 @@ This file is the operational reference for working on this codebase with Claude 
 **Association:** Association Essaouira Mogador (`@associationessaouiramogador`), credited in the footer
 **Project root:** `N:\Nachi3D-Labs\Mogador-Chess-Club-Website`
 **Domain (planned):** `mogadorchess.ma` — not yet registered
-**Hosting:** Cloudflare Pages, fully static output
-**Staging:** Cloudflare Pages preview deployments on `dev`
+**Hosting:** Cloudflare Workers static assets, fully static output — see "Deployment"
+**Staging:** Cloudflare preview deployments on `dev`
 **Languages:** FR (default, at the root) + EN (under `/en/...`)
 
 **Footer credit:** "Site créé par [Nachi3D Labs](https://www.nachi3dlabs.com)" — same pattern as other Labs projects.
@@ -62,7 +62,7 @@ Anything that looks like an inbox belongs off-site: the club's own WhatsApp numb
 ## Stack overview
 
 - **Astro 7** + TypeScript strict — static-first, content collections for traps/courses/exercises
-  - `output: 'static'`. There is **no SSR and there are no Pages Functions.** That is why `wrangler` is not a dependency and why Playwright serves the build with `astro preview` rather than `wrangler pages dev` (Claraloha needs the latter because it has a Function; we deliberately do not).
+  - `output: 'static'`. There is **no SSR, no adapter and no server-side code at all.** That is why `wrangler` is not a dependency (it is invoked with `npx` at deploy time — see "Deployment") and why Playwright serves the build with `astro preview` rather than a wrangler dev server (Claraloha needs the latter because it has a Function; we deliberately do not).
   - Requires **Node ≥ 22.12** (declared in `package.json` `engines`).
   - Astro 7 runs **Vite 8** and a Rust compiler that rejects invalid/unclosed HTML instead of silently repairing it. Keep `.astro` markup well-formed.
 - **Tailwind v4** (`@tailwindcss/postcss`)
@@ -74,7 +74,7 @@ Anything that looks like an inbox belongs off-site: the club's own WhatsApp numb
   The board is the ONLY hydrated component on the site; everything else is static `.astro`.
 - **Stockfish** — Phase 2, **lazy-loaded, never precached**. See "Service worker".
 - **PWA** — generated manifest + Workbox precache.
-- **Cloudflare Pages** hosting + **Umami** analytics (env-driven; omitted entirely when unset).
+- **Cloudflare Workers** static-assets hosting (see "Deployment") + **Umami** analytics (env-driven; omitted entirely when unset).
 - **Playwright** + **axe-core** tests.
 
 ### Why static, and why no Supabase (v1)
@@ -627,7 +627,7 @@ The engine is a multi-megabyte WASM bundle that only the play-the-computer featu
 
 ## Generated assets
 
-Several scripts produce committed artefacts. **None of them run as part of `npm run build`** — they are run by hand when their input changes, and their outputs are versioned, so a Cloudflare Pages build needs no image toolchain and no extra step.
+Several scripts produce committed artefacts. **None of them run as part of `npm run build`** — they are run by hand when their input changes, and their outputs are versioned, so the CI build needs no image toolchain and no extra step.
 
 | Script | Produces | Re-run when |
 |---|---|---|
@@ -652,9 +652,74 @@ So `scripts/build-fonts.mjs` copies exactly the `latin` and `latin-ext` woff2 fi
 
 ---
 
+## Deployment — Cloudflare Workers static assets
+
+The site deploys as a **Workers static-assets** project. There is no Worker script,
+no adapter and no server-side code: `dist/` is uploaded and served directly.
+
+| | |
+|---|---|
+| Build command | `npm run build` |
+| Deploy command | `npx wrangler deploy` |
+| Output directory | `dist/` |
+| Config | `wrangler.jsonc` at the repo root |
+
+`wrangler.jsonc` declares `name`, `compatibility_date` and an `assets` block, and
+**nothing else**. There is deliberately no `main`: a Worker with `assets` and no
+entry script is served entirely by the assets runtime.
+
+### ⚠️ The config file exists to stop wrangler helping
+
+**With no config present, wrangler detects an Astro project and runs
+`astro add cloudflare`** — installing the `@astrojs/cloudflare` adapter on the fly.
+That adapter is incompatible with Astro 7 and is the wrong shape for a static site
+regardless, so the CI build fails, and it fails during *deploy* rather than during
+*build*, which is where nobody is looking.
+
+`wrangler.jsonc` is what prevents it. **Deleting or emptying it reintroduces the
+trap.** If a future session sees a deploy failure mentioning the Cloudflare adapter,
+check that this file still exists before debugging anything else.
+
+### `wrangler` stays out of `package.json`
+
+It is invoked through `npx` and is **not** a dependency. Session 1 removed it
+precisely to drop its transitive advisories (`undici` via `miniflare`), and a static
+site needs it only at deploy time — CI installs it on demand. Adding it back to
+`devDependencies` to "make the deploy reproducible" trades a real advisory tree for
+a convenience nobody needs; pin a version in the deploy command instead if pinning
+is ever wanted.
+
+For the same reason `wrangler.jsonc` carries no `$schema` key: the conventional
+value points into `node_modules/wrangler/`, which does not exist here.
+
+### `not_found_handling` tracks whether a 404 page exists
+
+Currently `"none"` — **there is no `src/pages/404.astro`**. When one lands, change
+this to `"404-page"` in the same commit, or a bad URL will keep returning a bare
+response while a perfectly good 404 page sits unused in `dist/`.
+
+### Verifying a config change without deploying
+
+```sh
+npx wrangler deploy --dry-run
+```
+
+Parses the config, walks `dist/` and exits without uploading. Expect `No bindings
+found` and a sub-kilobyte upload total — that figure is the assets-only Worker stub,
+not the site. Note its file count includes **directory entries**, so it reads higher
+than `find dist -type f | wc -l` (91 vs 62 at v0.1.0); that gap is normal and not a
+sign of a stale build.
+
+### The fix must reach `main` before the next production deploy
+
+Production deploys run from `main`. A deploy from a `main` that predates
+`wrangler.jsonc` will hit the auto-config trap again regardless of what `dev` holds.
+
+---
+
 ## Analytics
 
-Umami, env-driven. `PUBLIC_UMAMI_WEBSITE_ID` is read at build time from the Cloudflare Pages **build** variables. When unset the snippet is **omitted entirely** — no empty `<script>`, no request to umami.is. That is also why dev, CI and the Playwright run make no third-party network calls at all, which `tests/e2e/pwa.spec.ts` asserts.
+Umami, env-driven. `PUBLIC_UMAMI_WEBSITE_ID` is read at build time from the Cloudflare **build** variables. When unset the snippet is **omitted entirely** — no empty `<script>`, no request to umami.is. That is also why dev, CI and the Playwright run make no third-party network calls at all, which `tests/e2e/pwa.spec.ts` asserts.
 
 ---
 
