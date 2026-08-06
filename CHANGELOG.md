@@ -11,6 +11,92 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### [0.3.0] — GPL, and the exercise engine
+
+The licence question is answered, and the board learned to be answered back.
+
+#### Added
+
+**Licence & legal**
+- `LICENSE` — the verbatim GPL-3.0 text; `package.json` declares `GPL-3.0-or-later`
+- `/mentions-legales/` + `/en/mentions-legales/` — publisher, host, licence and source link,
+  the cburnett CC BY-SA credit in full, a credits table, and the privacy/third-party notes.
+  Every name and URL is data in `site.legal`; every sentence is a string in `ui.ts`, so the
+  notice cannot drift from the config it describes
+- **The GPL source link renders in the footer of every page**, not only on the legal notice —
+  the requirement is that the source reach *the users of the website*. `legal.spec.ts` asserts
+  it on four routes, so tidying it away fails the suite
+
+**Exercise engine** (`ChessBoard` mode `exercise`)
+- `src/lib/chess/exercise.ts` — pure position/verdict logic, and the **client-side chess.js
+  boundary**: `ExerciseView` pulls it in with `await import()`, so chess.js ships in its own
+  36 KB chunk that only an exercise page downloads. Replay stays chess.js-free
+- `BoardSurface` gained input — `interactive`, `movableColor`, `dests`, `onMove`, `revision` —
+  and is still the only file that imports Chessground
+- `ChessBoard.tsx` is now a dispatcher over `ReplayView` / `ExerciseView`. Two views, still one
+  island and one Chessground adapter
+- Drag or tap to move, legality from chess.js via Chessground's `dests`, scripted
+  `opponentReplies` played back with a beat between them, hint on demand, attempt counter,
+  replayable solution list after the solve, and "Recommencer"
+- Shake on a refused move and a brass settle on a solve, both reduced-motion safe — the
+  reduced-motion branch swaps travel for a colour change rather than removing the feedback
+
+**Progress** (`src/lib/progress.ts`)
+- `mcc:progress:v1` — version in the key, `{ solved, attempts, hintUsed, solvedAt }` per slug
+- The single migration point: nothing else touches `localStorage`. Every access is guarded and
+  fails silent, records are normalised field-by-field on read, and a bad stored value is never
+  deleted
+- Solved ticks on `/exercices/`, drawn by a plain script (not an island) into a row that
+  already reserves its height, so nothing reflows
+
+**Pages & content**
+- `/exercices/[slug]/` in both locales; the index cards now link and carry a solved tick
+- Three real débutant exercises replacing the placeholder: a back-rank mate in one, a
+  king-and-rook mate in two with a forced reply, and a knight fork that wins the queen
+
+**Checks**
+- `check-content.mjs` now polices `onlyMove: true`, catches a colour drift between `solution`
+  and `opponentReplies`, requires six FEN fields, and rejects duplicate slugs or half-translated
+  hints
+
+#### Fixed
+
+- **`viewOnly` is bind-time only in Chessground, and failing it is silent.** `bindBoard()`
+  returns early when it is true and never re-runs, so `api.set({ viewOnly: false })` flips a flag
+  on a board with no `mousedown` listener. The exercise board mounted view-only while its engine
+  chunk loaded and then ignored every drag, with no error anywhere. `BoardSurface` now takes a
+  separate mount-time `interactive` prop; `movableColor`/`dests` gate the current move.
+- **A rejected move needed a `revision` bump, not a new FEN.** Chessground has already moved the
+  piece by the time the callback fires, so on rejection `fen` is unchanged, the update effect does
+  not re-run, and the board keeps showing a move the engine refused.
+- **`link-in-text-block` on the legal notice.** Tailwind's preflight resets `text-decoration` on
+  anchors, so the site's links are distinguished by colour alone — nowhere near 3:1 against body
+  ink. Links inside legal prose are underlined; axe keeps it that way.
+
+#### Decided
+
+- **GPL-3.0-or-later, repository public.** Chessground's copyleft reaches the combined work, and
+  for a free community club project that is the right fit.
+- **cburnett** is credited in full on `/mentions-legales/` plus a one-line footer link.
+- **No third-party request without an explicit reader click** — now a standing, tested rule. When
+  the `youtube` field is rendered it will be a click-to-load facade on `youtube-nocookie`; a plain
+  iframe sets third-party cookies at load and would break the posture the legal page states.
+- **Course lesson ordering:** `order: number` in the course frontmatter. To be implemented with
+  `/cours/[slug]/`.
+
+#### Notes
+
+- **`onlyMove: false` still validates against the stored line only, and that is deliberate.**
+  Winning-alternative acceptance is deferred until Stockfish can adjudicate it — not faked. The
+  permissive verdict says "not the line we had in mind", never "wrong", in both languages, and a
+  spec holds that copy in place.
+- The new `onlyMove` check earned its keep immediately: `opposition-et-mat` was authored as
+  `onlyMove: true` and the checker proved that `1. Kf7` mates as surely as `1. Kg6`. It is `false`.
+- ⚠️ **The exercise board takes pointer input only.** A solver who cannot use a mouse or touch can
+  read the puzzle but not answer it, and axe cannot see the gap. Logged as an open question.
+- Island cost: the replay bundle grew **58.7 → 64.8 KB raw / 20.5 → 22.4 KB brotli**, because both
+  views and `progress.ts` share the island chunk. The 36 KB chess.js chunk is *not* in it.
+
 ### [0.2.0] — The board
 
 Preact island, Chessground replayer, and the first real trap.

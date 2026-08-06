@@ -43,3 +43,17 @@ See CLAUDE.md → "Generated assets".
 **[CLAUDE.md](./CLAUDE.md)** is the operational reference: conventions,
 architecture rules, the content model, and the decisions behind them. Read it
 before changing anything structural.
+
+## Licence
+
+**GNU General Public License v3.0 or later** — see [LICENSE](./LICENSE).
+
+The site uses [Chessground](https://github.com/lichess-org/chessground), Lichess's
+board library, which is GPL-3.0-or-later. The combined work may therefore only be
+distributed under the GPL, and its source must be available to the site's users —
+which is what this public repository, and the source link in the site's footer, are
+for.
+
+The pieces are the **cburnett** set by **Colin M. L. Burnett**, used unmodified
+under [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/). Full credits
+live on `/mentions-legales/`.

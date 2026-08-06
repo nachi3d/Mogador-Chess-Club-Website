@@ -62,7 +62,27 @@ export function otherLocale(locale: Locale): Locale {
  * The site's route vocabulary. The nav, the sitemap and the smoke tests all
  * read this, so a new route is added in exactly one place.
  */
-export const ROUTES = ['/', '/cours/', '/pieges/', '/exercices/', '/agenda/', '/contact/'] as const;
+export const ROUTES = [
+  '/',
+  '/cours/',
+  '/pieges/',
+  '/exercices/',
+  '/agenda/',
+  '/contact/',
+  /**
+   * The legal notice is NOT in the nav (it lives in the footer), but it is a
+   * public page in both locales and therefore part of the route vocabulary the
+   * switcher test walks.
+   *
+   * ⚠️ The EN counterpart is `/en/mentions-legales/`, NOT `/en/legal-notice/`.
+   * Route segments are never translated here — see the note at the top of this
+   * file. One segment vocabulary is what makes the switcher a pure prefix swap
+   * that cannot fail to find its counterpart; a translated segment would have
+   * to be looked up in a map, and a missing entry would 404 a reader mid-visit.
+   * The visible link label IS translated ("Mentions légales" / "Legal notice").
+   */
+  '/mentions-legales/',
+] as const;
 export type Route = (typeof ROUTES)[number];
 
 /** Home in either locale. */
@@ -74,3 +94,13 @@ export const trapPath = (slug: string, locale: Locale): string =>
 
 /** The traps index in either locale. */
 export const trapsPath = (locale: Locale): string => localizePath('/pieges/', locale);
+
+/** An exercise detail page in either locale. Slugs are content data. */
+export const exercisePath = (slug: string, locale: Locale): string =>
+  localizePath(`/exercices/${slug}/`, locale);
+
+/** The exercises index in either locale. */
+export const exercisesPath = (locale: Locale): string => localizePath('/exercices/', locale);
+
+/** The legal notice in either locale. See the ROUTES note on the EN segment. */
+export const legalPath = (locale: Locale): string => localizePath('/mentions-legales/', locale);

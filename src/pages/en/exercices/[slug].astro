@@ -1,0 +1,15 @@
+---
+// Route shell. See the FR counterpart.
+import { getCollection } from 'astro:content';
+import type { GetStaticPaths } from 'astro';
+import ExercicePage from '@components/pages/ExercicePage.astro';
+
+export const getStaticPaths = (async () => {
+  const exercises = await getCollection('exercices', ({ data }) => !data.draft);
+  return exercises.map((entry) => ({ params: { slug: entry.data.slug }, props: { entry } }));
+}) satisfies GetStaticPaths;
+
+const { entry } = Astro.props;
+---
+
+<ExercicePage locale="en" entry={entry} />
