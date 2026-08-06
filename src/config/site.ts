@@ -182,6 +182,35 @@ export const site = {
       licenseUrl: 'https://www.gnu.org/licenses/gpl-3.0.html',
     },
     /**
+     * THE CONTENT IS A SEPARATE WORK — decided Session 4, by Seàn ("Option 1").
+     *
+     * The GPL is the right licence for the software and the wrong one for the
+     * teaching. Copyleft on code invites reuse; on lessons it would let anyone
+     * repackage the club's material commercially. So the two are licensed
+     * separately and merely aggregated in one repository, which the GPL
+     * expressly permits.
+     *
+     * ⚠️ THE LINE IS SUBSTANCE vs STRUCTURE, and it is not a detail:
+     *   - CC BY-NC-ND covers the PEDAGOGICAL SUBSTANCE under `src/content/` —
+     *     the prose, the chosen lines, the annotations, the exercise design.
+     *   - The GPL still covers the STRUCTURE — `content.config.ts`, the Zod
+     *     schemas, every field name, the ply scheme, the UCI encoding and the
+     *     checker. The shape of the data is software.
+     * Someone may therefore take this engine, write their own content against
+     * the same schemas, and even sell it. What they may not do is republish
+     * these lessons. See LICENSE-CONTENT for the full statement.
+     */
+    content: {
+      spdx: 'CC-BY-NC-ND-4.0',
+      name: 'CC BY-NC-ND 4.0',
+      licenseUrl: 'https://creativecommons.org/licenses/by-nc-nd/4.0/',
+      /** The holder named in LICENSE-CONTENT. */
+      holder: 'Seàn McGannon / Mogador Chess Club',
+      /** Where the split is stated in full, in the repository. */
+      fileUrl:
+        'https://github.com/nachi3d/Mogador-Chess-Club-Website/blob/main/LICENSE-CONTENT',
+    },
+    /**
      * Third-party work that must be credited by its licence.
      * `share-alike` marks the ones whose terms require the credit — the legal
      * page renders those in full rather than as a one-liner.
@@ -203,6 +232,15 @@ export const site = {
         licence: 'CC BY-SA 3.0',
         workUrl: 'https://en.wikipedia.org/wiki/User:Cburnett/GFDL_images/Chess',
         licenceUrl: 'https://creativecommons.org/licenses/by-sa/3.0/',
+        shareAlike: true,
+      },
+      {
+        id: 'stockfish',
+        work: 'Stockfish 11 (stockfish.js)',
+        author: 'The Stockfish developers, WASM build by Nathan Rugg',
+        licence: 'GPL-3.0',
+        workUrl: 'https://github.com/nmrugg/stockfish.js',
+        licenceUrl: 'https://www.gnu.org/licenses/gpl-3.0.html',
         shareAlike: true,
       },
       {

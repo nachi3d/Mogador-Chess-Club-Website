@@ -72,6 +72,16 @@ const labels = {
   solutionHint: t('exercise.solution.hint'),
   // Shared with the replayer — the same event deserves the same word.
   checkmate: t('replay.checkmate'),
+  // Keyboard entry. Same label set the play page uses; see MoveInput.tsx.
+  move: {
+    label: t('move.label'),
+    placeholder: t('move.placeholder'),
+    submit: t('move.submit'),
+    help: t('move.help'),
+    errorUnreadable: t('move.error.unreadable'),
+    errorIllegal: t('move.error.illegal'),
+    errorEmpty: t('move.error.empty'),
+  },
 };
 ---
 
@@ -79,6 +89,7 @@ const labels = {
   client:visible
   mode="exercise"
   slug={slug}
+  locale={locale}
   definition={{ fen, solution, opponentReplies, onlyMove }}
   hint={hint}
   coordinates={true}

@@ -67,6 +67,7 @@ export const ROUTES = [
   '/cours/',
   '/pieges/',
   '/exercices/',
+  '/jouer/',
   '/agenda/',
   '/contact/',
   /**

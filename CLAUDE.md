@@ -147,8 +147,10 @@ Concretely: keep `src/lib/` chess logic pure and synchronous. The board island, 
 6. **Stockfish is never precached.** See "Service worker".
 7. **WhatsApp number correctness** — always via `whatsappUrl()` from `src/config/site.ts`, never hardcoded per page.
 8. **The GPL source link is in the footer of every page.** It is how the licence's distribution requirement is met, not decoration. See "Licence".
-9. **No third-party request without an explicit reader click.** See the rule below.
+9. **No third-party request without an explicit reader click.** See the rule below. The engine obeys the same rule for its own 3.6 MB.
 10. **`localStorage` never breaks the page.** Every access goes through `src/lib/progress.ts` and fails silent.
+11. **Every board is playable without a pointer.** `MoveInput` feeds the same path as a drag; see "Both inputs, one path".
+12. **Code and content are licensed separately.** Substance vs structure — see "Licence".
 
 ---
 
@@ -174,14 +176,40 @@ Corollaries:
 | `src/lib/progress.ts` | The **only** file that touches `localStorage` | be read during render (see below) |
 | `src/components/board/BoardSurface.tsx` | The **only** file importing Chessground | know about PGN, commentary, modes or progress |
 | `src/components/board/ChessBoard.tsx` | THE island. Dispatches on `mode`, nothing else. | import the i18n layer, chess.js, or fetch anything |
+| `src/lib/chess/notation.ts` | Pure. Typed text → a move on a position. | know about a field or a component |
+| `src/lib/chess/opponent.ts` | Pure. The `MoveProvider` interface — the v2 seam. | import an implementation |
+| `src/lib/engine/stockfish.ts` | The Worker + UCI. The **only** non-pure lib file. | be imported anywhere but a click handler |
 | `src/components/board/ReplayView.tsx` | `mode="replay"` — the viewer | import chess.js, even for a type |
 | `src/components/board/ExerciseView.tsx` | `mode="exercise"` — the solver | import chess.js **statically** |
+| `src/components/board/PlayView.tsx` | `mode="play"` — a game vs the engine | import the engine module statically, or know it is an engine |
+| `src/components/board/MoveInput.tsx` | Keyboard move entry, shared by exercise and play | judge or apply anything itself |
 | `src/components/board/ReplayBoard.astro` | Server side: parses the PGN, resolves labels, mounts `client:visible` | render a board itself |
 | `src/components/board/ExerciseBoard.astro` | Server side: resolves labels, mounts `client:visible` | precompute the position (it can't — see below) |
 
 The views are **views, not islands**: one hydration entry point (`ChessBoard`), one Chessground adapter (`BoardSurface`). Splitting them keeps neither mode's state machine growing into the other's.
 
 **The PGN is parsed at BUILD time**, and the island receives a plain array of positions. chess.js therefore never enters the client bundle for replay mode, and a malformed PGN fails `npm run build` instead of rendering an empty board in production.
+
+### Both inputs, one path — the board is not the only way to move
+
+Chessground takes **pointer input only**. Until Session 4 that meant a reader who cannot use a mouse or a touchscreen could read an exercise, read the hint, and had no way at all to answer it. axe never flagged it, because there was no unlabelled control — **there was no control**. That is the class of exclusion automated checking cannot see, and the reason it is written down here rather than trusted to a linter.
+
+`MoveInput.tsx` is the second door. It accepts:
+
+- **SAN** — `Bc4`, `Nxe5`, `exd5`, `O-O`, `e8=Q`, `Qh4+`
+- **French SAN** — `Fc4`, `Cxe5`, `e8=D` (**R** roi, **D** dame, **T** tour, **F** fou, **C** cavalier)
+- **Coordinates** — `f1c4`, `e7e8q` (what the board itself emits)
+
+plus `0-0`, lowercase, trailing `!?`, and stray spaces, because people type those.
+
+⚠️ **`R` means the rook in English and the king in French, and there is no way around it.** So the reader's own locale is tried first and the other reading only if the first is not legal here. On the French page `Rf1` is the king if the king can go there and the rook otherwise — what a French speaker means, without rejecting someone typing English out of habit.
+
+Two rules hold this together:
+
+1. **The typed path and the dragged path converge on the same `onMove(from, to)`.** `resolveMoveText` produces a `{from, to}` and hands it over; nothing downstream can tell which input was used. There is no accessible *variant* of the game logic to drift out of sync.
+2. **"I could not read that" and "that move is not available" are different messages.** Collapsing them tells a beginner their legal-looking move is illegal when in fact they made a typo — the same class of lie the `onlyMove` rule exists to prevent. An unreadable or illegal entry never reaches the judge and is **not** counted as an attempt.
+
+Focus returns to the field after the opponent's reply (`focusSignal`), so a keyboard player is never left on a disabled control with no sign that it is their turn.
 
 **Exercise mode genuinely needs chess.js in the browser** — the legality of an arbitrary dragged move cannot be precomputed — so `ExerciseView` pulls `@lib/chess/exercise` in with `await import()` inside an effect. Vite splits it into its own chunk (36 KB raw / 10.8 KB brotli) that only an exercise page ever downloads. **Never convert that to a static import**; it would put chess.js back in the shared island chunk and make every trap page pay for a feature it does not have. Until the chunk lands the board renders view-only from the starting FEN — the real position, not a spinner, so only the dragging waits.
 
@@ -199,13 +227,31 @@ The views are **views, not islands**: one hydration entry point (`ChessBoard`), 
 3. **Chessground owns its DOM.** Render one empty `<div>` and hand it over; never give that element VDOM children, or Preact will diff away Chessground's work. Updates go through `api.set()`.
 4. `lastMove: undefined` does **not** clear an existing highlight — Chessground's config merge skips undefined keys. Pass `[]`.
 
-### Licence — GPL-3.0-or-later. DECIDED (Session 3, by Seàn).
+### Licence — TWO of them. DECIDED (Sessions 3 and 4, by Seàn).
+
+**The code is GPL-3.0-or-later. The teaching content is CC BY-NC-ND 4.0.** They are two works aggregated in one repository, which the GPL expressly permits. The repository is public.
+
+#### The line is SUBSTANCE vs STRUCTURE — get this right
+
+| | Licence | What |
+|---|---|---|
+| **Content substance** | CC BY-NC-ND 4.0 (`LICENSE-CONTENT`) | The prose (FR + EN), the move commentary, which lines a trap shows, where an arrow goes and what it says, the design of each exercise — position, solution, scripted replies, and what it is meant to teach |
+| **Everything else, including content STRUCTURE** | GPL-3.0-or-later (`LICENSE`) | `content.config.ts`, the Zod schemas, every field name, the JSON format, the ply-numbering scheme, the UCI encoding, `check-content.mjs`, and every component that renders any of it |
+
+Why it is drawn there: copyleft on code invites the reuse we want; copyleft on lessons would let anyone repackage a volunteer club's teaching commercially. So **someone may take this engine, write their own content against the same schemas, and sell it** — that is fine and intended. What they may not do is republish *these* lessons.
+
+Standard notation is nobody's property. A PGN of a historical game and the fact that Légal's mate exists are facts; what is licensed is the selection, arrangement and explanation of them.
+
+`site.legal.content` in `src/config/site.ts` holds the data, `/mentions-legales/` states it in both languages, and `README.md` gives the one-line version ("you may deploy this engine; you may not republish the teaching content commercially"). If you add a content field that is *structure* rather than substance, it is GPL — say so in `LICENSE-CONTENT` rather than leaving it to be argued.
+
+#### The GPL side
 
 **This project is published under the GNU GPL v3 or later, and the repository is public.**
 
 | Dependency | Licence | Consequence |
 |---|---|---|
 | **Chessground** | **GPL-3.0-or-later** | ⇒ the whole site is GPL. See below. |
+| **Stockfish 11** (`stockfish.js`) | **GPL-3.0** | same copyleft, no conflict — but it must be credited |
 | cburnett piece set | CC BY-SA 3.0 — by **Colin M.L. Burnett**, via Wikimedia Commons | attribution + share-alike |
 | chess.js | BSD-2-Clause | permissive |
 | Preact, Astro | MIT | permissive |
@@ -223,6 +269,71 @@ Chessground's README states it plainly: *"When you use Chessground for your webs
 Every name and URL behind that page is **data** in `site.legal` in `src/config/site.ts`; every sentence is a string in `src/i18n/ui.ts`. Nothing legal is hardcoded in a component, so the notice cannot drift from the config it describes.
 
 The containment is still deliberate and still worth keeping: `BoardSurface.tsx` is the only file that imports Chessground, and everything else talks to its `BoardProps`. If the board is ever swapped for a permissively-licensed one, that is a rewrite of **that one file** — and only then do the `chessground` and `cburnett` entries in `site.legal.attributions` come out. Do not prune them to tidy the page up.
+
+---
+
+## Play mode — Stockfish in a Worker
+
+`/jouer/` (+ `/en/jouer/`). A full game against the engine, entirely in the browser. Nothing is sent anywhere.
+
+### Why Stockfish 11, and why that is not a compromise to "fix" later
+
+The modern NNUE builds ship their neural network inside the package:
+
+| | unpacked |
+|---|---|
+| `stockfish@16` | 91 MB |
+| `stockfish@17` | 183 MB |
+| `stockfish@18` | 251 MB |
+| **`stockfish@11`** | **8.8 MB** (of which we ship 3.6 MB) |
+
+Stockfish 11 is the last hand-crafted-evaluation release. Its WASM binary is 1.38 MB. This site teaches beginners on Essaouira mobile data; an engine nobody can afford to download is worth exactly nothing, and nothing in a teaching context needs a 3000-Elo opponent. Revisit only if a ceiling above ~2000 is genuinely wanted.
+
+We ship `stockfish.js` (2.28 MB glue) + `stockfish.wasm` (1.38 MB) and **not** `stockfish.asm.js` (another 4.8 MB), which exists for browsers without WASM — none of which this site supports.
+
+### The engine loads on a CLICK, and the whole design serves that
+
+- `PlayView` hydrates and renders **a form**. It fetches nothing.
+- `@lib/engine/stockfish` is reached by `await import()` **inside the start handler**. Never hoist it, and never let `PlayBoard.astro` reference it — Vite would follow the import and pull 3.6 MB into the page's module graph.
+- `globIgnores` in `scripts/build-sw.mjs` keeps it out of the precache; a runtime `CacheFirst` rule (`mcc-engine`) caches it after the first game, so game two is instant and first-visit cost is unchanged.
+- `tests/e2e/play.spec.ts` asserts against the **network log** that opening `/jouer/` requests neither the worker nor the wasm, and that pressing start requests both.
+
+### ⚠️ The level presets are Skill Level, NOT Elo
+
+**The vendored build exposes no `UCI_LimitStrength` and no `UCI_Elo`** — verified by reading the `uci` option list out of the running worker. The only strength dial it has is `Skill Level` (0–20), alongside `Skill Level Maximum Error` and `Skill Level Probability`.
+
+So the three presets in `LEVELS` (`src/lib/engine/stockfish.ts`) are a skill level plus a depth and a movetime cap, set by hand:
+
+| Preset | Skill Level | depth | movetime | design target |
+|---|---|---|---|---|
+| Débutant | 0 | 2 | 300 ms | ~800 |
+| Intermédiaire | 5 | 6 | 800 ms | ~1400 |
+| Avancé | 13 | 12 | 2000 ms | ~2000 |
+
+**The UI names the levels and does not print a rating.** The design targets are recorded here; they have not been measured against rated opposition, and an Elo number the engine does not enforce and nobody has verified would be a fact we invented. If a real rating is ever wanted it has to be measured, not asserted.
+
+The movetime cap is what bounds latency on a slow phone — depth alone would let Avancé think for a long time on a complicated middlegame.
+
+### Memory: a fixed 64 MiB
+
+The build declares `INITIAL_MEMORY = 67108864` and creates its `WebAssembly.Memory` with `initial === maximum`, so the linear memory is **64 MiB, fixed, non-growing** — allocated once the engine starts, not before. `Hash` is pinned at 16 MB (`min = max = 16`) inside it, and `Threads` at 1.
+
+That is the number that matters on a low-end Android, and it is why `PlayView` disposes the worker on unmount: a 64 MiB heap and a possibly-still-searching engine must not survive the reader navigating away. (Note that `performance.memory` will NOT show you this — it is quantised in modern Chromium and does not count WASM linear memory. Read the binary, not the API.)
+
+### Stockfish is just a `MoveProvider` — this is the v2 seam
+
+`src/lib/chess/opponent.ts` defines the interface; `PlayView` talks to that and nothing else:
+
+```ts
+interface MoveProvider {
+  nextMove(fen: string): Promise<Uci | null>;
+  dispose(): void;
+}
+```
+
+A position goes in, a move comes out, eventually. The view does not know whether it is talking to an engine in a Worker, a scripted list, or — in v2 — another human over a Durable Object socket. **When online play lands it is a new implementation of this interface plus a lobby, not a rewrite of the board.** `scriptedProvider()` exists in that file to keep the interface honest: a second, trivially-correct implementation means `PlayView` depends on the contract rather than on Stockfish's timing.
+
+A search cannot be un-asked, so `PlayView` holds a `generation` counter and drops answers that arrive after a new game, a resign or an unmount. Without it, "New game" mid-think drops the previous game's move onto the new board.
 
 ### No third-party requests without an explicit click — a tested rule
 
@@ -366,6 +477,7 @@ FR at the root, EN under `/en/...`. **Route segments are not translated** (`/en/
 | `/pieges/[slug]/` | `/en/pieges/[slug]/` | Trap detail — the replayer, commentary, outbound WhatsApp share |
 | `/exercices/` | `/en/exercices/` | Exercise index — **no board mounted here**; solved ticks from `localStorage` |
 | `/exercices/[slug]/` | `/en/exercices/[slug]/` | Exercise detail — the interactive board, hint, attempts, outbound WhatsApp share |
+| `/jouer/` | `/en/jouer/` | Play the computer. Engine loaded on a click, never before. |
 | `/agenda/` | `/en/agenda/` | Sessions; venue falls back to site config |
 | `/contact/` | `/en/contact/` | WhatsApp CTA, venue, socials |
 | `/mentions-legales/` | `/en/mentions-legales/` | Legal notice + credits. **Footer only, not in the nav.** |
@@ -433,7 +545,9 @@ Level badges follow the same logic: the three level colours are mid-tones, used 
 
 The engine is a multi-megabyte WASM bundle that only the play-the-computer feature needs, so it is **lazy-loaded on demand**. Precaching it would make every first visit — including a phone on Essaouira mobile data that only ever reads one lesson — pay for it up front.
 
-`globIgnores` in `scripts/build-sw.mjs` excludes `**/stockfish*` and `**/*.wasm` **already**, before the engine exists, so it cannot be swept in later by accident. `tests/e2e/pwa.spec.ts` asserts the generated `sw.js` mentions neither. When the engine lands, cache it with a runtime `CacheFirst` rule (there is a commented block in place), never in the precache manifest.
+`globIgnores` in `scripts/build-sw.mjs` excludes `**/stockfish*` and `**/*.wasm`, and a runtime `CacheFirst` rule (`mcc-engine`) caches them after the first game instead — so the first game costs 3.6 MB because it must, and every game and visit after it costs nothing.
+
+⚠️ **The test that guards this had to get sharper when the engine landed.** "The word *stockfish* does not appear in `sw.js`" was true only while the engine did not exist; the runtime rule legitimately names `/engine/stockfish...` in `registerRoute`. `tests/e2e/pwa.spec.ts` now parses the array out of `precacheAndRoute([...])` and asserts against **that**, plus a second test that the runtime rule exists at all. Note Workbox emits `precacheAndRoute([...],{})` — with a second argument, so the array does not close with `])`.
 
 `skipWaiting` / `clientsClaim` are on. That is safe here because this is a multi-page app: every navigation is a full document load, so a worker taking over mid-session cannot leave a half-updated SPA shell talking to newly-hashed chunks.
 
@@ -441,13 +555,20 @@ The engine is a multi-megabyte WASM bundle that only the play-the-computer featu
 
 ## Generated assets
 
-Three scripts produce committed artefacts. **None of them run as part of `npm run build`** — they are run by hand when their input changes, and their outputs are versioned, so a Cloudflare Pages build needs no image toolchain and no extra step.
+Several scripts produce committed artefacts. **None of them run as part of `npm run build`** — they are run by hand when their input changes, and their outputs are versioned, so a Cloudflare Pages build needs no image toolchain and no extra step.
 
 | Script | Produces | Re-run when |
 |---|---|---|
 | `scripts/build-icons.mjs` | `public/icons/*` | the brand mark changes |
 | `scripts/build-fonts.mjs` | `public/fonts/*`, `src/styles/fonts.css` | the families or subset list change |
+| `scripts/build-engine.mjs` | `public/engine/*` (3.6 MB) | the Stockfish version changes |
 | `scripts/build-sw.mjs` | `dist/sw.js` | **automatic** — part of `npm run build` |
+
+`stockfish` is deliberately **not** a project dependency — the engine is vendored. Install it transiently first: `npm install --no-save stockfish@11.0.0`, then run the script. That keeps an 8.8 MB package out of every CI install while the 3.6 MB we actually ship stays versioned like every other artefact.
+
+### ⚠️ `public/engine` must stay OUT of the TypeScript project
+
+`tsconfig.json` excludes it, and that is not tidiness. `astro check` type-checks everything in the project, and Stockfish's 2.28 MB of minified glue takes the TypeScript program past the V8 heap limit: the build dies **two and a half minutes in** with `FATAL ERROR: Ineffective mark-compacts near heap limit — JavaScript heap out of memory`, naming no file. `public/sw.js` is excluded for the same reason. Anything else vendored into `public/` needs the same treatment.
 
 ### Why the fonts are copied instead of imported
 
@@ -522,7 +643,30 @@ The tell is that it lands on a **different test each run**, including specs that
 
 Chessground marks a drag as *started* inside a `requestAnimationFrame` loop (`processDrag` in `drag.ts`), and its `end()` only emits a move when that flag is set. Playwright dispatches `mouse.move(..., { steps })` back to back with no delay, so an entire synthetic drag can begin and finish **inside a single frame**. Chessground then reads it as a click-select: the piece sits there selected with its legal-move dots showing, no move is emitted, and nothing errors.
 
-`nextFrame()` in `exercise.spec.ts` yields a frame between the drag steps. **It is load-bearing, not a "let it settle" sleep.** Symptom if it is removed: deterministic failure on iPhone 13, intermittent on Firefox, invisible on desktop Chromium where the frames happen to fall right. It cost a full-matrix run to find.
+**So specs TAP instead: `movePiece()` clicks the piece, then clicks the square.** That goes through `selectSquare` on plain mousedown/mouseup with no rAF anywhere, lands in the same `userMove` → `onMove` handler, and is what people actually do on a phone. Same code under test, none of the fragility. `dragPiece()` still exists and is exercised, but only on desktop Chromium — the drag is a real user path worth covering, just not one a synthetic instantaneous drag can cover reliably under load.
+
+Two more things `tests/e2e/helpers/board.ts` gets right, both learned the hard way:
+
+1. **Element-relative positions, never page coordinates.** `locator.click({ position })` makes Playwright scroll the board into view and resolve the point against the element. `page.mouse.click(x, y)` breaks the moment anything scrolls between the two taps — and it does: on a phone viewport the second click landed on the move-entry field instead, focusing an input scrolled it into view, and the failure looked like *the board ignoring legal input*, with a screenshot showing the piece dutifully selected and the page halfway down.
+2. **Touch devices get `tap()`, not `click()`.** Chessground binds `touchstart` as well as `mousedown`, and on a touch-enabled context the touch path is the one a reader exercises. Mouse events there are unreliable as well as unfaithful: Pixel 5 selects the piece on the first mouse click and ignores the second. The helper detects `'ontouchstart' in window` and picks — `tap()` would throw on the desktop projects, which have no touch at all.
+
+### The play specs run ONE AT A TIME, and raising timeouts will not help
+
+Every test in `play.spec.ts` boots a real engine: 3.6 MB fetched, 1.4 MB of WASM compiled, **64 MiB** of linear memory allocated. Under the global `fullyParallel: true` that happens in six browser contexts at once and the machine runs out of room — the handshake misses its window, the view *correctly* falls back to "could not load", and the test fails with `data-phase="setup"` and nothing in the log that looks like a bug.
+
+Raising the timeouts only changes which assertion gives up first; it was tried, and the failure count went **up**. `test.describe.configure({ mode: 'default', retries: 1 })` at the top of the file is the fix: sequential in one worker, other spec files still parallel alongside. It is also *faster* — 14 tests in 57s instead of thrashing.
+
+`mode: 'default'`, not `'serial'`: serial would skip the remaining tests after a failure, and a genuine break deserves to be reported on its own terms.
+
+`retries: 1` covers what sequencing cannot — the five **projects** still run concurrently, so a full-matrix run can have five engines booting at once across five browsers. The retry runs once the crowd has thinned. As with the WebKit and Firefox crashes above, this absorbs contention and not bugs: a real break is deterministic and fails the retry too.
+
+### A board that only appears later has to be scrolled to
+
+`openExercise` scrolls the board into view because the island is `client:visible`. `/jouer/` needs it for a second reason: **the board does not exist until the game starts** — the setup form was there instead — so it can land below the fold. `dragMove` works in page coordinates, and a mouse event aimed past the bottom of the viewport hits nothing at all: the drag appears to succeed and no move is made. `startGame` scrolls after the phase flips.
+
+### Test the pointer path even when the keyboard path is easier to write
+
+Every play-mode test was written with `typeMove` because typing is simpler than computing board geometry. That left dragging on `/jouer/` completely uncovered — a break would have surfaced only when a human tried it. The two `dragMove` tests exist for that reason, and one of them plays from the **black** side, because the geometry flips with the orientation and nothing else would catch it.
 
 ### Verification policy
 
@@ -548,6 +692,10 @@ Chessground marks a drag as *started* inside a `requestAnimationFrame` loop (`pr
 - Progress survives a reload and marks the index; a **broken `localStorage` does not break the page**
 - The GPL source link is in the footer of **every** page; `/mentions-legales/` credits Colin M.L. Burnett and links CC BY-SA 3.0
 - The site sets **no cookies**
+- **An exercise is solvable from the keyboard alone**, in both notations and by coordinates; an unreadable or illegal entry is refused *without* being counted as an attempt
+- **Opening `/jouer/` fetches neither `stockfish.js` nor `stockfish.wasm`**; pressing start fetches both — asserted against the network log
+- The precache manifest contains no engine, and a runtime rule caches it instead
+- The engine actually answers: a game as black at Débutant gets an opening move, and resigning ends it
 
 ### Driving the board from a spec
 
@@ -592,9 +740,11 @@ Chessground starts a drag on **movement**, not on press: `mouse.down()` then str
 - ✅ Exercise mode: interactive board, `onlyMove`-respecting validation, hints, attempts, replayable solution; three real exercises
 - ✅ `localStorage` progress (`src/lib/progress.ts`), solved ticks on the index
 - ✅ GPL-3.0-or-later, `/mentions-legales/`, sitewide source link
+- ✅ Stockfish, lazy-loaded on a click, runtime-cached; `/jouer/` with colour + three levels
+- ✅ Keyboard move entry on every board — the pointer-only exclusion is closed
+- ✅ Content licensed separately from the code (CC BY-NC-ND 4.0)
 - Course detail pages (per-locale Markdown bodies — see the content model)
-- Stockfish, lazy-loaded, runtime-cached — **and the engine-backed validator that finally lets `onlyMove: false` accept a winning alternative**
-- Keyboard move entry for the exercise board (see the open questions)
+- **The engine-backed validator that finally lets `onlyMove: false` accept a winning alternative.** The engine is now here; this is the remaining half of the exercise-validation rule.
 
 ### Phase 3 — Growth
 - Online play via room codes + Durable Objects (v2)
@@ -605,9 +755,11 @@ Chessground starts a drag on **movement**, not on press: `mouse.down()` then str
 
 ## Open questions for Seàn
 
-- **⚠️ The exercise board cannot be played with a keyboard.** Chessground takes pointer input only, so a solver who cannot use a mouse or touch can read the puzzle and the hint but cannot answer it. axe does not flag this (there is no unlabelled control — there is no control), which is exactly why it is written down here. The fix is a move-entry field accepting SAN or UCI beside the board, feeding the same `judgeMove`. Small, and it is a real exclusion until it ships.
-- **EN legal-notice URL:** `/en/mentions-legales/` (structural, keeps the switcher a pure prefix swap) or `/en/legal-notice/` (needs a segment-translation map)? Implemented as the former — see the note under Routes.
-- **Promotion UI:** v1 auto-queens, and adopts the expected move's piece when the squares match, so nobody is failed for an under-promotion they were never asked about. No current exercise promotes. Add a picker with the first one that does.
+- ~~**The exercise board cannot be played with a keyboard.**~~ RESOLVED (Session 4) — `MoveInput` feeds the same judge path on both the exercise and play boards. See "Both inputs, one path".
+- **Should the level presets show an Elo number?** They currently show names only. The vendored build has no `UCI_Elo`, so the design targets (~800 / ~1400 / ~2000) are hand-set `Skill Level` + depth and have never been measured. Printing a rating would be inventing a fact; measuring one properly means playing rated opposition. Names-only is the honest default until someone wants to do that work.
+- **Pass-and-play (2 players, 1 device)** was scoped as an optional bonus and **skipped**. It is not free from `PlayView`: no engine, no thinking state, a board that flips or does not, and a second result vocabulary ("White wins" rather than "you win"). It is a small separate mode, not a flag — worth doing deliberately if wanted.
+- **Promotion:** the pointer path auto-queens (and, in an exercise, adopts the expected move's piece when the squares match, so nobody is failed for an under-promotion they were never asked about). The **typed** path honours what you type — `e8=D` under-promotes correctly. So a keyboard player has strictly more control than a mouse user here, which is backwards. A picker on the pointer path would fix it; no current exercise promotes, and in a real game against the engine a queen is right ~99% of the time.
+- **EN legal-notice URL:** `/en/mentions-legales/` (structural, keeps the switcher a pure prefix swap) or `/en/legal-notice/` (needs a segment-translation map)? Implemented as the former — see the note under Routes. Same question now applies to `/en/jouer/`.
 - **Domain:** is `mogadorchess.ma` registered / registrable? `.ma` needs a Moroccan registrar and can require paperwork.
 - **WhatsApp number** — currently a placeholder (`+212 6 00 00 00 00`). Must be real before launch.
 - **Club email** — create one, or route to Seàn's inbox?

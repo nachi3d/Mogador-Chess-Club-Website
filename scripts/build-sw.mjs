@@ -58,19 +58,28 @@ const { count, size, warnings } = await generateSW({
         expiration: { maxEntries: 12, maxAgeSeconds: 60 * 60 * 24 * 365 },
       },
     },
-    // TODO(stockfish): when the engine lands, cache it HERE, at runtime, not in
-    // the precache manifest:
-    //   {
-    //     urlPattern: /\/engine\/stockfish.*\.(js|wasm)$/,
-    //     handler: 'CacheFirst',
-    //     options: {
-    //       cacheName: 'mcc-engine',
-    //       expiration: { maxEntries: 4 },
-    //       // WASM responses are opaque-safe here (same origin) but large:
-    //       // cacheableResponse keeps a failed/partial fetch out of the cache.
-    //       cacheableResponse: { statuses: [200] },
-    //     },
-    //   },
+    {
+      /**
+       * THE ENGINE — cached at RUNTIME, never precached. Landed Session 4.
+       *
+       * The first game costs 3.6 MB because it has to; every game after that,
+       * and every visit after that, costs nothing. Putting these two files in
+       * the precache manifest instead would charge that 3.6 MB to every first
+       * visit, including a phone on Essaouira mobile data that only ever reads
+       * one lesson — which is the whole reason `globIgnores` above excludes
+       * them, before the engine even existed.
+       */
+      urlPattern: /\/engine\/stockfish.*\.(js|wasm)$/,
+      handler: 'CacheFirst',
+      options: {
+        cacheName: 'mcc-engine',
+        expiration: { maxEntries: 4 },
+        // A failed or partial fetch must not be cached as if it were the
+        // engine: the next visit would load a truncated WASM and fail with no
+        // way back short of clearing site data.
+        cacheableResponse: { statuses: [200] },
+      },
+    },
   ],
 });
 

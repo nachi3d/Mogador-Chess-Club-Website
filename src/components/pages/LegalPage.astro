@@ -85,6 +85,35 @@ const { legal } = site;
       </ul>
     </section>
 
+    {/*
+      THE CODE/CONTENT SPLIT (Session 4).
+
+      Stated on the page and not only in LICENSE-CONTENT, because a reader who
+      wants to reuse a lesson will look here, not in the repository. The third
+      paragraph is the one that actually matters: the split is SUBSTANCE vs
+      STRUCTURE, so "you may take the engine" and "you may not take the
+      lessons" are both true at once, and neither is a surprise later.
+    */}
+    <section id="contenu">
+      <h2>{t('legal.content.heading')}</h2>
+      <p>{t('legal.content.body')}</p>
+      <p>{t('legal.content.terms')}</p>
+      <p>{t('legal.content.structure')}</p>
+      <ul class="legal-links">
+        <li>
+          <a href={legal.content.licenseUrl} rel="noopener noreferrer" target="_blank">
+            {t('legal.content.link')}
+          </a>
+        </li>
+        <li>
+          <a href={legal.content.fileUrl} rel="noopener noreferrer" target="_blank">
+            LICENSE-CONTENT — {legal.content.holder}
+          </a>
+        </li>
+      </ul>
+      <p class="muted">{t('legal.content.ask')}</p>
+    </section>
+
     {/* The CC BY-SA credit in full. A row in the table below would satisfy the
         letter of the licence; the pieces are on every board on the site, so
         they get the sentence too. */}

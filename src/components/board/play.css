@@ -1,0 +1,199 @@
+/* ============================================================
+   Play-against-the-computer chrome.
+
+   The board is themed in board.css; the move list and
+   `.mcc-side-heading` are reused from replayer.css (imported
+   explicitly by PlayView, same reasoning as ExerciseView).
+   ============================================================ */
+
+.mcc-play {
+  display: grid;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+@media (min-width: 56rem) {
+  .mcc-play {
+    grid-template-columns: minmax(0, var(--mcc-board-max)) minmax(15rem, 1fr);
+    gap: 2rem;
+  }
+}
+
+.mcc-play-board {
+  min-width: 0;
+}
+
+.mcc-play-side {
+  display: grid;
+  gap: 1.25rem;
+  align-content: start;
+}
+
+/* ---------- Setup ---------- */
+/* One column: this is a short form and a wide one would put the radios miles
+   from their labels on a desktop. */
+.mcc-play-setup {
+  display: block;
+}
+
+.mcc-play-form {
+  display: grid;
+  gap: 1.5rem;
+  max-width: 32rem;
+}
+
+.mcc-play-fieldset {
+  margin: 0;
+  padding: 1rem 1.1rem 1.1rem;
+  background-color: var(--mcc-surface-raised);
+  border: 1px solid var(--mcc-border-subtle);
+  border-radius: var(--radius-card);
+}
+
+.mcc-play-fieldset legend {
+  padding-inline: 0.4rem;
+  color: var(--mcc-text-secondary);
+  font-family: var(--font-body);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.mcc-play-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+}
+
+/* The whole label is the target, not just the 16px radio. */
+.mcc-play-option {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 2.75rem;
+  cursor: pointer;
+  font-size: 0.9375rem;
+}
+
+.mcc-play-option input {
+  width: 1.15rem;
+  height: 1.15rem;
+  accent-color: var(--mcc-primary);
+  cursor: pointer;
+}
+
+.mcc-play-fieldset:disabled {
+  opacity: 0.6;
+}
+
+.mcc-play-start {
+  justify-self: start;
+  min-height: 2.75rem;
+  padding: 0.7rem 1.6rem;
+  background-color: var(--mcc-primary);
+  color: var(--mcc-primary-contrast);
+  border: 1px solid var(--mcc-primary);
+  border-radius: var(--radius-card);
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.mcc-play-start:hover:not(:disabled) {
+  background-color: var(--mcc-primary-hover);
+}
+
+.mcc-play-start:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.mcc-play-note {
+  max-width: 44ch;
+  margin: 0;
+  color: var(--mcc-text-secondary);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+/* Always present, empty when fine — an inserted `role="alert"` announces
+   unreliably, and the reserved line keeps the button from jumping. */
+.mcc-play-error {
+  min-height: 1.25rem;
+  margin: 0;
+  color: var(--color-wood-600);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+/* ---------- In play ---------- */
+.mcc-play-turn {
+  margin: 1rem 0 0;
+  color: var(--mcc-text-secondary);
+  font-size: 0.9375rem;
+  text-align: center;
+  /* Reserved so the board does not shift as the line changes. */
+  min-height: 1.4rem;
+}
+
+.mcc-play-status {
+  min-height: 4.5rem;
+  padding: 1rem;
+  background-color: var(--mcc-surface-sunken);
+  border-inline-start: 3px solid var(--mcc-border-subtle);
+  border-radius: var(--radius-card);
+}
+
+.mcc-play-status p {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+}
+
+.mcc-play-result {
+  color: var(--mcc-primary);
+  font-family: var(--font-display);
+  font-size: 1.125rem !important;
+  font-weight: 600;
+}
+
+.mcc-play-check {
+  color: var(--mcc-accent-text); /* brass-700 — the deep variant, see tokens.css */
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: 0.8125rem !important;
+}
+
+.mcc-play-quiet {
+  color: var(--mcc-text-secondary);
+}
+
+.mcc-play-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.mcc-play-button {
+  min-height: 2.75rem;
+  padding: 0.6rem 1.1rem;
+  background-color: var(--mcc-surface-raised);
+  color: var(--mcc-text-primary);
+  border: 1px solid var(--mcc-border-strong);
+  border-radius: var(--radius-card);
+  font: inherit;
+  font-size: 0.9375rem;
+  cursor: pointer;
+}
+
+.mcc-play-button:hover {
+  background-color: var(--mcc-surface-sunken);
+}
+
+/* The move list here is read-only — no buttons, so no hover affordance. */
+.mcc-play .mcc-movelist .mcc-move {
+  cursor: default;
+}
