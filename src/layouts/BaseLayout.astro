@@ -19,9 +19,84 @@ interface Props {
   /** Page title WITHOUT the site name — the shell appends it. */
   title: string;
   description?: string;
+  /**
+   * Opt this page into scroll reveals for its `[data-reveal]` elements.
+   *
+   * OFF by default, and deliberately not automatic. Board detail pages must not
+   * have it: the board is the content there, and fading it in delays the one
+   * thing the reader came for. Home and the index pages set it.
+   *
+   * Setting it does two things — marks the body so the CSS gate opens (see
+   * `src/styles/motion.css`) and emits the observer below. Neither happens
+   * otherwise, so an un-opted page carries no reveal cost at all.
+   */
+  reveals?: boolean;
 }
 
-const { locale, title, description } = Astro.props;
+const { locale, title, description, reveals = false } = Astro.props;
+
+/**
+ * Scroll reveals. ~20 lines of vanilla JS rather than an animation library: the
+ * whole behaviour is "add a class when it comes into view", and CSS owns
+ * everything visual (`src/styles/motion.css`).
+ *
+ * ⚠️ Held as a STRING and injected with `set:html`, not written as script
+ * children. Under `is:inline` Astro emits the tag's content exactly as authored
+ * and does NOT evaluate `{...}` expressions inside it — so a `{`…`}` wrapper
+ * ships to the browser verbatim as a block containing a template literal. That
+ * parses cleanly and does nothing at all, which is the worst possible failure:
+ * no console error, no reveals, and content left at opacity 0. (Cost: one
+ * debugging round in Session 6.) `set:html` inserts unescaped and is the
+ * reliable way to emit a computed script body.
+ *
+ * Everything below fails VISIBLE — no IntersectionObserver, a throwing query, a
+ * reader with reduced motion: the class goes on immediately, and content shows.
+ */
+const REVEAL_SCRIPT = `
+(function () {
+  try {
+    var targets = document.querySelectorAll('[data-reveal]');
+    if (!targets.length) return;
+
+    /* Stagger index, read by the CSS as --reveal-i. Capped so a long grid does
+       not leave its last card waiting. */
+    document.querySelectorAll('[data-reveal-stagger]').forEach(function (group) {
+      var i = 0;
+      Array.prototype.forEach.call(group.children, function (el) {
+        el.style.setProperty('--reveal-i', String(Math.min(i, 5)));
+        i++;
+      });
+    });
+
+    var reduced =
+      window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    if (reduced || !('IntersectionObserver' in window)) {
+      targets.forEach(function (el) { el.classList.add('is-revealed'); });
+      return;
+    }
+
+    var io = new IntersectionObserver(
+      function (entries) {
+        entries.forEach(function (entry) {
+          if (!entry.isIntersecting) return;
+          entry.target.classList.add('is-revealed');
+          /* One-shot. Re-hiding on scroll-up is the effect everyone regrets:
+             it makes a page you have already read flicker. */
+          io.unobserve(entry.target);
+        });
+      },
+      { rootMargin: '0px 0px -8% 0px', threshold: 0.01 }
+    );
+
+    targets.forEach(function (el) { io.observe(el); });
+  } catch (e) {
+    document.querySelectorAll('[data-reveal]').forEach(function (el) {
+      el.classList.add('is-revealed');
+    });
+  }
+})();
+`;
 const t = useTranslations(locale);
 
 const pathname = Astro.url.pathname;
@@ -206,7 +281,7 @@ const pageDescription = description ?? site.description[locale];
     <Analytics />
   </head>
 
-  <body>
+  <body data-reveals={reveals ? '' : undefined}>
     <a class="skip-link" href="#main">{t('nav.skipToContent')}</a>
 
     {/* Where the header's theme toggle announces itself. Lives here rather
@@ -222,6 +297,8 @@ const pageDescription = description ?? site.description[locale];
     </main>
 
     <Footer locale={locale} />
+
+    {reveals && <script is:inline set:html={REVEAL_SCRIPT} />}
 
     <script is:inline>
       // Registered after load so the SW install never competes with the first

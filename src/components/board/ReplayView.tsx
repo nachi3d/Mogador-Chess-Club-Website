@@ -31,6 +31,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import BoardSurface, { type BoardArrow } from './BoardSurface';
+import { REPLAY_ANIMATION_MS } from '@lib/motion';
 import type { SerializedPly } from '@lib/chess/replay';
 import './replayer.css';
 
@@ -217,6 +218,7 @@ export default function ReplayView(props: ReplayViewProps) {
           {...(lastMove ? { lastMove } : {})}
           {...(check ? { check } : {})}
           instant={instant}
+          animationMs={REPLAY_ANIMATION_MS}
         />
 
         <div class="mcc-controls" role="group" aria-label={labels.controls}>

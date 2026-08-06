@@ -239,6 +239,12 @@
   /* The peak of the solve celebration, and the footer rule. */
   --mcc-accent-strong: #f0d89b;
   --mcc-border-on-inverse: #2b4436;
+  /* Ambient hero silhouettes. Brass at night: the green that reads as "panelled
+     room" on cream disappears entirely against a green-black page. */
+  --mcc-ambient: var(--color-brass-300);
+  /* Held separately from the light value because the dark page is a much
+     narrower canvas — the same alpha that is a whisper on cream is a smudge here. */
+  --mcc-ambient-opacity: 0.07;
 }
 
 /* Light-mode values for the aliases introduced alongside dark mode. They live
@@ -249,6 +255,8 @@
   --mcc-danger-text: var(--color-wood-600);
   --mcc-accent-strong: var(--color-brass-500);
   --mcc-border-on-inverse: var(--color-green-900);
+  --mcc-ambient: var(--color-green-800);
+  --mcc-ambient-opacity: 0.055;
 }
 
 @media (min-width: 768px) {

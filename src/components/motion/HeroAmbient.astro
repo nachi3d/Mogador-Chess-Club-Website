@@ -1,0 +1,163 @@
+---
+/**
+ * Ambient chess-piece silhouettes behind the home hero.
+ *
+ * Decoration, and treated as such: `aria-hidden`, `pointer-events: none`, and
+ * nothing here carries meaning that is not also in the text.
+ *
+ * ── Why these shapes are hand-drawn ──────────────────────────────────────
+ * The cburnett piece set that ships with Chessground is **CC BY-SA 3.0**. Using
+ * it here would drag an attribution-and-share-alike obligation onto ordinary
+ * page decoration, and `/mentions-legales/` credits it specifically as the piece
+ * set *on the board*. These are original geometric silhouettes — plain shapes,
+ * no derivation — so they carry no obligation at all.
+ *
+ * ── Why there is no JavaScript ───────────────────────────────────────────
+ * The drift is CSS keyframes and the parallax is a CSS scroll-driven animation
+ * behind `@supports`. Where `animation-timeline` is unsupported the pieces still
+ * drift and simply do not parallax, which is a degradation nobody can perceive
+ * without a side-by-side. That is worth more than a scroll listener on the
+ * critical path of the site's most-visited page.
+ */
+---
+
+<div class="ambient" aria-hidden="true">
+  {/* Each piece gets its own duration, delay and drift vector so they never
+      pulse in unison — synchronised drift reads as a screensaver. */}
+  <svg class="piece piece-pawn" viewBox="0 0 40 64" fill="currentColor">
+    <circle cx="20" cy="12" r="8"></circle>
+    <path d="M12 21h16l-2.5 6.5C29.5 34 31 42 31 51H9c0-9 1.5-17 5.5-23.5z"></path>
+    <rect x="5" y="53" width="30" height="8" rx="3"></rect>
+  </svg>
+
+  <svg class="piece piece-rook" viewBox="0 0 44 64" fill="currentColor">
+    <path d="M6 5h7v6h6V5h6v6h6V5h7v15l-4 4v20l4 6v8H6v-8l4-6V24l-4-4z"></path>
+  </svg>
+
+  <svg class="piece piece-bishop" viewBox="0 0 44 64" fill="currentColor">
+    <circle cx="22" cy="7" r="4.5"></circle>
+    <path d="M22 12c8.5 6.5 13 15 13 23 0 6.5-5.5 11-13 11S9 41.5 9 35c0-8 4.5-16.5 13-23z"
+    ></path>
+    <rect x="7" y="49" width="30" height="8" rx="3"></rect>
+  </svg>
+
+  <svg class="piece piece-king" viewBox="0 0 44 64" fill="currentColor">
+    <path d="M19.5 3h5v4h4v5h-4v5h-5v-5h-4V7h4z"></path>
+    <path d="M22 18c9 5 14 13 14 21 0 6.5-6 11-14 11S8 45.5 8 39c0-8 5-16 14-21z"></path>
+    <rect x="6" y="53" width="32" height="8" rx="3"></rect>
+  </svg>
+</div>
+
+<style>
+  .ambient {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    /* Behind the hero's own text, which sets no z-index of its own. */
+    z-index: 0;
+    /* The hero text must stay readable over this at every viewport, so the
+       whole layer is capped rather than trusting each piece's own opacity. */
+    opacity: var(--mcc-ambient-opacity);
+    color: var(--mcc-ambient);
+  }
+
+  .piece {
+    position: absolute;
+    width: auto;
+    /* Deliberately large and soft: at this opacity a small crisp piece reads as
+       a stray glyph, where a large one reads as panelling. */
+    height: clamp(9rem, 26vw, 18rem);
+    will-change: transform;
+    animation: drift linear infinite;
+  }
+
+  /* Four pieces, four rhythms. The periods are mutually non-multiple so the
+     arrangement does not visibly repeat. */
+  .piece-pawn {
+    top: 4%;
+    left: 4%;
+    animation-duration: 47s;
+  }
+
+  .piece-rook {
+    top: 30%;
+    right: 6%;
+    height: clamp(7rem, 20vw, 14rem);
+    animation-duration: 61s;
+    animation-delay: -12s;
+  }
+
+  .piece-bishop {
+    bottom: -6%;
+    left: 26%;
+    height: clamp(8rem, 22vw, 15rem);
+    animation-duration: 53s;
+    animation-delay: -30s;
+  }
+
+  .piece-king {
+    top: 12%;
+    right: 32%;
+    height: clamp(6rem, 16vw, 11rem);
+    animation-duration: 71s;
+    animation-delay: -5s;
+  }
+
+  @keyframes drift {
+    0% {
+      transform: translate3d(0, 0, 0) rotate(-3deg);
+    }
+    50% {
+      transform: translate3d(1.5rem, -2rem, 0) rotate(3deg);
+    }
+    100% {
+      transform: translate3d(0, 0, 0) rotate(-3deg);
+    }
+  }
+
+  /* ── Parallax, CSS-only ────────────────────────────────────────────────
+     `animation-timeline: scroll()` drives this from the scroll position with
+     no listener and no main-thread work. Gated on @supports: where it is
+     unavailable the pieces keep drifting and simply do not parallax.
+
+     Each layer moves a different distance — that difference IS the parallax;
+     a uniform shift would just be the page scrolling. */
+  @supports (animation-timeline: scroll()) {
+    .piece {
+      animation:
+        drift linear infinite,
+        parallax linear;
+      animation-timeline: auto, scroll();
+    }
+
+    .piece-pawn {
+      --shift: -4rem;
+    }
+    .piece-rook {
+      --shift: -8rem;
+    }
+    .piece-bishop {
+      --shift: -2.5rem;
+    }
+    .piece-king {
+      --shift: -6rem;
+    }
+
+    @keyframes parallax {
+      to {
+        translate: 0 var(--shift, -4rem);
+      }
+    }
+  }
+
+  /* ── Reduced motion ───────────────────────────────────────────────────
+     The layer stays — it is texture, and removing it would change the page's
+     composition rather than just its motion — but nothing moves. */
+  @media (prefers-reduced-motion: reduce) {
+    .piece {
+      animation: none;
+      translate: none;
+    }
+  }
+</style>

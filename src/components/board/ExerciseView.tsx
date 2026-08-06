@@ -28,6 +28,7 @@
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import BoardSurface from './BoardSurface';
 import MoveInput, { type MoveInputLabels } from './MoveInput';
+import { thinkingFloorMs } from '@lib/motion';
 import type { ExerciseDefinition, ExerciseMove, ResolvedExercise } from '@lib/chess/exercise';
 import type { MoveTextResult } from '@lib/chess/notation';
 import {
@@ -85,12 +86,26 @@ export interface ExerciseViewProps {
 /**
  * How long a correct move sits on the board before the opponent answers.
  *
- * Long enough to read as a consequence rather than a glitch, short enough not
- * to feel like waiting. `prefers-reduced-motion` deliberately does NOT shorten
- * it: this is pacing, not decoration. Collapsing it would make the reply look
- * like part of the student's own move.
+ * Long enough to read as a consequence rather than a glitch, short enough not to
+ * feel like waiting. Drawn from the SAME range as the engine's thinking floor on
+ * `/jouer/` (see `src/lib/motion.ts`) and randomised per reply, so a scripted
+ * opponent and a real one are paced identically — a student moving between the
+ * two pages should not be able to feel which is which.
+ *
+ * Unlike the engine there is nothing to wait for here: the reply is known at
+ * build time, so the floor IS the whole delay.
+ *
+ * ⚠️ Under `prefers-reduced-motion` this drops to a minimal floor rather than to
+ * zero (Session 6). The earlier note here said reduced motion should not shorten
+ * it at all, on the grounds that this is pacing rather than decoration. That
+ * still holds — which is why it becomes 150ms and not 0. What changed is the
+ * recognition that a reader who has asked for less motion has usually also asked
+ * for less waiting, and 150ms is enough to keep the two move announcements from
+ * overlapping for a screen reader, which is the thing the gap actually protects.
  */
-const REPLY_DELAY_MS = 550;
+function replyDelayMs(): number {
+  return thinkingFloorMs();
+}
 /** How long the shake runs before the board snaps back. Matches exercise.css. */
 const SHAKE_MS = 620;
 
@@ -252,13 +267,14 @@ export default function ExerciseView(props: ExerciseViewProps) {
       if (reply) {
         // The reply lands first and the step advances with it; advancing early
         // would swap the next position in underneath the reply's animation.
-        after(REPLY_DELAY_MS, () => {
+        // Each leg draws its own delay, so the pair does not beat in time.
+        after(replyDelayMs(), () => {
           setShown(reply);
-          after(REPLY_DELAY_MS, advance);
+          after(replyDelayMs(), advance);
         });
         return;
       }
-      after(REPLY_DELAY_MS, advance);
+      after(replyDelayMs(), advance);
     },
     [after, busy, engine, slug, solved, step, stepIndex],
   );

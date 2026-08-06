@@ -228,6 +228,63 @@ On any exercise, and on `/jouer/` — **without touching the board at all**:
 
 ---
 
+## 7b. Pacing and ambient motion (Session 6)
+
+### The home page
+
+- [ ] The hero shows **Jouer** / **Play** as the primary (green) button, and it lands on `/jouer/`
+- [ ] **Découvrir les pièges** / **Explore traps** sits beside it and lands on `/pieges/`
+- [ ] Three pillar cards below: **Apprendre → /cours/**, **S'entraîner → /exercices/**, **Jouer → /jouer/**
+- [ ] Clicking anywhere on a pillar card follows its link; tabbing reaches each card once
+      *(one link per card — if Tab stops twice on a card, the whole-card overlay has regressed)*
+- [ ] Chess-piece silhouettes drift slowly behind the hero. **They should be barely
+      noticeable** — if you notice them before you notice the heading, they are too strong
+- [ ] Scrolling moves the silhouettes at a different rate from the text (parallax).
+      *Chromium-only: Firefox/Safari without `animation-timeline` still drift, just without
+      parallax. That is expected, not a bug.*
+- [ ] **Read the hero text over a silhouette.** It must stay comfortable in BOTH light and
+      dark. This is the one thing `check-contrast.mjs` cannot see — see CLAUDE.md for the
+      arithmetic and the 0.075 ceiling
+
+### Section reveals
+
+- [ ] `/pieges/`, `/exercices/`, `/cours/`, `/agenda/` — cards fade and rise slightly as you
+      scroll to them, staggered a little across a row
+- [ ] Scrolling back **up** does not re-hide anything already revealed
+- [ ] **Board detail pages have no reveals and no silhouettes** — `/pieges/legal/`,
+      `/exercices/mat-du-couloir/`, `/jouer/`. The board is the show there
+- [ ] With JavaScript disabled, every page still shows all of its content
+      *(the reveal CSS is gated on `html.js` — if content is invisible without JS, that gate broke)*
+
+### The bot must feel like it thinks
+
+- [ ] `/jouer/` at **Débutant** — play a move. The engine's reply takes a beat (roughly half a
+      second), it does not appear in the same instant as yours
+- [ ] The delay **varies** between moves rather than being metronomic
+- [ ] At **Avancé** the engine may take clearly longer on a complicated position. That is
+      correct — the delay is a floor, not a cap
+- [ ] Pieces are **readable while they move**: you can see which piece went where rather
+      than a blur or a jump
+- [ ] An exercise with a scripted reply (`/exercices/fourchette-de-cavalier/`) is paced the
+      same as `/jouer/` — you should not be able to feel which one has a real engine
+- [ ] Stepping a replay (`/pieges/legal/`) feels **snappier** than a played move. Holding the
+      arrow key still drops nothing
+
+### Reduced motion
+
+Turn it on at the OS level (Windows: Settings → Accessibility → Visual effects →
+Animation effects off; macOS: Accessibility → Display → Reduce motion; or DevTools →
+Rendering → Emulate `prefers-reduced-motion`).
+
+- [ ] Silhouettes are **still there** but completely still — the texture stays, the motion goes
+- [ ] Section reveals do not animate; content is simply present
+- [ ] Board moves are **instant** — pieces appear on their new square with no slide
+- [ ] The opponent **still pauses briefly** before replying (~150ms). It should not fire back
+      in the same instant. *This is deliberate: with a screen reader the two move
+      announcements must not overlap*
+
+---
+
 ## 8. Privacy — zero third-party requests
 
 - [ ] DevTools → Network, **hard reload** with the cache disabled

@@ -26,21 +26,21 @@ const dateFormat = new Intl.DateTimeFormat(locale === 'fr' ? 'fr-FR' : 'en-GB', 
 });
 ---
 
-<BaseLayout locale={locale} title={t('agenda.title')} description={t('agenda.intro')}>
+<BaseLayout locale={locale} title={t('agenda.title')} description={t('agenda.intro')} reveals>
   <PageIntro title={t('agenda.title')} intro={t('agenda.intro')} />
 
   {
     sessions.length === 0 ? (
       <p class="empty">{t('agenda.empty')}</p>
     ) : (
-      <ul class="sessions">
+      <ul class="sessions" data-reveal-stagger>
         {sessions.map(({ data }) => {
           const note = locale === 'fr' ? data.note_fr : data.note_en;
           // A session's own venue wins; otherwise fall back to site config.
           // Nothing venue-related is hardcoded here.
           const venue = data.venue ?? site.venue.name;
           return (
-            <li class="session">
+            <li class="session" data-reveal>
               <div class="session-when">
                 <time datetime={data.date.toISOString().slice(0, 10)}>
                   {dateFormat.format(data.date)}

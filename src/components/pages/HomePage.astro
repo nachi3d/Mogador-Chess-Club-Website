@@ -4,6 +4,7 @@ import { site } from '@config/site';
 import { localizePath } from '@i18n/paths';
 import { useTranslations } from '@i18n/ui';
 import BaseLayout from '@layouts/BaseLayout.astro';
+import HeroAmbient from '@components/motion/HeroAmbient.astro';
 
 interface Props {
   locale: Locale;
@@ -11,24 +12,87 @@ interface Props {
 
 const { locale } = Astro.props;
 const t = useTranslations(locale);
+
+/* The three pillars, in learning order rather than nav order: you learn, then
+   you drill, then you play. Held as data so the markup below stays one loop. */
+const pillars = [
+  {
+    href: '/cours/',
+    title: t('home.pillar.learn.title'),
+    text: t('home.pillar.learn.text'),
+  },
+  {
+    href: '/exercices/',
+    title: t('home.pillar.practise.title'),
+    text: t('home.pillar.practise.text'),
+  },
+  {
+    href: '/jouer/',
+    title: t('home.pillar.play.title'),
+    text: t('home.pillar.play.text'),
+  },
+] as const;
 ---
 
-<BaseLayout locale={locale} title={t('home.title')}>
+<BaseLayout locale={locale} title={t('home.title')} reveals>
   <section class="hero">
-    <p class="eyebrow">{site.venue.city}, {site.venue.country}</p>
-    <h1>{site.name}</h1>
-    <p class="lede">{t('home.intro')}</p>
-    <p class="actions">
-      <a class="btn btn-primary" href={localizePath('/cours/', locale)}>{t('home.cta.courses')}</a>
-      <a class="btn btn-ghost" href={localizePath('/pieges/', locale)}>{t('home.cta.traps')}</a>
-    </p>
+    <HeroAmbient />
+
+    <div class="hero-content">
+      <p class="eyebrow">{site.venue.city}, {site.venue.country}</p>
+      <h1>{site.name}</h1>
+      <p class="lede">{t('home.intro')}</p>
+      <p class="actions">
+        <a
+          class="btn btn-primary"
+          href={localizePath('/jouer/', locale)}
+          data-testid="home-cta-play"
+        >
+          {t('home.cta.play')}
+        </a>
+        <a class="btn btn-ghost" href={localizePath('/pieges/', locale)}>
+          {t('home.cta.traps')}
+        </a>
+      </p>
+    </div>
+  </section>
+
+  <section class="pillars" aria-labelledby="pillars-title" data-reveal>
+    <h2 id="pillars-title">{t('home.pillars.title')}</h2>
+    <ul class="pillar-grid" data-reveal-stagger>
+      {
+        pillars.map((pillar) => (
+          <li class="pillar">
+            {/* One link per card, wrapping the heading — the card is made
+                clickable by CSS below rather than by a second overlapping
+                anchor. That keeps a single entry in the a11y tree, the same
+                pattern CardGrid uses. */}
+            <h3>
+              <a href={localizePath(pillar.href, locale)}>{pillar.title}</a>
+            </h3>
+            <p>{pillar.text}</p>
+          </li>
+        ))
+      }
+    </ul>
   </section>
 </BaseLayout>
 
 <style>
   .hero {
+    /* Establishes the containing block for the ambient layer, which is
+       absolutely positioned against it. */
+    position: relative;
+    /* Full-bleed enough for the silhouettes to have somewhere to drift; the
+       text stays measured by .hero-content. */
+    padding-block: 2rem 3rem;
+  }
+
+  .hero-content {
+    position: relative;
+    /* Above .ambient, which sits at z-index 0. */
+    z-index: 1;
     max-width: 42ch;
-    padding-block: 2rem 1rem;
   }
 
   .eyebrow {
@@ -85,9 +149,91 @@ const t = useTranslations(locale);
   .btn-ghost {
     border: 1px solid var(--mcc-border-strong);
     color: var(--mcc-link);
+    background-color: var(--mcc-surface-page);
   }
 
   .btn-ghost:hover {
     background-color: var(--mcc-surface-sunken);
+  }
+
+  /* ── The three pillars ──────────────────────────────────────────────── */
+
+  .pillars {
+    margin-block-start: var(--mcc-section-gap, 4rem);
+  }
+
+  .pillars h2 {
+    margin: 0 0 1.5rem;
+    font-size: 1.5rem;
+  }
+
+  .pillar-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+    gap: 1rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .pillar {
+    position: relative;
+    padding: 1.25rem;
+    border: 1px solid var(--mcc-border);
+    border-radius: var(--radius-card);
+    background-color: var(--mcc-surface-raised);
+    transition:
+      border-color var(--duration-fast) var(--ease-soft),
+      transform var(--duration-fast) var(--ease-soft);
+  }
+
+  .pillar:hover {
+    border-color: var(--mcc-border-strong);
+  }
+
+  .pillar h3 {
+    margin: 0 0 0.5rem;
+    font-size: 1.1875rem;
+  }
+
+  .pillar h3 a {
+    color: var(--mcc-text-heading);
+    text-decoration: none;
+  }
+
+  /* The whole card is the hit area, from the one real link. */
+  .pillar h3 a::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+  }
+
+  .pillar h3 a:hover {
+    color: var(--mcc-link);
+  }
+
+  /* The ::after covers the card, so the ring has to be drawn on the card. */
+  .pillar:focus-within {
+    outline: 2px solid var(--mcc-focus-ring);
+    outline-offset: 2px;
+  }
+
+  .pillar h3 a:focus-visible {
+    outline: none;
+  }
+
+  .pillar p {
+    margin: 0;
+    color: var(--mcc-text-secondary);
+    line-height: 1.55;
+  }
+
+  /* A card that lifts under the pointer is fine; one that lifts for someone who
+     asked for less motion is not. */
+  @media (prefers-reduced-motion: no-preference) {
+    .pillar:hover {
+      transform: translateY(-2px);
+    }
   }
 </style>

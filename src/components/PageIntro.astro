@@ -11,7 +11,10 @@ interface Props {
 const { title, intro } = Astro.props;
 ---
 
-<div class="page-intro">
+{/* `data-reveal` is inert unless the page opted in via BaseLayout's `reveals`
+    prop — the CSS gate needs body[data-reveals] too. Safe to mark here
+    unconditionally; pages that never opt in are unaffected. */}
+<div class="page-intro" data-reveal>
   <h1>{title}</h1>
   <p class="lede">{intro}</p>
 </div>
