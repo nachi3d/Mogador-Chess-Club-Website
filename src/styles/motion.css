@@ -1,0 +1,60 @@
+/* ============================================================
+   Scroll reveals — opt-in, fail-visible.
+
+   The hard requirement here is that content is NEVER hidden by a
+   mechanism that might not run. Three gates have to be true before
+   anything is transparent:
+
+     html.js            the head script ran, so JS exists at all
+     body[data-reveals] this page asked for reveals (BaseLayout prop)
+     [data-reveal]      this element is a reveal target
+
+   Miss any one and the element renders normally. A page that forgets
+   to opt in shows its content; a reader with JS off shows content; a
+   crashed observer shows content. The failure mode of a decorative
+   effect must never be an invisible page.
+
+   `html.js` is set by the inline theme script in BaseLayout, before
+   <body> exists — the same mechanism the theme toggle uses to avoid a
+   frame of visible-but-inert UI. That timing is why this can be a pure
+   CSS gate with no flash.
+   ============================================================ */
+
+html.js body[data-reveals] [data-reveal] {
+  opacity: 0;
+  /* Small on purpose. A long travel reads as a slide-in effect; this should
+     read as the page settling, which is a different thing. */
+  transform: translateY(0.75rem);
+  transition:
+    opacity var(--duration-slow) var(--ease-soft),
+    transform var(--duration-slow) var(--ease-soft);
+}
+
+html.js body[data-reveals] [data-reveal].is-revealed {
+  opacity: 1;
+  transform: none;
+}
+
+/* A stagger, for grids of cards. Capped at six: past that the last card is
+   waiting long enough to look broken rather than choreographed. */
+html.js body[data-reveals] [data-reveal-stagger] > * {
+  transition-delay: calc(var(--reveal-step, 60ms) * var(--reveal-i, 0));
+}
+
+/* ── Reduced motion ───────────────────────────────────────────────────────
+   Not "faster" — off. The element is simply visible, with no transition to
+   interrupt and no transform to undo. `--duration-*` are already 1ms under
+   this query (tokens.css), but relying on that would leave a transition
+   running; this removes the mechanism rather than shrinking it. */
+@media (prefers-reduced-motion: reduce) {
+  html.js body[data-reveals] [data-reveal],
+  html.js body[data-reveals] [data-reveal].is-revealed {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  html.js body[data-reveals] [data-reveal-stagger] > * {
+    transition-delay: 0s;
+  }
+}

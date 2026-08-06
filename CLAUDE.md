@@ -607,6 +607,122 @@ Its first run in this shape found a **real pre-existing bug**: the `ink-950` lab
 
 ---
 
+## Animation policy (Session 6)
+
+Every duration on the site is a constant in **`src/lib/motion.ts`**, and nothing
+else may invent one. The numbers only mean anything relative to each other, so
+scattering them is how they drift apart.
+
+| Constant | Value | What it paces |
+|---|---|---|
+| `BOARD_ANIMATION_MS` | 250ms | a move played on a board — exercise, play |
+| `REPLAY_ANIMATION_MS` | 200ms | a step through a replay |
+| `THINK_FLOOR_MIN_MS` / `MAX` | 500–800ms | the opponent's apparent thinking time |
+| `REDUCED_MOTION_FLOOR_MS` | 150ms | the floor under `prefers-reduced-motion` |
+
+### Gameplay vs navigation — why two board durations
+
+A move **played** is an event: something happened and the reader must see which
+piece went where. A **step** through a replay is navigation — the reader is
+scrubbing a game they are reading, and every extra millisecond is latency between
+them and the next position. Jumping (Home/End, clicking a move) animates not at
+all; that is the existing `instant` prop.
+
+They are close together because they are the same gesture at different intents,
+not because the difference is a rounding error.
+
+### ⚠️ The thinking delay is a FLOOR, not a fixed wait
+
+`thinkingFloorMs()` is the **minimum** time before the engine's move appears. If
+the search takes longer — and at Avancé it legitimately will — nothing is added
+on top. The floor exists because Stockfish is usually far *faster* than a human
+reads: at Débutant (depth 2) a reply returns in single-digit milliseconds, and a
+move landing in the same frame as your own reads as a glitch, not an opponent.
+
+Implemented in `PlayView.opponentMove()` as: stamp the time, take a floor, run
+the search, then wait out whatever remains. **The `generation` check runs again
+after that wait** — the floor introduces a second `await`, so a new game, a
+resign or an unmount during it could otherwise drop the previous game's move onto
+the new board. That is the same class of bug `generation` already existed for,
+reachable through a new door.
+
+`ExerciseView` draws from the same range for its scripted `opponentReplies`, so a
+student cannot feel which page has a real engine behind it. There the reply is
+known at build time, so the floor *is* the whole delay.
+
+**The test asserts a lower bound only.** An upper bound would turn "the engine
+thought hard about a sharp position" into a failing test.
+
+### `prefers-reduced-motion` reduces motion, not pacing
+
+Board moves become instant and all ambient motion stops. The opponent delay drops
+to **150ms rather than 0** — a reader on a screen reader has their own move
+announced and then the opponent's, and collapsing the gap makes the two
+announcements overlap so the reply is heard as part of their own move. Reduced
+motion means "do not animate", not "do not pace".
+
+The preference is read **at call time, never cached**: it can change mid-session,
+and `BoardSurface` re-reads it on every update as well as at mount, which is what
+lets a spec emulate it after the island has already mounted.
+
+### Where ambient motion is allowed
+
+- **Yes:** home hero (drifting silhouettes + scroll parallax), and section
+  reveals on home and the four index pages.
+- **No:** board detail pages — `/pieges/[slug]/`, `/exercices/[slug]/`, `/jouer/`.
+  The board is the content there; fading it in delays the one thing the reader
+  came for. `tests/e2e/motion.spec.ts` asserts those three carry neither.
+
+Reveals are **opt-in per page** via BaseLayout's `reveals` prop, and the CSS gate
+is `html.js body[data-reveals] [data-reveal]` — three conditions, all of which
+must hold before anything is transparent. Miss any one and content renders
+normally. **The failure mode of a decorative effect must never be an invisible
+page.**
+
+### ⚠️ GSAP was evaluated and REJECTED — do not add it
+
+The Session 6 brief called for GSAP. It is not here, and the reason is not taste:
+
+> `npm view gsap license` → **"Standard 'no charge' license"** — GreenSock's own
+> licence, not an OSI one.
+
+This project is **GPL-3.0-or-later** (forced by Chessground). The GPL forbids
+adding restrictions beyond its own, and GSAP's licence restricts redistribution
+and fields of use. Bundling it would make the combined work undistributable under
+the licence the repo claims, contradict the dependency table on
+`/mentions-legales/`, and undercut the README's invitation to take this engine and
+run your own club with it.
+
+The visual result was the requirement, so it is delivered in **CSS + ~20 lines of
+vanilla JS**: keyframe drift, `animation-timeline: scroll()` parallax behind
+`@supports`, and an IntersectionObserver for reveals. Cost **≈1.3 KB gzip** and
+zero new requests, against ~36 KB gzip for GSAP core + ScrollTrigger.
+
+If a future session genuinely needs a timeline library, it must clear the licence
+question first. A permissive one (MIT/BSD) is fine; GSAP is not.
+
+### The ambient layer has an opacity ceiling
+
+`--mcc-ambient` / `--mcc-ambient-opacity` in `tokens.css`, per palette:
+green-800 at **0.055** (light), brass-300 at **0.07** (dark).
+
+`check-contrast.mjs` **cannot see this** — it audits token pairs, not decorative
+SVG sitting behind text. Computed by hand, worst case being text over a fully
+covered silhouette:
+
+| | clean | over a silhouette |
+|---|---|---|
+| light `h1` | 17.06 | 15.45 |
+| light lede | 5.13 | **4.65** |
+| dark `h1` | 17.50 | 15.40 |
+| dark lede | 7.79 | 6.85 |
+
+**The light lede is the constraint, and it drops below AA at ambient opacity
+~0.075.** We ship 0.055. If anyone raises it "just a little", that is the number
+that breaks, and no automated check will catch it — re-run the arithmetic.
+
+---
+
 ## PWA
 
 - **Manifest** is an endpoint (`src/pages/manifest.webmanifest.ts`) generated from `src/config/site.ts`, not a static file, so the club name and theme colours cannot drift from the config and tokens they came from. Astro prerenders it to a plain static file.

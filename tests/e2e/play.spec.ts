@@ -178,6 +178,43 @@ test.describe('play — a game', () => {
   });
 
   /**
+   * PACING (Session 6). The engine must appear to think.
+   *
+   * At Débutant the search is depth 2 and returns in single-digit milliseconds,
+   * so without the floor in `src/lib/motion.ts` the reply lands in the same
+   * frame as the reader's own move — which reads as a glitch, not an opponent.
+   *
+   * The assertion is a LOWER bound only, and deliberately so. The floor is a
+   * floor, not a fixed wait: a slower level may legitimately take much longer,
+   * and asserting an upper bound here would turn "Stockfish thought hard about
+   * a sharp position" into a test failure.
+   *
+   * 400ms against a 500ms minimum leaves room for timer coalescing and a loaded
+   * CI machine, while still being far above the ~0ms this measures if the floor
+   * is ever removed — the failure it exists to catch is a collapse to instant,
+   * not a 20% drift.
+   */
+  test('the engine appears to think before it answers', async ({ page }) => {
+    await openPlay(page, FR);
+    await startGame(page, { level: 'Débutant' });
+
+    const startedAt = Date.now();
+    await typeMove(page, 'e4');
+    // The reader's own move renders immediately — that is not what we time.
+    await expect(page.getByTestId('play-move-list')).toContainText('e4');
+    // Hand-back is the observable end of the engine's turn.
+    await expect(page.getByTestId('play')).toHaveAttribute('data-turn', 'white', {
+      timeout: ENGINE_TIMEOUT,
+    });
+    const elapsed = Date.now() - startedAt;
+
+    expect(
+      elapsed,
+      `the engine answered in ${elapsed}ms — the thinking floor looks collapsed`,
+    ).toBeGreaterThanOrEqual(400);
+  });
+
+  /**
    * The POINTER path, which the rest of this file does not exercise — every
    * other test here types. Without it, a break in the board's move handling on
    * `/jouer/` would surface only when a human tried it.

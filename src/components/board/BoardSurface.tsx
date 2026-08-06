@@ -23,6 +23,7 @@
  */
 
 import { useEffect, useRef } from 'preact/hooks';
+import { BOARD_ANIMATION_MS, boardAnimationMs } from '@lib/motion';
 import { Chessground } from 'chessground';
 import type { Api } from 'chessground/api';
 import type { Config } from 'chessground/config';
@@ -56,6 +57,18 @@ export interface BoardProps {
    * leap produces a meaningless scramble of sliding pieces.
    */
   readonly instant?: boolean;
+  /**
+   * How long a move animates, in ms. Defaults to the gameplay duration.
+   *
+   * Replay mode passes the shorter navigation duration — see the gameplay-vs-
+   * navigation note in `src/lib/motion.ts`. This is the ONLY knob: because every
+   * mode mounts this one component, setting it here is what makes the pacing
+   * consistent across replay, exercise and play without three copies of a number.
+   *
+   * `prefers-reduced-motion` overrides it to zero at read time; callers do not
+   * need to check.
+   */
+  readonly animationMs?: number;
   /** Accessible name for the board region. */
   readonly label: string;
 
@@ -162,6 +175,8 @@ export default function BoardSurface(props: BoardProps) {
     const host = hostRef.current;
     if (!host) return;
 
+    const mountAnimationMs = boardAnimationMs(props.animationMs ?? BOARD_ANIMATION_MS);
+
     const config: Config = {
       fen: props.fen,
       orientation: props.orientation,
@@ -171,7 +186,12 @@ export default function BoardSurface(props: BoardProps) {
       // `interactive` prop; this is the one flag api.set() cannot fix later.
       viewOnly: !props.interactive,
       addDimensionsCssVarsTo: host,
-      animation: { enabled: true, duration: 220 },
+      // Resolved through motion.ts so reduced-motion is honoured without every
+      // caller remembering to ask. Zero duration ⇒ disabled outright.
+      animation: {
+        enabled: mountAnimationMs > 0,
+        duration: mountAnimationMs,
+      },
       highlight: { lastMove: true, check: true },
       movable: {
         // `free: false` is what makes `dests` binding rather than advisory.
@@ -212,6 +232,11 @@ export default function BoardSurface(props: BoardProps) {
     const api = apiRef.current;
     if (!api) return;
 
+    /* Re-resolved per update rather than reused from mount: the preference can
+       change mid-session, and a spec that calls `emulateMedia` after the board
+       has mounted must still get instant moves. */
+    const animateMs = boardAnimationMs(props.animationMs ?? BOARD_ANIMATION_MS);
+
     api.set({
       fen: props.fen,
       orientation: props.orientation,
@@ -223,7 +248,7 @@ export default function BoardSurface(props: BoardProps) {
       // Chessground — the config merge skips undefined keys. An empty array does.
       lastMove: props.lastMove ? ([...props.lastMove] as Key[]) : [],
       check: props.check ?? false,
-      animation: { enabled: !props.instant, duration: 220 },
+      animation: { enabled: !props.instant && animateMs > 0, duration: animateMs },
       movable: {
         free: false,
         color: props.movableColor ?? undefined,
@@ -239,6 +264,7 @@ export default function BoardSurface(props: BoardProps) {
     props.lastMove,
     props.check,
     props.instant,
+    props.animationMs,
     props.arrows,
     props.circles,
     props.movableColor,

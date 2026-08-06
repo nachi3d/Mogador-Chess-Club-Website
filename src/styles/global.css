@@ -18,6 +18,9 @@
    as inline properties on <html>. */
 @import './board-themes.css';
 
+/* Scroll reveals. Opt-in per page and fail-visible — see the file header. */
+@import './motion.css';
+
 @layer base {
   html {
     background-color: var(--mcc-surface-page);

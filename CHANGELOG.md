@@ -9,6 +9,78 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ---
 
+## [Unreleased]
+
+### 0.2.0 — Home CTA, pacing, and ambient motion
+
+Three UX changes from Seàn's first real-device pass. No architecture changes.
+
+#### Added
+
+**The home page now says what to do**
+- A primary **Jouer** / **Play** CTA into `/jouer/`, with **Découvrir les pièges** /
+  **Explore traps** beside it. Playing was previously reachable only from the nav
+- Three pillar cards — Apprendre, S'entraîner, Jouer — in learning order rather
+  than nav order. One link per card, the whole card made clickable by a `::after`
+  overlay, so the a11y tree still has exactly one entry per card
+- `/jouer/` was already in the nav with clear labels in both locales; verified,
+  not changed
+
+**Ambient motion, CSS-only**
+- Drifting chess-piece silhouettes behind the home hero — original geometric
+  shapes, not the cburnett set (which is CC BY-SA and would drag an attribution
+  obligation onto page decoration)
+- Scroll parallax via `animation-timeline: scroll()` behind `@supports`. Where
+  unsupported the pieces still drift and simply do not parallax
+- Section reveals on home and the four index pages, **opt-in per page** and
+  fail-visible: three conditions must all hold before anything is transparent, so
+  a page that forgets to opt in, a reader without JS, and a crashed observer all
+  show content
+
+**`src/lib/motion.ts`** — every duration on the site, in one place
+
+#### Changed
+
+- **Board moves now animate at 250ms** (was 220ms), set through the one island so
+  replay, exercise and play all inherit it. Replay steps take **200ms**: stepping
+  is navigation, not gameplay — the distinction is documented in CLAUDE.md
+- **The engine appears to think.** A randomised 500–800ms **floor** before its
+  move appears — a floor, not an added wait, so a genuinely long search is never
+  padded. At Débutant the search returns in single-digit milliseconds and the
+  reply used to land in the same frame as the reader's own move
+- Scripted `opponentReplies` in exercises draw from the same range, so a student
+  cannot feel which page has a real engine behind it
+- Under `prefers-reduced-motion` the opponent delay drops to **150ms rather than
+  0**. This reverses the note that previously stood in `ExerciseView`: reduced
+  motion means "do not animate", not "do not pace", and with a screen reader the
+  two move announcements must not overlap
+
+#### Notes
+
+- **GSAP was evaluated and rejected — on licensing, not taste.** `npm view gsap
+  license` reports GreenSock's "Standard 'no charge' license", not an OSI one.
+  This project is GPL-3.0-or-later because of Chessground, and the GPL forbids
+  additional restrictions; bundling GSAP would make the combined work
+  undistributable under the licence the repo claims. The visual result was the
+  requirement, so it is CSS plus ~20 lines of vanilla JS: **≈1.3 KB gzip** and no
+  new request, against ~36 KB gzip for GSAP core + ScrollTrigger.
+- **Lighthouse home mobile: 100 → 98 Performance.** The whole delta is Speed
+  Index (2.1s → 3.6s); FCP, LCP, TBT and CLS are byte-identical. Isolated by
+  re-running with `--force-prefers-reduced-motion`, which disables the drift and
+  returns the score to 100 and Speed Index to 2.1s — Speed Index measures visual
+  *settling*, and a page with a permanent animation never settles. Accessibility,
+  best-practices and SEO stay at 100.
+- ⚠️ **A `<script is:inline>` does NOT evaluate `{...}` expressions inside it.**
+  The reveal script was first written as `<script is:inline>{\`…\`}</script>` and
+  shipped the braces and backticks verbatim — valid JavaScript (a block
+  containing a string literal) that does nothing, with no console error and every
+  card left at opacity 0. It is a `set:html` of a frontmatter constant instead.
+- The ambient layer's opacity has a hard ceiling that no automated check
+  enforces: the light lede drops below AA at ~0.075 and we ship 0.055. The
+  arithmetic is in CLAUDE.md.
+
+---
+
 ## [0.1.1] — 2026-08-06
 
 Patch: deployment configuration only. No application code changed, and nothing a
