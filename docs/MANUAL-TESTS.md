@@ -38,6 +38,10 @@ Legend: **FR** = French page, **EN** = English page. "Both" = do it in each.
 - [ ] Nav labels are translated but URLs are not (`/en/pieges/`, `/en/jouer/`) — this is deliberate
 - [ ] Footer shows the venue block, the association credit, and the Nachi3D Labs credit
 - [ ] No layout breaks between roughly 320 px and a wide desktop
+- [ ] **`/contact/` — the WhatsApp CTA opens a chat with the real club number**
+      (`+212 6 66 37 77 84`), and the displayed number matches the one the link dials.
+      *Check on a phone with WhatsApp installed: a wrong digit here sends a parent to
+      a stranger, and nothing on the page would look broken.*
 
 ---
 

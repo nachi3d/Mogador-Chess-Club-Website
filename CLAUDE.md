@@ -868,7 +868,7 @@ It is a **living document**: keep it in step with the site, in the same commit a
 - **Promotion:** the pointer path auto-queens (and, in an exercise, adopts the expected move's piece when the squares match, so nobody is failed for an under-promotion they were never asked about). The **typed** path honours what you type — `e8=D` under-promotes correctly. So a keyboard player has strictly more control than a mouse user here, which is backwards. A picker on the pointer path would fix it; no current exercise promotes, and in a real game against the engine a queen is right ~99% of the time.
 - **EN legal-notice URL:** `/en/mentions-legales/` (structural, keeps the switcher a pure prefix swap) or `/en/legal-notice/` (needs a segment-translation map)? Implemented as the former — see the note under Routes. Same question now applies to `/en/jouer/`.
 - **Domain:** is `mogadorchess.ma` registered / registrable? `.ma` needs a Moroccan registrar and can require paperwork.
-- **WhatsApp number** — currently a placeholder (`+212 6 00 00 00 00`). Must be real before launch.
+- ~~**WhatsApp number**~~ — RESOLVED: the real club number is in `site.contact.whatsapp`. Still the only number on the site, and still reached solely through `whatsappUrl()`.
 - **Club email** — create one, or route to Seàn's inbox?
 - **Socials** — does the club have its own Instagram, or does it post through the association's account? A Lichess team for v2?
 - **Brand mark** — the current one is an explicit placeholder (a board in a brass frame). Commission a real one?
