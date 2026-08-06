@@ -1,0 +1,77 @@
+---
+/**
+ * The server side of the board island, play mode.
+ *
+ * Its one job is to RESOLVE THE STRINGS, so the island does not import the i18n
+ * layer (which would drag `src/config/site.ts` and both string tables into the
+ * client bundle).
+ *
+ * It computes nothing about the game: a game against an engine has no
+ * build-time state at all. It does not — and must not — reference the engine
+ * module either, or Vite would follow the import and the 3.6 MB chunk would
+ * become part of the page's graph. The engine is reached only from inside the
+ * "start" handler in `PlayView`.
+ *
+ * Hydration is `client:visible` — never `client:load`. Hydrating renders a
+ * form and fetches nothing; see the header of `PlayView.tsx`.
+ */
+import type { Locale } from '@config/site';
+import { useTranslations } from '@i18n/ui';
+import ChessBoard from '@components/board/ChessBoard.tsx';
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const t = useTranslations(locale);
+
+const labels = {
+  board: t('play.board'),
+  setupHeading: t('play.setup.heading'),
+  colourLegend: t('play.colour.legend'),
+  white: t('play.colour.white'),
+  black: t('play.colour.black'),
+  levelLegend: t('play.level.legend'),
+  // The three engine presets reuse the club's own level vocabulary — a reader
+  // who has seen "Débutant" on an exercise should meet the same word here.
+  levels: {
+    debutant: t('level.debutant'),
+    intermediaire: t('level.intermediaire'),
+    avance: t('level.avance'),
+  },
+  start: t('play.start'),
+  startNote: t('play.start.note'),
+  loading: t('play.loading'),
+  loadError: t('play.loadError'),
+  retryLoad: t('play.retryLoad'),
+  thinking: t('play.thinking'),
+  yourTurn: t('play.yourTurn'),
+  moveList: t('play.moveList'),
+  resign: t('play.resign'),
+  newGame: t('play.newGame'),
+  status: t('play.status'),
+  youWin: t('play.result.youWin'),
+  youLose: t('play.result.youLose'),
+  checkmate: t('play.result.checkmate'),
+  stalemate: t('play.result.stalemate'),
+  draw: t('play.result.draw'),
+  repetition: t('play.result.repetition'),
+  material: t('play.result.material'),
+  fiftyMove: t('play.result.fiftyMove'),
+  resigned: t('play.result.resigned'),
+  check: t('play.check'),
+  // Keyboard entry — the same labels the exercise board uses.
+  move: {
+    label: t('move.label'),
+    placeholder: t('move.placeholder'),
+    submit: t('move.submit'),
+    help: t('move.help'),
+    errorUnreadable: t('move.error.unreadable'),
+    errorIllegal: t('move.error.illegal'),
+    errorEmpty: t('move.error.empty'),
+  },
+};
+---
+
+<ChessBoard client:visible mode="play" locale={locale} coordinates={true} labels={labels} />

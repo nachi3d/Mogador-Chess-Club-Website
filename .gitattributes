@@ -17,3 +17,9 @@
 
 # SVG is text, but treat it as such explicitly so the brand mark diffs cleanly.
 *.svg text eol=lf
+
+# The vendored Stockfish build (see scripts/build-engine.mjs). `stockfish.js` is
+# 2.3 MB of minified glue on very few lines: it is not ours, it is never edited
+# by hand, and a text diff of it is noise at best and a whole-file rewrite at
+# worst. Stored verbatim, exactly as npm shipped it.
+public/engine/** binary

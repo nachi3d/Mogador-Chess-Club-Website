@@ -52,11 +52,44 @@ test.describe('service worker precache', () => {
     expect(source).toContain('index.html');
   });
 
+  /**
+   * NEVER PRECACHED — but now genuinely present, so the assertion has to be
+   * sharper than "the word stockfish does not appear".
+   *
+   * Session 4 landed the engine, and its runtime `CacheFirst` rule legitimately
+   * names `/engine/stockfish...` in `registerRoute`. The thing that must never
+   * happen is the engine appearing in the PRECACHE MANIFEST — that would charge
+   * 3.6 MB to every first visit, including a phone on Essaouira mobile data
+   * that only ever reads one lesson.
+   *
+   * So: parse the manifest out of `precacheAndRoute([...])` and check THAT.
+   */
   test('NEVER precaches Stockfish or any wasm — the engine is lazy-loaded', async ({ request }) => {
     const source = await (await request.get('/sw.js')).text();
 
-    expect(source.toLowerCase()).not.toContain('stockfish');
-    expect(source).not.toContain('.wasm');
+    // Workbox emits `precacheAndRoute([...],{})` — note the SECOND argument, so
+    // the array does not close with `])`.
+    const manifest = source.match(/precacheAndRoute\(\[(.*?)\]\s*[,)]/s)?.[1];
+    expect(manifest, 'no precache manifest found in sw.js').toBeTruthy();
+
+    expect(manifest!.toLowerCase()).not.toContain('stockfish');
+    expect(manifest!).not.toContain('.wasm');
+    // Sanity: we are looking at a real manifest and not an empty match that
+    // would pass the two assertions above for the wrong reason.
+    expect(manifest!).toContain('index.html');
+  });
+
+  /**
+   * The other half of the same decision: excluded from the precache AND cached
+   * at runtime. Without this, the first game would cost 3.6 MB and so would
+   * every game after it.
+   */
+  test('caches the engine at runtime instead', async ({ request }) => {
+    const source = await (await request.get('/sw.js')).text();
+
+    expect(source).toMatch(/registerRoute\(\/\\\/engine\\\/stockfish/);
+    expect(source).toContain('mcc-engine');
+    expect(source).toContain('CacheFirst');
   });
 
   test('precaches the self-hosted latin fonts but not the unused subsets', async ({ request }) => {

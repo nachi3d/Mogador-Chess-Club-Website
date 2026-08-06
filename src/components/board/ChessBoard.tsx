@@ -33,8 +33,9 @@ import ReplayView, {
   type ReplayViewProps,
 } from './ReplayView';
 import ExerciseView, { type ExerciseLabels, type ExerciseViewProps } from './ExerciseView';
+import PlayView, { type PlayLabels, type PlayViewProps } from './PlayView';
 
-export type { ReplayComment, ReplayShapes, ReplayLabels, ExerciseLabels };
+export type { ReplayComment, ReplayShapes, ReplayLabels, ExerciseLabels, PlayLabels };
 
 /**
  * A discriminated union rather than one wide props bag: the exercise needs a
@@ -43,18 +44,23 @@ export type { ReplayComment, ReplayShapes, ReplayLabels, ExerciseLabels };
  * everything would let a caller mount a replay board with no PGN and find out
  * at runtime.
  *
- * `play` is reserved for Stockfish (Phase 2) and deliberately absent from the
- * union: adding a mode should be a compile error at every call site until its
- * view exists, not a board that silently renders nothing.
+ * A mode is added to the union only when its view exists, so mounting a mode
+ * that has not been built is a compile error at the call site rather than a
+ * board that silently renders nothing.
  */
 export type ChessBoardProps =
   | ({ readonly mode: 'replay' } & ReplayViewProps)
-  | ({ readonly mode: 'exercise' } & ExerciseViewProps);
+  | ({ readonly mode: 'exercise' } & ExerciseViewProps)
+  | ({ readonly mode: 'play' } & PlayViewProps);
 
 export default function ChessBoard(props: ChessBoardProps) {
   if (props.mode === 'exercise') {
     const { mode: _mode, ...rest } = props;
     return <ExerciseView {...rest} />;
+  }
+  if (props.mode === 'play') {
+    const { mode: _mode, ...rest } = props;
+    return <PlayView {...rest} />;
   }
   const { mode: _mode, ...rest } = props;
   return <ReplayView {...rest} />;

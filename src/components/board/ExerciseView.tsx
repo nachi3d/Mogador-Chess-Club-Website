@@ -27,7 +27,9 @@
 
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import BoardSurface from './BoardSurface';
+import MoveInput, { type MoveInputLabels } from './MoveInput';
 import type { ExerciseDefinition, ExerciseMove, ResolvedExercise } from '@lib/chess/exercise';
+import type { MoveTextResult } from '@lib/chess/notation';
 import {
   readExercise,
   recordAttempt,
@@ -64,11 +66,14 @@ export interface ExerciseLabels {
   readonly solutionHeading: string;
   readonly solutionHint: string;
   readonly checkmate: string;
+  readonly move: MoveInputLabels;
 }
 
 export interface ExerciseViewProps {
   /** Content slug — the key progress is stored under. */
   readonly slug: string;
+  /** The reader's language — decides whether `R` means rook or roi. */
+  readonly locale: 'fr' | 'en';
   readonly definition: ExerciseDefinition;
   /** Hint text, already resolved to the reader's language on the server. */
   readonly hint: string;
@@ -103,6 +108,7 @@ const NO_DESTS: ReadonlyMap<string, readonly string[]> = new Map();
 export default function ExerciseView(props: ExerciseViewProps) {
   const {
     slug,
+    locale,
     definition,
     hint,
     // A puzzle is shown from the solver's side of the board by default —
@@ -115,6 +121,11 @@ export default function ExerciseView(props: ExerciseViewProps) {
   /** null until the lazily-imported engine chunk has resolved. */
   const [engine, setEngine] = useState<ResolvedExercise | null>(null);
   const judgeRef = useRef<typeof import('@lib/chess/exercise').judgeMove | null>(null);
+  /* The notation parser rides in on the same lazy chunk — it needs chess.js
+     too, so making it a second dynamic import would only add a round trip. */
+  const resolveRef = useRef<typeof import('@lib/chess/notation').resolveMoveText | null>(null);
+  /** Bumped whenever it becomes the reader's turn again — pulls focus back. */
+  const [focusSignal, setFocusSignal] = useState(0);
 
   const [stepIndex, setStepIndex] = useState(0);
   const [feedback, setFeedback] = useState<Feedback>('idle');
@@ -154,10 +165,14 @@ export default function ExerciseView(props: ExerciseViewProps) {
   useEffect(() => {
     let live = true;
     void (async () => {
-      const module = await import('@lib/chess/exercise');
+      const [engineModule, notationModule] = await Promise.all([
+        import('@lib/chess/exercise'),
+        import('@lib/chess/notation'),
+      ]);
       if (!live) return;
-      judgeRef.current = module.judgeMove;
-      setEngine(module.resolveExercise(definition));
+      judgeRef.current = engineModule.judgeMove;
+      resolveRef.current = notationModule.resolveMoveText;
+      setEngine(engineModule.resolveExercise(definition));
     })();
 
     /* Progress is read in an EFFECT, not in the initial state. Reading
@@ -206,6 +221,7 @@ export default function ExerciseView(props: ExerciseViewProps) {
           // Chessground has already slid the piece; `fen` is unchanged, so only
           // a revision bump puts it back. See BoardSurface's `revision` prop.
           setRevision((prev) => prev + 1);
+          setFocusSignal((prev) => prev + 1);
         });
         return;
       }
@@ -223,6 +239,9 @@ export default function ExerciseView(props: ExerciseViewProps) {
         setShown(null);
         if (!isLastStep) {
           setStepIndex((prev) => prev + 1);
+          // It is the reader's turn again. A keyboard player must not be left
+          // with focus on a control that was disabled while the opponent moved.
+          setFocusSignal((prev) => prev + 1);
           return;
         }
         setSolved(true);
@@ -242,6 +261,22 @@ export default function ExerciseView(props: ExerciseViewProps) {
       after(REPLY_DELAY_MS, advance);
     },
     [after, busy, engine, slug, solved, step, stepIndex],
+  );
+
+  /**
+   * Typed text → a move, against the step the reader is actually looking at.
+   *
+   * The result goes to the SAME `onMove` the board calls, so a typed move and a
+   * dragged move are indistinguishable from here on — including how they are
+   * judged, counted and announced.
+   */
+  const resolveText = useCallback(
+    (text: string): MoveTextResult => {
+      const resolve = resolveRef.current;
+      if (!resolve || !step) return { kind: 'unreadable' };
+      return resolve(step.fen, text, locale);
+    },
+    [locale, step],
   );
 
   const revealHint = useCallback(() => {
@@ -395,6 +430,19 @@ export default function ExerciseView(props: ExerciseViewProps) {
             </p>
           )}
         </div>
+
+        {/* The other way in. Hidden once solved — there is nothing left to
+            play — but present and enabled for every move before that. */}
+        {!solved && (
+          <MoveInput
+            id={`move-${slug}`}
+            labels={labels.move}
+            resolve={resolveText}
+            onMove={onMove}
+            disabled={!interactive}
+            focusSignal={focusSignal}
+          />
+        )}
 
         {hintShown ? (
           <div class="mcc-exercise-hint" data-testid="exercise-hint">

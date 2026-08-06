@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import { movePiece, typeMove } from './helpers/board';
 
 /**
  * The exercise board.
@@ -31,80 +32,21 @@ async function openExercise(page: Page, path: string) {
 }
 
 /**
- * The centre of a square in page coordinates.
- *
- * Chessground positions pieces with transforms rather than putting a DOM node
- * per square, so there is nothing to select by name — the geometry has to be
- * computed. The board is always 8×8 of its own box; `orientation` decides which
- * corner is a1.
- */
-async function squareCenter(page: Page, square: string, orientation: 'white' | 'black' = 'white') {
-  const box = await page.locator('[data-testid="chessboard"] cg-board').boundingBox();
-  if (!box) throw new Error(`the board has no layout box; cannot locate ${square}`);
-
-  const file = square.charCodeAt(0) - 'a'.charCodeAt(0);
-  const rank = Number(square[1]) - 1;
-  const col = orientation === 'white' ? file : 7 - file;
-  const row = orientation === 'white' ? 7 - rank : rank;
-
-  return {
-    x: box.x + ((col + 0.5) * box.width) / 8,
-    y: box.y + ((row + 0.5) * box.height) / 8,
-  };
-}
-
-/**
- * Let at least one animation frame run.
- *
- * ⚠️ THIS IS LOAD-BEARING, NOT A "let things settle" sleep. Chessground marks a
- * drag as *started* inside a `requestAnimationFrame` loop (`processDrag` in
- * drag.ts), and `end()` only produces a move when `cur.started` is set. Playwright
- * dispatches `mouse.move(..., { steps })` back to back with no delay, so a whole
- * synthetic drag can begin and finish inside a single frame — Chessground then
- * treats it as a click-select and the piece just sits there, selected, with the
- * legal-move dots showing and no move emitted.
- *
- * It cost a full-matrix run to find: deterministic on iPhone 13, intermittent on
- * Firefox, invisible on desktop Chromium where the frames happen to fall right.
- *
- * The `setTimeout` is a floor, not a race to win — rAF can be throttled hard in
- * an emulated mobile context, and this must never hang.
- */
-async function nextFrame(page: Page) {
-  await page.evaluate(
-    () =>
-      new Promise<void>((resolve) => {
-        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-        setTimeout(resolve, 150);
-      }),
-  );
-}
-
-/**
  * Drag a piece from one square to another, the way a reader does.
  *
  * Waits for the board to be accepting input first. It ignores moves while a
  * scripted reply is playing out or the shake is running — correct behaviour,
  * and invisible from the outside, so a spec that drags straight through it just
  * sees its move vanish. `data-busy` is what makes that waitable.
+ *
+ * Moves by TAPPING (click piece, click square), not dragging — see the note
+ * on `movePiece` in ./helpers/board. Same handler, none of the rAF fragility.
  */
 async function playMove(page: Page, from: string, to: string) {
   await expect(page.getByTestId('exercise')).toHaveAttribute('data-busy', 'false', {
     timeout: 10_000,
   });
-
-  const origin = await squareCenter(page, from);
-  const target = await squareCenter(page, to);
-
-  await page.mouse.move(origin.x, origin.y);
-  await page.mouse.down();
-  // Chessground starts a drag on movement, not on press — going straight to
-  // mouseup would register as a click-select instead.
-  await page.mouse.move((origin.x + target.x) / 2, (origin.y + target.y) / 2, { steps: 6 });
-  await nextFrame(page);
-  await page.mouse.move(target.x, target.y, { steps: 6 });
-  await nextFrame(page);
-  await page.mouse.up();
+  await movePiece(page, from, to);
 }
 
 test.describe('exercise — solving', () => {
@@ -322,6 +264,155 @@ test.describe('exercise — the English side', () => {
       'not the line we had in mind',
     );
     await expect(page.getByTestId('exercise-status')).not.toContainText('not the right move');
+  });
+});
+
+/**
+ * ⚠️ THE EXCLUSION THIS CLOSES.
+ *
+ * Chessground takes pointer input only. Before Session 4 a reader who could not
+ * use a mouse or a touchscreen could read an exercise, read the hint, and had
+ * no way whatsoever to answer it. axe never flagged it, because there was no
+ * unlabelled control — there was no control at all.
+ *
+ * Every test here plays WITHOUT touching the board. If they pass, the exercise
+ * is solvable by keyboard alone.
+ */
+test.describe('exercise — keyboard entry', () => {
+  /* `typeMove` comes from ./helpers/board — the same one play.spec.ts uses, so
+     the two cannot drift. Nothing in this block touches the board. */
+
+  test('an exercise can be solved entirely from the keyboard', async ({ page }) => {
+    await openExercise(page, MATE_IN_2.fr);
+
+    // Two player moves with a scripted reply in between — the whole flow.
+    await typeMove(page, 'Rg6'); // French: R = roi. 1. Kg6
+    await expect(page.getByTestId('exercise')).toHaveAttribute('data-step', '1', {
+      timeout: 10_000,
+    });
+
+    await typeMove(page, 'Ta8'); // French: T = tour. 2. Ra8#
+    await expect(page.getByTestId('exercise')).toHaveAttribute('data-state', 'solved', {
+      timeout: 10_000,
+    });
+    await expect(page.getByTestId('exercise-solved')).toBeVisible();
+  });
+
+  test('focus returns to the field after the opponent has replied', async ({ page }) => {
+    await openExercise(page, MATE_IN_2.fr);
+
+    await typeMove(page, 'Rg6');
+    await expect(page.getByTestId('exercise')).toHaveAttribute('data-step', '1', {
+      timeout: 10_000,
+    });
+    // Without this a keyboard player is left with focus on a control that was
+    // disabled while the opponent moved, and no signal that it is their turn.
+    await expect(page.getByTestId('move-input-field')).toBeFocused();
+  });
+
+  test('English notation, French notation and plain squares all work', async ({ page }) => {
+    // English SAN on the English page.
+    await openExercise(page, MATE_IN_1.en);
+    await typeMove(page, 'Ra8');
+    await expect(page.getByTestId('exercise')).toHaveAttribute('data-state', 'solved', {
+      timeout: 10_000,
+    });
+
+    // Coordinates — what the board itself emits — on the French page.
+    await openExercise(page, MATE_IN_1.fr);
+    await typeMove(page, 'a1a8');
+    await expect(page.getByTestId('exercise')).toHaveAttribute('data-state', 'solved', {
+      timeout: 10_000,
+    });
+  });
+
+  /**
+   * `R` is the rook in English and the king (roi) in French. On the French page
+   * the French reading wins, and the English one is tried only if that is not
+   * legal — so a French speaker gets what they meant without a habitual English
+   * typist being rejected.
+   */
+  test('French R means roi here, but English R still resolves when it must', async ({ page }) => {
+    await openExercise(page, MATE_IN_1.fr);
+    // No king move to a8 exists, so "Ra8" can only be the rook. It plays.
+    await typeMove(page, 'Ra8');
+    await expect(page.getByTestId('exercise')).toHaveAttribute('data-state', 'solved', {
+      timeout: 10_000,
+    });
+  });
+
+  test('a legal-but-wrong typed move is judged exactly like a dragged one', async ({ page }) => {
+    await openExercise(page, MATE_IN_1.fr);
+
+    await typeMove(page, 'Ta7'); // legal rook move, not the mate
+    await expect(page.getByTestId('exercise')).toHaveAttribute('data-state', 'wrong');
+    await expect(page.getByTestId('exercise-attempts')).toHaveText('1');
+    // The judge path is shared, so the verdict copy is the same one the pointer
+    // path produces — not a parallel set of messages that could drift.
+    await expect(page.getByTestId('exercise-status')).toContainText("Ce n'est pas le bon coup");
+  });
+
+  test('an impossible move is refused without being counted as an attempt', async ({ page }) => {
+    await openExercise(page, MATE_IN_1.fr);
+
+    await typeMove(page, 'Th8'); // no rook can reach h8
+    await expect(page.getByTestId('move-input-error')).toContainText("n'est pas possible");
+    // It never reached the judge, so it is not a wrong answer.
+    await expect(page.getByTestId('exercise-attempts')).toHaveText('0');
+    await expect(page.getByTestId('exercise')).toHaveAttribute('data-state', 'idle');
+  });
+
+  test('gibberish says it could not be read, which is a different thing', async ({ page }) => {
+    await openExercise(page, MATE_IN_1.fr);
+
+    await typeMove(page, 'zzz');
+    await expect(page.getByTestId('move-input-error')).toContainText('non compris');
+    await expect(page.getByTestId('exercise-attempts')).toHaveText('0');
+  });
+
+  test('the error is an alert, and clears when the reader edits', async ({ page }) => {
+    await openExercise(page, MATE_IN_1.fr);
+
+    await expect(page.getByTestId('move-input-error')).toHaveAttribute('role', 'alert');
+    await typeMove(page, 'zzz');
+    await expect(page.getByTestId('move-input-error')).not.toBeEmpty();
+    await expect(page.getByTestId('move-input-field')).toHaveAttribute('aria-invalid', 'true');
+    // aria-describedby must point at elements that EXIST. It gains the error id
+    // only while there is an error, so a dangling reference is invisible until
+    // one appears — which is precisely when a screen reader needs it.
+    const described = await page.getByTestId('move-input-field').getAttribute('aria-describedby');
+    for (const id of (described ?? '').split(' ').filter(Boolean)) {
+      await expect(page.locator(`#${id}`)).toHaveCount(1);
+    }
+
+    await page.getByTestId('move-input-field').fill('a1a8');
+    // A stale complaint must not sit under a move already corrected.
+    await expect(page.getByTestId('move-input-error')).toBeEmpty();
+  });
+
+  /**
+   * The existing axe passes all run on a clean form. An error state adds
+   * `aria-invalid` and a second `aria-describedby` target, so it is the state
+   * most likely to carry a broken reference — and the least likely to be
+   * looked at.
+   */
+  test('an error state has no axe violations either', async ({ page }) => {
+    await openExercise(page, MATE_IN_1.fr);
+    await typeMove(page, 'zzz');
+    await expect(page.getByTestId('move-input-error')).not.toBeEmpty();
+    await expectNoAxeViolations(page);
+  });
+
+  test('the field is properly labelled and described', async ({ page }) => {
+    await openExercise(page, MATE_IN_1.fr);
+
+    const field = page.getByRole('textbox', { name: 'Jouer un coup au clavier' });
+    await expect(field).toBeVisible();
+    // The help text naming the accepted notations is programmatically attached,
+    // not just sitting nearby.
+    const describedBy = await field.getAttribute('aria-describedby');
+    expect(describedBy).toBeTruthy();
+    await expect(page.locator(`#${describedBy!.split(' ').pop()}`)).toContainText('cavalier');
   });
 });
 

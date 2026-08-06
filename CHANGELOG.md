@@ -11,6 +11,96 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### [0.4.0] — Content licence, keyboard play, and Stockfish
+
+#### Added
+
+**Licensing — the content is now a separate work**
+- `LICENSE-CONTENT` — CC BY-NC-ND 4.0 (verbatim legal code) over the *pedagogical
+  substance* of `src/content/`: the FR/EN prose, the commentary, the chosen lines, the
+  exercise design. © Seàn McGannon / Mogador Chess Club
+- The split is **substance vs structure**: the schemas, field names, JSON format, ply
+  scheme, UCI encoding and checker stay GPL. You may take this engine, write your own
+  lessons against the same schemas and sell them — just not ours
+- Stated on `/mentions-legales/` in both locales, in `README.md`, and in `site.legal.content`
+
+**Keyboard move entry — the pointer-only exclusion is closed**
+- `MoveInput.tsx` on both the exercise and play boards, feeding the **same**
+  `onMove(from, to)` a drag does; there is no accessible variant of the game logic
+- `src/lib/chess/notation.ts` — SAN (`Bc4`), French SAN (`Fc4`, `Cxe5`), and plain
+  coordinates (`f1c4`), plus `0-0`, lowercase and trailing `!?`
+- `R` is the rook in English and the king in French, so the reader's locale is tried
+  first and the other reading only if it is not legal here
+- "Could not read that" and "that move is not available" are different messages, and
+  neither counts as an attempt — only a real, legal, wrong move does
+- Focus returns to the field after the opponent replies
+
+**Play mode — `/jouer/` + `/en/jouer/`**
+- Stockfish 11 WASM, self-hosted, vendored by `scripts/build-engine.mjs` (3.6 MB)
+- **Loaded on a click and never before**: hydrating the page renders a form and fetches
+  nothing; the engine module is `await import()`ed inside the start handler
+- Excluded from the precache, cached at runtime (`mcc-engine`), so the first game costs
+  3.6 MB and every game after it costs nothing
+- Colour + three levels, a Web Worker so the main thread never blocks, move list,
+  resign, new game, all chess.js end states announced in a live region
+- `src/lib/chess/opponent.ts` — the `MoveProvider` interface `PlayView` talks to.
+  Stockfish is just an implementation; **v2's online play is another one, not a rewrite**
+
+#### Fixed
+
+- **`astro check` ran out of memory** once the engine was vendored: `public/engine` was
+  inside the TypeScript project and Stockfish's 2.28 MB of minified glue took the program
+  past the V8 heap limit. The build died 2m30s in with "Ineffective mark-compacts near
+  heap limit", naming no file. `tsconfig.json` now excludes it.
+- **The "never precaches Stockfish" test had become a tautology.** "The word stockfish
+  does not appear in sw.js" was only true while the engine did not exist; the runtime
+  cache rule legitimately names it. It now parses the array out of `precacheAndRoute([…])`
+  and asserts against *that* — plus a new test that the runtime rule exists at all.
+- Play specs get a 120s timeout and run **one at a time**. Every one boots a real engine
+  (3.6 MB, 64 MiB of WASM memory); six at once exhausts the machine, the handshake misses
+  its window, and the view correctly shows "could not load" — so tests fail looking like
+  nothing. Raising timeouts made it *worse*; reducing concurrency fixed it, and made the
+  file faster.
+- **Dragging on `/jouer/` was untested and would have stayed that way.** Every play test
+  was written with the keyboard because typing is easier than computing board geometry.
+  Two `dragMove` tests now cover the pointer path, one of them from the black side, where
+  the geometry flips. Writing them immediately found that the board — which does not exist
+  until the game starts — lands below the fold, so the drag was aimed past the viewport.
+- The engine handshake window is 90s, not 30s: it has to cover fetching 3.6 MB on
+  Essaouira mobile data, and timing out on someone whose engine was merely still arriving
+  is the worst possible answer.
+- Board-driving helpers moved to `tests/e2e/helpers/board.ts`, and **specs now tap rather
+  than drag**. Chessground only registers a drag once a `requestAnimationFrame` has run,
+  and a synthetic drag is instantaneous, so under the full matrix the mobile projects
+  starved rAF and lost moves outright. Tapping goes through the same `userMove` handler
+  with no rAF involved. Three separate bugs fell out of fixing this properly:
+  page-absolute mouse coordinates broke when the page scrolled between the two taps (the
+  second one landed on the move-entry field, whose focus then scrolled the page — the
+  screenshot showed the piece selected and the board ignoring input); touch-emulated
+  Chromium needs real `tap()` events, not mouse clicks; and the drag path, still worth
+  covering, is now pinned to desktop Chromium where it is meaningful.
+
+#### Notes
+
+- ⚠️ **The level presets are `Skill Level`, not Elo.** The vendored build exposes no
+  `UCI_LimitStrength` and no `UCI_Elo` — verified by reading the `uci` option list out of
+  the running worker. Débutant/Intermédiaire/Avancé are hand-set skill+depth+movetime; the
+  ~800/~1400/~2000 design targets are recorded in CLAUDE.md and **not printed in the UI**,
+  because a rating the engine does not enforce and nobody has measured is an invented fact.
+- **Memory: a fixed 64 MiB.** The build declares `INITIAL_MEMORY = 67108864` with
+  `initial === maximum`, so the WASM heap does not grow; `Hash` is pinned at 16 MB and
+  `Threads` at 1. The worker is disposed on unmount. (`performance.memory` will not show
+  you this — it is quantised and ignores WASM linear memory.)
+- **Stockfish 11, not 16/17/18** — those ship a 91/183/251 MB NNUE network. This one is
+  1.38 MB, and an engine nobody on mobile data can download is worth nothing.
+- **Pass-and-play was skipped**, not forgotten: it is a separate small mode rather than a
+  flag on `PlayView`. See the open questions.
+- Island cost: the shared board chunk is **47.1 KB raw / 14.9 KB brotli** (was 39.8/12.8)
+  now that all three views and `MoveInput` share it — **72.1 KB / 24.5 KB** for everything
+  a board page loads up front. chess.js and the chess logic are a further **39.3 KB /
+  12.4 KB** in lazy chunks, and the engine is **3.57 MB** fetched on a click. `/jouer/`
+  loads none of the last two until you press start.
+
 ### [0.3.0] — GPL, and the exercise engine
 
 The licence question is answered, and the board learned to be answered back.

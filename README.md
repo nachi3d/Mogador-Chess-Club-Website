@@ -34,9 +34,11 @@ npm run dev          # http://localhost:4321
 | `node scripts/check-content.mjs` | Replay every PGN / exercise through chess.js |
 | `node scripts/build-icons.mjs` | Regenerate PWA icons from the brand mark |
 | `node scripts/build-fonts.mjs` | Regenerate the self-hosted font subsets |
+| `node scripts/build-engine.mjs` | Re-vendor Stockfish into `public/engine/` |
 
-The last two are **not** part of `npm run build` — their outputs are committed.
-See CLAUDE.md → "Generated assets".
+The last three are **not** part of `npm run build` — their outputs are committed.
+See CLAUDE.md → "Generated assets". `build-engine.mjs` needs the engine installed
+transiently first: `npm install --no-save stockfish@11.0.0`.
 
 ## Documentation
 
@@ -44,15 +46,40 @@ See CLAUDE.md → "Generated assets".
 architecture rules, the content model, and the decisions behind them. Read it
 before changing anything structural.
 
-## Licence
+## Licence — two of them, on purpose
 
-**GNU General Public License v3.0 or later** — see [LICENSE](./LICENSE).
+**The code and the teaching content are licensed separately.** They are two works
+that happen to live in one repository.
 
-The site uses [Chessground](https://github.com/lichess-org/chessground), Lichess's
-board library, which is GPL-3.0-or-later. The combined work may therefore only be
-distributed under the GPL, and its source must be available to the site's users —
-which is what this public repository, and the source link in the site's footer, are
-for.
+### Code — GPL-3.0-or-later
+
+See [LICENSE](./LICENSE). The site uses
+[Chessground](https://github.com/lichess-org/chessground) and
+[Stockfish](https://github.com/nmrugg/stockfish.js), both GPL, so the combined work
+may only be distributed under the GPL and its source must be available to the site's
+users — which is what this public repository, and the source link in the site's
+footer, are for.
+
+This covers everything that makes the content *work*, including the shape of the
+content itself: `src/content.config.ts`, the Zod schemas, every field name, the
+ply-numbering scheme, the UCI encoding, the validation in `scripts/check-content.mjs`,
+and every component that renders any of it.
+
+### Content — CC BY-NC-ND 4.0
+
+See [LICENSE-CONTENT](./LICENSE-CONTENT).
+© Seàn McGannon / Mogador Chess Club.
+
+This covers the **pedagogical substance** of everything under `src/content/`: the
+French and English prose, the move commentary, the lines chosen for each trap, and
+the design of the exercises. Share it as it is, non-commercially, with credit.
+
+**In short: you may deploy this engine; you may not republish the teaching content
+commercially.** Take the software, write your own lessons against the same schemas,
+and publish them — commercially if you wish. Just not ours. For anything the licence
+does not allow, ask; for a school or a community club the answer is very likely yes.
+
+### Third-party credits
 
 The pieces are the **cburnett** set by **Colin M. L. Burnett**, used unmodified
 under [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/). Full credits

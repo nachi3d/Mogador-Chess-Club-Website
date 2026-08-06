@@ -18,6 +18,7 @@ const fr = {
   'nav.courses': 'Cours',
   'nav.traps': "Pièges d'ouverture",
   'nav.exercises': 'Exercices',
+  'nav.play': 'Jouer',
   'nav.agenda': 'Agenda',
   'nav.contact': 'Contact',
   'nav.label': 'Navigation principale',
@@ -89,6 +90,51 @@ const fr = {
   'exercise.solution.heading': 'La solution',
   'exercise.solution.hint': 'Cliquez un coup pour revoir la position.',
 
+  /* Keyboard move entry — the alternative to dragging a piece. */
+  'move.label': 'Jouer un coup au clavier',
+  'move.placeholder': 'Fc4, Cxe5, O-O, f1c4…',
+  'move.submit': 'Jouer',
+  /* R roi, D dame, T tour, F fou, C cavalier — the French piece letters. */
+  'move.help':
+    "Notation française (Fc4, Cxe5, O-O), anglaise (Bc4, Nxe5) ou par cases (f1c4). Majuscules : R roi, D dame, T tour, F fou, C cavalier.",
+  'move.error.unreadable': "Coup non compris. Essayez « Fc4 », « Cxe5 » ou « f1c4 ».",
+  'move.error.illegal': "Ce coup n'est pas possible dans cette position.",
+  'move.error.empty': 'Écrivez un coup avant de valider.',
+
+  'play.title': "Jouer contre l'ordinateur",
+  'play.intro':
+    "Une partie complète contre Stockfish, dans votre navigateur. Rien n'est envoyé nulle part : le moteur tourne sur votre appareil.",
+  'play.setup.heading': 'Votre partie',
+  'play.colour.legend': 'Vos pièces',
+  'play.colour.white': 'Les blancs',
+  'play.colour.black': 'Les noirs',
+  'play.level.legend': 'Niveau de l’ordinateur',
+  'play.start': 'Commencer la partie',
+  /* The engine is ~3,6 Mo and is fetched only when this button is pressed. */
+  'play.start.note':
+    "Le moteur (environ 3,6 Mo) est téléchargé au moment où vous commencez, jamais avant.",
+  'play.loading': 'Chargement du moteur…',
+  'play.loadError':
+    "Le moteur n'a pas pu être chargé. Vérifiez votre connexion et réessayez.",
+  'play.retryLoad': 'Réessayer',
+  'play.thinking': "L'ordinateur réfléchit…",
+  'play.yourTurn': 'À vous de jouer',
+  'play.board': 'Échiquier — partie contre l’ordinateur',
+  'play.moveList': 'Les coups',
+  'play.resign': 'Abandonner',
+  'play.newGame': 'Nouvelle partie',
+  'play.status': 'État de la partie',
+  'play.result.youWin': 'Vous gagnez.',
+  'play.result.youLose': 'L’ordinateur gagne.',
+  'play.result.checkmate': 'Échec et mat',
+  'play.result.stalemate': 'Pat — la partie est nulle.',
+  'play.result.draw': 'Partie nulle.',
+  'play.result.repetition': 'Nulle par répétition.',
+  'play.result.material': 'Nulle : matériel insuffisant pour mater.',
+  'play.result.fiftyMove': 'Nulle par la règle des cinquante coups.',
+  'play.result.resigned': 'Vous avez abandonné.',
+  'play.check': 'Échec',
+
   'agenda.title': 'Agenda',
   'agenda.intro': 'Les prochaines séances du club.',
   'agenda.empty': 'Aucune séance programmée pour le moment.',
@@ -124,6 +170,15 @@ const fr = {
     "Ce site utilise Chessground, la bibliothèque d'échiquier de Lichess, publiée sous licence GNU GPL v3. L'œuvre combinée ne peut donc être distribuée que sous cette même licence, et son code source doit être mis à la disposition de ses utilisateurs. Le dépôt est public : le lien ci-dessous est cette mise à disposition.",
   'legal.licence.source': 'Code source du site',
   'legal.licence.text': 'Texte de la licence GNU GPL v3',
+  'legal.content.heading': 'Le code et le contenu ont deux licences',
+  'legal.content.body':
+    "Le logiciel de ce site est sous licence GNU GPL v3 ou ultérieure. Le contenu pédagogique — les textes français et anglais, les commentaires de coups, le choix des lignes montrées et la conception des exercices — est une œuvre distincte, simplement réunie avec le code dans le même dépôt.",
+  'legal.content.terms':
+    "Ce contenu est mis à disposition sous licence Creative Commons Attribution – Pas d'Utilisation Commerciale – Pas de Modification 4.0. Vous pouvez le partager tel quel, gratuitement, en citant le club. Vous ne pouvez ni le vendre, ni en publier une version modifiée ou traduite.",
+  'legal.content.structure':
+    "La distinction porte sur le fond, pas sur la forme : les schémas, les noms de champs et le format des fichiers restent du logiciel sous GPL. Vous pouvez donc reprendre ce site, écrire vos propres leçons et les publier, y compris commercialement — ce sont nos leçons à nous qui ne sont pas réutilisables ainsi.",
+  'legal.content.link': 'Licence du contenu (CC BY-NC-ND 4.0)',
+  'legal.content.ask': "Pour tout usage que cette licence n'autorise pas, écrivez-nous : la réponse est très probablement oui pour une école ou un club.",
   'legal.credits.heading': 'Crédits et licences des ressources',
   'legal.credits.intro':
     "Les ressources marquées d'un astérisque sont sous licence à réciprocité (GPL, CC BY-SA) : leur crédit est une obligation, pas une politesse.",
@@ -148,6 +203,7 @@ const en: Record<keyof typeof fr, string> = {
   'nav.courses': 'Courses',
   'nav.traps': 'Opening traps',
   'nav.exercises': 'Exercises',
+  'nav.play': 'Play',
   'nav.agenda': 'Schedule',
   'nav.contact': 'Contact',
   'nav.label': 'Main navigation',
@@ -215,6 +271,47 @@ const en: Record<keyof typeof fr, string> = {
   'exercise.solution.heading': 'The solution',
   'exercise.solution.hint': 'Click a move to see the position again.',
 
+  'move.label': 'Play a move with the keyboard',
+  'move.placeholder': 'Bc4, Nxe5, O-O, f1c4…',
+  'move.submit': 'Play',
+  'move.help':
+    'Standard notation (Bc4, Nxe5, O-O) or plain squares (f1c4). French piece letters work too: R king, D queen, T rook, F bishop, C knight.',
+  'move.error.unreadable': 'Move not understood. Try "Bc4", "Nxe5" or "f1c4".',
+  'move.error.illegal': 'That move is not possible in this position.',
+  'move.error.empty': 'Type a move before playing it.',
+
+  'play.title': 'Play the computer',
+  'play.intro':
+    'A full game against Stockfish, in your browser. Nothing is sent anywhere: the engine runs on your own device.',
+  'play.setup.heading': 'Your game',
+  'play.colour.legend': 'Your pieces',
+  'play.colour.white': 'White',
+  'play.colour.black': 'Black',
+  'play.level.legend': 'Computer level',
+  'play.start': 'Start the game',
+  'play.start.note':
+    'The engine (about 3.6 MB) is downloaded when you start, never before.',
+  'play.loading': 'Loading the engine…',
+  'play.loadError': 'The engine could not be loaded. Check your connection and try again.',
+  'play.retryLoad': 'Try again',
+  'play.thinking': 'The computer is thinking…',
+  'play.yourTurn': 'Your move',
+  'play.board': 'Chessboard — game against the computer',
+  'play.moveList': 'Moves',
+  'play.resign': 'Resign',
+  'play.newGame': 'New game',
+  'play.status': 'Game state',
+  'play.result.youWin': 'You win.',
+  'play.result.youLose': 'The computer wins.',
+  'play.result.checkmate': 'Checkmate',
+  'play.result.stalemate': 'Stalemate — the game is drawn.',
+  'play.result.draw': 'The game is drawn.',
+  'play.result.repetition': 'Draw by repetition.',
+  'play.result.material': 'Draw: not enough material to mate.',
+  'play.result.fiftyMove': 'Draw by the fifty-move rule.',
+  'play.result.resigned': 'You resigned.',
+  'play.check': 'Check',
+
   'agenda.title': 'Schedule',
   'agenda.intro': "The club's upcoming sessions.",
   'agenda.empty': 'No sessions scheduled at the moment.',
@@ -250,6 +347,16 @@ const en: Record<keyof typeof fr, string> = {
     "This site uses Chessground, Lichess's chessboard library, released under the GNU GPL v3. The combined work may therefore be distributed only under that same licence, and its source code must be made available to its users. The repository is public: the link below is that availability.",
   'legal.licence.source': 'Source code of this site',
   'legal.licence.text': 'Text of the GNU GPL v3',
+  'legal.content.heading': 'The code and the content are licensed separately',
+  'legal.content.body':
+    'The software behind this site is licensed under the GNU GPL v3 or later. The teaching content — the French and English text, the move commentary, the choice of lines shown and the design of the exercises — is a separate work, merely gathered together with the code in one repository.',
+  'legal.content.terms':
+    'That content is available under the Creative Commons Attribution–NonCommercial–NoDerivatives 4.0 licence. You may share it as it is, free of charge, crediting the club. You may not sell it, nor publish a modified or translated version of it.',
+  'legal.content.structure':
+    'The distinction is substance, not shape: the schemas, the field names and the file format remain GPL software. You are free to take this site, write your own lessons and publish them, commercially if you like — it is our lessons specifically that cannot be reused that way.',
+  'legal.content.link': 'Content licence (CC BY-NC-ND 4.0)',
+  'legal.content.ask':
+    'For anything this licence does not allow, just ask — for a school or a community club the answer is very likely yes.',
   'legal.credits.heading': 'Credits and resource licences',
   'legal.credits.intro':
     'Resources marked with an asterisk are under share-alike licences (GPL, CC BY-SA): crediting them is an obligation, not a courtesy.',
@@ -285,6 +392,7 @@ export const NAV_ITEMS = [
   { path: '/cours/', key: 'nav.courses' },
   { path: '/pieges/', key: 'nav.traps' },
   { path: '/exercices/', key: 'nav.exercises' },
+  { path: '/jouer/', key: 'nav.play' },
   { path: '/agenda/', key: 'nav.agenda' },
   { path: '/contact/', key: 'nav.contact' },
 ] as const satisfies readonly { path: string; key: UIKey }[];
