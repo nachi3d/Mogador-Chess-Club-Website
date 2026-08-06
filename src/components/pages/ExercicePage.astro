@@ -1,0 +1,160 @@
+---
+/**
+ * A single exercise: the interactive board, the hint, and the share/back links.
+ *
+ * Shared by both locale routes. `getStaticPaths` lives in the route files, so
+ * this component receives an already-resolved entry.
+ */
+import type { CollectionEntry } from 'astro:content';
+import type { Locale } from '@config/site';
+import { site } from '@config/site';
+import { exercisesPath } from '@i18n/paths';
+import { useTranslations } from '@i18n/ui';
+import BaseLayout from '@layouts/BaseLayout.astro';
+import LevelBadge from '@components/LevelBadge.astro';
+import ExerciseBoard from '@components/board/ExerciseBoard.astro';
+
+interface Props {
+  locale: Locale;
+  entry: CollectionEntry<'exercices'>;
+}
+
+const { locale, entry } = Astro.props;
+const { data } = entry;
+const t = useTranslations(locale);
+
+const title = locale === 'fr' ? data.title_fr : data.title_en;
+const hint = locale === 'fr' ? data.hint_fr : data.hint_en;
+
+/**
+ * The description does double duty as the OG description, so it must not give
+ * the puzzle away — a link preview that spoils its own exercise is worse than
+ * no preview. The hint is a nudge, not a solution, which is exactly right here.
+ */
+const description = `${t('exercises.title')} — ${title}`;
+
+/**
+ * Outbound share only. The club has no in-app messaging of any kind — no
+ * comments, no chat, no reactions (CLAUDE.md → "No in-app communication").
+ * This hands the reader's own WhatsApp a prefilled message and gets out of the
+ * way; nothing is posted anywhere by us, and there is no recipient number.
+ */
+const shareUrl = new URL(Astro.url.pathname, site.url).href;
+const shareText = `${title} — ${site.name}\n${shareUrl}`;
+const whatsappShare = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
+---
+
+<BaseLayout locale={locale} title={title} description={description}>
+  <article class="exercise-page">
+    <nav class="exercise-back" aria-label={t('exercises.backToIndex')}>
+      <a href={exercisesPath(locale)}>← {t('exercises.backToIndex')}</a>
+    </nav>
+
+    <header class="exercise-header">
+      <h1>{title}</h1>
+      <div class="exercise-meta">
+        <LevelBadge locale={locale} level={data.level} />
+      </div>
+      {
+        data.themes.length > 0 && (
+          <>
+            <h2 class="exercise-themes-heading">{t('traps.themes')}</h2>
+            <ul class="exercise-themes">
+              {data.themes.map((theme) => (
+                <li class="chip">{theme}</li>
+              ))}
+            </ul>
+          </>
+        )
+      }
+    </header>
+
+    <ExerciseBoard
+      locale={locale}
+      slug={data.slug}
+      fen={data.fen}
+      solution={data.solution}
+      opponentReplies={data.opponentReplies}
+      onlyMove={data.onlyMove}
+      hint={hint}
+    />
+
+    <footer class="exercise-footer">
+      <a class="share" href={whatsappShare} rel="noopener noreferrer" target="_blank">
+        {t('exercises.share')}
+      </a>
+    </footer>
+  </article>
+</BaseLayout>
+
+<style>
+  .exercise-back {
+    margin-bottom: 1.5rem;
+    font-size: 0.9375rem;
+  }
+
+  .exercise-header {
+    margin-bottom: 2rem;
+  }
+
+  .exercise-header h1 {
+    margin: 0 0 0.75rem;
+    font-size: clamp(1.9rem, 5vw, 2.75rem);
+    line-height: 1.1;
+  }
+
+  .exercise-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 1rem;
+  }
+
+  .exercise-themes-heading {
+    margin: 1.5rem 0 0.5rem;
+    font-family: var(--font-body);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--mcc-text-secondary);
+  }
+
+  .exercise-themes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .chip {
+    padding: 0.15rem 0.55rem;
+    background-color: var(--mcc-surface-sunken);
+    border: 1px solid var(--mcc-border-subtle);
+    border-radius: var(--radius-pill);
+    color: var(--mcc-text-secondary);
+    font-size: var(--text-2xs);
+  }
+
+  .exercise-footer {
+    margin-top: 2.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--mcc-border-subtle);
+  }
+
+  .share {
+    display: inline-block;
+    padding: 0.7rem 1.4rem;
+    background-color: var(--mcc-primary);
+    color: var(--mcc-primary-contrast);
+    border-radius: var(--radius-card);
+    font-weight: 500;
+    text-decoration: none;
+  }
+
+  .share:hover {
+    background-color: var(--mcc-primary-hover);
+  }
+</style>

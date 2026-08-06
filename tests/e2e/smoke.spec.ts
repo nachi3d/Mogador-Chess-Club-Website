@@ -14,8 +14,20 @@ import AxeBuilder from '@axe-core/playwright';
  */
 
 /** Mirrors ROUTES in src/i18n/paths.ts. Kept as a literal because the spec
- *  runs outside the Astro module graph and cannot use the `@i18n` alias. */
-const ROUTES = ['/', '/cours/', '/pieges/', '/exercices/', '/agenda/', '/contact/'] as const;
+ *  runs outside the Astro module graph and cannot use the `@i18n` alias.
+ *
+ *  `/mentions-legales/` keeps its FRENCH segment in English — route segments
+ *  are never translated, which is what makes the switcher a pure prefix swap
+ *  that can never fail to find its counterpart. See src/i18n/paths.ts. */
+const ROUTES = [
+  '/',
+  '/cours/',
+  '/pieges/',
+  '/exercices/',
+  '/agenda/',
+  '/contact/',
+  '/mentions-legales/',
+] as const;
 
 const enPath = (route: string) => (route === '/' ? '/en/' : `/en${route}`);
 

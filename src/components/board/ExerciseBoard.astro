@@ -1,0 +1,87 @@
+---
+/**
+ * The server side of the board island, exercise mode.
+ *
+ * Its one job is to RESOLVE THE STRINGS. Labels are translated here from
+ * `src/i18n/ui.ts` and passed down, so the island does not import the i18n
+ * layer (which would drag `src/config/site.ts` and both string tables into the
+ * client bundle).
+ *
+ * Unlike `ReplayBoard.astro` it does NOT precompute the position: an exercise
+ * has to judge an arbitrary dragged move, and legality cannot be precomputed.
+ * The island lazy-imports chess.js for that, and only on this route — see the
+ * header of `ExerciseView.tsx`.
+ *
+ * The stored line is still validated at build time, just not here:
+ * `scripts/check-content.mjs` replays every solution and reply through chess.js
+ * and fails the build on an illegal one.
+ *
+ * Hydration is `client:visible` — never `client:load`. See CLAUDE.md.
+ */
+import type { Locale } from '@config/site';
+import { useTranslations } from '@i18n/ui';
+import ChessBoard from '@components/board/ChessBoard.tsx';
+
+interface Props {
+  locale: Locale;
+  /** Content slug — the key progress is stored under, in localStorage. */
+  slug: string;
+  fen: string;
+  /** The player's moves, in order. UCI. */
+  solution: readonly string[];
+  /** `opponentReplies[i]` is played after `solution[i]`. UCI. */
+  opponentReplies: readonly string[];
+  /** See CLAUDE.md → Exercise validation rule. Decides the WORDING, not the acceptance. */
+  onlyMove: boolean;
+  /** Already resolved to `locale` by the caller. */
+  hint: string;
+  orientation?: 'white' | 'black';
+}
+
+const {
+  locale,
+  slug,
+  fen,
+  solution,
+  opponentReplies,
+  onlyMove,
+  hint,
+  orientation,
+} = Astro.props;
+const t = useTranslations(locale);
+
+const labels = {
+  board: t('exercise.board'),
+  loading: t('exercise.loading'),
+  status: t('exercise.status'),
+  turnWhite: t('exercise.turn.white'),
+  turnBlack: t('exercise.turn.black'),
+  instructions: t('exercise.instructions'),
+  step: t('exercise.step'),
+  attempts: t('exercise.attempts'),
+  hintShow: t('exercise.hint.show'),
+  hintHeading: t('exercise.hint.heading'),
+  correct: t('exercise.correct'),
+  wrong: t('exercise.wrong'),
+  offLine: t('exercise.offLine'),
+  offLineNote: t('exercise.offLine.note'),
+  solved: t('exercise.solved'),
+  solvedAgain: t('exercise.solved.again'),
+  retry: t('exercise.retry'),
+  solutionHeading: t('exercise.solution.heading'),
+  solutionHint: t('exercise.solution.hint'),
+  // Shared with the replayer — the same event deserves the same word.
+  checkmate: t('replay.checkmate'),
+};
+---
+
+<ChessBoard
+  client:visible
+  mode="exercise"
+  slug={slug}
+  definition={{ fen, solution, opponentReplies, onlyMove }}
+  hint={hint}
+  coordinates={true}
+  labels={labels}
+  {...(orientation ? { orientation } : {})}
+/>

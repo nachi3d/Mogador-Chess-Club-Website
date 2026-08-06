@@ -27,6 +27,22 @@ export interface SocialLink {
   readonly published: boolean;
 }
 
+/**
+ * A third-party work the site must credit. Rendered by `/mentions-legales/`.
+ * `shareAlike` marks the licences that REQUIRE the credit (GPL, CC BY-SA) as
+ * opposed to the permissive ones we list out of courtesy.
+ */
+export interface Attribution {
+  readonly id: string;
+  readonly work: string;
+  readonly author: string;
+  /** SPDX identifier or the licence's common name. */
+  readonly licence: string;
+  readonly workUrl: string;
+  readonly licenceUrl: string;
+  readonly shareAlike: boolean;
+}
+
 export interface Venue {
   /** null ⇒ the club is running without a fixed venue; venue blocks disappear. */
   readonly name: string | null;
@@ -129,6 +145,94 @@ export const site = {
       en: 'Site by',
     } satisfies Localized,
     url: 'https://www.nachi3dlabs.com',
+  },
+
+  /**
+   * LICENCE — decided Session 3, by Seàn.
+   *
+   * The site ships Chessground, which is GPL-3.0-or-later, and its README is
+   * explicit: "your combined work may be distributed only under the GPL. You
+   * must release your source code to the users of your website." So the repo is
+   * PUBLIC and the site carries a source link — that link IS the distribution
+   * obligation being met, which is why it renders in the footer of every page
+   * and not only on the legal notice.
+   *
+   * Everything here is DATA (names, URLs, identifiers). The surrounding prose
+   * lives in `src/i18n/ui.ts` like every other user-facing string.
+   */
+  legal: {
+    /** Publisher of the site, in the French "éditeur" sense. */
+    publisher: {
+      name: 'Seàn McGannon',
+      label: 'Nachi3D Labs',
+      url: 'https://www.nachi3dlabs.com',
+      email: 'nachiketas3d@gmail.com',
+    },
+    /** Host, as French law requires a legal notice to name. */
+    host: {
+      name: 'Cloudflare, Inc.',
+      url: 'https://www.cloudflare.com/',
+      /** Cloudflare Pages — fully static output, no server-side processing. */
+      service: 'Cloudflare Pages',
+    },
+    /** The source release that satisfies the GPL's distribution requirement. */
+    source: {
+      spdx: 'GPL-3.0-or-later',
+      url: 'https://github.com/nachi3d/Mogador-Chess-Club-Website',
+      licenseUrl: 'https://www.gnu.org/licenses/gpl-3.0.html',
+    },
+    /**
+     * Third-party work that must be credited by its licence.
+     * `share-alike` marks the ones whose terms require the credit — the legal
+     * page renders those in full rather than as a one-liner.
+     */
+    attributions: [
+      {
+        id: 'chessground',
+        work: 'Chessground',
+        author: 'Lichess (lichess-org)',
+        licence: 'GPL-3.0-or-later',
+        workUrl: 'https://github.com/lichess-org/chessground',
+        licenceUrl: 'https://www.gnu.org/licenses/gpl-3.0.html',
+        shareAlike: true,
+      },
+      {
+        id: 'cburnett',
+        work: 'cburnett',
+        author: 'Colin M. L. Burnett',
+        licence: 'CC BY-SA 3.0',
+        workUrl: 'https://en.wikipedia.org/wiki/User:Cburnett/GFDL_images/Chess',
+        licenceUrl: 'https://creativecommons.org/licenses/by-sa/3.0/',
+        shareAlike: true,
+      },
+      {
+        id: 'chessjs',
+        work: 'chess.js',
+        author: 'Jeff Hlywa',
+        licence: 'BSD-2-Clause',
+        workUrl: 'https://github.com/jhlywa/chess.js',
+        licenceUrl: 'https://opensource.org/license/bsd-2-clause',
+        shareAlike: false,
+      },
+      {
+        id: 'astro',
+        work: 'Astro + Preact',
+        author: 'The Astro Technology Company, Jason Miller',
+        licence: 'MIT',
+        workUrl: 'https://astro.build/',
+        licenceUrl: 'https://opensource.org/license/mit',
+        shareAlike: false,
+      },
+      {
+        id: 'fonts',
+        work: 'Fraunces, Inter',
+        author: 'Undercase Type, Rasmus Andersson',
+        licence: 'SIL OFL 1.1',
+        workUrl: 'https://fonts.google.com/specimen/Fraunces',
+        licenceUrl: 'https://openfontlicense.org/',
+        shareAlike: false,
+      },
+    ] as const satisfies readonly Attribution[],
   },
 
   analytics: {

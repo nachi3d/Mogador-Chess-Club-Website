@@ -1,0 +1,12 @@
+---
+// Route shell. See the FR counterpart.
+//
+// The SEGMENT is not translated — `/en/mentions-legales/`, not
+// `/en/legal-notice/`. One segment vocabulary is what makes the language
+// switcher a pure prefix swap that can never fail to find its counterpart.
+// The visible link label is translated; the URL is structural. (CLAUDE.md →
+// Routes.)
+import LegalPage from '@components/pages/LegalPage.astro';
+---
+
+<LegalPage locale="en" />

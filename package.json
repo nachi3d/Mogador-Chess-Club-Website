@@ -3,6 +3,11 @@
   "type": "module",
   "version": "0.1.0",
   "private": true,
+  "license": "GPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nachi3d/Mogador-Chess-Club-Website.git"
+  },
   "description": "Mogador Chess Club — plateforme d'apprentissage des échecs (cours, pièges, exercices). Astro statique, PWA, FR/EN (Nachi3D Labs).",
   "scripts": {
     "dev": "astro dev",

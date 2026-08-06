@@ -125,7 +125,66 @@ for (const { file, data } of readCollection('traps')) {
 
 /* ─────────────────────────── exercices ─────────────────────────── */
 
+/** UCI → the {from,to,promotion} object chess.js wants. */
+const uci = (m) => ({
+  from: m.slice(0, 2),
+  to: m.slice(2, 4),
+  ...(m.length > 4 ? { promotion: m[4] } : {}),
+});
+
+/**
+ * Every first move that forces mate in `depth` of the side-to-move's own moves.
+ *
+ * Used to police `onlyMove: true`. Depth is capped by the caller because this
+ * is a plain minimax over legal moves — fine at depth 2 for the puzzle-sized
+ * positions we ship, and not something to point at a middlegame.
+ */
+function forcedMateMoves(fen, depth) {
+  const game = new Chess(fen);
+  const winners = [];
+  for (const move of game.moves({ verbose: true })) {
+    const after = new Chess(fen);
+    after.move(move.san);
+
+    if (after.isCheckmate()) {
+      if (depth === 1) winners.push(move.san);
+      continue;
+    }
+    if (depth === 1 || after.isStalemate() || after.isDraw()) continue;
+
+    const defences = after.moves({ verbose: true });
+    if (defences.length === 0) continue;
+    const everyDefenceLoses = defences.every((defence) => {
+      const next = new Chess(after.fen());
+      next.move(defence.san);
+      return forcedMateMoves(next.fen(), depth - 1).length > 0;
+    });
+    if (everyDefenceLoses) winners.push(move.san);
+  }
+  return winners;
+}
+
+const exerciseSlugs = new Map();
+
 for (const { file, data } of readCollection('exercices')) {
+  // A duplicate slug silently overwrites a published URL — one of the two
+  // exercises would simply stop existing, with no error anywhere.
+  const seen = exerciseSlugs.get(data.slug);
+  if (seen) fail(file, `slug "${data.slug}" is already used by ${seen}`);
+  else exerciseSlugs.set(data.slug, file);
+
+  // A hint missing in one language renders an empty box for that reader only —
+  // the gap nobody notices until someone reports it. Same rule as moveComments.
+  if (!data.hint_fr?.trim()) fail(file, 'hint_fr is empty');
+  if (!data.hint_en?.trim()) fail(file, 'hint_en is empty');
+
+  // Six fields, because the side to move and the castling rights are part of
+  // the puzzle. A four-field FEN parses in chess.js and silently assumes white.
+  const fenFields = String(data.fen ?? '').trim().split(/\s+/);
+  if (fenFields.length !== 6) {
+    fail(file, `FEN has ${fenFields.length} field(s), expected 6 — side to move matters`);
+  }
+
   let game;
   try {
     game = new Chess(data.fen);
@@ -134,6 +193,8 @@ for (const { file, data } of readCollection('exercices')) {
     continue;
   }
 
+  const startFen = game.fen();
+  const playerColor = game.turn();
   const solution = data.solution ?? [];
   const replies = data.opponentReplies ?? [];
 
@@ -143,15 +204,25 @@ for (const { file, data } of readCollection('exercices')) {
     continue;
   }
 
-  /** UCI → the {from,to,promotion} object chess.js wants. */
-  const uci = (m) => ({
-    from: m.slice(0, 2),
-    to: m.slice(2, 4),
-    ...(m.length > 4 ? { promotion: m[4] } : {}),
-  });
-
   let broke = false;
   for (let i = 0; i < solution.length; i++) {
+    /**
+     * The student always plays the SAME colour. If the two arrays fall out of
+     * step — a missing reply, an extra one — the moves stay individually legal
+     * while the board hands the student their opponent's pieces to move. The
+     * board would then be asking for a move the exercise never described.
+     */
+    if (game.turn() !== playerColor) {
+      fail(
+        file,
+        `solution[${i}] is played by the wrong side: the student is ${
+          playerColor === 'w' ? 'white' : 'black'
+        }, but it is ${game.turn() === 'w' ? "white's" : "black's"} turn. ` +
+          'opponentReplies is probably one short.',
+      );
+      broke = true;
+      break;
+    }
     try {
       game.move(uci(solution[i]));
     } catch {
@@ -180,10 +251,39 @@ for (const { file, data } of readCollection('exercices')) {
     fail(file, 'themed "mat" but the line does not end in checkmate');
   }
 
-  // RULE 2 sanity: a forced mate is the canonical onlyMove:true case. Not an
-  // error either way — just worth surfacing, since the default is permissive.
+  /**
+   * ⚠️ THE onlyMove POLICE — see CLAUDE.md → "Exercise validation rule".
+   *
+   * `onlyMove: true` makes the validator tell a student that any other move is
+   * WRONG. That claim has to be true. For a short forced mate we can prove it:
+   * if a second first move also mates in the same number of player moves, the
+   * flag is a lie waiting to be told to whoever finds the other one.
+   *
+   * This is not hypothetical — it caught exactly that on `opposition-et-mat`,
+   * where 1. Kf7 mates as surely as 1. Kg6 does. That exercise is `false` and
+   * says "not the line we had in mind" for a reason.
+   *
+   * Only short mating lines are checkable, so only they are policed. A quiet
+   * or longer line with onlyMove:true is left to the author's judgement.
+   */
+  let onlyMoveNote = '';
+  if (data.onlyMove === true && mates && solution.length <= 2 && solution.length > 0) {
+    const alternatives = forcedMateMoves(startFen, solution.length);
+    if (alternatives.length > 1) {
+      fail(
+        file,
+        `onlyMove is true, but ${alternatives.length} different first moves force mate in ` +
+          `${solution.length} (${alternatives.join(', ')}). Set onlyMove:false, or change the ` +
+          'position — telling a student that a move which also mates is "wrong" is exactly ' +
+          'what the rule in CLAUDE.md forbids.',
+      );
+    } else {
+      onlyMoveNote = `, mate is unique (${alternatives.join('') || 'none found'})`;
+    }
+  }
+
   const note = mates
-    ? `ends in mate, onlyMove=${data.onlyMove === true}`
+    ? `ends in mate, onlyMove=${data.onlyMove === true}${onlyMoveNote}`
     : `ends quiet (${game.turn() === 'w' ? 'white' : 'black'} to move)`;
 
   console.log(`  ok  ${file} — ${solution.length} player move(s), ${note}`);

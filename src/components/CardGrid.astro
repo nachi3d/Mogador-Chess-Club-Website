@@ -16,15 +16,23 @@ export interface CardItem {
   readonly href?: string | undefined;
   /** Free tags rendered as chips. Content vocabulary, not translated. */
   readonly themes?: readonly string[] | undefined;
+  /**
+   * Content slug this card tracks progress for. When set, the card reserves a
+   * status row and renders a hidden "solved" marker that a client script
+   * reveals — see the note on `.card-status` below.
+   */
+  readonly progressKey?: string | undefined;
 }
 
 interface Props {
   locale: Locale;
   items: readonly CardItem[];
   emptyMessage: string;
+  /** Label for the solved marker. Required once any item has a `progressKey`. */
+  solvedLabel?: string | undefined;
 }
 
-const { locale, items, emptyMessage } = Astro.props;
+const { locale, items, emptyMessage, solvedLabel } = Astro.props;
 ---
 
 {
@@ -59,6 +67,22 @@ const { locale, items, emptyMessage } = Astro.props;
             </ul>
           )}
           {item.meta && <p class="card-meta">{item.meta}</p>}
+          {/*
+            PROGRESS. The row is ALWAYS rendered and always reserves its height,
+            so revealing the marker cannot reflow the grid — the card is the
+            same size before and after the script runs.
+
+            `hidden` rather than `visibility: hidden`: an unsolved card must not
+            have a stray "Solved" sitting in the accessibility tree waiting to
+            be read out. The whole marker is absent until it is true.
+          */}
+          {item.progressKey && (
+            <p class="card-status">
+              <span class="card-solved" data-solved-for={item.progressKey} hidden>
+                <span aria-hidden="true">✓</span> {solvedLabel}
+              </span>
+            </p>
+          )}
         </li>
       ))}
     </ul>
@@ -168,6 +192,31 @@ const { locale, items, emptyMessage } = Astro.props;
     color: var(--mcc-text-secondary);
     font-family: var(--font-notation);
     font-size: var(--text-2xs);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  /* Fixed height whether or not the marker inside is shown — this is the whole
+     reason the row exists as its own element. */
+  .card-status {
+    display: flex;
+    align-items: center;
+    min-height: 1.5rem;
+    margin: 0.75rem 0 0;
+  }
+
+  .card-solved {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.15rem 0.6rem;
+    /* green-700 fill with the cream label — the same AA-proved pair as the
+       primary CTA. Never the level-badge mid-tones. */
+    background-color: var(--mcc-primary);
+    color: var(--mcc-primary-contrast);
+    border-radius: var(--radius-pill);
+    font-size: var(--text-2xs);
+    font-weight: 600;
     letter-spacing: 0.04em;
     text-transform: uppercase;
   }

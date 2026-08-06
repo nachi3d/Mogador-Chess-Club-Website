@@ -39,7 +39,32 @@ export default defineConfig({
 
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
-    { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
+
+    /**
+     * FIREFOX GETS ONE LOCAL RETRY — same reason as WebKit below, different
+     * crash.
+     *
+     * Under the full fan-out the Windows Firefox build loses its compositor:
+     * the log fills with `RenderCompositorSWGL failed mapping default
+     * framebuffer` and `VideoBridgeParent receives IPC close with
+     * reason=AbnormalShutdown`, and whichever test was mid-flight dies with a
+     * `mouse.move` or `page.reload` timeout — the browser simply stops
+     * answering. It lands on a DIFFERENT test each run, including specs that
+     * predate the exercise board entirely, which is the tell: a resource
+     * problem in the browser build, not an application bug.
+     *
+     * Confirmed by running `--workers=1`, where the same specs pass 21/21 in
+     * ~2.5 minutes.
+     *
+     * The retry does not mask anything real: a genuine failure is
+     * deterministic and fails the retry too. If a Firefox spec fails twice,
+     * believe it.
+     */
+    {
+      name: 'firefox',
+      retries: process.env['CI'] ? 2 : 1,
+      use: { ...devices['Desktop Firefox'] },
+    },
 
     /**
      * WEBKIT RUNS FILE-PARALLEL, NOT TEST-PARALLEL.

@@ -83,6 +83,18 @@ The whole v1 product is *content plus a chess engine in the browser*. There is n
 
 Consequence to respect: **progress is device-local and can be cleared by the browser.** Never build a feature whose value depends on progress surviving — no streaks that punish loss, no "resume where you left off" as the only way to reach a lesson.
 
+#### `src/lib/progress.ts` — the single migration point
+
+All of it lives behind that one module. **Nothing else in the codebase may touch `localStorage` or know the key.** If accounts ever arrive, swapping the backing store is a rewrite of that file and nothing else — the same containment trick as `BoardSurface.tsx`.
+
+- Key: `mcc:progress:v1`. The **version is in the key**. A future shape change writes `v2` and may migrate `v1` across; it never reinterprets `v1` bytes under new rules, because a half-migrated record is worse than a lost one.
+- Shape: `{ exercises: { [slug]: { solved, attempts, hintUsed, solvedAt } } }`.
+- **Every access is guarded and fails silent.** Safari private mode throws on `setItem`, a full quota throws, an embedded context can throw on `localStorage` itself, and a hand-edited value can be any garbage at all. A reader whose storage is unavailable still gets a fully working exercise — just no tick on the index. There is nothing they could do about it, so we do not tell them. A bad stored value is **not deleted**: destroying a reader's data to tidy up is the wrong trade.
+- Records are normalised **field by field** on read, never cast. The value came off disk and may have been written by an older build or a person with devtools open.
+- `resetAttempts()` ("Recommencer") clears the counter and **never the solve**. Having solved something once is a fact about the reader; a retry button that silently takes back a tick would punish curiosity.
+
+The solved ticks on `/exercices/` are drawn by a plain `<script>`, **not an island** — ~1 KB of vanilla JS that reads the module and removes a `hidden` attribute. The one-board-island rule is about hydrated framework components, and this must stay on the right side of that line. The card reserves the marker's height (`.card-status`), so revealing it cannot reflow the grid.
+
 ### Online play (v2) — keep game logic transport-agnostic
 
 v2 adds human-vs-human play over **room codes backed by Cloudflare Durable Objects**. It is not built yet, and the point of writing it down now is a constraint on v1 code:
@@ -134,6 +146,9 @@ Concretely: keep `src/lib/` chess logic pure and synchronous. The board island, 
 5. **PGN stays language-neutral.** See the PGN rule below.
 6. **Stockfish is never precached.** See "Service worker".
 7. **WhatsApp number correctness** — always via `whatsappUrl()` from `src/config/site.ts`, never hardcoded per page.
+8. **The GPL source link is in the footer of every page.** It is how the licence's distribution requirement is met, not decoration. See "Licence".
+9. **No third-party request without an explicit reader click.** See the rule below.
+10. **`localStorage` never breaks the page.** Every access goes through `src/lib/progress.ts` and fails silent.
 
 ---
 
@@ -155,11 +170,27 @@ Corollaries:
 | File | Role | Must NOT |
 |---|---|---|
 | `src/lib/chess/replay.ts` | Pure PGN → plies. No DOM, no Preact, no Chessground. | reach for a board or a network |
-| `src/components/board/BoardSurface.tsx` | The **only** file importing Chessground | know about PGN, commentary or modes |
-| `src/components/board/ChessBoard.tsx` | THE island. Dispatches on `mode`. | import the i18n layer or fetch anything |
-| `src/components/board/ReplayBoard.astro` | Server side: parses the PGN, resolves labels, mounts with `client:visible` | render a board itself |
+| `src/lib/chess/exercise.ts` | Pure position + verdict logic. The **client-side chess.js boundary**. | be imported statically from anything a replay page reaches |
+| `src/lib/progress.ts` | The **only** file that touches `localStorage` | be read during render (see below) |
+| `src/components/board/BoardSurface.tsx` | The **only** file importing Chessground | know about PGN, commentary, modes or progress |
+| `src/components/board/ChessBoard.tsx` | THE island. Dispatches on `mode`, nothing else. | import the i18n layer, chess.js, or fetch anything |
+| `src/components/board/ReplayView.tsx` | `mode="replay"` — the viewer | import chess.js, even for a type |
+| `src/components/board/ExerciseView.tsx` | `mode="exercise"` — the solver | import chess.js **statically** |
+| `src/components/board/ReplayBoard.astro` | Server side: parses the PGN, resolves labels, mounts `client:visible` | render a board itself |
+| `src/components/board/ExerciseBoard.astro` | Server side: resolves labels, mounts `client:visible` | precompute the position (it can't — see below) |
 
-**The PGN is parsed at BUILD time**, and the island receives a plain array of positions. chess.js therefore never enters the client bundle for replay mode (~40 KB saved), and a malformed PGN fails `npm run build` instead of rendering an empty board in production. The exercise and play modes *will* need chess.js in the browser for legality checking — they should **lazy-import** it then, not make the replayer pay for it now.
+The views are **views, not islands**: one hydration entry point (`ChessBoard`), one Chessground adapter (`BoardSurface`). Splitting them keeps neither mode's state machine growing into the other's.
+
+**The PGN is parsed at BUILD time**, and the island receives a plain array of positions. chess.js therefore never enters the client bundle for replay mode, and a malformed PGN fails `npm run build` instead of rendering an empty board in production.
+
+**Exercise mode genuinely needs chess.js in the browser** — the legality of an arbitrary dragged move cannot be precomputed — so `ExerciseView` pulls `@lib/chess/exercise` in with `await import()` inside an effect. Vite splits it into its own chunk (36 KB raw / 10.8 KB brotli) that only an exercise page ever downloads. **Never convert that to a static import**; it would put chess.js back in the shared island chunk and make every trap page pay for a feature it does not have. Until the chunk lands the board renders view-only from the starting FEN — the real position, not a spinner, so only the dragging waits.
+
+### Preact gotchas that have already bitten (continued)
+
+5. **`viewOnly` is bind-time only, and failing it is silent.** Chessground's `bindBoard()` returns early when `viewOnly` is true, and `bindDocument()` skips its move/end listeners the same way. Neither is ever re-run, so `api.set({ viewOnly: false })` flips a flag on a board that has **no `mousedown` listener** — the board looks movable and ignores every drag, with no error anywhere. `BoardSurface` therefore takes a separate `interactive` prop that is read **once, at mount**; `movableColor`/`dests` are what gate whether a move is allowed *right now*. The exercise board mounts interactive even though its engine chunk has not loaded yet, precisely because of this. (Cost: most of a debugging session, and every move-playing spec failing identically.)
+6. **A rejected move needs a `revision` bump, not a new FEN.** Chessground has already slid the piece by the time `movable.events.after` fires. On rejection the position we want is the one already in `props.fen` — so `fen` is unchanged, the update effect does not re-run, and the board sits there showing a move the engine refused. `BoardSurface.revision` exists solely to force that re-set.
+7. **Never read `localStorage` during render.** Progress is loaded in an effect, so the first client render matches the server-rendered HTML. Reading it during render is the same class of bug as the `{n}.` move number: a hydration mismatch, just a subtler one.
+8. **The move handler must go through a ref.** It is registered once, inside Chessground's mount config; a closure captured there goes stale the moment the exercise advances a step and would judge every later move against the first position forever.
 
 ### Preact gotchas that have already bitten
 
@@ -168,22 +199,38 @@ Corollaries:
 3. **Chessground owns its DOM.** Render one empty `<div>` and hand it over; never give that element VDOM children, or Preact will diff away Chessground's work. Updates go through `api.set()`.
 4. `lastMove: undefined` does **not** clear an existing highlight — Chessground's config merge skips undefined keys. Pass `[]`.
 
-### Third-party licences — READ THIS
+### Licence — GPL-3.0-or-later. DECIDED (Session 3, by Seàn).
+
+**This project is published under the GNU GPL v3 or later, and the repository is public.**
 
 | Dependency | Licence | Consequence |
 |---|---|---|
-| **Chessground** | **GPL-3.0-or-later** | ⚠️ See below |
+| **Chessground** | **GPL-3.0-or-later** | ⇒ the whole site is GPL. See below. |
 | cburnett piece set | CC BY-SA 3.0 — by **Colin M.L. Burnett**, via Wikimedia Commons | attribution + share-alike |
 | chess.js | BSD-2-Clause | permissive |
 | Preact, Astro | MIT | permissive |
+| Fraunces, Inter | SIL OFL 1.1 | permissive, attribution kept |
 
-⚠️ **Chessground is GPL.** Its README states it plainly: *"When you use Chessground for your website, your combined work may be distributed only under the GPL. You must release your source code to the users of your website."* Shipping Chessground in the bundle therefore points at publishing this repository under the GPL.
+Chessground's README states it plainly: *"When you use Chessground for your website, your combined work may be distributed only under the GPL. You must release your source code to the users of your website."* Shipping it means the combined work is GPL — accepted, because this is a free community club project and copyleft is the right fit for it.
 
-That is Seàn's call, not a code decision — and for a free community club project it is a very plausible yes. It is written down here so it is a **choice** and not an accident.
+**What that obligation actually requires of the code:**
 
-The containment is deliberate: `BoardSurface.tsx` is the only file that imports Chessground, and everything else talks to its `BoardProps`. If the answer turns out to be no, swapping in a permissively-licensed board (or hand-rolling one — a board is a CSS grid and a piece sprite sheet) is a rewrite of **that one file**. The cburnett sprites would have to go too, since they arrive inside `chessground.cburnett.css`.
+1. `LICENSE` at the repo root holds the **verbatim** GPL-3.0 text. Do not edit it, reflow it, or "modernise" the FSF address.
+2. `package.json` declares `"license": "GPL-3.0-or-later"`.
+3. **The source link renders in the footer of EVERY page** — not only on `/mentions-legales/`. The requirement is that the source reach *the users of the website*, and a reader who never opens the legal notice is still a user. `tests/e2e/legal.spec.ts` asserts this on four different routes; if someone tidies it away to clean up the footer, that suite says no.
+4. `/mentions-legales/` carries the full credits table, plus the CC BY-SA attribution to **Colin M.L. Burnett** in prose with a link to the licence (the piece set arrives inside `chessground.cburnett.css`, so it ships on every page with a board).
 
-Wherever the piece set is used, credit **Colin M.L. Burnett (CC BY-SA 3.0)** in the site's legal/credits page.
+Every name and URL behind that page is **data** in `site.legal` in `src/config/site.ts`; every sentence is a string in `src/i18n/ui.ts`. Nothing legal is hardcoded in a component, so the notice cannot drift from the config it describes.
+
+The containment is still deliberate and still worth keeping: `BoardSurface.tsx` is the only file that imports Chessground, and everything else talks to its `BoardProps`. If the board is ever swapped for a permissively-licensed one, that is a rewrite of **that one file** — and only then do the `chessground` and `cburnett` entries in `site.legal.attributions` come out. Do not prune them to tidy the page up.
+
+### No third-party requests without an explicit click — a tested rule
+
+The site makes **zero** requests to any third-party origin on load. Fonts are self-hosted, there are no CDN scripts, and Umami is omitted entirely when unconfigured. `tests/e2e/pwa.spec.ts` and `tests/e2e/legal.spec.ts` both assert it — on the home page and on a board page.
+
+This is now a **standing rule, not an accident of not having added anything yet**: any embed that talks to another origin must be a click-to-load facade, and must make no request at all until the reader clicks.
+
+The concrete case is the `youtube` field on `traps` and `cours` (Session 3 decision): when it lands it renders a **facade on `youtube-nocookie.com`** — a static poster plus a play button, with the iframe injected only on click. A plain iframe sets third-party cookies at page load, which would break both the privacy posture stated on `/mentions-legales/` and the specs above.
 
 ### Chessground integration notes (verified at scaffold time)
 
@@ -227,6 +274,16 @@ Coordinates are real text and Chessground already alternates their colour by squ
 **Until that validator exists, `onlyMove: false` must not tell the player they are wrong.** It accepts the stored line and, for anything else, says *"not the line we had in mind"* — not *"incorrect"*.
 
 This is not pedantry. A beginner who plays a different winning move and is told it is an error learns that correct moves are mistakes, which is worse than shipping no validation at all. If you are ever unsure which behaviour to implement, implement the one that cannot lie to the student.
+
+#### How this is implemented, and how it is policed
+
+**Both verdicts count an attempt, both shake, both reset the board, and both look identical on the board.** The *only* difference is which sentence renders — `exercise.wrong` vs `exercise.offLine` — plus the caveat line that only the permissive verdict carries. `.mcc-message-wrong` and `.mcc-message-off-line` share a colour on purpose: under `onlyMove: false` we do not know that the reader was wrong, so we must not paint them as wrong either.
+
+**Winning-alternative acceptance is DEFERRED, not faked.** v1 validates against the stored `solution[]` and nothing else. There is no heuristic, no "close enough", no material count pretending to be judgement. When Stockfish lands (Phase 2) it can adjudicate an alternative properly, and that is the only thing that will change this. Do not ship a fake in the meantime — a validator that is wrong 5% of the time is worse than one that admits it does not know.
+
+**`scripts/check-content.mjs` polices `onlyMove: true`.** For a mating line of ≤ 2 player moves it brute-forces every first move that also forces mate in the same number, and **fails the build** if there is more than one. `onlyMove: true` makes the site tell a student that any other move is wrong; that claim has to be true.
+
+This is not hypothetical — it fired during Session 3 on `opposition-et-mat`, where `1. Kf7` mates as surely as `1. Kg6` does. That exercise is `onlyMove: false` for exactly that reason, and `tests/e2e/exercise.spec.ts` asserts it never says "wrong" in either language. **If that test ever fails because the copy changed, it is not a test to update. It is a regression.**
 
 `opponentReplies` is aligned index-for-index with `solution`: `opponentReplies[i]` is played after `solution[i]`. It is normally `solution.length - 1` long, because the last player move ends the exercise. The schema enforces `opponentReplies.length <= solution.length`.
 
@@ -286,7 +343,14 @@ Lesson *ordering within* a course is still open — see the open questions. When
 
 ### Content validity is checked, not assumed
 
-`node scripts/check-content.mjs` replays every line through chess.js. A Zod schema proves an entry is well-*shaped*; it cannot prove it is legal chess — `"e2e5"` is a valid UCI string and an illegal move. The script checks that PGNs parse, that note plies exist, that solutions and opponent replies interleave legally from the FEN, and that anything tagged `mat` actually ends in checkmate.
+`node scripts/check-content.mjs` replays every line through chess.js. A Zod schema proves an entry is well-*shaped*; it cannot prove it is legal chess — `"e2e5"` is a valid UCI string and an illegal move.
+
+The script checks that PGNs parse, that note plies exist, that solutions and opponent replies interleave legally from the FEN, and that anything tagged `mat` actually ends in checkmate. As of Session 3 it also checks:
+
+- **`onlyMove: true` is not a lie** — for a mating line of ≤ 2 player moves, that no *other* first move forces mate in the same number. See the `onlyMove` rule; this one has already fired for real.
+- **the student always plays the same colour** — if `solution` and `opponentReplies` fall out of step, the moves stay individually legal while the board hands the student their opponent's pieces to move.
+- **the FEN has all six fields** — a four-field FEN parses in chess.js and silently assumes White, quietly changing whose puzzle it is.
+- **no duplicate slugs**, and **no half-translated hints** (same rule as `moveComments`).
 
 ---
 
@@ -300,14 +364,18 @@ FR at the root, EN under `/en/...`. **Route segments are not translated** (`/en/
 | `/cours/` | `/en/cours/` | Course index (cards) |
 | `/pieges/` | `/en/pieges/` | Trap index (cards, ECO + theme chips) — **no board mounted here** |
 | `/pieges/[slug]/` | `/en/pieges/[slug]/` | Trap detail — the replayer, commentary, outbound WhatsApp share |
-| `/exercices/` | `/en/exercices/` | Exercise index — **no board mounted here** |
+| `/exercices/` | `/en/exercices/` | Exercise index — **no board mounted here**; solved ticks from `localStorage` |
+| `/exercices/[slug]/` | `/en/exercices/[slug]/` | Exercise detail — the interactive board, hint, attempts, outbound WhatsApp share |
 | `/agenda/` | `/en/agenda/` | Sessions; venue falls back to site config |
 | `/contact/` | `/en/contact/` | WhatsApp CTA, venue, socials |
+| `/mentions-legales/` | `/en/mentions-legales/` | Legal notice + credits. **Footer only, not in the nav.** |
 | `/manifest.webmanifest` | — | Generated from `src/config/site.ts` |
 
 Each route file is a two-line shell that renders a shared component from `src/components/pages/` with a `locale` prop, so the two locales cannot drift apart structurally.
 
-Detail routes take their URL from the content's **`slug` field, not the filename**, so renaming a file can never silently move a published URL. `/exercices/[slug]/` and `/cours/[slug]/` are still to come.
+Detail routes take their URL from the content's **`slug` field, not the filename**, so renaming a file can never silently move a published URL. `/cours/[slug]/` is still to come.
+
+⚠️ **The EN legal notice is `/en/mentions-legales/`, not `/en/legal-notice/`.** The Session 3 brief asked for the translated segment; it is deliberately not implemented that way, because the no-translated-segments rule above is what makes the switcher a pure prefix swap that *cannot* fail to find its counterpart. A translated segment needs a lookup map, and a missing entry 404s a reader mid-visit — on the one page whose whole job is to be findable. The visible link label **is** translated ("Mentions légales" / "Legal notice"); the URL is structural. Flagged for Seàn: it is a one-line change in `paths.ts` plus a map if he wants the English URL, and the site is unlaunched so it is still cheap to reverse.
 
 ---
 
@@ -437,12 +505,24 @@ build problem, **not** an application bug.
 
 The `webkit` and `iphone-13` projects therefore carry `fullyParallel: false`
 (spec files still run concurrently; tests within a file run in sequence) plus one
-local retry. Chromium and Firefox keep the full fan-out and no retries.
+local retry. Chromium keeps the full fan-out and no retries.
 
 **If you see "browser has been closed" in a WebKit run, suspect this first.**
 Re-check with `--workers=1` before touching any application code. A genuine
 failure is deterministic and fails the retry too; only the startup crash is
 absorbed. A run reporting `N passed, 1 flaky` on WebKit is green.
+
+### Firefox on Windows loses its compositor under fan-out — read this too
+
+Same shape, different browser, found in Session 3. Under the full fan-out the Windows Firefox build fills the log with `RenderCompositorSWGL failed mapping default framebuffer` and `VideoBridgeParent receives IPC close with reason=AbnormalShutdown`, and whatever test was in flight dies with a **`mouse.move` or `page.reload` timeout** — the browser has stopped answering, so it presents as a hang rather than a failed assertion.
+
+The tell is that it lands on a **different test each run**, including specs that predate whatever you are working on. Confirmed with `--workers=1`, where the same specs pass 21/21 in ~2.5 minutes. Firefox therefore carries one local retry, exactly as WebKit does. A genuine failure still fails the retry — **if a Firefox spec fails twice, believe it.**
+
+### Driving Chessground's drag from a spec needs a real animation frame
+
+Chessground marks a drag as *started* inside a `requestAnimationFrame` loop (`processDrag` in `drag.ts`), and its `end()` only emits a move when that flag is set. Playwright dispatches `mouse.move(..., { steps })` back to back with no delay, so an entire synthetic drag can begin and finish **inside a single frame**. Chessground then reads it as a click-select: the piece sits there selected with its legal-move dots showing, no move is emitted, and nothing errors.
+
+`nextFrame()` in `exercise.spec.ts` yields a frame between the drag steps. **It is load-bearing, not a "let it settle" sleep.** Symptom if it is removed: deterministic failure on iPhone 13, intermittent on Firefox, invisible on desktop Chromium where the frames happen to fall right. It cost a full-matrix run to find.
 
 ### Verification policy
 
@@ -463,7 +543,22 @@ absorbed. A run reporting `N passed, 1 flaky` on WebKit is green.
 - The replayer: next/prev/jump/keyboard all move the highlight; **rapid** arrow presses drop nothing
 - Légal's mate ends in checkmate, in both locales — if the PGN or the parser drifts, this fails rather than teaching a wrong pattern
 - The WhatsApp share link is `wa.me` with **no recipient** (outbound-only rule)
-- *(as it lands)* `onlyMove: false` never reports a winning alternative as wrong
+- **`onlyMove: false` never reports an off-line move as wrong**, in either language — the rule this whole feature exists to honour
+- An exercise solves end to end by dragging; a scripted `opponentReplies` move plays in between; a wrong move is refused, counted and reset
+- Progress survives a reload and marks the index; a **broken `localStorage` does not break the page**
+- The GPL source link is in the footer of **every** page; `/mentions-legales/` credits Colin M.L. Burnett and links CC BY-SA 3.0
+- The site sets **no cookies**
+
+### Driving the board from a spec
+
+`<cg-board>` holds no DOM node per square — Chessground positions pieces with transforms — so there is nothing to select by name and **the square geometry has to be computed** from the board's bounding box. `squareCenter()` / `playMove()` in `tests/e2e/exercise.spec.ts` do it; use them rather than hand-rolling.
+
+Two gates before a spec may interact, and skipping either produces an identical, confusing symptom (the move silently vanishes):
+
+1. `data-ready="true"` — the lazily-imported engine chunk has landed. Before that the board is deliberately view-only.
+2. `data-busy="false"` — no scripted reply or shake is in flight. `playMove()` waits on this itself.
+
+Chessground starts a drag on **movement**, not on press: `mouse.down()` then straight to `mouse.up()` registers as a click-select, not a move.
 
 ### Manual checklist before PR to `main`
 
@@ -494,10 +589,12 @@ absorbed. A run reporting `N passed, 1 flaky` on WebKit is green.
 - ✅ The one Chessground island + our token-driven board theme
 - ✅ Replay mode: controls, keyboard, move list, per-ply commentary and arrows/circles
 - ✅ Trap detail pages + outbound WhatsApp share; first real trap (Légal's mate)
+- ✅ Exercise mode: interactive board, `onlyMove`-respecting validation, hints, attempts, replayable solution; three real exercises
+- ✅ `localStorage` progress (`src/lib/progress.ts`), solved ticks on the index
+- ✅ GPL-3.0-or-later, `/mentions-legales/`, sitewide source link
 - Course detail pages (per-locale Markdown bodies — see the content model)
-- Exercise detail pages + the validator (respecting `onlyMove`)
-- Stockfish, lazy-loaded, runtime-cached
-- `localStorage` progress
+- Stockfish, lazy-loaded, runtime-cached — **and the engine-backed validator that finally lets `onlyMove: false` accept a winning alternative**
+- Keyboard move entry for the exercise board (see the open questions)
 
 ### Phase 3 — Growth
 - Online play via room codes + Durable Objects (v2)
@@ -508,16 +605,17 @@ absorbed. A run reporting `N passed, 1 flaky` on WebKit is green.
 
 ## Open questions for Seàn
 
-- **⚠️ Chessground's GPL:** are we publishing this repository under the GPL? Shipping Chessground points that way (see "Third-party licences"). A "no" means swapping `BoardSurface.tsx` for a permissively-licensed or hand-rolled board — contained, but best decided before more is built on top.
-- **Credits page:** the cburnett piece set needs a visible **Colin M.L. Burnett / CC BY-SA 3.0** attribution. Where does it live — `/mentions-legales`, or the footer?
+- **⚠️ The exercise board cannot be played with a keyboard.** Chessground takes pointer input only, so a solver who cannot use a mouse or touch can read the puzzle and the hint but cannot answer it. axe does not flag this (there is no unlabelled control — there is no control), which is exactly why it is written down here. The fix is a move-entry field accepting SAN or UCI beside the board, feeding the same `judgeMove`. Small, and it is a real exclusion until it ships.
+- **EN legal-notice URL:** `/en/mentions-legales/` (structural, keeps the switcher a pure prefix swap) or `/en/legal-notice/` (needs a segment-translation map)? Implemented as the former — see the note under Routes.
+- **Promotion UI:** v1 auto-queens, and adopts the expected move's piece when the squares match, so nobody is failed for an under-promotion they were never asked about. No current exercise promotes. Add a picker with the first one that does.
 - **Domain:** is `mogadorchess.ma` registered / registrable? `.ma` needs a Moroccan registrar and can require paperwork.
 - **WhatsApp number** — currently a placeholder (`+212 6 00 00 00 00`). Must be real before launch.
 - **Club email** — create one, or route to Seàn's inbox?
 - **Socials** — does the club have its own Instagram, or does it post through the association's account? A Lichess team for v2?
 - **Brand mark** — the current one is an explicit placeholder (a board in a brass frame). Commission a real one?
 - **Dar Souiri address** — what exact street line may be published?
-- **Lesson granularity** — is a course one page, or a course with N lesson pages? The body format is settled (per-locale Markdown); the ordering model is not.
-- **`youtube` field** — now on `traps` and `cours` but nothing renders it. When it does: privacy-preserving facade (click-to-load, `youtube-nocookie`), or a plain iframe? A plain iframe sets third-party cookies on page load, which would break the "no third-party requests" test and the current privacy posture.
+- **Lesson granularity** — is a course one page, or a course with N lesson pages? The body format is settled (per-locale Markdown) and so is the ordering: **`order: number` in the course frontmatter** (decided Session 3, to be implemented in the `/cours` session). What is still open is only whether lessons become their own collection.
+- ~~**`youtube` field**~~ — DECIDED (Session 3): click-to-load facade on `youtube-nocookie` only, never a plain iframe. Now a standing rule — see "No third-party requests without an explicit click". Still unimplemented; nothing renders the field yet.
 - **Arabic / Darija** — a third locale is a real question in Essaouira. The i18n layer supports it structurally, but RTL would need design work. Worth it?
 
 ---
