@@ -11,6 +11,80 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### [0.5.0] — Themes
+
+Dark mode, five board presets, and the reader's own colours. The last session
+before the v0.1.0 promotion.
+
+#### Added
+
+**Tier 1 — dark mode**
+- A full dark palette derived from the brand, not a grey inversion: the baize goes
+  almost black but stays green, cream carries the text, and brass gets *brighter*
+  because it is the thing still catching the light
+- `:root[data-theme='dark']` overrides the `--mcc-*` semantic layer only; the raw
+  `--color-*` scales are the palette and never change
+- `.text-brass` gains a dark variant — brass-700 was chosen to be readable on cream
+  and sits at 2.5:1 on a green-black page. Fills keep their ink labels in both
+  palettes, because a fill is the same colour at night
+
+**Tier 2 — board presets**
+- Classique, Bois, Vert tournoi, Bleu, Glace. One `.board-<id>` class each in
+  `src/styles/board-themes.css`, applied to `<html>` and to the settings previews —
+  so the swatch you pick from is painted by the rule that paints your board
+- Coordinate inks stated per preset and proved per preset. Two of the five take the
+  dark ink on *both* squares; that is derived from the colour, not a house style
+
+**Tier 3 — custom colours**
+- Two pickers, board only. Coordinate inks are derived, never chosen
+- Live contrast readout per square, and a **"Lisibilité réduite"** warning below AA
+  that does not block — it is the reader's board; an unreadable one should be a
+  choice rather than an accident, so the warning persists while it is in use
+- Reset returns to the preset underneath, and choosing a preset drops the custom pair
+
+**Infrastructure**
+- `src/lib/theme.ts` — `mcc:theme:v1`, version in the key, guarded, normalised field
+  by field, silent on failure. The single migration point, same rules as `progress.ts`
+- **No FOUC**: an `is:inline` head script applies the theme before first paint, and a
+  spec records the attribute at the moment `<body>` appears to prove it
+- `/parametres/` + `/en/parametres/`, and a cycling sun/moon/auto button in the header
+
+#### Changed
+
+- **`check-contrast.mjs` now parses the real stylesheets** instead of keeping its own
+  copy of every hex, and runs the full matrix against **both palettes and all five
+  presets**. It is the first step of `npm run build`, so a regression stops the build
+  before anything else is spent. Adding a preset to the CSS audits it automatically.
+- Components that reached past the semantic layer for a raw `--color-*` now go through
+  `--mcc-danger-text`, `--mcc-accent-strong` or `--mcc-border-on-inverse` — each one
+  would otherwise have stayed light-mode-only at night.
+
+#### Fixed
+
+- **The "avancé" level badge has been below AA all along.** `ink-950` on `wood-400`
+  measured 4.39:1; the old audit checked the brass fills but never the level fills.
+  `--color-wood-400` lightened to `#a87850` (4.87:1). Found by the rewritten auditor
+  on its first run, which is the entire argument for rewriting it.
+- The audit read only the **first** block for a selector. `:root` is declared several
+  times in `tokens.css`, as the cascade allows, so `--mcc-danger-text` looked
+  unresolved — the audit failing safe, which is what it is for.
+
+#### Notes
+
+- **Theming needs JavaScript**, deliberately. `data-theme` only ever holds a concrete
+  `light`/`dark` — `system` is resolved before it is written — which keeps ONE dark
+  block instead of the same thirty declarations duplicated into a media query. Without
+  JS the site renders light and is fully usable, and the toggle never appears rather
+  than appearing inert.
+- **The head script duplicates `applyTheme()` on purpose.** It cannot import the module
+  without reintroducing the fetch it exists to avoid. The no-flash spec is what keeps
+  the two in step.
+- **Site-wide custom colours are out of scope and not planned.** Two square colours are
+  bounded and checkable; letting a reader recolour every surface would need validating
+  pair by pair across both modes, and the failure mode is an unreadable site.
+- Board themes are independent of light/dark: a board is a board, and coupling them
+  would double the validation matrix for no gain.
+
 ### [0.4.1] — `npm run demo`
 
 Tooling only. Nothing a visitor can see changed.

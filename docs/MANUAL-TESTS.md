@@ -32,7 +32,8 @@ Legend: **FR** = French page, **EN** = English page. "Both" = do it in each.
 - [ ] `/en/` loads, nav is in English, `<html lang="en">`
 - [ ] FR is served at the **root** — no `/fr/` anywhere in the URL bar, ever
 - [ ] The language switcher **preserves the path** on every route:
-      `/`, `/cours/`, `/pieges/`, `/exercices/`, `/jouer/`, `/agenda/`, `/contact/`, `/mentions-legales/`
+      `/`, `/cours/`, `/pieges/`, `/exercices/`, `/jouer/`, `/agenda/`, `/contact/`,
+      `/mentions-legales/`, `/parametres/`
 - [ ] Switch FR → EN → FR and land back on the **exact** starting path
 - [ ] Nav labels are translated but URLs are not (`/en/pieges/`, `/en/jouer/`) — this is deliberate
 - [ ] Footer shows the venue block, the association credit, and the Nachi3D Labs credit
@@ -170,7 +171,60 @@ On any exercise, and on `/jouer/` — **without touching the board at all**:
 
 ---
 
-## 7. Privacy — zero third-party requests
+## 7. Themes — `/parametres/`
+
+### Dark mode
+
+- [ ] The header has a sun/moon/auto button. Pressing it cycles **light → dark → system**
+- [ ] Its tooltip and accessible name state the **current** mode, not just "change theme"
+- [ ] Dark mode looks like *the club room at night* — deep green, cream text, brass that
+      catches the light. If it reads as a generic grey dark mode, that is a bug
+- [ ] Text is comfortable everywhere: home, a course, a trap, an exercise, `/jouer/`,
+      the legal notice, the agenda
+- [ ] **No white flash** when navigating between pages in dark mode — watch the transition
+      carefully, several times, including a hard reload
+- [ ] Choose **system**, then flip your OS between light and dark: the site follows
+      **without a reload**
+- [ ] Choose light or dark explicitly: the site now ignores the OS setting
+- [ ] The choice survives a reload, and applies on every page
+
+### Board themes
+
+- [ ] All five presets are offered with a mini preview each, and the previews look like
+      the boards they promise
+- [ ] Pick each one and check a real board (`/pieges/legal/`): squares change, and the
+      **coordinates stay readable on both square colours** — this is the one to actually
+      look at rather than tick
+- [ ] The choice persists across pages and reloads
+- [ ] Board themes are independent of light/dark: switching mode does not change the board
+
+### Custom colours
+
+- [ ] The two pickers change the preview live, as you drag
+- [ ] "Appliquer mes couleurs" applies them to the real board on `/pieges/legal/`
+- [ ] The contrast readout shows a number per square and updates as you pick
+- [ ] Pick something deliberately awful (a mid-grey such as `#7a7a7a`): the
+      **"Lisibilité réduite"** warning appears, and you are still allowed to apply it
+- [ ] The warning stays visible while those colours are in use
+- [ ] "Revenir au damier choisi" restores the preset that was selected underneath —
+      not Classique, unless that was the one
+- [ ] Choosing a preset while custom colours are active drops the custom colours
+
+### Mid-game and edge cases
+
+- [ ] **Change the theme mid-game on `/jouer/`**: start a game, make a move, then switch
+      mode and board from the settings page in another tab or via the header toggle.
+      The board re-skins and **the game is not disturbed** — same position, same move
+      list, the engine still answers
+- [ ] Change the board theme mid-exercise: the position and attempt count are untouched
+- [ ] In a **private/incognito window** the settings page still works for the session;
+      nothing errors, the choice simply is not remembered
+- [ ] With JavaScript disabled: the site renders in light mode, is fully usable, the
+      theme toggle is **absent** (not present-and-broken), and `/parametres/` explains why
+
+---
+
+## 8. Privacy — zero third-party requests
 
 - [ ] DevTools → Network, **hard reload** with the cache disabled
 - [ ] On `/`, `/pieges/legal/`, `/exercices/mat-du-couloir/` and `/jouer/`:
@@ -180,7 +234,7 @@ On any exercise, and on `/jouer/` — **without touching the board at all**:
 
 ---
 
-## 8. PWA
+## 9. PWA
 
 - [ ] `/manifest.webmanifest` loads and carries the club name and the green theme colour
 - [ ] Application → Service Workers: registered and activated
@@ -191,7 +245,7 @@ On any exercise, and on `/jouer/` — **without touching the board at all**:
 
 ---
 
-## 9. On a real phone — `npm run demo -- --host`
+## 10. On a real phone — `npm run demo -- --host`
 
 Same Wi-Fi, open the Network URL the script prints.
 
@@ -201,11 +255,16 @@ Same Wi-Fi, open the Network URL the script prints.
 - [ ] The keyboard field does not get autocapitalised or autocorrected into nonsense
 - [ ] Nothing overflows sideways on any page
 - [ ] `/jouer/` is usable: the engine loads, and the phone does not become unpleasantly hot
+- [ ] **Dark mode on the real screen**, in a dim room: the page is not glaring, the board
+      is not glaring either, and the coordinates are still readable at arm's length
+      *(an OLED phone shows contrast very differently from a desktop LCD — this is why
+      it is checked here and not only in the browser)*
+- [ ] Switch mode on the phone while a game is in progress — no flash, no lost game
       *(the engine holds a fixed 64 MiB and runs one thread — it should be fine, but check)*
 
 ---
 
-## 10. Accessibility, by hand
+## 11. Accessibility, by hand
 
 axe covers a lot of this automatically; these are the parts it cannot judge.
 

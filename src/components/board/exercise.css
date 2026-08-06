@@ -96,7 +96,7 @@
     outline-offset: 4px;
   }
   40% {
-    outline-color: var(--color-brass-500);
+    outline-color: var(--mcc-accent-strong);
     outline-offset: 10px;
   }
   100% {
@@ -199,7 +199,7 @@
 /* Both non-correct verdicts share the SAME colour. See the note above. */
 .mcc-message-wrong,
 .mcc-message-off-line {
-  color: var(--color-wood-600);
+  color: var(--mcc-danger-text);
 }
 
 .mcc-exercise-note,

@@ -8,7 +8,7 @@
  */
 import type { Locale } from '@config/site';
 import { site, hasVenue, venueAddress } from '@config/site';
-import { legalPath } from '@i18n/paths';
+import { legalPath, settingsPath } from '@i18n/paths';
 import { useTranslations } from '@i18n/ui';
 
 interface Props {
@@ -71,6 +71,7 @@ const piecesUrl = `${legalPath(locale)}#cburnett`;
     <section class="footer-block">
       <h2>{t('footer.legalHeading')}</h2>
       <ul class="footer-links">
+        <li><a href={settingsPath(locale)}>{t('settings.title')}</a></li>
         <li><a href={legalPath(locale)}>{t('footer.legal')}</a></li>
         <li>
           <a href={sourceUrl} rel="noopener noreferrer" target="_blank">{t('footer.source')}</a>
@@ -93,7 +94,7 @@ const piecesUrl = `${legalPath(locale)}#cburnett`;
   .site-footer {
     margin-top: var(--mcc-section-gap);
     padding-block: 2.5rem 1.5rem;
-    border-top: 4px solid var(--color-brass-600);
+    border-top: 4px solid var(--mcc-accent);
   }
 
   .footer-inner {
@@ -140,7 +141,7 @@ const piecesUrl = `${legalPath(locale)}#cburnett`;
     gap: 0.5rem 1rem;
     margin-top: 2rem;
     padding-top: 1.25rem;
-    border-top: 1px solid var(--color-green-900);
+    border-top: 1px solid var(--mcc-border-on-inverse);
     font-size: 0.875rem;
   }
 

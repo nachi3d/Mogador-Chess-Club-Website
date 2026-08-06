@@ -1,0 +1,157 @@
+---
+/**
+ * The quick appearance toggle in the header.
+ *
+ * ── The pattern, and why this one ──────────────────────────────────────────
+ * A real `<button>` that CYCLES light → dark → system, not a link that behaves
+ * like a button and not a two-state switch.
+ *
+ *  - A `<button>` because that is what it is. A link styled as a toggle is
+ *    announced as a link and does not navigate: the role would be a lie.
+ *  - Cycling rather than a binary switch because `system` is a genuine third
+ *    choice, and hiding it behind the settings page would make "follow my
+ *    phone" the one preference you cannot reach quickly.
+ *  - No `aria-pressed`. That is for two states; with three it cannot say
+ *    anything true. Instead the accessible NAME carries the current mode
+ *    ("Appearance: dark. Change the appearance."), which is what a screen
+ *    reader user needs to know before pressing, and the change is announced
+ *    politely afterwards.
+ *
+ * ── It needs JS, and says so by not existing without it ────────────────────
+ * Rendered hidden and revealed by the `js` class the head script puts on
+ * <html>. That is flash-free: without scripting the button never appears at
+ * all, rather than appearing and doing nothing. Theming needs JS regardless
+ * (see CLAUDE.md → Theming), and `/parametres/` stays linked from the footer.
+ *
+ * The three labels are passed in as data attributes so the script contains no
+ * user-facing strings — same rule as everywhere else on the site.
+ */
+import type { Locale } from '@config/site';
+import { useTranslations } from '@i18n/ui';
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const t = useTranslations(locale);
+---
+
+<button
+  type="button"
+  class="theme-toggle"
+  data-theme-toggle
+  data-label-action={t('theme.toggle')}
+  data-label-light={t('theme.now.light')}
+  data-label-dark={t('theme.now.dark')}
+  data-label-system={t('theme.now.system')}
+  aria-label={t('theme.toggle')}
+>
+  {/* One icon per mode; CSS shows the one matching `data-mode`. Decorative —
+      the button's accessible name carries the meaning. */}
+  <svg class="icon icon-light" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+    <circle cx="12" cy="12" r="4.2" fill="currentColor"></circle>
+    <g stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+      <path d="M12 2.6v2.6M12 18.8v2.6M2.6 12h2.6M18.8 12h2.6"></path>
+      <path d="M5.4 5.4l1.9 1.9M16.7 16.7l1.9 1.9M18.6 5.4l-1.9 1.9M7.3 16.7l-1.9 1.9"></path>
+    </g>
+  </svg>
+  <svg class="icon icon-dark" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+    <path
+      d="M20 14.6A8.6 8.6 0 0 1 9.4 4a8.6 8.6 0 1 0 10.6 10.6z"
+      fill="currentColor"></path>
+  </svg>
+  <svg class="icon icon-system" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+    <circle cx="12" cy="12" r="8.4" fill="none" stroke="currentColor" stroke-width="1.8"></circle>
+    <path d="M12 3.6a8.4 8.4 0 0 1 0 16.8z" fill="currentColor"></path>
+  </svg>
+</button>
+
+<script>
+  import { applyTheme, readTheme, resolveMode, writeTheme, type ThemeMode } from '@lib/theme';
+
+  const ORDER: readonly ThemeMode[] = ['light', 'dark', 'system'];
+  const root = document.documentElement;
+
+  for (const button of document.querySelectorAll<HTMLButtonElement>('[data-theme-toggle]')) {
+    const labels: Record<ThemeMode, string> = {
+      light: button.dataset['labelLight'] ?? '',
+      dark: button.dataset['labelDark'] ?? '',
+      system: button.dataset['labelSystem'] ?? '',
+    };
+    const action = button.dataset['labelAction'] ?? '';
+
+    /** Name states WHERE YOU ARE, then what pressing does. */
+    const describe = (mode: ThemeMode) => {
+      button.dataset['mode'] = mode;
+      button.setAttribute('aria-label', `${labels[mode]}. ${action}`);
+      button.title = `${labels[mode]}. ${action}`;
+    };
+
+    describe(readTheme().mode);
+
+    button.addEventListener('click', () => {
+      const current = readTheme().mode;
+      const next = ORDER[(ORDER.indexOf(current) + 1) % ORDER.length] ?? 'system';
+      const state = writeTheme({ mode: next });
+      applyTheme(state, root);
+      describe(next);
+
+      /* Announced politely on the page's own live region rather than by
+         changing the focused button's name mid-press, which several screen
+         readers do not report at all. */
+      const status = document.querySelector<HTMLElement>('[data-theme-status]');
+      if (status) status.textContent = `${labels[next]} (${resolveMode(next)})`;
+    });
+  }
+</script>
+
+<style>
+  /*
+    Hidden until the head script proves JS is running. `display: none` rather
+    than the `hidden` attribute so there is no frame in which it is visible
+    and inert.
+  */
+  .theme-toggle {
+    display: none;
+  }
+
+  :global(html.js) .theme-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    /* 44px target — this sits beside the language switcher on a phone. */
+    width: 2.75rem;
+    height: 2.75rem;
+    padding: 0;
+    background: none;
+    color: inherit;
+    border: 1px solid var(--mcc-border-on-inverse);
+    border-radius: var(--radius-card);
+    cursor: pointer;
+  }
+
+  .theme-toggle:hover {
+    border-color: var(--mcc-accent-on-inverse);
+    color: var(--mcc-accent-on-inverse);
+  }
+
+  .icon {
+    width: 1.25rem;
+    height: 1.25rem;
+    display: none;
+  }
+
+  /* Exactly one icon, chosen by the mode the script wrote. */
+  .theme-toggle[data-mode='light'] .icon-light,
+  .theme-toggle[data-mode='dark'] .icon-dark,
+  .theme-toggle[data-mode='system'] .icon-system {
+    display: block;
+  }
+
+  /* Before the script has run there is no data-mode; show the neutral icon so
+     the button is never empty. */
+  .theme-toggle:not([data-mode]) .icon-system {
+    display: block;
+  }
+</style>
