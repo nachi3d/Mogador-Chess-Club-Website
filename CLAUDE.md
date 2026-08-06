@@ -117,6 +117,14 @@ Concretely: keep `src/lib/` chess logic pure and synchronous. The board island, 
 - **Back-merge convention:** after each release, merge `main` → `dev` to keep histories aligned
 - Claude Code merges to `dev` only; **`dev` → `main` requires Seàn's explicit approval per release**
 
+#### Session finish routine
+
+Every session that reaches a merge updates all three, in the same commit as the work:
+
+1. **`CHANGELOG.md`** — what changed, and the reasoning behind anything surprising.
+2. **`CLAUDE.md`** — any decision, rule or gotcha that the next session would otherwise rediscover.
+3. **`docs/MANUAL-TESTS.md`** — **whenever the session adds or changes anything a visitor can see.** New feature, new page, new failure mode, new regression worth watching: it goes in the checklist. This is the one most easily skipped and the one whose absence is least visible — a checklist that lags the site makes an incomplete test pass feel complete.
+
 ### Shell
 - NO chained `&&` commands — git and cd run as separate steps
 - No PowerShell
@@ -592,11 +600,36 @@ Playwright + axe-core. Specs live in `tests/e2e/` and run against the **built** 
 
 Scripts: `npm run test:e2e` (full matrix), `npm run test:e2e:chromium` (branch default).
 
+### Manual testing — `npm run demo`, and nothing else
+
+```sh
+npm run demo              # build + serve the production build on localhost
+npm run demo -- --host    # also expose it on the LAN, for a real phone
+```
+
+**This is THE way to test by hand.** Do not hand-run `npm run build && npm run preview` any more — `scripts/demo.mjs` does that plus the three things people forget:
+
+1. **Clears ports 4321–4325 first.** The stale-server trap below is the whole reason it exists.
+2. **Stops dead if the build fails**, and says so — nothing is served, so you cannot accidentally test the previous build.
+3. **Prints the branch, the last commit, the URL, and the path to the checklist**, so a testing session starts from facts rather than assumptions.
+
+It warns (in yellow) but does **not** block when you are off `dev` — testing a feature branch is the normal case; not knowing which one is the problem.
+
+The checklist it points at is **`docs/MANUAL-TESTS.md`**, and that file is a living document: **any session that changes something a visitor can see must update it in the same commit, alongside `CHANGELOG.md`.** A checklist that lags the site is worse than none, because an incomplete pass feels complete.
+
 ### ⚠️ A stale preview server will serve you a stale build
 
 `webServer.reuseExistingServer` is `!CI`, so if **anything** is already listening on 4321, Playwright skips its `npm run build && npm run preview` entirely and tests whatever is on disk from before. This has already cost real debugging time: a fixed bug kept "failing" because the old bundle was still being served.
 
-If a test fails in a way that contradicts the source, **kill stray preview servers and re-run** before touching code. Confirm the fix is actually in `dist/_astro/*.js` — `grep` the built bundle.
+`astro preview` has its own version of the same trap: when 4321 is taken it prints one quiet line — `Port 4321 is in use, trying another one...` — and serves on **4322**. Open the URL you expected rather than the one it printed and you are reading the old build.
+
+If a test fails in a way that contradicts the source, **kill stray preview servers and re-run** before touching code (`npm run demo` does it for you). Confirm the fix is actually in `dist/_astro/*.js` — `grep` the built bundle.
+
+#### Finding the stale server on Windows: `netstat -ano`, never `-p tcp`
+
+On Windows `-p tcp` means **IPv4 TCP only**. Node — and therefore `astro preview` — binds `[::1]`, which is `tcpv6`, so `netstat -ano -p tcp` shows **nothing at all** for a running preview server.
+
+This is not theory: the first version of `demo.mjs` used `-p tcp`, cheerfully reported "nothing was running", and astro then landed on 4322 — the script reintroducing the exact trap it was written to remove. Plain `netstat -ano` sees both.
 
 ### Never pipe the test run into `tail`
 
@@ -710,16 +743,20 @@ Chessground starts a drag on **movement**, not on press: `mouse.down()` then str
 
 ### Manual checklist before PR to `main`
 
+**The checklist lives in [`docs/MANUAL-TESTS.md`](./docs/MANUAL-TESTS.md)** — grouped by feature, with expected results, including the regressions that have bitten before (the `1..` move number, the rapid-arrow mash, the `onlyMove: false` wording, the engine's no-fetch-before-click rule).
+
+Run `npm run demo`, which prints its path, and work down it. The release gate is:
+
 ```
-□ npm run build — no errors, no warnings
+□ npm run demo — builds clean, no new warnings
 □ node scripts/check-contrast.mjs — green
 □ node scripts/check-content.mjs — green
-□ npx playwright test — green (full matrix)
-□ FR + EN both display correctly, switcher preserves path
-□ Install the PWA on a real phone; confirm icon, name and offline shell
+□ npx playwright test — green (full matrix; see the known environmental flakes above)
+□ docs/MANUAL-TESTS.md — worked through on desktop AND a real phone
 □ Lighthouse ≥ 90 (Performance, Accessibility, SEO)
-□ Real mobile device test — a board must be usable one-handed
 ```
+
+It is a **living document**: keep it in step with the site, in the same commit as the feature. See the session finish routine under Conventions.
 
 ---
 

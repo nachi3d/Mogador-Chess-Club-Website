@@ -14,6 +14,7 @@
     "start": "astro dev",
     "build": "astro check && astro build && node scripts/build-sw.mjs",
     "preview": "astro preview",
+    "demo": "node scripts/demo.mjs",
     "astro": "astro",
     "check": "astro check",
     "test:e2e": "playwright test",

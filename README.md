@@ -25,6 +25,8 @@ npm run dev          # http://localhost:4321
 
 | Command | What it does |
 |---|---|
+| `npm run demo` | **Test by hand:** clear stale servers → build → serve, and print the checklist |
+| `npm run demo -- --host` | The same, exposed on your Wi-Fi for testing on a real phone |
 | `npm run dev` | Dev server |
 | `npm run build` | `astro check` → `astro build` → generate the service worker |
 | `npm run preview` | Serve the built site (what the tests run against) |
@@ -45,6 +47,10 @@ transiently first: `npm install --no-save stockfish@11.0.0`.
 **[CLAUDE.md](./CLAUDE.md)** is the operational reference: conventions,
 architecture rules, the content model, and the decisions behind them. Read it
 before changing anything structural.
+
+**[docs/MANUAL-TESTS.md](./docs/MANUAL-TESTS.md)** is the manual test checklist —
+what the automated suite cannot judge. `npm run demo` prints its path. Keep it in
+step with the site: any change a visitor can see belongs in it, in the same commit.
 
 ## Licence — two of them, on purpose
 

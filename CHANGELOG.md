@@ -11,6 +11,42 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### [0.4.1] — `npm run demo`
+
+Tooling only. Nothing a visitor can see changed.
+
+#### Added
+
+- **`npm run demo`** (`scripts/demo.mjs`) — one command to test the built site by hand:
+  clears any stale preview server on 4321–4325, builds, serves, and prints the branch,
+  the last commit, the URL and the path to the checklist. `npm run demo -- --host`
+  exposes it on the LAN for a real phone, and surfaces the network URL.
+  Warns in yellow when you are not on `dev`, but does not block — testing a feature
+  branch is the normal case. Stops dead if the build fails, serving nothing, so the
+  previous build cannot be tested by accident. No new dependencies.
+- **`docs/MANUAL-TESTS.md`** — the manual checklist as a living document, grouped by
+  feature with expected results: smoke/i18n, legal and licence, the replayer (including
+  the `1..` move-number and rapid-arrow-mash regressions), exercises (wrong / illegal /
+  hint / solve / badge / reload / incognito), keyboard entry in both notations,
+  `/jouer/` (engine loads **only** on click — a Network-tab check), zero third-party
+  requests, PWA, phone, and the accessibility checks axe cannot make.
+
+#### Notes — Windows gotchas the script had to survive
+
+- **`netstat -ano -p tcp` cannot see the preview server.** On Windows `-p tcp` means
+  IPv4 only; Node binds `[::1]`, which is `tcpv6`. The first version used `-p tcp`,
+  reported "nothing was running", and astro then landed on 4322 — the script
+  reintroducing the exact stale-server trap it exists to remove. Plain `netstat -ano`
+  sees both, and a failed probe is now reported instead of silently reading as "clean".
+- **Kill by PORT, never by a remembered PID.** `npm run preview` leaves the real server
+  in a grandchild process; killing the pid we spawned takes down the wrapper and leaves
+  the port held.
+- **`shell: true` with an args array mangles arguments.** `git log -1 --format=%h %s`
+  arrived as two arguments and exited 128, which is why the first run printed
+  "(no commits)". It also raises DEP0190 on every call. Real executables are spawned
+  without a shell; npm — a `.cmd` shim that Node will not spawn shell-less — is passed
+  as a single command string.
+
 ### [0.4.0] — Content licence, keyboard play, and Stockfish
 
 #### Added
