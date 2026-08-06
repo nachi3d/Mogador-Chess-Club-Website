@@ -1,0 +1,74 @@
+---
+import { getCollection } from 'astro:content';
+import type { Locale } from '@config/site';
+import { exercisePath } from '@i18n/paths';
+import { useTranslations } from '@i18n/ui';
+import BaseLayout from '@layouts/BaseLayout.astro';
+import PageIntro from '@components/PageIntro.astro';
+import CardGrid, { type CardItem } from '@components/CardGrid.astro';
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const t = useTranslations(locale);
+
+const entries = (await getCollection('exercices', ({ data }) => !data.draft)).sort((a, b) =>
+  a.data.slug.localeCompare(b.data.slug),
+);
+
+const items: CardItem[] = entries.map(({ data }) => ({
+  title: locale === 'fr' ? data.title_fr : data.title_en,
+  summary: locale === 'fr' ? data.hint_fr : data.hint_en,
+  level: data.level,
+  themes: data.themes,
+  href: exercisePath(data.slug, locale),
+  meta: `${data.solution.length} ${t(
+    data.solution.length === 1 ? 'exercises.moveCount.one' : 'exercises.moveCount.other',
+  )}`,
+  progressKey: data.slug,
+}));
+---
+
+<BaseLayout locale={locale} title={t('exercises.title')} description={t('exercises.intro')}>
+  <PageIntro title={t('exercises.title')} intro={t('exercises.intro')} />
+  {/* NOTE: no board is mounted here. The single Chessground island is
+      client:visible and belongs on the exercise DETAIL route, never on an
+      index — see the architecture rule in CLAUDE.md. */}
+  <CardGrid
+    locale={locale}
+    items={items}
+    emptyMessage={t('agenda.empty')}
+    solvedLabel={t('exercises.solved')}
+  />
+</BaseLayout>
+
+{/*
+  The solved ticks.
+
+  This is a plain `<script>`, NOT an island. The one-board-island rule is about
+  hydrated framework components; this is ~1 KB of vanilla JS that reads
+  localStorage and removes an attribute, and it must stay that way. If it ever
+  needs a component, it does not belong on an index page.
+
+  It runs AFTER the cards are in the DOM (module scripts are deferred), so the
+  markers it reveals were already laid out — the row reserves its height, so
+  nothing reflows. See `.card-status` in CardGrid.astro.
+
+  Everything about storage failure is handled inside `@lib/progress`: on a
+  device where localStorage throws, `solvedSlugs()` returns an empty list and
+  the page is simply a page. Nothing here needs to know.
+*/}
+<script>
+  import { solvedSlugs } from '@lib/progress';
+
+  for (const slug of solvedSlugs()) {
+    // Slugs are `[a-z0-9-]` by schema, but CSS.escape costs nothing and means
+    // a future slug rule can never turn this into a selector-injection bug.
+    const selector = `[data-solved-for="${CSS.escape(slug)}"]`;
+    for (const marker of document.querySelectorAll(selector)) {
+      marker.removeAttribute('hidden');
+    }
+  }
+</script>

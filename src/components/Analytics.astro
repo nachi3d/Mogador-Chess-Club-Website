@@ -1,0 +1,21 @@
+---
+/**
+ * Umami analytics snippet.
+ *
+ * Omitted ENTIRELY when PUBLIC_UMAMI_WEBSITE_ID is unset — no empty <script>,
+ * no request to umami.is. That means dev, CI and the Playwright run make no
+ * third-party network calls at all, which is also why the axe/PWA specs stay
+ * deterministic offline.
+ *
+ * Set PUBLIC_UMAMI_WEBSITE_ID in the Cloudflare Pages BUILD variables.
+ */
+import { site } from '@config/site';
+
+const { umamiWebsiteId, umamiScriptUrl } = site.analytics;
+---
+
+{
+  umamiWebsiteId && (
+    <script is:inline defer src={umamiScriptUrl} data-website-id={umamiWebsiteId} />
+  )
+}

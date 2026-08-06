@@ -1,0 +1,171 @@
+/* ============================================================
+   Replayer chrome — controls, move list, commentary.
+   The board itself is themed in board.css.
+
+   Loaded by the island (not the page), so it ships with the
+   hydrated component rather than in the critical CSS.
+   ============================================================ */
+
+.mcc-replayer {
+  display: grid;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+/* Move list beside the board once there is room for both. Below that it sits
+   under the board, where a phone reader expects it. */
+@media (min-width: 56rem) {
+  .mcc-replayer {
+    grid-template-columns: minmax(0, var(--mcc-board-max)) minmax(14rem, 1fr);
+    gap: 2rem;
+  }
+}
+
+.mcc-replayer-board {
+  min-width: 0;
+}
+
+/* ---------- Controls ---------- */
+.mcc-controls {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.mcc-controls button {
+  flex: 1 1 0;
+  /* 44px minimum touch target — these are the primary control on a phone. */
+  min-height: 2.75rem;
+  padding: 0.5rem 0.75rem;
+  background-color: var(--mcc-surface-raised);
+  color: var(--mcc-text-primary);
+  border: 1px solid var(--mcc-border-strong);
+  border-radius: var(--radius-card);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-soft);
+}
+
+.mcc-controls button:hover:not(:disabled) {
+  background-color: var(--mcc-surface-sunken);
+}
+
+.mcc-controls button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.mcc-replayer-hint {
+  margin: 0.75rem 0 0;
+  color: var(--mcc-text-secondary);
+  font-size: 0.8125rem;
+  text-align: center;
+}
+
+/* The keyboard hint is meaningless on a touch device with no keyboard. */
+@media (hover: none) and (pointer: coarse) {
+  .mcc-replayer-hint {
+    display: none;
+  }
+}
+
+/* ---------- Move list ---------- */
+.mcc-side-heading {
+  margin: 0 0 0.5rem;
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mcc-text-secondary);
+}
+
+.mcc-movelist {
+  max-height: 18rem;
+  margin: 0 0 1.25rem;
+  padding: 0.5rem;
+  overflow-y: auto;
+  list-style: none;
+  background-color: var(--mcc-surface-raised);
+  border: 1px solid var(--mcc-border-subtle);
+  border-radius: var(--radius-card);
+  font-family: var(--font-notation);
+  font-size: 0.9375rem;
+}
+
+.mcc-move-row {
+  display: grid;
+  grid-template-columns: 2.5rem 1fr 1fr;
+  gap: 0.25rem;
+  align-items: center;
+}
+
+.mcc-move-number {
+  color: var(--mcc-text-secondary);
+  font-size: 0.8125rem;
+  text-align: right;
+  padding-inline-end: 0.4rem;
+}
+
+.mcc-move {
+  padding: 0.3rem 0.4rem;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  color: var(--mcc-text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mcc-move:hover {
+  background-color: var(--mcc-surface-sunken);
+}
+
+/* Current move: fill + weight, not colour alone. */
+.mcc-move[data-current='true'] {
+  background-color: var(--mcc-primary);
+  border-color: var(--mcc-primary);
+  color: var(--mcc-primary-contrast);
+  font-weight: 600;
+}
+
+.mcc-move-empty {
+  cursor: default;
+}
+
+/* ---------- Commentary ---------- */
+.mcc-commentary {
+  /* Reserve height so stepping through moves does not shunt the page up and
+     down as commentary appears and disappears. */
+  min-height: 6rem;
+  padding: 1rem;
+  background-color: var(--mcc-surface-sunken);
+  border-inline-start: 3px solid var(--mcc-accent);
+  border-radius: var(--radius-card);
+}
+
+.mcc-commentary p {
+  margin: 0 0 0.5rem;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+
+.mcc-commentary p:last-child {
+  margin-bottom: 0;
+}
+
+.mcc-commentary-empty {
+  color: var(--mcc-text-secondary);
+  font-family: var(--font-notation);
+}
+
+.mcc-mate {
+  color: var(--mcc-accent-text); /* brass-700 — the deep variant, see tokens.css */
+  font-weight: 600;
+  font-size: 0.8125rem !important;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}

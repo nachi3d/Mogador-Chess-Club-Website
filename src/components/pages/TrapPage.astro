@@ -1,0 +1,167 @@
+---
+/**
+ * A single trap: the replayer, the summary, and the share/back links.
+ *
+ * Shared by both locale routes. `getStaticPaths` lives in the route files, so
+ * this component receives an already-resolved entry.
+ */
+import type { CollectionEntry } from 'astro:content';
+import type { Locale } from '@config/site';
+import { site } from '@config/site';
+import { trapsPath } from '@i18n/paths';
+import { useTranslations } from '@i18n/ui';
+import BaseLayout from '@layouts/BaseLayout.astro';
+import LevelBadge from '@components/LevelBadge.astro';
+import ReplayBoard from '@components/board/ReplayBoard.astro';
+
+interface Props {
+  locale: Locale;
+  entry: CollectionEntry<'traps'>;
+}
+
+const { locale, entry } = Astro.props;
+const { data } = entry;
+const t = useTranslations(locale);
+
+const title = locale === 'fr' ? data.title_fr : data.title_en;
+const summary = locale === 'fr' ? data.summary_fr : data.summary_en;
+
+/**
+ * Outbound share only. The club has no in-app messaging of any kind — no
+ * comments, no chat, no reactions (CLAUDE.md → "No in-app communication").
+ * This hands the reader's own WhatsApp a prefilled message and gets out of
+ * the way; nothing is posted anywhere by us.
+ */
+const shareUrl = new URL(Astro.url.pathname, site.url).href;
+const shareText = `${title} — ${site.name}\n${shareUrl}`;
+const whatsappShare = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
+---
+
+<BaseLayout locale={locale} title={title} description={summary}>
+  <article class="trap">
+    <nav class="trap-back" aria-label={t('traps.backToIndex')}>
+      <a href={trapsPath(locale)}>← {t('traps.backToIndex')}</a>
+    </nav>
+
+    <header class="trap-header">
+      <h1>{title}</h1>
+      <div class="trap-meta">
+        <LevelBadge locale={locale} level={data.level} />
+        {data.eco && <span class="trap-eco">{data.eco}</span>}
+      </div>
+      <p class="trap-summary">{summary}</p>
+      {
+        data.themes.length > 0 && (
+          <>
+            <h2 class="trap-themes-heading">{t('traps.themes')}</h2>
+            <ul class="trap-themes">
+              {data.themes.map((theme) => (
+                <li class="chip">{theme}</li>
+              ))}
+            </ul>
+          </>
+        )
+      }
+    </header>
+
+    <ReplayBoard
+      locale={locale}
+      pgn={data.pgn}
+      moveComments={data.moveComments}
+      shapes={data.shapes}
+    />
+
+    <footer class="trap-footer">
+      <a class="share" href={whatsappShare} rel="noopener noreferrer" target="_blank">
+        {t('traps.share')}
+      </a>
+    </footer>
+  </article>
+</BaseLayout>
+
+<style>
+  .trap-back {
+    margin-bottom: 1.5rem;
+    font-size: 0.9375rem;
+  }
+
+  .trap-header {
+    margin-bottom: 2rem;
+  }
+
+  .trap-header h1 {
+    margin: 0 0 0.75rem;
+    font-size: clamp(1.9rem, 5vw, 2.75rem);
+    line-height: 1.1;
+  }
+
+  .trap-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 1rem;
+  }
+
+  .trap-eco {
+    color: var(--mcc-text-secondary);
+    font-family: var(--font-notation);
+    font-size: 0.8125rem;
+    letter-spacing: 0.06em;
+  }
+
+  .trap-summary {
+    max-width: 60ch;
+    margin: 0;
+    font-size: 1.0625rem;
+    line-height: 1.65;
+    text-wrap: pretty;
+  }
+
+  .trap-themes-heading {
+    margin: 1.5rem 0 0.5rem;
+    font-family: var(--font-body);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--mcc-text-secondary);
+  }
+
+  .trap-themes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .chip {
+    padding: 0.15rem 0.55rem;
+    background-color: var(--mcc-surface-sunken);
+    border: 1px solid var(--mcc-border-subtle);
+    border-radius: var(--radius-pill);
+    color: var(--mcc-text-secondary);
+    font-size: var(--text-2xs);
+  }
+
+  .trap-footer {
+    margin-top: 2.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--mcc-border-subtle);
+  }
+
+  .share {
+    display: inline-block;
+    padding: 0.7rem 1.4rem;
+    background-color: var(--mcc-primary);
+    color: var(--mcc-primary-contrast);
+    border-radius: var(--radius-card);
+    font-weight: 500;
+    text-decoration: none;
+  }
+
+  .share:hover {
+    background-color: var(--mcc-primary-hover);
+  }
+</style>

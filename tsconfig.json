@@ -1,0 +1,32 @@
+{
+  "extends": "astro/tsconfigs/strict",
+  "include": [".astro/types.d.ts", "**/*"],
+  // `public/` holds vendored, pre-built artefacts — never our source.
+  // `public/engine` is NOT optional here: `astro check` parses everything in
+  // the project, and Stockfish's 2.3 MB minified glue takes the TypeScript
+  // program past the V8 heap limit. The build dies with "Ineffective
+  // mark-compacts near heap limit", ~2.5 minutes in, pointing at nothing.
+  "exclude": ["dist", "node_modules", "public/sw.js", "public/engine"],
+  "compilerOptions": {
+    "strict": true,
+    "strictNullChecks": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "verbatimModuleSyntax": true,
+    // Preact JSX. `jsxImportSource` keeps React out of the picture entirely —
+    // .tsx files compile against preact/jsx-runtime, not react/jsx-runtime.
+    "jsx": "react-jsx",
+    "jsxImportSource": "preact",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],
+      "@assets/*": ["src/assets/*"],
+      "@config/*": ["src/config/*"],
+      "@layouts/*": ["src/layouts/*"],
+      "@components/*": ["src/components/*"],
+      "@styles/*": ["src/styles/*"],
+      "@i18n/*": ["src/i18n/*"],
+      "@lib/*": ["src/lib/*"]
+    }
+  }
+}

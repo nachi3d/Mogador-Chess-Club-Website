@@ -1,0 +1,259 @@
+---
+/**
+ * `/mentions-legales/` — the legal notice, in both locales.
+ *
+ * ─────────────────────────────────────────────────────────────────────────
+ * This page is not decoration. Two of its blocks are LEGAL OBLIGATIONS:
+ *
+ *  1. THE GPL. The site ships Chessground (GPL-3.0-or-later), so the combined
+ *     work is distributable only under the GPL and its source must reach the
+ *     site's users. The repository link below IS that distribution. It also
+ *     renders in the footer of every page, so a reader never has to find this
+ *     page to reach the source.
+ *
+ *  2. CC BY-SA 3.0. The cburnett piece set requires visible attribution to
+ *     Colin M. L. Burnett plus a link to the licence. It arrives inside
+ *     `chessground.cburnett.css`, so it ships on every page with a board.
+ *
+ * If Chessground is ever swapped for a permissively-licensed board, the
+ * `chessground` and `cburnett` entries in `site.legal.attributions` go with it
+ * — and only then. Do not prune this page to tidy it up.
+ * ─────────────────────────────────────────────────────────────────────────
+ *
+ * Every name and URL is DATA from `src/config/site.ts`; every sentence is a
+ * string from `src/i18n/ui.ts`. Nothing legal is hardcoded here, so the notice
+ * cannot drift from the config it describes.
+ */
+import type { Locale } from '@config/site';
+import { site } from '@config/site';
+import { useTranslations } from '@i18n/ui';
+import BaseLayout from '@layouts/BaseLayout.astro';
+import PageIntro from '@components/PageIntro.astro';
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const t = useTranslations(locale);
+const { legal } = site;
+---
+
+<BaseLayout locale={locale} title={t('legal.title')} description={t('legal.intro')}>
+  <PageIntro title={t('legal.title')} intro={t('legal.intro')} />
+
+  <div class="legal">
+    <section>
+      <h2>{t('legal.editor.heading')}</h2>
+      <p>
+        <strong>{legal.publisher.name}</strong> — <a
+          href={legal.publisher.url}
+          rel="noopener noreferrer"
+          target="_blank">{legal.publisher.label}</a
+        >
+      </p>
+      <p class="muted">{t('legal.editor.role')}</p>
+      <p><a href={`mailto:${legal.publisher.email}`}>{legal.publisher.email}</a></p>
+      <p class="muted">{site.venue.city}, {site.venue.country}</p>
+    </section>
+
+    <section>
+      <h2>{t('legal.host.heading')}</h2>
+      <p>
+        <strong>{legal.host.name}</strong> — {legal.host.service}
+      </p>
+      <p>
+        <a href={legal.host.url} rel="noopener noreferrer" target="_blank">{legal.host.url}</a>
+      </p>
+      <p class="muted">{t('legal.host.note')}</p>
+    </section>
+
+    <section>
+      <h2>{t('legal.licence.heading')}</h2>
+      <p>{t('legal.licence.body')}</p>
+      <ul class="legal-links">
+        <li>
+          <a href={legal.source.url} rel="noopener noreferrer" target="_blank">
+            {t('legal.licence.source')} — {legal.source.spdx}
+          </a>
+        </li>
+        <li>
+          <a href={legal.source.licenseUrl} rel="noopener noreferrer" target="_blank">
+            {t('legal.licence.text')}
+          </a>
+        </li>
+      </ul>
+    </section>
+
+    {/*
+      THE CODE/CONTENT SPLIT (Session 4).
+
+      Stated on the page and not only in LICENSE-CONTENT, because a reader who
+      wants to reuse a lesson will look here, not in the repository. The third
+      paragraph is the one that actually matters: the split is SUBSTANCE vs
+      STRUCTURE, so "you may take the engine" and "you may not take the
+      lessons" are both true at once, and neither is a surprise later.
+    */}
+    <section id="contenu">
+      <h2>{t('legal.content.heading')}</h2>
+      <p>{t('legal.content.body')}</p>
+      <p>{t('legal.content.terms')}</p>
+      <p>{t('legal.content.structure')}</p>
+      <ul class="legal-links">
+        <li>
+          <a href={legal.content.licenseUrl} rel="noopener noreferrer" target="_blank">
+            {t('legal.content.link')}
+          </a>
+        </li>
+        <li>
+          <a href={legal.content.fileUrl} rel="noopener noreferrer" target="_blank">
+            LICENSE-CONTENT — {legal.content.holder}
+          </a>
+        </li>
+      </ul>
+      <p class="muted">{t('legal.content.ask')}</p>
+    </section>
+
+    {/* The CC BY-SA credit in full. A row in the table below would satisfy the
+        letter of the licence; the pieces are on every board on the site, so
+        they get the sentence too. */}
+    <section id="cburnett">
+      <h2>{t('legal.credits.pieces.heading')}</h2>
+      <p>{t('legal.credits.pieces.body')}</p>
+    </section>
+
+    <section>
+      <h2>{t('legal.credits.heading')}</h2>
+      <p class="muted">{t('legal.credits.intro')}</p>
+      <div class="legal-table-wrap">
+        <table class="legal-table">
+          <thead>
+            <tr>
+              <th scope="col">{t('legal.table.work')}</th>
+              <th scope="col">{t('legal.table.author')}</th>
+              <th scope="col">{t('legal.table.licence')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {
+              legal.attributions.map((item) => (
+                <tr>
+                  <th scope="row">
+                    <a href={item.workUrl} rel="noopener noreferrer" target="_blank">
+                      {item.work}
+                    </a>
+                    {/* The asterisk is explained in legal.credits.intro above;
+                        aria-hidden keeps it out of the accessible name, where a
+                        bare "*" reads as noise. */}
+                    {item.shareAlike && <span aria-hidden="true"> *</span>}
+                  </th>
+                  <td>{item.author}</td>
+                  <td>
+                    <a href={item.licenceUrl} rel="noopener noreferrer" target="_blank">
+                      {item.licence}
+                    </a>
+                  </td>
+                </tr>
+              ))
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <h2>{t('legal.privacy.heading')}</h2>
+      <p>{t('legal.privacy.body')}</p>
+      <p>{t('legal.privacy.analytics')}</p>
+    </section>
+
+    <section>
+      <h2>{t('legal.thirdParty.heading')}</h2>
+      <p>{t('legal.thirdParty.body')}</p>
+    </section>
+  </div>
+</BaseLayout>
+
+<style>
+  .legal {
+    display: grid;
+    gap: 2.5rem;
+    max-width: 70ch;
+  }
+
+  .legal h2 {
+    margin: 0 0 0.75rem;
+    font-size: 1.25rem;
+  }
+
+  .legal p {
+    margin: 0 0 0.6rem;
+    line-height: 1.65;
+    text-wrap: pretty;
+  }
+
+  /*
+    WCAG 1.4.1 — a link sitting inside a block of text must be distinguishable
+    without colour. Tailwind's preflight resets `text-decoration` on anchors, so
+    the site's links are told apart by their green ALONE, and green-700 against
+    ink-900 body text is nowhere near the 3:1 that colour-only would need.
+
+    This page is almost entirely links inside sentences, so it underlines them.
+    axe catches it (`link-in-text-block`) and `legal.spec.ts` keeps it caught.
+  */
+  .legal p a,
+  .legal li a,
+  .legal th a,
+  .legal td a {
+    text-decoration: underline;
+  }
+
+  .muted {
+    color: var(--mcc-text-secondary);
+    font-size: 0.9375rem;
+  }
+
+  .legal-links {
+    margin: 0.75rem 0 0;
+    padding-inline-start: 1.1rem;
+  }
+
+  .legal-links li {
+    margin-bottom: 0.35rem;
+  }
+
+  /* Three columns of licence names overflow a phone; the table scrolls inside
+     its own box rather than pushing the page sideways. */
+  .legal-table-wrap {
+    margin-top: 1rem;
+    overflow-x: auto;
+  }
+
+  .legal-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9375rem;
+  }
+
+  .legal-table th,
+  .legal-table td {
+    padding: 0.55rem 0.75rem 0.55rem 0;
+    border-bottom: 1px solid var(--mcc-border-subtle);
+    text-align: start;
+    vertical-align: top;
+  }
+
+  .legal-table thead th {
+    color: var(--mcc-text-secondary);
+    font-family: var(--font-body);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .legal-table tbody th {
+    font-weight: 500;
+    white-space: nowrap;
+  }
+</style>

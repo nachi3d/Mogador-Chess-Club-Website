@@ -1,0 +1,108 @@
+/* ============================================================
+   Keyboard move entry.
+
+   Shared by the exercise and play views, so it carries its own
+   stylesheet rather than living in either one's.
+
+   This is an ACCESSIBILITY control before it is anything else:
+   the field is the only way some readers can move a piece. It
+   gets a real label, a real focus ring, and a 44px target — no
+   compact "power user" treatment.
+   ============================================================ */
+
+.mcc-move-input {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.mcc-move-input-label {
+  color: var(--mcc-text-secondary);
+  font-family: var(--font-body);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.mcc-move-input-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.mcc-move-input-field {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 2.75rem;
+  padding: 0.5rem 0.7rem;
+  background-color: var(--mcc-surface-raised);
+  color: var(--mcc-text-primary);
+  border: 1px solid var(--mcc-border-strong);
+  border-radius: var(--radius-card);
+  /* Notation, so the notation face — and it stops `l`/`1` ambiguity mattering. */
+  font-family: var(--font-notation);
+  font-size: 1rem;
+}
+
+.mcc-move-input-field::placeholder {
+  /* ink-500 on cream-50 clears AA; the placeholder is a hint, not content. */
+  color: var(--mcc-text-secondary);
+  opacity: 1;
+}
+
+.mcc-move-input-field[aria-invalid='true'] {
+  border-color: var(--mcc-danger-text);
+  /* Not colour alone: the border thickens, and the message below says why. */
+  border-width: 2px;
+}
+
+.mcc-move-input-field:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.mcc-move-input-submit {
+  flex: 0 0 auto;
+  min-height: 2.75rem;
+  padding: 0.5rem 1rem;
+  background-color: var(--mcc-primary);
+  color: var(--mcc-primary-contrast);
+  border: 1px solid var(--mcc-primary);
+  border-radius: var(--radius-card);
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.mcc-move-input-submit:hover:not(:disabled) {
+  background-color: var(--mcc-primary-hover);
+}
+
+.mcc-move-input-submit:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/*
+  The error line is ALWAYS in the DOM, empty when there is nothing wrong.
+
+  Two reasons, and both matter: `role="alert"` on an element that is inserted
+  rather than filled is announced unreliably across screen readers, and a line
+  that appears and disappears would shunt the help text and the hint button up
+  and down under the reader's cursor between attempts.
+*/
+.mcc-move-input-error {
+  min-height: 1.25rem;
+  margin: 0;
+  color: var(--mcc-danger-text);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.mcc-move-input-help {
+  margin: 0;
+  color: var(--mcc-text-secondary);
+  font-size: 0.75rem;
+  line-height: 1.45;
+}

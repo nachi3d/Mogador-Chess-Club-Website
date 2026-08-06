@@ -1,0 +1,18 @@
+---
+// Route shell. All page content lives in @components/pages/ExercicePage.astro,
+// shared by both locales — the two route files differ only by `locale`.
+import { getCollection } from 'astro:content';
+import type { GetStaticPaths } from 'astro';
+import ExercicePage from '@components/pages/ExercicePage.astro';
+
+export const getStaticPaths = (async () => {
+  const exercises = await getCollection('exercices', ({ data }) => !data.draft);
+  // The URL slug comes from the `slug` FIELD, not the filename, so renaming a
+  // file can never silently move a published URL.
+  return exercises.map((entry) => ({ params: { slug: entry.data.slug }, props: { entry } }));
+}) satisfies GetStaticPaths;
+
+const { entry } = Astro.props;
+---
+
+<ExercicePage locale="fr" entry={entry} />

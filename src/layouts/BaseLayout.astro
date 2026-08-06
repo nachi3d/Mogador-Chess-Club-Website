@@ -1,0 +1,245 @@
+---
+/**
+ * The one page shell. Every route renders through it.
+ *
+ * Responsibilities: <head> (title, canonical, hreflang alternates, PWA tags),
+ * the header/footer chrome, the skip link, and service-worker registration.
+ */
+import type { Locale } from '@config/site';
+import { site, LOCALES } from '@config/site';
+import { alternatePath, stripLocale } from '@i18n/paths';
+import { useTranslations } from '@i18n/ui';
+import Header from '@components/Header.astro';
+import Footer from '@components/Footer.astro';
+import Analytics from '@components/Analytics.astro';
+import '@styles/global.css';
+
+interface Props {
+  locale: Locale;
+  /** Page title WITHOUT the site name — the shell appends it. */
+  title: string;
+  description?: string;
+}
+
+const { locale, title, description } = Astro.props;
+const t = useTranslations(locale);
+
+const pathname = Astro.url.pathname;
+const canonical = new URL(pathname, site.url);
+const pageTitle = stripLocale(pathname) === '/' ? site.name : `${title} — ${site.name}`;
+const pageDescription = description ?? site.description[locale];
+---
+
+<!doctype html>
+<html lang={locale}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    {/*
+      THEME — inline, blocking, and first. This is the anti-FOUC script.
+
+      It is `is:inline` on purpose: an external module would be fetched
+      asynchronously, the page would paint in the default light palette, and a
+      dark-mode reader would get a white flash on every navigation. The cost is
+      ~1 KB of parse time before first paint, which is the correct trade.
+
+      ⚠️ IT DUPLICATES `applyTheme()` FROM src/lib/theme.ts, deliberately, and
+      the two must not drift. That module cannot run here — importing it would
+      reintroduce the fetch this exists to avoid. Keep both in step; the
+      no-flash assertion in tests/e2e/theme.spec.ts is what catches it.
+
+      Kept defensive rather than clever: any failure to read or parse the
+      stored value must leave the reader on the default theme with a working
+      page, never on a half-applied one.
+    */}
+    <script is:inline>
+      (function () {
+        var KEY = 'mcc:theme:v1';
+        var HEX = /^#[0-9a-f]{6}$/i;
+        var INK = '#14120e';
+        var CREAM = '#fffdf7';
+        var root = document.documentElement;
+
+        function luminance(hex) {
+          var c = [1, 3, 5].map(function (i) {
+            var v = parseInt(hex.slice(i, i + 2), 16) / 255;
+            return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+          });
+          return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+        }
+        function ratio(a, b) {
+          var x = luminance(a);
+          var y = luminance(b);
+          return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+        }
+        /* The two-ink rule — see bestInkFor() in src/lib/theme.ts. */
+        function inkFor(square) {
+          return ratio(INK, square) >= ratio(CREAM, square) ? INK : CREAM;
+        }
+
+        function stored() {
+          try {
+            var raw = localStorage.getItem(KEY);
+            if (!raw) return {};
+            var parsed = JSON.parse(raw);
+            return parsed && typeof parsed === 'object' ? parsed : {};
+          } catch (error) {
+            return {};
+          }
+        }
+
+        /* Proves scripting is available, before first paint. The theme toggle
+           in the header is `display: none` until this lands, so it is never
+           visible-but-inert. */
+        root.classList.add('js');
+
+        function apply() {
+          var state = stored();
+
+          var mode = state.mode === 'light' || state.mode === 'dark' ? state.mode : 'system';
+          var resolved = mode;
+          if (mode === 'system') {
+            resolved =
+              window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+                ? 'dark'
+                : 'light';
+          }
+          root.setAttribute('data-theme', resolved);
+          root.style.colorScheme = resolved;
+
+          /* Any `board-*` class, rather than a hardcoded list: the presets live
+             in src/config/board-themes.ts and must not be duplicated here. */
+          for (var i = root.classList.length - 1; i >= 0; i--) {
+            var name = root.classList[i];
+            if (name.indexOf('board-') === 0) root.classList.remove(name);
+          }
+          var board = state.boardTheme;
+          root.classList.add(
+            'board-' + (typeof board === 'string' && /^[a-z0-9-]+$/.test(board) ? board : 'classique'),
+          );
+
+          /* Custom squares override the preset as inline properties. Stored
+             values are always 6-digit — theme.ts normalises before writing —
+             so anything else is corrupt and falls back to the preset. */
+          var custom = state.custom;
+          var props = [
+            '--mcc-board-light',
+            '--mcc-board-dark',
+            '--mcc-board-light-ink',
+            '--mcc-board-dark-ink',
+          ];
+          if (custom && HEX.test(String(custom.light)) && HEX.test(String(custom.dark))) {
+            root.style.setProperty(props[0], custom.light);
+            root.style.setProperty(props[1], custom.dark);
+            root.style.setProperty(props[2], inkFor(custom.light));
+            root.style.setProperty(props[3], inkFor(custom.dark));
+          } else {
+            for (var j = 0; j < props.length; j++) root.style.removeProperty(props[j]);
+          }
+        }
+
+        apply();
+
+        /* `system` follows the OS live, without a reload. */
+        try {
+          window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', apply);
+        } catch (error) {
+          /* older Safari has no addEventListener on MediaQueryList; the theme is
+             still correct on load, it just will not follow a mid-session change */
+        }
+
+        /* Astro's ClientRouter swaps the <html> attributes on navigation, which
+           would drop data-theme and the board class. No view transitions are
+           configured today; this costs nothing until they are, and means the
+           theme cannot silently break on the commit that adds them. */
+        document.addEventListener('astro:after-swap', apply);
+      })();
+    </script>
+
+    <title>{pageTitle}</title>
+    <meta name="description" content={pageDescription} />
+    <link rel="canonical" href={canonical.href} />
+
+    {/* Both languages, plus x-default pointing at the FR root. */}
+    {
+      LOCALES.map((l) => (
+        <link rel="alternate" hreflang={l} href={new URL(alternatePath(pathname, l), site.url).href} />
+      ))
+    }
+    <link rel="alternate" hreflang="x-default" href={new URL(alternatePath(pathname, 'fr'), site.url).href} />
+
+    {/* The two latin subsets carry every glyph on a FR/EN page. Preloaded
+        because they are discovered only after the CSS parses, and `swap`
+        would otherwise flash Georgia on the headings. The latin-ext files
+        are deliberately NOT preloaded — they are the rare-glyph fallback. */}
+    <link
+      rel="preload"
+      href="/fonts/fraunces-latin-wght-normal.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link
+      rel="preload"
+      href="/fonts/inter-latin-wght-normal.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+
+    {/* PWA */}
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content={site.pwa.themeColor} />
+    <link rel="icon" href="/icons/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/icons/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-title" content={site.shortName} />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={site.name} />
+    <meta property="og:title" content={pageTitle} />
+    <meta property="og:description" content={pageDescription} />
+    <meta property="og:url" content={canonical.href} />
+    <meta property="og:locale" content={locale === 'fr' ? 'fr_FR' : 'en_GB'} />
+
+    <Analytics />
+  </head>
+
+  <body>
+    <a class="skip-link" href="#main">{t('nav.skipToContent')}</a>
+
+    {/* Where the header's theme toggle announces itself. Lives here rather
+        than inside the toggle so the announcement is not made by the element
+        that just took focus — several screen readers do not report a live
+        region that is also the active control. */}
+    <p class="sr-only" role="status" aria-live="polite" data-theme-status></p>
+
+    <Header locale={locale} pathname={pathname} />
+
+    <main id="main" class="container-page site-main">
+      <slot />
+    </main>
+
+    <Footer locale={locale} />
+
+    <script is:inline>
+      // Registered after load so the SW install never competes with the first
+      // paint. Guarded on protocol: `astro dev` over http://localhost is fine,
+      // but a file:// preview would throw.
+      if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').catch(() => {
+            /* An unavailable SW must never break the page — the site works without it. */
+          });
+        });
+      }
+    </script>
+  </body>
+</html>
+
+<style>
+  .site-main {
+    padding-block: 2.5rem;
+  }
+</style>

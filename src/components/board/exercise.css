@@ -1,0 +1,280 @@
+/* ============================================================
+   Exercise chrome — meters, verdict, hint, solution list.
+   The board itself is themed in board.css.
+
+   Loaded by the island (not the page), so it ships with the
+   hydrated component rather than in the critical CSS.
+
+   MOTION. Two animations live here — the shake on a rejected
+   move and the settle on a solve. Both are feedback, so neither
+   may simply be deleted under `prefers-reduced-motion`: the
+   reduced-motion branch swaps movement for a colour/ring change
+   that carries the same information without travel.
+   ============================================================ */
+
+.mcc-exercise {
+  display: grid;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+@media (min-width: 56rem) {
+  .mcc-exercise {
+    grid-template-columns: minmax(0, var(--mcc-board-max)) minmax(15rem, 1fr);
+    gap: 2rem;
+  }
+}
+
+.mcc-exercise-board {
+  min-width: 0;
+}
+
+/* ---------- Feedback ---------- */
+
+/* The wrapper the shake is applied to. Chessground measures its own host
+   element, so the transform must live one level above it. */
+.mcc-exercise-surface {
+  /* An outline rather than a border: a border would change the box size and
+     nudge the board by 3px every time a move is judged. */
+  outline: 3px solid transparent;
+  outline-offset: 4px;
+  border-radius: 3px;
+  transition: outline-color var(--duration-base) var(--ease-soft);
+}
+
+.mcc-fb-correct {
+  outline-color: var(--mcc-primary);
+}
+
+/* Wrong and off-line look the SAME on the board — the distinction is in the
+   wording, never in the severity of the flash. Under `onlyMove: false` we do
+   not know that the reader was wrong, so we must not paint them as wrong.
+   (CLAUDE.md → Exercise validation rule.) */
+.mcc-fb-wrong,
+.mcc-fb-off-line {
+  outline-color: var(--mcc-board-check);
+}
+
+.mcc-fb-solved {
+  outline-color: var(--mcc-accent);
+}
+
+.mcc-exercise-surface[data-shake='true'] {
+  animation: mcc-shake 600ms var(--ease-soft);
+}
+
+@keyframes mcc-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  15% {
+    transform: translateX(-7px);
+  }
+  30% {
+    transform: translateX(6px);
+  }
+  45% {
+    transform: translateX(-4px);
+  }
+  60% {
+    transform: translateX(3px);
+  }
+  75% {
+    transform: translateX(-2px);
+  }
+}
+
+/* The celebration: a single brass breath around the frame, not confetti. */
+.mcc-fb-solved {
+  animation: mcc-settle 900ms var(--ease-soft);
+}
+
+@keyframes mcc-settle {
+  0% {
+    outline-color: var(--mcc-primary);
+    outline-offset: 4px;
+  }
+  40% {
+    outline-color: var(--mcc-accent-strong);
+    outline-offset: 10px;
+  }
+  100% {
+    outline-color: var(--mcc-accent);
+    outline-offset: 4px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* No travel, no pulsing offset. The outline colour still changes, so the
+     verdict is still visible without anything moving — and the message in the
+     live region says it in words regardless. */
+  .mcc-exercise-surface[data-shake='true'],
+  .mcc-fb-solved {
+    animation: none;
+  }
+
+  .mcc-exercise-surface {
+    transition: none;
+  }
+}
+
+/* ---------- Side column ---------- */
+.mcc-exercise-side {
+  display: grid;
+  gap: 1.25rem;
+  align-content: start;
+}
+
+.mcc-exercise-meters {
+  display: flex;
+  gap: 1.5rem;
+}
+
+.mcc-meter {
+  display: grid;
+  gap: 0.15rem;
+  margin: 0;
+}
+
+.mcc-meter-label {
+  color: var(--mcc-text-secondary);
+  font-family: var(--font-body);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.mcc-meter-value {
+  font-family: var(--font-notation);
+  font-size: 1.125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.mcc-exercise-turn {
+  margin: 1rem 0 0;
+  color: var(--mcc-text-secondary);
+  font-size: 0.9375rem;
+  text-align: center;
+}
+
+.mcc-exercise-loading {
+  margin: 0.35rem 0 0;
+  color: var(--mcc-text-secondary);
+  font-size: 0.8125rem;
+  text-align: center;
+}
+
+/* ---------- Verdict ---------- */
+.mcc-exercise-status {
+  /* Reserve the height so a verdict appearing and disappearing does not shunt
+     the hint button up and down under the reader's cursor. */
+  min-height: 6.5rem;
+  padding: 1rem;
+  background-color: var(--mcc-surface-sunken);
+  border-inline-start: 3px solid var(--mcc-border-subtle);
+  border-radius: var(--radius-card);
+  transition: border-color var(--duration-fast) var(--ease-soft);
+}
+
+.mcc-exercise-status p {
+  margin: 0 0 0.5rem;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+
+.mcc-exercise-status p:last-child {
+  margin-bottom: 0;
+}
+
+.mcc-exercise-message {
+  font-weight: 600;
+}
+
+.mcc-message-correct {
+  color: var(--mcc-primary);
+}
+
+/* Both non-correct verdicts share the SAME colour. See the note above. */
+.mcc-message-wrong,
+.mcc-message-off-line {
+  color: var(--mcc-danger-text);
+}
+
+.mcc-exercise-note,
+.mcc-exercise-instructions {
+  color: var(--mcc-text-secondary);
+  font-size: 0.875rem !important;
+}
+
+.mcc-exercise-solved {
+  color: var(--mcc-primary);
+  font-family: var(--font-display);
+  font-size: 1.25rem !important;
+  font-weight: 600;
+}
+
+.mcc-exercise-mate {
+  color: var(--mcc-accent-text); /* brass-700 — the deep variant, see tokens.css */
+  font-weight: 600;
+  font-size: 0.8125rem !important;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* ---------- Hint, buttons, solution ---------- */
+.mcc-exercise-button {
+  /* 44px minimum touch target — this is a primary control on a phone. */
+  min-height: 2.75rem;
+  padding: 0.6rem 1.1rem;
+  background-color: var(--mcc-surface-raised);
+  color: var(--mcc-text-primary);
+  border: 1px solid var(--mcc-border-strong);
+  border-radius: var(--radius-card);
+  font: inherit;
+  font-size: 0.9375rem;
+  cursor: pointer;
+  justify-self: start;
+  transition: background-color var(--duration-fast) var(--ease-soft);
+}
+
+.mcc-exercise-button:hover {
+  background-color: var(--mcc-surface-sunken);
+}
+
+.mcc-exercise-hint {
+  padding: 0.9rem 1rem;
+  background-color: var(--mcc-surface-raised);
+  border: 1px solid var(--mcc-border-subtle);
+  border-radius: var(--radius-card);
+}
+
+.mcc-exercise-hint p {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+
+.mcc-solution-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin: 0 0 0.6rem;
+  padding: 0.5rem;
+  list-style: none;
+  background-color: var(--mcc-surface-raised);
+  border: 1px solid var(--mcc-border-subtle);
+  border-radius: var(--radius-card);
+  font-family: var(--font-notation);
+  font-size: 0.9375rem;
+  /* The list is authored in play order and must stay in it for a screen reader;
+     `counter-reset: none` is not needed since the markers are hidden by the
+     flex layout, but the ordinal semantics of <ol> are what matter here. */
+}
+
+/* Reuses `.mcc-move` from replayer.css — same control, same look, one style. */
+.mcc-solution-list .mcc-move[data-by='opponent'] {
+  color: var(--mcc-text-secondary);
+  font-style: italic;
+}

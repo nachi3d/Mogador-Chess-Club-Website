@@ -1,0 +1,25 @@
+# Normalise line endings. Development happens on Windows; Cloudflare Pages
+# builds on Linux. Without this, every file committed from Windows lands in the
+# repo with CRLF and any later diff from a Linux checkout is a whole-file
+# rewrite.
+* text=auto eol=lf
+
+# Binaries — never touched, never diffed as text.
+*.woff2 binary
+*.woff  binary
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.webp  binary
+*.avif  binary
+*.ico   binary
+*.wasm  binary
+
+# SVG is text, but treat it as such explicitly so the brand mark diffs cleanly.
+*.svg text eol=lf
+
+# The vendored Stockfish build (see scripts/build-engine.mjs). `stockfish.js` is
+# 2.3 MB of minified glue on very few lines: it is not ours, it is never edited
+# by hand, and a text diff of it is noise at best and a whole-file rewrite at
+# worst. Stored verbatim, exactly as npm shipped it.
+public/engine/** binary

@@ -1,0 +1,126 @@
+---
+/**
+ * Site header — logo placeholder, nav, language switcher.
+ * Skeleton: the mark is the placeholder SVG and the layout is deliberately
+ * plain. Real design lands in a later session.
+ */
+import type { Locale } from '@config/site';
+import { site } from '@config/site';
+import { localizePath, stripLocale } from '@i18n/paths';
+import { NAV_ITEMS, useTranslations } from '@i18n/ui';
+import LangSwitcher from '@components/LangSwitcher.astro';
+import ThemeToggle from '@components/ThemeToggle.astro';
+
+interface Props {
+  locale: Locale;
+  pathname: string;
+}
+
+const { locale, pathname } = Astro.props;
+const t = useTranslations(locale);
+const current = stripLocale(pathname);
+---
+
+<header class="surface-inverse site-header">
+  <div class="container-page header-inner">
+    <a class="brand" href={localizePath('/', locale)}>
+      <!-- Placeholder mark — see src/assets/brand/mark.svg -->
+      <img class="brand-mark" src="/icons/favicon.svg" alt="" width="36" height="36" aria-hidden="true" />
+      <span class="brand-name">{site.name}</span>
+    </a>
+
+    <nav class="site-nav" aria-label={t('nav.label')}>
+      <ul>
+        {
+          NAV_ITEMS.map((item) => {
+            const isCurrent = current === item.path;
+            return (
+              <li>
+                <a
+                  href={localizePath(item.path, locale)}
+                  aria-current={isCurrent ? 'page' : undefined}
+                  class:list={['nav-link', { 'is-current': isCurrent }]}
+                >
+                  {t(item.key)}
+                </a>
+              </li>
+            );
+          })
+        }
+      </ul>
+    </nav>
+
+    <div class="header-tools">
+      <ThemeToggle locale={locale} />
+      <LangSwitcher locale={locale} pathname={pathname} />
+    </div>
+  </div>
+</header>
+
+<style>
+  .site-header {
+    border-bottom: 1px solid var(--mcc-border-on-inverse);
+  }
+
+  .header-inner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 1rem 1.5rem;
+    padding-block: 1rem;
+  }
+
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    text-decoration: none;
+    margin-inline-end: auto;
+  }
+
+  .brand-mark {
+    display: block;
+    border-radius: 6px;
+  }
+
+  .brand-name {
+    font-family: var(--font-display);
+    font-size: 1.125rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  .header-tools {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .site-nav ul {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 1.25rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .nav-link {
+    display: inline-block;
+    padding-block: 0.25rem;
+    font-size: 0.9375rem;
+    text-decoration: none;
+    border-bottom: 2px solid transparent;
+  }
+
+  .nav-link:hover {
+    border-bottom-color: var(--mcc-accent-on-inverse);
+  }
+
+  /* The current page is marked with colour AND a rule — colour alone would
+     leave it unmarked for anyone who cannot distinguish brass from cream. */
+  .nav-link.is-current {
+    color: var(--mcc-accent-on-inverse);
+    border-bottom-color: var(--mcc-accent-on-inverse);
+  }
+</style>
