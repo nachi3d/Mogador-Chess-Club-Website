@@ -15,6 +15,14 @@ First release. The headings below are the development milestones that make it up
 in reverse order; their numbers are internal build milestones, not published
 versions. Everything in this section ships as `v0.1.0`.
 
+#### Contact
+
+- The club's real WhatsApp number is now in `site.contact.whatsapp`, replacing the
+  placeholder that had stood since the scaffold. It is still the only number on the
+  site and is still reached solely through `whatsappUrl()`, so `/contact/` and every
+  share button picked it up without a component change — which was the point of the
+  rule. The outbound-only share link is unaffected: it carries **no** recipient.
+
 ### 0.5.0 — Themes
 
 Dark mode, five board presets, and the reader's own colours. The last session

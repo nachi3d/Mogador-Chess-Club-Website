@@ -111,12 +111,9 @@ export const site = {
   },
 
   contact: {
-    /**
-     * International format, digits only (no +, no spaces).
-     * TODO(contact): PLACEHOLDER — must be replaced before launch.
-     */
-    whatsapp: '212600000000',
-    whatsappDisplay: '+212 6 00 00 00 00',
+    /** International format, digits only (no +, no spaces). */
+    whatsapp: '212666377784',
+    whatsappDisplay: '+212 6 66 37 77 84',
     /** TODO(contact): create the club mailbox, or route to Seàn's inbox. */
     email: null as string | null,
   },
