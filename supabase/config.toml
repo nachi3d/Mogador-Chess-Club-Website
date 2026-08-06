@@ -1,0 +1,39 @@
+# Supabase local/CLI configuration.
+#
+# The hosted project is the source of truth for auth settings (redirect URLs,
+# email templates); this file exists so `supabase db push` and a local stack
+# agree on the migration set.
+#
+# ⚠️ `project_id` here is the LOCAL stack's container namespace, not a hosted
+# project ref. Linking to a hosted project is `supabase link --project-ref <ref>`
+# and that ref lives in .env.test / CI secrets, never in a committed file.
+
+project_id = "mogador-chess-club"
+
+[db]
+port = 54322
+major_version = 17
+
+[auth]
+# The site is static; every redirect target is a plain page.
+site_url = "http://localhost:4321"
+additional_redirect_urls = ["http://localhost:4321/auth/callback"]
+jwt_expiry = 3600
+enable_refresh_token_rotation = true
+
+# ⚠️ NO PASSWORDS, ANYWHERE. Magic link now, Google OAuth in v2-S2. There is no
+# password reset flow to build, leak, or support.
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+enable_confirmations = true
+# Supabase's built-in mailer for now. Custom SMTP via Resend is in BACKLOG.md —
+# it needs the domain, which is not registered yet.
+
+# ⚠️ NO SMS PROVIDER. SMS/WhatsApp OTP was considered and explicitly rejected
+# (cost, and it makes a phone number an auth credential for children).
+# `guardian_phone` is a parent CONTACT field only. Do not add [auth.sms].
+
+[studio]
+port = 54323

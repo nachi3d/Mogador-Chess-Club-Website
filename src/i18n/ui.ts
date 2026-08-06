@@ -205,8 +205,93 @@ const fr = {
   'footer.association': 'En partenariat avec',
   'footer.legalHeading': 'Le site',
   'footer.legal': 'Mentions légales',
+  'footer.privacy': 'Confidentialité',
   'footer.source': 'Source (GPL)',
   'footer.pieces': 'Pièces : cburnett',
+
+  /* ── Auth (v2-S1). Accounts add sync; they gate nothing. ─────────────── */
+  'auth.signIn': 'Se connecter',
+  'auth.account': 'Mon compte',
+  'auth.signOut': 'Se déconnecter',
+  'login.title': 'Se connecter',
+  'login.intro':
+    "Recevez un lien par e-mail — pas de mot de passe. Un compte sert à retrouver votre progression sur tous vos appareils ; tout le site reste accessible sans compte.",
+  'login.emailLabel': 'Adresse e-mail',
+  'login.submit': 'Recevoir le lien',
+  'login.sending': 'Envoi…',
+  'login.sent.title': 'Vérifiez votre boîte e-mail',
+  'login.sent.body':
+    "Nous avons envoyé un lien de connexion. Ouvrez-le sur cet appareil ou sur un autre — il fonctionne partout.",
+  'login.error': "Le lien n'a pas pu être envoyé. Réessayez dans un instant.",
+  'login.invalidEmail': 'Cette adresse e-mail ne semble pas valide.',
+  'login.unconfigured': "La connexion n'est pas encore disponible sur cette version du site.",
+  'login.guestNote': 'Continuer sans compte',
+  'callback.title': 'Connexion…',
+  'callback.working': 'Connexion en cours…',
+  'callback.failed': "Ce lien n'est plus valide. Demandez-en un nouveau.",
+  'callback.retry': 'Retourner à la connexion',
+  'account.title': 'Mon compte',
+  'account.intro': 'Votre nom affiché et votre langue. Rien d’autre n’est stocké ici.',
+  'account.displayName': 'Prénom affiché',
+  'account.locale': 'Langue',
+  'account.save': 'Enregistrer',
+  'account.saved': 'Enregistré.',
+  'account.saveError': "Impossible d'enregistrer. Réessayez.",
+  'account.email': 'Adresse e-mail',
+  'account.role': 'Rôle',
+  'account.role.admin': 'Administrateur',
+  'account.role.prof': 'Professeur',
+  'account.role.eleve': 'Élève',
+  'account.progress.heading': 'Progression',
+  'account.progress.soon': 'À venir',
+  'account.progress.body':
+    'La synchronisation de votre progression entre appareils arrive prochainement.',
+  'account.attendance.heading': 'Présence',
+  'account.attendance.soon': 'À venir',
+  'account.attendance.body': 'Votre historique de présence aux séances arrivera avec l’agenda.',
+  'account.signedOut': 'Vous n’êtes pas connecté.',
+  'account.goSignIn': 'Se connecter',
+
+  /* ── Privacy (v2-S1) ─────────────────────────────────────────────────── */
+  'privacy.title': 'Politique de confidentialité',
+  'privacy.intro':
+    "Ce que le club conserve, pourquoi, et comment tout effacer. Le site s'utilise entièrement sans compte.",
+  'privacy.guest.heading': 'Sans compte, rien n’est conservé',
+  'privacy.guest.body':
+    "Vous pouvez lire les cours, les pièges et résoudre les exercices sans créer de compte. Votre progression est alors enregistrée uniquement dans votre navigateur (localStorage) : elle ne quitte jamais votre appareil et nous ne pouvons pas la consulter.",
+  'privacy.stored.heading': 'Avec un compte, ce que nous stockons',
+  'privacy.stored.name': 'Un prénom d’affichage — jamais le nom complet.',
+  'privacy.stored.email': "Votre adresse e-mail, qui sert uniquement à vous envoyer le lien de connexion.",
+  'privacy.stored.guardian':
+    "Éventuellement un numéro de téléphone de parent, à titre de contact du club. Il ne sert jamais à se connecter et ne reçoit aucun message automatique.",
+  'privacy.stored.progress': 'Votre progression : exercices résolus, tentatives, indices utilisés.',
+  'privacy.stored.attendance': 'Votre présence aux séances, saisie par un professeur.',
+  'privacy.why.heading': 'Pourquoi',
+  'privacy.why.body':
+    "Retrouver votre progression sur tous vos appareils, et permettre aux professeurs de suivre l’avancement du groupe et la présence. Rien n’est utilisé à d’autres fins : pas de publicité, pas de revente, pas de profilage.",
+  'privacy.no.heading': 'Ce que nous ne faisons jamais',
+  'privacy.no.photos': 'Aucune photo, jamais.',
+  'privacy.no.messaging':
+    "Aucune messagerie, aucun commentaire, aucun contenu publié par les utilisateurs. Personne ne peut contacter un enfant via ce site.",
+  'privacy.no.tracking':
+    "Aucun cookie publicitaire et aucun traceur tiers. La mesure d’audience, quand elle est activée, est anonyme et sans cookie.",
+  'privacy.no.passwords': 'Aucun mot de passe n’est créé ni stocké : la connexion se fait par lien e-mail.',
+  'privacy.minors.heading': 'Mineurs',
+  'privacy.minors.body':
+    "Le club enseigne à des enfants. Les données sont réduites au strict minimum : un prénom, une adresse e-mail, la progression. Pour un élève sans adresse personnelle, le compte est créé par un professeur avec l’adresse d’un parent, qui reste le point de contact. Aucune photo n’est publiée et aucun échange direct n’est possible sur le site.",
+  'privacy.retention.heading': 'Durée de conservation',
+  'privacy.retention.body':
+    "Les données sont conservées tant que le compte existe. Un compte inactif depuis deux ans est supprimé. La progression enregistrée localement dans votre navigateur reste sous votre contrôle et peut être effacée à tout moment en vidant les données du site.",
+  'privacy.erasure.heading': 'Effacement',
+  'privacy.erasure.body':
+    "Vous pouvez demander la suppression de votre compte à tout moment. La suppression est en cascade : le compte, le profil, la progression et les présences sont effacés ensemble — il ne reste rien à récupérer.",
+  'privacy.processor.heading': 'Hébergement des données',
+  'privacy.processor.body':
+    "Les comptes et la progression sont hébergés par Supabase, en tant que sous-traitant, sur une infrastructure située dans l’Union européenne. Le site lui-même est servi par Cloudflare. Aucune donnée n’est transmise à d’autres tiers.",
+  'privacy.contact.heading': 'Contact',
+  'privacy.contact.body':
+    'Pour toute question ou demande de suppression, écrivez au club via WhatsApp.',
+  'privacy.updated': 'Dernière mise à jour',
 
   'legal.title': 'Mentions légales',
   'legal.intro':
@@ -429,8 +514,89 @@ const en: Record<keyof typeof fr, string> = {
   'footer.association': 'In partnership with',
   'footer.legalHeading': 'The site',
   'footer.legal': 'Legal notice',
+  'footer.privacy': 'Privacy',
   'footer.source': 'Source (GPL)',
   'footer.pieces': 'Pieces: cburnett',
+
+  'auth.signIn': 'Sign in',
+  'auth.account': 'My account',
+  'auth.signOut': 'Sign out',
+  'login.title': 'Sign in',
+  'login.intro':
+    'Get a link by email — no password. An account keeps your progress across your devices; the whole site stays available without one.',
+  'login.emailLabel': 'Email address',
+  'login.submit': 'Send the link',
+  'login.sending': 'Sending…',
+  'login.sent.title': 'Check your email',
+  'login.sent.body':
+    'We have sent a sign-in link. Open it on this device or another — it works anywhere.',
+  'login.error': 'The link could not be sent. Try again in a moment.',
+  'login.invalidEmail': 'That email address does not look valid.',
+  'login.unconfigured': 'Signing in is not available yet on this version of the site.',
+  'login.guestNote': 'Continue without an account',
+  'callback.title': 'Signing in…',
+  'callback.working': 'Signing you in…',
+  'callback.failed': 'This link is no longer valid. Request a new one.',
+  'callback.retry': 'Back to sign in',
+  'account.title': 'My account',
+  'account.intro': 'Your display name and language. Nothing else is stored here.',
+  'account.displayName': 'Display first name',
+  'account.locale': 'Language',
+  'account.save': 'Save',
+  'account.saved': 'Saved.',
+  'account.saveError': 'Could not save. Try again.',
+  'account.email': 'Email address',
+  'account.role': 'Role',
+  'account.role.admin': 'Administrator',
+  'account.role.prof': 'Teacher',
+  'account.role.eleve': 'Student',
+  'account.progress.heading': 'Progress',
+  'account.progress.soon': 'Coming soon',
+  'account.progress.body': 'Syncing your progress across devices is coming shortly.',
+  'account.attendance.heading': 'Attendance',
+  'account.attendance.soon': 'Coming soon',
+  'account.attendance.body': 'Your session attendance history will arrive with the schedule.',
+  'account.signedOut': 'You are not signed in.',
+  'account.goSignIn': 'Sign in',
+
+  'privacy.title': 'Privacy policy',
+  'privacy.intro':
+    'What the club keeps, why, and how to erase all of it. The site works entirely without an account.',
+  'privacy.guest.heading': 'Without an account, we keep nothing',
+  'privacy.guest.body':
+    'You can read the courses and traps and solve the exercises without creating an account. Your progress is then stored only in your browser (localStorage): it never leaves your device and we cannot see it.',
+  'privacy.stored.heading': 'With an account, what we store',
+  'privacy.stored.name': 'A display first name — never a full name.',
+  'privacy.stored.email': 'Your email address, used only to send you the sign-in link.',
+  'privacy.stored.guardian':
+    'Optionally a parent phone number, as a contact for the club. It is never used to sign in and receives no automated messages.',
+  'privacy.stored.progress': 'Your progress: exercises solved, attempts, hints used.',
+  'privacy.stored.attendance': 'Your attendance at sessions, recorded by a teacher.',
+  'privacy.why.heading': 'Why',
+  'privacy.why.body':
+    'To keep your progress across your devices, and to let teachers follow the group and attendance. Nothing is used for anything else: no advertising, no resale, no profiling.',
+  'privacy.no.heading': 'What we never do',
+  'privacy.no.photos': 'No photographs, ever.',
+  'privacy.no.messaging':
+    'No messaging, no comments, no user-submitted content of any kind. Nobody can contact a child through this site.',
+  'privacy.no.tracking':
+    'No advertising cookies and no third-party trackers. Audience measurement, when enabled, is anonymous and cookie-free.',
+  'privacy.no.passwords': 'No password is created or stored: signing in is by email link.',
+  'privacy.minors.heading': 'Minors',
+  'privacy.minors.body':
+    'The club teaches children. Data is kept to the strict minimum: a first name, an email address, progress. For a student without their own address, a teacher creates the account using a parent’s address, and that parent remains the point of contact. No photographs are published and no direct contact is possible on the site.',
+  'privacy.retention.heading': 'How long we keep it',
+  'privacy.retention.body':
+    'Data is kept for as long as the account exists. An account inactive for two years is deleted. Progress stored locally in your browser stays under your control and can be cleared at any time by clearing the site’s data.',
+  'privacy.erasure.heading': 'Erasure',
+  'privacy.erasure.body':
+    'You can ask for your account to be deleted at any time. Deletion cascades: the account, the profile, the progress and the attendance records are erased together — nothing is left behind to recover.',
+  'privacy.processor.heading': 'Where the data lives',
+  'privacy.processor.body':
+    'Accounts and progress are hosted by Supabase, acting as a processor, on infrastructure located in the European Union. The site itself is served by Cloudflare. No data is passed to any other third party.',
+  'privacy.contact.heading': 'Contact',
+  'privacy.contact.body': 'For any question or deletion request, message the club on WhatsApp.',
+  'privacy.updated': 'Last updated',
 
   'legal.title': 'Legal notice',
   'legal.intro':

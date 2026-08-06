@@ -109,5 +109,9 @@ export const exercisesPath = (locale: Locale): string => localizePath('/exercice
 /** The legal notice in either locale. See the ROUTES note on the EN segment. */
 export const legalPath = (locale: Locale): string => localizePath('/mentions-legales/', locale);
 
+/** The privacy policy in either locale. Segment is structural, not translated. */
+export const privacyPath = (locale: Locale): string =>
+  localizePath('/politique-confidentialite/', locale);
+
 /** Appearance settings in either locale. */
 export const settingsPath = (locale: Locale): string => localizePath('/parametres/', locale);
