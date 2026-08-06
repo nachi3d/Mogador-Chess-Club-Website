@@ -9,9 +9,10 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ---
 
-## [Unreleased]
+## [0.2.0] — 2026-08-06
 
-### 0.2.0 — Home CTA, pacing, and ambient motion
+Home **Play** CTA, animation pacing with a bot thinking floor, CSS ambient
+motion, and a written motion policy.
 
 Three UX changes from Seàn's first real-device pass. No architecture changes.
 
@@ -557,6 +558,7 @@ Foundation only: no real content, no interactive board yet.
   `url()` references unresolved and the fonts silently 404 into a Georgia
   fallback. `scripts/build-fonts.mjs` self-hosts them instead. See CLAUDE.md.
 
-[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/releases/tag/v0.1.0
