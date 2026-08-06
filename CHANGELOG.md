@@ -9,6 +9,41 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ---
 
+## [0.1.1] — 2026-08-06
+
+Patch: deployment configuration only. No application code changed, and nothing a
+visitor can see is different.
+
+### Fixed
+
+- **The Cloudflare deploy no longer rewrites the project on its way out.** The CI
+  runs `npm run build` then `npx wrangler deploy`; with no wrangler config present,
+  wrangler detected an Astro project and ran `astro add cloudflare`, installing the
+  `@astrojs/cloudflare` adapter — incompatible with Astro 7, and the wrong shape for
+  a static site in any case. The build died at *deploy* time rather than at *build*
+  time, which is where nobody was looking.
+
+  `wrangler.jsonc` at the repo root fixes it by being explicit: `name`,
+  `compatibility_date` and an `assets` block pointing at `dist/`, and nothing else.
+  No `main`, so there is no Worker script and the assets runtime serves the site
+  directly. **The file's job is to stop wrangler helping — deleting it brings the
+  trap back.**
+
+  `wrangler` stays out of `package.json`, invoked via `npx`. Session 1 removed it to
+  drop its transitive advisories (`undici` via `miniflare`), and a static site needs
+  it only at deploy time.
+
+  `not_found_handling` is `"none"` because there is no 404 page yet; it becomes
+  `"404-page"` in the same commit as the first `src/pages/404.astro`.
+
+### Changed
+
+- `astro.config.mjs` and CLAUDE.md said "Cloudflare Pages" throughout. The target is
+  Workers static assets; the comments now say so rather than describing the previous
+  plan.
+
+---
+
 ## [0.1.0] — 2026-08-06
 
 First release. The headings below are the development milestones that make it up,
@@ -450,5 +485,6 @@ Foundation only: no real content, no interactive board yet.
   `url()` references unresolved and the fonts silently 404 into a Georgia
   fallback. `scripts/build-fonts.mjs` self-hosts them instead. See CLAUDE.md.
 
-[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/releases/tag/v0.1.0

@@ -1,0 +1,28 @@
+{
+  // Cloudflare Workers — static assets only.
+  //
+  // This site is `output: 'static'`. There is no SSR, no Pages Function and no
+  // server-side code of any kind: `npm run build` produces `dist/`, and this
+  // config tells wrangler to upload that directory and nothing else.
+  //
+  // ⚠️ This file exists to STOP wrangler helping. With no config present it
+  // detects an Astro project and runs `astro add cloudflare`, which installs the
+  // @astrojs/cloudflare adapter — incompatible with Astro 7, and wrong for a
+  // static site regardless. The build then fails in CI. Deleting this file
+  // reintroduces that. See CLAUDE.md → Deployment.
+  //
+  // Note there is deliberately no `main`: a Worker with `assets` and no entry
+  // script is served entirely by the assets runtime.
+  //
+  // No `$schema` key: the usual value points into `node_modules/wrangler/`, and
+  // wrangler is intentionally not a dependency here (see CLAUDE.md), so the
+  // reference would never resolve.
+  "name": "mogador-chess-club-website",
+  "compatibility_date": "2026-08-06",
+  "assets": {
+    "directory": "./dist",
+    // No 404 page exists yet. When one lands at `src/pages/404.astro`, this
+    // becomes "404-page" so a bad URL renders it instead of a bare response.
+    "not_found_handling": "none"
+  }
+}
