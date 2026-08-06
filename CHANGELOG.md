@@ -9,9 +9,13 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ---
 
-## [Unreleased]
+## [0.1.0] — 2026-08-06
 
-### [0.5.0] — Themes
+First release. The headings below are the development milestones that make it up,
+in reverse order; their numbers are internal build milestones, not published
+versions. Everything in this section ships as `v0.1.0`.
+
+### 0.5.0 — Themes
 
 Dark mode, five board presets, and the reader's own colours. The last session
 before the v0.1.0 promotion.
@@ -85,7 +89,7 @@ before the v0.1.0 promotion.
 - Board themes are independent of light/dark: a board is a board, and coupling them
   would double the validation matrix for no gain.
 
-### [0.4.1] — `npm run demo`
+### 0.4.1 — `npm run demo`
 
 Tooling only. Nothing a visitor can see changed.
 
@@ -121,7 +125,7 @@ Tooling only. Nothing a visitor can see changed.
   without a shell; npm — a `.cmd` shim that Node will not spawn shell-less — is passed
   as a single command string.
 
-### [0.4.0] — Content licence, keyboard play, and Stockfish
+### 0.4.0 — Content licence, keyboard play, and Stockfish
 
 #### Added
 
@@ -211,7 +215,7 @@ Tooling only. Nothing a visitor can see changed.
   12.4 KB** in lazy chunks, and the engine is **3.57 MB** fetched on a click. `/jouer/`
   loads none of the last two until you press start.
 
-### [0.3.0] — GPL, and the exercise engine
+### 0.3.0 — GPL, and the exercise engine
 
 The licence question is answered, and the board learned to be answered back.
 
@@ -297,7 +301,7 @@ The licence question is answered, and the board learned to be answered back.
 - Island cost: the replay bundle grew **58.7 → 64.8 KB raw / 20.5 → 22.4 KB brotli**, because both
   views and `progress.ts` share the island chunk. The 36 KB chess.js chunk is *not* in it.
 
-### [0.2.0] — The board
+### 0.2.0 — The board
 
 Preact island, Chessground replayer, and the first real trap.
 
@@ -371,7 +375,7 @@ Preact island, Chessground replayer, and the first real trap.
 - The PGN is parsed at **build time**, so chess.js never enters the client bundle for
   replay mode. Island total: **58.7 KB raw / 20.5 KB brotli**.
 
-### [0.1.0] — Scaffold
+### 0.1.0 — Scaffold
 
 Foundation only: no real content, no interactive board yet.
 
