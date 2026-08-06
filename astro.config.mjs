@@ -19,8 +19,9 @@ export default defineConfig({
   // with `site.url` in src/config/site.ts.
   site: 'https://mogadorchess.ma',
 
-  // Fully static output — Cloudflare Pages serves `dist/` and nothing else.
-  // No SSR, no Functions: v1 has no server-side state (see CLAUDE.md → Stack).
+  // Fully static output — Cloudflare Workers serves `dist/` as static assets and
+  // nothing else. No SSR, no adapter: v1 has no server-side state.
+  // See CLAUDE.md → Stack and → Deployment.
   output: 'static',
 
   // i18n plumbing — FR is the default locale served at the root, EN under /en/...
