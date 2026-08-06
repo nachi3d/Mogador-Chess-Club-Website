@@ -1,4 +1,21 @@
 import { defineConfig, devices } from '@playwright/test';
+import { assertNotProduction } from './tests/e2e/env';
+
+/**
+ * ⚠️ THE PRODUCTION-SAFETY INTERLOCK, AT CONFIG LOAD.
+ *
+ * Runs before a single test is collected. The auth suite creates users and
+ * PURGES BY PATTERN; pointed at production it would delete real accounts, so
+ * this aborts the ENTIRE run rather than letting one spec decide.
+ *
+ * It fails CLOSED on every ambiguity — refs equal, production ref undeclared,
+ * service key absent, URL unparseable. The single exception is a completely
+ * absent .env.test, where no Supabase project is reachable at all and the auth
+ * specs skip visibly; see the note in tests/e2e/env.ts.
+ *
+ * Never wrap this in a try/catch and never make it conditional on CI.
+ */
+assertNotProduction();
 
 /**
  * Mogador Chess Club — end-to-end test matrix.
@@ -106,6 +123,9 @@ export default defineConfig({
       use: { ...devices['iPhone 13'] },
     },
   ],
+
+  globalSetup: './tests/e2e/global-setup.ts',
+  globalTeardown: './tests/e2e/global-teardown.ts',
 
   webServer: {
     command: 'npm run build && npm run preview',

@@ -9,6 +9,92 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ---
 
+## [Unreleased]
+
+### v2-S1 — Supabase foundation and email magic-link auth
+
+v2 begins. **Nothing about v1 changes**: the site is still fully static, guests
+are still first-class, and every lesson, trap and exercise works with no account.
+Accounts add sync and teacher oversight; they gate nothing.
+
+#### Added
+
+**Plumbing**
+- `@supabase/supabase-js` behind `src/lib/supabase.ts` — a lazy singleton, and
+  the only file that imports the client
+- `src/lib/auth-flag.ts` — the "has this browser signed in?" hint, which knows
+  nothing about Supabase so the header can ask it for free
+- `supabase/` — `config.toml`, numbered migrations, and a test-only seed script
+- `.env.example`, `.env.test.example`; `.env.test` is gitignored (service-role key)
+
+**Schema and RLS (migration 0001)**
+- `profiles`, `exercise_progress`, `lesson_progress`, `sessions`, `attendance`
+- Published sessions readable by `anon`, so the agenda stays visible without an
+  account
+- `handle_new_user()` creates the profile, falls back to the email local part
+  for a display name, and **clamps the locale** (`en-GB` → `en`)
+- Deletion cascades `auth.users` → profile → progress → attendance
+
+**Auth UI**
+- `/connexion`, `/compte` (both locales) and `/auth/callback`
+- An auth-aware header account link that is **not** an island and costs a guest
+  nothing
+
+**Privacy**
+- `/politique-confidentialite` (both locales): what is stored, why, retention,
+  erasure, a minors paragraph, and Supabase named as processor with the EU
+  region stated. Linked from the footer and the legal notice
+
+**Test infrastructure**
+- `assertNotProduction()` at Playwright config load, purge-by-pattern before and
+  after the suite, and an auth spec covering the trigger, the header, sign-out,
+  guest zero-requests, and two RLS attacks
+- `docs/ADMIN.md` (role promotion SQL), `BACKLOG.md` (custom SMTP)
+
+#### Notes
+
+- **The magic-link flow is implicit, not PKCE, and that is what makes a static
+  host work.** Tokens come back in the URL fragment, which is never sent to the
+  origin — so `/auth/callback` is a plain static HTML file. PKCE would keep a
+  verifier in the requesting browser and break every link opened from a phone or
+  an in-app mail browser. Verified: the callback is emitted as a static file and
+  no adapter, Function or SSR is involved.
+- **`role` is not client-updatable, and RLS alone would not achieve that.**
+  Policies act on rows, and the row is the reader's own — so the owner-update
+  policy would permit it. Column-level `GRANT`s are the real mechanism, with a
+  trigger as the second line and no INSERT policy at all. A spec attempts the
+  escalation with a genuine anon-key client holding a real session.
+- **Migration ordering is load-bearing.** A `language sql` body has its
+  references resolved at `CREATE` time, so `is_staff()` cannot precede the
+  `profiles` table. Caught before first apply; the file is ordered tables →
+  functions → policies.
+- **The interlock fails closed** on equal refs, an undeclared production ref, an
+  absent service key, or an unparseable URL — verified against all four failure
+  modes plus both passing cases. The one exception is a completely absent
+  `.env.test`, where nothing is reachable and auth specs skip visibly rather
+  than bricking the ~750 unrelated specs.
+- **Email delivery is not covered by automation, and the suite says so.** Users
+  and links are minted through the admin API, so the tested flow starts at "the
+  link resolves". A real-inbox check is in `docs/MANUAL-TESTS.md`.
+- Fixed a real accessibility defect found by axe on the new privacy page: the
+  inline WhatsApp link was distinguished by colour alone (`link-in-text-block`).
+
+#### Fixed (carried over from Session 6)
+
+- **Scroll reveals were making index-page axe checks fail.** A `[data-reveal]`
+  card below the fold stays at `opacity: 0` until scrolled to, and axe measures
+  the contrast of text it can still find — `color-contrast (19×)` on
+  `/exercices/`. It had been presenting as intermittent flakiness on the phone
+  projects for two matrix runs, because it depends on viewport height and
+  transition timing; a serial Firefox run is what finally failed hard enough to
+  show the actual violation rather than a timeout.
+
+  `tests/e2e/helpers/reveal.ts` settles the reveals before any axe check on such
+  a page. Not a weakened assertion: a card nobody has scrolled to is a card
+  nobody is reading.
+
+---
+
 ## [0.2.0] — 2026-08-06
 
 Home **Play** CTA, animation pacing with a bot thinking floor, CSS ambient

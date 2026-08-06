@@ -607,6 +607,147 @@ Its first run in this shape found a **real pre-existing bug**: the `ink-950` lab
 
 ---
 
+## v2 architecture — Supabase, and what it is NOT allowed to change
+
+v2 adds accounts. It does **not** change what this site is.
+
+### Locked decisions
+
+| | |
+|---|---|
+| Hosting | **Still static.** Astro + Workers assets, `output: 'static'`, no adapter, no SSR, no server. **Non-negotiable.** |
+| Supabase | Called **client-side only** |
+| Security | **ALL of it is RLS.** The anon key is public by design |
+| Guests | **First-class forever.** Every lesson, trap and exercise works with no account |
+| Content | **Stays in git.** The database holds identities, roles, progress, sessions, attendance — nothing a lesson is made of |
+| Roles | `admin` / `prof` / `eleve`. All profs see all students (v2.0); groups are v2.1 |
+| Auth | Magic link (v2-S1) + Google OAuth and prof-created accounts (v2-S2). **NO passwords, anywhere** |
+| SMS | **Rejected.** No Twilio, no SMS/WhatsApp OTP. Do not reintroduce |
+
+**Accounts add sync and teacher oversight. They gate nothing.** If a feature ever
+requires an account to read content, it is the wrong feature.
+
+### ⚠️ The guest zero-request rule wins every conflict
+
+A visitor reading a lesson must cause **zero** requests to any Supabase origin
+and must not download `@supabase/supabase-js` at all. Three mechanisms:
+
+1. **`src/lib/supabase.ts` is the only file importing the client**, and it is a
+   lazy singleton — importing the module constructs nothing.
+2. **Every caller reaches it through `await import()`**, so Vite gives it its
+   own chunk. At v2-S1 that chunk is **207 KB raw**, fetched only by an auth
+   page or a submitted sign-in form.
+3. **`src/lib/auth-flag.ts` knows nothing about Supabase.** The header asks it
+   whether showing an account link is worth it, and never asks Supabase.
+
+⚠️ **`auth-flag.ts` must never import `supabase.ts`, directly or transitively.**
+One static import and Vite hoists the client into every page's graph. The header
+script in `AccountButton.astro` duplicates the key string `mcc:auth:v1` verbatim
+for the same reason the theme head script duplicates `applyTheme()` — importing
+would reintroduce the request it exists to avoid. Three copies exist
+(`auth-flag.ts`, the inline script, and `tests/e2e/helpers/auth.ts`); the spec
+pins the contract.
+
+`tests/e2e/auth.spec.ts` asserts this against the **network log** on six content
+routes, so it holds however the chunking changes.
+
+**The flag is a HINT, never authorisation.** A hand-edited `true` buys one
+wasted module fetch and a page that says "you are not signed in".
+
+### The magic-link flow is IMPLICIT, and that is what makes a static host work
+
+`flowType: 'implicit'` is set explicitly in `supabase.ts`.
+
+The link returns tokens in the URL **fragment** (`#access_token=…`). A fragment
+is never transmitted to the origin, so `/auth/callback` is served as an ordinary
+static HTML file and the exchange happens entirely in the browser. **Verified:
+`dist/auth/callback/index.html` is a plain static file; no server, no adapter,
+no Function.**
+
+⚠️ **PKCE would break magic links here.** It keeps a `code_verifier` in the
+localStorage of the browser that *requested* the link — and email is routinely
+opened somewhere else (a phone when the request came from a laptop, a mail app's
+in-app browser). Every one of those fails with an opaque error. The cost of
+implicit is tokens briefly in the address bar, so `completeSignIn()` scrubs the
+fragment as soon as it is consumed.
+
+`/auth/callback` is the **only unlocalised route on the site**. Supabase holds
+one redirect allow-list per project, and this page renders a spinner and
+redirects — the reader's locale comes from their profile. The
+no-translated-segments rule is about pages a reader navigates to; this is
+machinery.
+
+### Schema and RLS
+
+`supabase/migrations/`, numbered, **never edited after merge** — a fix is 0002.
+
+⚠️ **Slugs are free text, deliberately not foreign keys.** Content lives in git,
+so there is nothing to point at. Orphaned progress after a lesson is renamed is
+harmless; the alternative makes the database a second, lagging source of truth
+and turns a content rename into failing writes in production.
+
+⚠️ **`is_staff()` must be `SECURITY DEFINER` with a pinned `search_path`.** A
+policy on `profiles` that checks staffness by selecting `profiles` re-enters
+itself and Postgres raises *"infinite recursion detected in policy"*.
+
+⚠️ **Ordering inside a migration matters.** A `language sql` function body has
+its object references resolved at `CREATE` time, so `is_staff()` cannot precede
+the `profiles` table. Tables → functions → policies.
+
+⚠️ **`role` is never client-updatable, and RLS alone does not achieve that.**
+Policies operate on rows, and the row *is* the reader's own — so
+`profiles_update_own` would happily allow it. The actual mechanism is
+**column-level privileges** (`grant update (display_name, locale)`), with
+`forbid_role_self_change()` as a second line and no INSERT policy at all.
+Promotion is SQL only — `docs/ADMIN.md` holds the exact statements.
+
+**Deletion cascades** from `auth.users` → profile → progress → attendance. The
+erasure right depends on that chain and nothing else, so delete the *auth user*,
+never just the profile. `tests/e2e/helpers/purge.ts` re-checks the cascade on
+every run.
+
+⚠️ **`handle_new_user()` clamps the locale, and that is a bug prevented in
+advance.** A Google claim arrives as `en-GB` / `fr_CA`; written verbatim it
+violates the CHECK, the trigger raises, and signup fails as an opaque *"Database
+error saving new user"* with nothing pointing at the locale.
+
+### Test infrastructure — the interlock
+
+`assertNotProduction()` runs at **Playwright config load**, before a test is
+collected, and aborts the whole run. The suite creates users and **purges by
+pattern**; pointed at production it would delete real accounts.
+
+It **fails closed**: refs equal, production ref undeclared, service key absent,
+or an unparseable URL all abort. The single exception is a completely **absent**
+`.env.test` — no credentials are reachable at all then (the loader never reads
+`process.env`), and aborting would instead brick the ~750 specs that have
+nothing to do with auth. Auth specs skip **visibly** in that case.
+
+⚠️ **Never widen `tests/e2e/env.ts` to fall back to `.env` or `.env.local`.**
+That single edit is what would let a developer's production credentials into a
+suite that deletes by pattern.
+
+**The known gap, stated rather than hidden:** nothing automated proves Supabase
+*delivers* email. Users and links are minted through the admin API, so the flow
+under test begins at "the link resolves". Real delivery is a manual check in
+`docs/MANUAL-TESTS.md`. It is written at the top of `auth.spec.ts` because a
+suite that appears to cover email and does not is worse than one that admits it.
+
+### Environment variables
+
+| Variable | Where | Notes |
+|---|---|---|
+| `PUBLIC_SUPABASE_URL` | Cloudflare build vars + `.env` | Public by design |
+| `PUBLIC_SUPABASE_ANON_KEY` | Cloudflare build vars + `.env` | Public by design; RLS is the boundary |
+| `SUPABASE_SERVICE_ROLE_KEY` | **`.env.test` only** | Bypasses RLS. Never in a build |
+| `SUPABASE_PRODUCTION_REF` | `.env.test` | Feeds the interlock |
+| `E2E_EMAIL_DOMAIN` | `.env.test` | The purge pattern |
+
+`.env.test` is gitignored because it carries a service-role key. See
+`.env.example` and `.env.test.example`.
+
+---
+
 ## Animation policy (Session 6)
 
 Every duration on the site is a constant in **`src/lib/motion.ts`**, and nothing
@@ -664,6 +805,24 @@ motion means "do not animate", not "do not pace".
 The preference is read **at call time, never cached**: it can change mid-session,
 and `BoardSurface` re-reads it on every update as well as at mount, which is what
 lets a spec emulate it after the island has already mounted.
+
+### ⚠️ Scroll reveals break axe unless the page is settled first
+
+Found in v2-S1, caused by Session 6. A `[data-reveal]` element sits at
+`opacity: 0` until the observer sees it, so **every card below the fold is fully
+transparent text that axe can still find** — and it reports `color-contrast` for
+each one. On `/exercices/` under Firefox that was `color-contrast (19×)`.
+
+It presents as **flakiness, not breakage**, because it depends on viewport
+height (worse on the phone projects, where more cards start below the fold) and
+on transition timing. It flaked on iPhone 13 for two matrix runs before a serial
+Firefox run finally failed hard enough to show the real violation — which is why
+"a flaky axe test" on an index page should be investigated rather than retried.
+
+**Every axe check on a reveal-bearing page must call `settleReveals(page)`**
+(`tests/e2e/helpers/reveal.ts`) first. That is not weakening the assertion: a
+card nobody has scrolled to is a card nobody is reading, and the helper measures
+the page in the state a reader actually experiences.
 
 ### Where ambient motion is allowed
 
@@ -779,6 +938,7 @@ no adapter and no server-side code: `dist/` is uploaded and served directly.
 | Deploy command | `npx wrangler deploy` |
 | Output directory | `dist/` |
 | Config | `wrangler.jsonc` at the repo root |
+| Build variables | `PUBLIC_SUPABASE_URL`, `PUBLIC_SUPABASE_ANON_KEY` (public by design), optional `PUBLIC_UMAMI_WEBSITE_ID` — set in the Cloudflare dashboard. **Never** `SUPABASE_SERVICE_ROLE_KEY`. |
 
 `wrangler.jsonc` declares `name`, `compatibility_date` and an `assets` block, and
 **nothing else**. There is deliberately no `main`: a Worker with `assets` and no

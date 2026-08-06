@@ -18,6 +18,8 @@ pnpm-debug.log*
 .env
 .env.production
 .env.local
+# ⚠️ Holds a SERVICE ROLE key (RLS-bypassing) for the test project. Never commit.
+.env.test
 
 # test artifacts
 test-results/

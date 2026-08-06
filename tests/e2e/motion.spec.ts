@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import { settleReveals } from './helpers/reveal';
 
 /**
  * Session 6 — the home CTA, ambient motion, and the reduced-motion contract.
@@ -10,9 +11,9 @@ import AxeBuilder from '@axe-core/playwright';
  */
 
 /** Scroll reveals hide their targets until observed — get them on screen. */
+/** Reveal pages hide below-fold content until scrolled to — see helpers/reveal.ts. */
 async function settle(page: Page) {
-  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-  await page.evaluate(() => window.scrollTo(0, 0));
+  await settleReveals(page);
 }
 
 test.describe('home — the Jouer CTA', () => {

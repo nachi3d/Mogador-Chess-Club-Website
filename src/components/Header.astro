@@ -9,6 +9,7 @@ import { site } from '@config/site';
 import { localizePath, stripLocale } from '@i18n/paths';
 import { NAV_ITEMS, useTranslations } from '@i18n/ui';
 import LangSwitcher from '@components/LangSwitcher.astro';
+import AccountButton from '@components/AccountButton.astro';
 import ThemeToggle from '@components/ThemeToggle.astro';
 
 interface Props {
@@ -51,6 +52,7 @@ const current = stripLocale(pathname);
     </nav>
 
     <div class="header-tools">
+      <AccountButton locale={locale} />
       <ThemeToggle locale={locale} />
       <LangSwitcher locale={locale} pathname={pathname} />
     </div>

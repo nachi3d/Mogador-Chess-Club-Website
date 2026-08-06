@@ -8,7 +8,7 @@
  */
 import type { Locale } from '@config/site';
 import { site, hasVenue, venueAddress } from '@config/site';
-import { legalPath, settingsPath } from '@i18n/paths';
+import { legalPath, privacyPath, settingsPath } from '@i18n/paths';
 import { useTranslations } from '@i18n/ui';
 
 interface Props {
@@ -73,6 +73,7 @@ const piecesUrl = `${legalPath(locale)}#cburnett`;
       <ul class="footer-links">
         <li><a href={settingsPath(locale)}>{t('settings.title')}</a></li>
         <li><a href={legalPath(locale)}>{t('footer.legal')}</a></li>
+        <li><a href={privacyPath(locale)}>{t('footer.privacy')}</a></li>
         <li>
           <a href={sourceUrl} rel="noopener noreferrer" target="_blank">{t('footer.source')}</a>
         </li>

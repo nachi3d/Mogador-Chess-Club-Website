@@ -285,6 +285,65 @@ Rendering → Emulate `prefers-reduced-motion`).
 
 ---
 
+## 7c. Accounts (v2-S1)
+
+Needs a configured Supabase project. If `PUBLIC_SUPABASE_URL` is unset the sign-in
+form says so plainly and everything else on the site still works — check that too.
+
+### ⚠️ The real magic link — the one thing automation does NOT cover
+
+The e2e suite mints links through the admin API and never sends an email. Delivery,
+the template and a link opened from a real inbox are only ever checked here.
+
+- [ ] `/connexion/` → enter a **real** address you can read → "Vérifiez votre boîte e-mail"
+- [ ] The email actually **arrives** (check spam — the built-in Supabase mailer is
+      not domain-aligned yet; see BACKLOG.md)
+- [ ] Open the link **on a different device** from the one that requested it. It must
+      still sign you in. *(This is the PKCE-vs-implicit decision being verified: with
+      PKCE this fails, which is exactly why the flow is implicit.)*
+- [ ] You land on `/compte/`, and the address bar has **no `#access_token=…`** left in it
+- [ ] Request a second link and click the **first** one again — it must be refused
+      cleanly with "Ce lien n'est plus valide", not a blank page
+
+### Signed-in state
+
+- [ ] Header shows **Mon compte** / **My account** instead of **Se connecter**
+- [ ] **Reload.** Still signed in, header unchanged
+- [ ] Close the tab, reopen the site. Still signed in
+- [ ] `/compte/` shows your email, your role, and your first name
+- [ ] Change the display name → **Enregistrer** → reload → the new name persisted
+- [ ] Switch the language on `/compte/` → reload → it stuck
+- [ ] Progress and Attendance sections are visible and marked **À venir** / **Coming soon**
+
+### Sign out
+
+- [ ] **Se déconnecter** returns you to the home page
+- [ ] Header is back to **Se connecter**
+- [ ] Reload — still signed out (no flicker of an account link on the way)
+- [ ] DevTools → Application → Local Storage: **`mcc:auth:v1` is gone**, and so are
+      the `sb-…-auth-token` entries
+
+### ⚠️ The guest zero-request check — do this in DevTools, every time
+
+The single easiest thing to break in v2. One stray static import and every reader
+downloads the auth client.
+
+- [ ] Open a **private window** (no prior sign-in, so no `mcc:auth:v1`)
+- [ ] DevTools → **Network**, filter `supabase`
+- [ ] Visit `/`, `/cours/`, `/pieges/legal/`, `/exercices/mat-du-couloir/`, `/jouer/`
+- [ ] **Zero requests.** Not one, to any `*.supabase.co` host
+- [ ] Clear the filter and confirm no ~200 KB auth chunk is fetched either
+- [ ] Now open `/connexion/` — still zero Supabase requests until you **submit** the form
+
+### Privacy policy
+
+- [ ] `/politique-confidentialite/` and `/en/politique-confidentialite/` both load
+- [ ] Linked from the **footer of every page**, and from `/mentions-legales/`
+- [ ] The minors paragraph is present in both languages
+- [ ] Links inside paragraphs are **underlined**, not colour-only
+
+---
+
 ## 8. Privacy — zero third-party requests
 
 - [ ] DevTools → Network, **hard reload** with the cache disabled
