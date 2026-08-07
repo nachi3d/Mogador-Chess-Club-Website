@@ -28,7 +28,7 @@
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import BoardSurface from './BoardSurface';
 import MoveInput, { type MoveInputLabels } from './MoveInput';
-import { thinkingFloorMs } from '@lib/motion';
+import { PULSE_MS, SHAKE_MS, thinkingFloorMs } from '@lib/motion';
 import type { ExerciseDefinition, ExerciseMove, ResolvedExercise } from '@lib/chess/exercise';
 import type { MoveTextResult } from '@lib/chess/notation';
 import {
@@ -59,6 +59,20 @@ export interface ExerciseLabels {
   readonly hintHeading: string;
   readonly correct: string;
   readonly wrong: string;
+  /**
+   * WHY the move was refused, when there is a why worth giving.
+   *
+   * It shows under `wrong` — the verdict where the reader played something legal
+   * that is not the solution. "That is not the right move" tells them the result;
+   * this tells them what the site actually knows, which is that their move was
+   * playable and simply is not the one this position is about. Failure must
+   * inform (E1), and a beginner who cannot tell "illegal" from "not the point"
+   * learns the wrong lesson from the same red text.
+   *
+   * It is the exact counterpart of `offLineNote` under the permissive verdict —
+   * one caveat per verdict, never both, never neither.
+   */
+  readonly wrongReason: string;
   readonly offLine: string;
   readonly offLineNote: string;
   readonly solved: string;
@@ -106,8 +120,6 @@ export interface ExerciseViewProps {
 function replyDelayMs(): number {
   return thinkingFloorMs();
 }
-/** How long the shake runs before the board snaps back. Matches exercise.css. */
-const SHAKE_MS = 620;
 
 /** The verdict currently being shown. Drives the message and the board tint. */
 type Feedback = 'idle' | 'correct' | 'wrong' | 'off-line';
@@ -163,6 +175,12 @@ export default function ExerciseView(props: ExerciseViewProps) {
   const [revision, setRevision] = useState(0);
   /** Cursor into the full solution list, once solved. */
   const [reviewIndex, setReviewIndex] = useState<number | null>(null);
+  /**
+   * The square to pulse, or null. Set on a correct move and cleared one
+   * Transition later — it is an acknowledgement, not a state, so it must not
+   * survive into the next step and sit there as a second highlight.
+   */
+  const [pulse, setPulse] = useState<string | null>(null);
 
   /* Pending timers, cleared on unmount and on retry so nothing fires late into
      a state it was not scheduled for. */
@@ -247,6 +265,11 @@ export default function ExerciseView(props: ExerciseViewProps) {
       setFeedback('correct');
       setBusy(true);
       setShown(verdict.move);
+      /* The board's share of the feedback: one Transition on the square the
+         piece landed on. Cleared by its own timer rather than by the next step,
+         so a slow reply cannot leave it glowing. */
+      setPulse(verdict.move.to);
+      after(PULSE_MS, () => setPulse(null));
 
       const advance = () => {
         setFeedback('idle');
@@ -308,6 +331,7 @@ export default function ExerciseView(props: ExerciseViewProps) {
     setShaking(false);
     setBusy(false);
     setSolved(false);
+    setPulse(null);
     // Having solved it once is a fact about the reader; the retry button must
     // not take that back. `resetAttempts` clears the counter and nothing else.
     setSolvedBefore((was) => was || solved);
@@ -382,6 +406,7 @@ export default function ExerciseView(props: ExerciseViewProps) {
                binds anything, because the engine chunk has not loaded yet on
                the first render. See the prop's comment in BoardSurface. */
             interactive={true}
+            {...(pulse ? { pulseSquare: pulse } : {})}
             {...(displayed ? { lastMove: [displayed.from, displayed.to] as const } : {})}
             {...(displayed?.isCheck ? { check: turnColor } : {})}
             {...(interactive && step
@@ -406,7 +431,16 @@ export default function ExerciseView(props: ExerciseViewProps) {
             <span class="mcc-meter-label">{labels.step}</span>
             {/* ONE interpolated text node, never adjacent children — see the
                 hydration note in ReplayView.tsx. */}
-            <span class="mcc-meter-value">{`${Math.min(stepIndex + 1, total)} / ${total}`}</span>
+            {/* `key` remounts this span whenever the step advances, which is
+                what restarts the hop animation. Restarting a CSS animation on a
+                surviving node needs a reflow hack; remounting one <span> does
+                not. `data-hop` is only true after the first step, so the counter
+                does not hop on arrival — nothing has happened yet. */}
+            <span
+              key={stepIndex}
+              class="mcc-meter-value"
+              data-hop={stepIndex > 0 ? 'true' : 'false'}
+            >{`${Math.min(stepIndex + 1, total)} / ${total}`}</span>
           </p>
           <p class="mcc-meter">
             <span class="mcc-meter-label">{labels.attempts}</span>
@@ -437,6 +471,15 @@ export default function ExerciseView(props: ExerciseViewProps) {
               {feedback === 'off-line' && (
                 <p class="mcc-exercise-note" data-testid="exercise-offline-note">
                   {labels.offLineNote}
+                </p>
+              )}
+              {/* The reason, under the strict verdict. Both verdicts now carry
+                  exactly one line of explanation — which keeps the two panels
+                  the same shape, so the reader cannot read "more text" as
+                  "worse mistake". */}
+              {feedback === 'wrong' && (
+                <p class="mcc-exercise-note" data-testid="exercise-wrong-reason">
+                  {labels.wrongReason}
                 </p>
               )}
             </>

@@ -45,7 +45,7 @@
   font-size: 1rem;
   line-height: 1;
   cursor: pointer;
-  transition: background-color var(--duration-fast) var(--ease-soft);
+  transition: background-color var(--motion-response) var(--ease-response);
 }
 
 .mcc-controls button:hover:not(:disabled) {
@@ -210,4 +210,23 @@
 .mcc-controls button {
   min-width: 44px;
   min-height: 44px;
+}
+
+/* ── The press ────────────────────────────────────────────────────────────
+   Same vocabulary as `src/styles/controls.css`, spelled again here because
+   island CSS is a separate chunk whose order against the global sheet is not
+   guaranteed — and both rules are class-specificity, so whichever lands last
+   would win. See the note in controls.css. */
+.mcc-controls button {
+  box-shadow: 0 var(--motion-press-y) 0 var(--mcc-press-shadow);
+  transition:
+    transform var(--motion-response) var(--ease-response),
+    box-shadow var(--motion-response) var(--ease-response),
+    background-color var(--motion-response) var(--ease-response),
+    border-color var(--motion-response) var(--ease-response);
+}
+
+.mcc-controls button:active {
+  transform: translateY(var(--motion-press-y));
+  box-shadow: 0 0 0 var(--mcc-press-shadow);
 }

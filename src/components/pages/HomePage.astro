@@ -136,13 +136,11 @@ const pillars = [
     margin: 0;
   }
 
+  /* Structure, press and the background transition all live in
+     `src/styles/controls.css` — see the note there about scoped specificity.
+     Only the larger hero padding is page-specific. */
   .btn {
-    display: inline-block;
     padding: 0.7rem 1.4rem;
-    border-radius: var(--radius-card);
-    font-weight: 500;
-    text-decoration: none;
-    transition: background-color var(--duration-fast) var(--ease-soft);
   }
 
   .btn-primary {
@@ -204,8 +202,8 @@ const pillars = [
     border-radius: var(--radius-card);
     background-color: var(--mcc-surface-raised);
     transition:
-      border-color var(--duration-fast) var(--ease-soft),
-      transform var(--duration-fast) var(--ease-soft);
+      border-color var(--motion-response) var(--ease-response),
+      transform var(--motion-response) var(--ease-response);
   }
 
   .pillar:hover {

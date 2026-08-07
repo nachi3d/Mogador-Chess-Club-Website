@@ -267,6 +267,9 @@ const current = stripLocale(pathname);
     border-right: 2px solid currentColor;
     border-bottom: 2px solid currentColor;
     transform: translateY(-0.15em) rotate(45deg);
+    /* The chevron answers the click, so it is a Réponse — faster than the
+       panel it labels. Both start together; the arrow lands first. */
+    transition: transform var(--motion-response) var(--ease-response);
   }
 
   .nav-panel {
@@ -301,10 +304,37 @@ const current = stripLocale(pathname);
     border-radius: var(--radius-card);
     background-color: var(--mcc-surface-inverse);
     box-shadow: 0 8px 24px rgb(0 0 0 / 25%);
+    /* Transition family: a panel opening is a visible state change.
+
+       An ANIMATION, not a transition, and that is forced rather than chosen —
+       the panel is gated by `display`, which no transition can interpolate.
+       (`transition-behavior: allow-discrete` plus `@starting-style` would do
+       it, but the support floor is higher than this project's and the failure
+       mode is a panel that never appears.) An animation simply runs when the
+       element becomes displayed, which is exactly the moment we want it. */
+    animation: mcc-panel-in var(--motion-transition) var(--ease-transition);
+    transform-origin: top center;
+  }
+
+  @keyframes mcc-panel-in {
+    from {
+      opacity: 0;
+      transform: translateY(-0.35rem);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
   }
 
   :global(html.js) .nav-group[data-open] .nav-chevron {
     transform: translateY(0.1em) rotate(-135deg);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    :global(html.js) .nav-group[data-open] .nav-panel {
+      animation: none;
+    }
   }
 
   .nav-panel a {

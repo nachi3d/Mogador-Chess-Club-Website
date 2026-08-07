@@ -197,3 +197,22 @@
 .mcc-play .mcc-movelist .mcc-move {
   cursor: default;
 }
+
+/* ── The press ────────────────────────────────────────────────────────────
+   Same vocabulary as `src/styles/controls.css`, spelled again here because
+   island CSS is a separate chunk whose order against the global sheet is not
+   guaranteed — and both rules are class-specificity, so whichever lands last
+   would win. See the note in controls.css. */
+.mcc-play-button {
+  box-shadow: 0 var(--motion-press-y) 0 var(--mcc-press-shadow);
+  transition:
+    transform var(--motion-response) var(--ease-response),
+    box-shadow var(--motion-response) var(--ease-response),
+    background-color var(--motion-response) var(--ease-response),
+    border-color var(--motion-response) var(--ease-response);
+}
+
+.mcc-play-button:active {
+  transform: translateY(var(--motion-press-y));
+  box-shadow: 0 0 0 var(--mcc-press-shadow);
+}

@@ -11,6 +11,109 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### E1 — motion vocabulary and action feedback
+
+First session of the aesthetic rework. The direction, approved by Seàn and now
+in `docs/direction/mcc-direction-esthetique.md`: **the site should feel like a
+game because it RESPONDS, not because it is dressed up.** This session is the
+feel layer only — progression (E3) and vocabulary/atmosphere (E4) come later.
+
+#### Added
+
+- **Three motion families**, with `src/lib/motion.ts` extended from "the board
+  and pacing numbers" into the single source for every duration on the site:
+  **Réponse** (120–180ms, fast-out — what follows a click), **Transition**
+  (250–350ms, gentle — a visible state change), **Ambiance** (4–20s, linear
+  loop — background drift only).
+- **`src/styles/controls.css`** — the press, in one place. A button now moves
+  toward the page and its shadow closes up, like a key; cards settle flat.
+- **A reason on a refused move.** Under `onlyMove: true` the verdict now carries
+  *"Ce coup est légal, mais il ne fait pas ce qu'on cherche ici."* / *"That move
+  is legal, but it isn't what we're looking for here."* Failure must inform: a
+  beginner who cannot tell "illegal" from "not the point" learns the wrong
+  lesson from the same red text. **It counts exactly the same attempt** — the
+  `onlyMove` rule is that the two verdicts differ in wording only, and a spec
+  asserts the count and that the two panels stay the same shape.
+- **A correct-move pulse** — one Transition, one square, no loop, exercise mode
+  only. Uses Chessground's own `highlight.custom` rather than an overlay, so the
+  square is located by the board including after a flip. **Play mode
+  deliberately does not use it**: there is no "correct" there.
+- **A second ambient layer** — queen, knight and a second pawn, drifting a third
+  as far over a longer cycle. Depth comes from the *rate*, not the period.
+- `tests/e2e/feel.spec.ts` — 23 specs covering all of the above.
+
+#### Changed
+
+- **The solve lands in two beats.** The frame settles, *then* the badge arrives
+  one Transition later. It was a single 900ms block in which everything happened
+  at once, which read as "a thing appeared" rather than as an event with a
+  shape. The beat of stillness between them is the whole effect. Still no
+  confetti — precision is the reward, not visual noise.
+- **`REPLAY_ANIMATION_MS` 200 → 180.** 200ms sat squarely inside the forbidden
+  180–250ms gap; it was the clearest thing the audit turned up. Navigation is
+  still faster than gameplay (250ms), which is the relationship that mattered.
+- **Ambient drift 47–71s → 13–20s.** The old periods were slow enough that a
+  reader saw no motion at all in their first five seconds: the layer was paying
+  its full cost and delivering nothing.
+- **Scroll reveals 600ms → 300ms** (Transition). `--duration-slow` fitted no
+  family and is gone; `--duration-fast`/`--duration-base`/`--ease-soft` were
+  renamed to say which family they are.
+- **The shake and the solve are spelled as arithmetic on a family constant**
+  (`SHAKE_MS = RESPONSE_MS * 4 + 20`, `calc(var(--motion-response) * 4)`), so a
+  composite cannot drift into being a fourth family.
+- Nav panels fade and drop in on a Transition; the chevron answers on a Réponse.
+- The hint reveal and the verdict text are on the Transition family.
+
+#### Fixed
+
+- ⚠️ **Reduced motion did not stop the far ambient layer.** The
+  `@supports (animation-timeline: scroll())` block sets `animation-name` through
+  `.layer-far .piece` — two classes — so the single-class `.piece { animation:
+  none }` off-switch **lost the specificity fight**, and a reader who had asked
+  for stillness got three drifting pieces. The near layer was unaffected, which
+  is exactly why an eyeball would not have caught it. Found by the spec written
+  for it, in the same session that introduced it.
+- ⚠️ **Buttons were ~40px tall, under the 44px touch target, on every phone.**
+  `.btn-primary`/`.btn-ghost` were defined **seven times** across page
+  components' scoped `<style>` blocks, and nothing measured any of them. The
+  structure is now in `controls.css` with `min-height: 2.75rem`, and
+  `feel.spec.ts` measures every button on three routes. Pre-existing; found
+  while working out where the press could live.
+
+#### Notes — the audit, and what did not fit a family
+
+Three kinds of duration legitimately fit no family, and are documented as
+exceptions rather than given a fourth band:
+
+- **Pacing** — the engine's thinking floor (500–800ms) and the scripted
+  opponent's reply. Nothing *moves*; they are a wait before motion starts, with
+  no curve.
+- **Offsets** — the 60ms reveal stagger, and the ambient layer's negative
+  `animation-delay`s (−3s to −30s). A delay is *when* a duration starts.
+- **Composites** — the shake (4 × Réponse) and the two-beat solve. Now spelled
+  as arithmetic rather than as new numbers.
+
+Nothing else was left outside the vocabulary. `feel.spec.ts` sweeps every
+element on three routes and fails on any computed duration inside the 180–250ms
+gap, so this is enforced rather than asserted.
+
+#### Performance
+
+Lighthouse mobile on `/`, median of three, before → after:
+**Performance 100 → 100**, Accessibility 100 → 100, SEO 100 → 100.
+Speed Index 1069ms → 1076ms, LCP 1662 → 1663, TBT 0, CLS 0. The faster ambient
+motion did not cost the Speed Index that was budgeted for — at 0.055 opacity the
+drift is below what the metric resolves.
+
+#### Decisions recorded (see CLAUDE.md → Motion)
+
+- Nav labels stay functional; evocative names go on **page titles only**, in E4.
+- Ranks will be Pion → Cavalier → Fou → Tour → Dame (E3).
+- **No daily or consecutive-day streak** — the club meets weekly, so a daily
+  streak would punish the normal rhythm of the people it is for. Session
+  streaks only (E3).
+- Sound is synthesised via Web Audio and off by default (E2).
+
 ### Course 2 — "Les mats élémentaires"
 
 Six lessons on the basic checkmates, both locales. Authored brief now lives in
