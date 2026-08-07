@@ -383,6 +383,46 @@ for (const { file, data } of lessonFiles) {
       }
     }
 
+    /**
+     * A still diagram. It illustrates a claim in the prose, so the position has
+     * to be legal AND has to be the thing the prose says it is — a "this is
+     * what mate looks like" board that is not actually mate teaches the wrong
+     * picture, and nothing else would catch it.
+     *
+     * ⚠️ chess.js accepts a position where the side NOT to move is in check,
+     * which is impossible in a real game. Batch 2 shipped one: a finished mate
+     * written with White to move. It renders, it looks right, and it is not a
+     * position that can occur.
+     */
+    if (board.kind === 'position') {
+      if (board.fen.trim().split(/\s+/).length !== 6) {
+        fail(file, `${where}: FEN must have all six fields`);
+        continue;
+      }
+      let game;
+      try {
+        game = new Chess(board.fen);
+      } catch (error) {
+        fail(file, `${where}: FEN rejected — ${error.message}`);
+        continue;
+      }
+      /* Is the side that is NOT to move in check? Then the position is
+         unreachable: the previous player left their own king attacked. */
+      const flipped = board.fen.replace(/ (w|b) /, (m, c) => ` ${c === 'w' ? 'b' : 'w'} `);
+      try {
+        if (new Chess(flipped).isCheck()) {
+          fail(
+            file,
+            `${where}: the side NOT to move is in check — impossible position. ` +
+              'If this is meant to show a finished mate, the mated side must be to move.',
+          );
+        }
+      } catch {
+        /* If the flip does not load, the original already told us what we need. */
+      }
+      if (!String(board.caption ?? '').trim()) fail(file, `${where}: caption is empty`);
+    }
+
     if (board.kind === 'exercise') {
       if (board.fen.trim().split(/\s+/).length !== 6) {
         fail(file, `${where}: FEN must have all six fields`);

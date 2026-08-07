@@ -393,6 +393,29 @@ cannot judge whether the teaching is correct.
 
 ---
 
+## 6c. Course 2 — Les mats élémentaires
+
+- [ ] /cours/les-mats-elementaires/ lists six lessons, both locales
+- [ ] Each of the six exercises mates in one, by pointer and by keyboard
+
+### Still diagrams — new in this batch
+
+- [ ] Lessons 1, 3, 4 and 6 show STILL boards (no play button, no arrows)
+- [ ] ⚠️ Each still board shows its OWN position — if you ever see a full
+      32-piece starting position where a diagram should be, the FEN was lost
+- [ ] Lessons 2 and 5 have real replayers WITH a play button
+
+### ⚠️ Chess accuracy — Seàn
+
+- [ ] Step through the ladder (lesson 2) and Philidor (lesson 5) move by move:
+      does each comment describe the move actually on the board?
+- [ ] Lesson 3: is the stalemate diagram genuinely stalemate, and is the
+      warning clear enough that a beginner will remember it?
+- [ ] Lesson 4: the diagram shows the finished mate — does it read as such?
+- [ ] Lesson 5 starts the queen on d1 (the brief had her on b3, which made the
+      first move impossible) — does the line still read as Philidor to you?
+
+---
 ## 7a. The beginner tutorial — `/apprendre-les-bases/`
 
 Written for someone who has never played. The chess is machine-checked; **the

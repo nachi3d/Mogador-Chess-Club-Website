@@ -73,6 +73,23 @@ function emphasise(text: string): string {
 }
 
 /** Paired with the prose chunk of the same index; may be undefined for the tail. */
+/**
+ * A board with no moves: a still diagram.
+ *
+ * The replayer takes a PGN, so a position becomes a PGN carrying only its start
+ * FEN. ReplayView hides the launch button, the controls and the hint when there
+ * are no plies, so this renders as a plain labelled board rather than a
+ * replayer with nothing to replay.
+ *
+ * This is what batch 1 could not do — it converted its two diagrams into short
+ * replays that reached them. Batch 2's diagrams are terminal states (a
+ * stalemate, a finished mate) that no legal line arrives at, so they need to be
+ * shown as they are.
+ */
+function positionPgn(fen: string): string {
+  return `[SetUp "1"]\n[FEN "${fen}"]\n\n*`;
+}
+
 const pairs = chunks.map((chunk, i) => ({ chunk, board: data.boards[i] }));
 ---
 
@@ -95,11 +112,11 @@ const pairs = chunks.map((chunk, i) => ({ chunk, board: data.boards[i] }));
             <div class="prose" set:html={chunk} />
             {board && (
               <figure class="lesson-board">
-                {board.kind === 'replay' && (
+                {(board.kind === 'replay' || board.kind === 'position') && (
                   <ReplayBoard
                     locale={locale}
-                    pgn={board.pgn}
-                    moveComments={board.comments.map((c) => ({ ply: c.ply, fr: c.text, en: c.text }))}
+                    pgn={board.kind === 'position' ? positionPgn(board.fen) : board.pgn}
+                    moveComments={(board.kind === 'replay' ? board.comments : []).map((c) => ({ ply: c.ply, fr: c.text, en: c.text }))}
                     {...(board.orientation ? { orientation: board.orientation } : {})}
                   />
                 )}
@@ -116,7 +133,7 @@ const pairs = chunks.map((chunk, i) => ({ chunk, board: data.boards[i] }));
                   />
                 )}
                 {board.kind === 'exercise' && <figcaption set:html={emphasise(board.task)} />}
-                {board.kind === 'replay' && board.caption && (
+                {(board.kind === 'replay' || board.kind === 'position') && board.caption && (
                   <figcaption>{board.caption}</figcaption>
                 )}
               </figure>
