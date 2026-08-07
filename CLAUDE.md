@@ -164,6 +164,8 @@ Every session that reaches a merge updates all three, in the same commit as the 
 15. **Every animation belongs to one of three motion families, and nothing sits between 180ms and 250ms.** `src/lib/motion.ts` is the single source; a spec sweeps every element for violations. See "Motion".
 16. **The board stays sober.** Motion lives around it. The one exception is the correct-move pulse — one Transition, one square, exercise mode only.
 17. **Reduced motion means OFF for decoration and INSTANT for feedback** — never "the same show, slower". Both halves are tested.
+18. **Accounts are OFF in production, and OFF means NOT BUILT.** No auth route in `dist/`, no Supabase ref in any bundle. See the account-flag section.
+19. **`import.meta.env.NAME`, never `import.meta.env['NAME']`.** Bracket access ships the whole env object, anon key included.
 
 ---
 
@@ -586,6 +588,9 @@ FR at the root, EN under `/en/...`. **Route segments are not translated** (`/en/
 | `/contact/` | `/en/contact/` | WhatsApp CTA, venue, socials |
 | `/mentions-legales/` | `/en/mentions-legales/` | Legal notice + credits. **Footer only, not in the nav.** |
 | `/parametres/` | `/en/parametres/` | Appearance settings. Footer only; the header carries a quick toggle. |
+| `/connexion/` | `/en/connexion/` | **NOT EMITTED by default** — see the account flag below |
+| `/compte/` | `/en/compte/` | **NOT EMITTED by default** — see the account flag below |
+| `/auth/callback/` | — | **NOT EMITTED by default.** The only unlocalised route |
 | `/manifest.webmanifest` | — | Generated from `src/config/site.ts` |
 
 Each route file is a two-line shell that renders a shared component from `src/components/pages/` with a `locale` prop, so the two locales cannot drift apart structurally.
@@ -1072,6 +1077,85 @@ Its first run in this shape found a **real pre-existing bug**: the `ink-950` lab
 
 ---
 
+## ⚠️ ACCOUNTS ARE SWITCHED OFF IN PRODUCTION (v0.3.0)
+
+`PUBLIC_AUTH_ENABLED`, read once in `src/config/auth.ts`. **Default `false`.**
+Everything below in the v2 section is built, tested and merged; it is simply not
+shipped yet.
+
+**Why:** v2-S1 delivered the whole auth stack, but there is nothing to sync
+until v2-S3. An account is currently a door into an empty room, and opening it
+would ask parents to hand over a child's email address in exchange for nothing.
+
+### OFF means NOT BUILT — five things, all tested
+
+| | |
+|---|---|
+| Routes | `/connexion/`, `/compte/` (both locales) and `/auth/callback/` are **not in `dist/`**. They 404 like any unwritten URL. |
+| Bundle | **No Supabase project ref, host or anon key anywhere in `dist/`.** |
+| Client | `@supabase/supabase-js` is not bundled at all. |
+| Header | `AccountButton` renders nothing — not a hidden link, not a disabled one. |
+| Nothing deleted | Every page, spec, migration and RLS policy stays. v2-S3 sets the variable to `true` and the feature returns unchanged. |
+
+`tests/e2e/auth-disabled.spec.ts` asserts all of it, against **`dist/` on disk**
+as well as over HTTP. The auth specs skip **visibly**, naming the flag, so a
+build with no auth in it can never read as "auth works".
+
+### ⚠️ `getStaticPaths()` RETURNING `[]` IS NOT ENOUGH ON ITS OWN
+
+That is what stops a **page** being emitted (and it is why those five routes are
+named `[...slug].astro` — a static `.astro` route has no way to opt out, a
+dynamic one decides for itself).
+
+But **Astro collects a page's `<script>` blocks from the module graph, not from
+what actually renders.** The first disabled build therefore shipped **216 KB of
+unreachable `@supabase/supabase-js`, precached by the service worker** — every
+first visit on Essaouira mobile data paying for a switched-off feature.
+
+The fix is in `astro.config.mjs`: when the flag is off, `@lib/supabase` is
+**aliased to `src/lib/supabase.disabled.ts`**, cutting the graph at the module.
+The config reads the flag through Vite's `loadEnv` rather than `process.env`, so
+the alias and `import.meta.env` can never disagree — a build with sign-in pages
+that cannot sign anyone in would be worse than either state.
+
+### ⚠️⚠️ `import.meta.env['X']` LEAKS THE ENTIRE ENV. USE DOT ACCESS.
+
+Vite statically replaces **`import.meta.env.FOO` only**. Given a computed key it
+cannot know what to substitute, so it emits the **whole env object** into the
+chunk — every `PUBLIC_*` variable, including `PUBLIC_SUPABASE_ANON_KEY`.
+
+That is not a style nit. The first version of the flag was
+`import.meta.env['PUBLIC_AUTH_ENABLED']`, and the build meant to prove accounts
+were disabled contained:
+
+```js
+r={ASSETS_PREFIX:void 0,…,PUBLIC_SUPABASE_ANON_KEY:`eyJhbGciOi…`}
+```
+
+The anon key is a JWT whose payload carries the project ref, so **one bracket
+access put the production ref into a shipped file while the flag it implemented
+was supposed to keep it out.** It also meant `AUTH_ENABLED` was never folded to
+a constant, so none of the dead-branch elimination happened either.
+
+Nothing was exploitable — the anon key is public by design and RLS is the real
+boundary. The lesson is that **the guarantee was false while looking true**, and
+only reading `dist/` showed it.
+
+`src/env.d.ts` now declares every `PUBLIC_*` variable so dot access type-checks,
+and `src/config/site.ts` was switched over too (it had the same pattern for
+Umami). The grep in `auth-disabled.spec.ts` is what makes this enforced rather
+than remembered.
+
+### Turning accounts back on
+
+Set `PUBLIC_AUTH_ENABLED=true` in the Cloudflare build variables. Nothing else
+changes: the database is already at 0001/0002, ahead of the site, which is the
+safe ordering. Run the suite with the same variable set to exercise the ON path
+— `npx playwright test` alone tests the OFF artefact, which is the one that
+ships.
+
+---
+
 ## v2 architecture — Supabase, and what it is NOT allowed to change
 
 v2 adds accounts. It does **not** change what this site is.
@@ -1202,6 +1286,7 @@ suite that appears to cover email and does not is worse than one that admits it.
 
 | Variable | Where | Notes |
 |---|---|---|
+| `PUBLIC_AUTH_ENABLED` | Cloudflare build vars | **Unset in production.** `'true'` — exactly that string — emits the account routes. Anything else is off. |
 | `PUBLIC_SUPABASE_URL` | Cloudflare build vars + `.env` | Public by design |
 | `PUBLIC_SUPABASE_ANON_KEY` | Cloudflare build vars + `.env` | Public by design; RLS is the boundary |
 | `SUPABASE_SERVICE_ROLE_KEY` | **`.env.test` only** | Bypasses RLS. Never in a build |
@@ -1628,6 +1713,25 @@ in the summary.
 If a full-matrix run reports failures confined to `auth.spec.ts` on one project,
 re-run that project with `--workers=1` before touching anything. As always: a
 genuine failure is deterministic and fails serially too.
+
+### ⚠️ Never assert a short-lived class with a MutationObserver — use rAF
+
+The correct-move pulse lasts one Transition (300ms) and is then removed, so a
+spec has to catch it in flight. The obvious tool is a `MutationObserver`, and it
+is the wrong one.
+
+Observer callbacks are **batched at the end of a microtask checkpoint**, and a
+callback that re-queries the LIVE DOM (rather than reading the `MutationRecord`s
+it was handed) can run after the window has already closed — finding nothing and
+reporting that the thing never happened. It failed the v0.3.0 matrix on WebKit
+and passed on `--workers=1`, which looks exactly like the documented WebKit flake
+and was not: it was a racy test.
+
+Sample from a `requestAnimationFrame` loop started before the action instead.
+That is ~18 looks inside one Transition and cannot be batched past the window.
+The tell that you have this bug rather than a browser one: the failure is
+`length` being 0 on a collection that should be non-empty, and it moves between
+projects rather than being deterministic on one.
 
 ### Driving Chessground's drag from a spec needs a real animation frame
 

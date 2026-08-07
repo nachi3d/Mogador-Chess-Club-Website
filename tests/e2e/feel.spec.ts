@@ -239,29 +239,45 @@ test.describe('action feedback — the press', () => {
 
 test.describe('action feedback — a correct move', () => {
   /**
-   * The pulse is one Transition long and then gone, so polling for it is a
-   * race. A MutationObserver installed BEFORE the move records whether the
-   * class ever appeared, which is the question being asked.
+   * The pulse is one Transition long and then gone, so a Playwright-side poll
+   * would race it. The check runs INSIDE the page, from a rAF loop started
+   * before the move.
+   *
+   * ⚠️ A MutationObserver was the obvious choice and is the WRONG one here, as
+   * the first version of this spec proved on WebKit. Observer callbacks are
+   * BATCHED at the end of a microtask checkpoint, and the callback re-queried
+   * the live DOM rather than reading the records — so under load it could fire
+   * after the 300ms window had already closed, find nothing, and report that
+   * the pulse never happened. It failed the full matrix once and passed
+   * serially, which is the signature of a racy test rather than a browser bug.
+   *
+   * A rAF loop samples roughly every frame — around eighteen looks inside one
+   * Transition — and cannot be batched past the window.
    */
   test('the destination square pulses, and the pulse does not linger', async ({ page }) => {
     await openExercise(page, MATE_IN_1);
 
     await page.evaluate(() => {
-      const w = window as unknown as { __pulses: string[] };
+      const w = window as unknown as { __pulses: string[]; __stop?: boolean };
       w.__pulses = [];
-      const board = document.querySelector('[data-testid="chessboard"] cg-board')!;
-      new MutationObserver(() => {
-        for (const sq of Array.from(board.querySelectorAll('square.mcc-pulse'))) {
-          const key = (sq as HTMLElement).style.transform;
+      const tick = () => {
+        for (const sq of Array.from(document.querySelectorAll('cg-board square.mcc-pulse'))) {
+          const key = (sq as HTMLElement).style.transform || 'unpositioned';
           if (!w.__pulses.includes(key)) w.__pulses.push(key);
         }
-      }).observe(board, { childList: true, subtree: true, attributes: true });
+        if (!w.__stop) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
     });
 
     await playMove(page, 'a1', 'a8');
     await expect(page.getByTestId('exercise-solved')).toBeVisible({ timeout: 10_000 });
 
-    const seen = await page.evaluate(() => (window as unknown as { __pulses: string[] }).__pulses);
+    const seen = await page.evaluate(() => {
+      const w = window as unknown as { __pulses: string[]; __stop?: boolean };
+      w.__stop = true;
+      return w.__pulses;
+    });
     expect(seen.length, 'the destination square never carried the pulse class').toBeGreaterThan(0);
 
     // One Transition, then gone. A pulse left behind would read as a second

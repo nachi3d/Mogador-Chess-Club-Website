@@ -615,10 +615,36 @@ Rendering → Emulate `prefers-reduced-motion`).
 
 ---
 
-## 7c. Accounts (v2-S1)
+## 7c. Accounts (v2-S1) — ⚠️ SWITCHED OFF IN PRODUCTION SINCE v0.3.0
 
-Needs a configured Supabase project. If `PUBLIC_SUPABASE_URL` is unset the sign-in
-form says so plainly and everything else on the site still works — check that too.
+**Read this before running any of the section below.**
+
+`PUBLIC_AUTH_ENABLED` defaults to `false`, and OFF means **not built**: the
+account routes are not in `dist/` at all. On a normal `npm run demo` every check
+in this section is **not applicable** — skip to 7d.
+
+### 7c-0. What to check on the DEFAULT build (do this one every release)
+
+- [ ] `/connexion/`, `/compte/`, `/en/connexion/`, `/en/compte/` and
+      `/auth/callback/` all return **404**, not a redirect and not an empty page
+- [ ] The header carries **no** sign-in or account control, in either language
+- [ ] DevTools → Application → Local Storage: set `mcc:auth:v1` to `1` by hand,
+      reload. **Nothing appears.** The flag is a build switch, not a permission
+- [ ] Search the built output: `grep -r supabase.co dist/` → **no matches**
+      *(the e2e suite asserts this, but look once yourself before a release —
+      it is the guarantee the whole flag exists to provide)*
+- [ ] The footer still links the privacy policy, and it still loads. It
+      describes the site as a whole, not only accounts, so it is not gated
+
+### 7c-1. The rest of this section needs an ON build
+
+```sh
+PUBLIC_AUTH_ENABLED=true npm run demo
+```
+
+Also needs a configured Supabase project. If `PUBLIC_SUPABASE_URL` is unset the
+sign-in form says so plainly and everything else on the site still works — check
+that too.
 
 ### ⚠️ The real magic link — the one thing automation does NOT cover
 

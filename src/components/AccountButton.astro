@@ -31,6 +31,7 @@
  * that matters, and this decides nothing at all.
  */
 import type { Locale } from '@config/site';
+import { AUTH_ENABLED } from '@config/auth';
 import { localizePath } from '@i18n/paths';
 import { useTranslations } from '@i18n/ui';
 
@@ -42,6 +43,12 @@ const { locale } = Astro.props;
 const t = useTranslations(locale);
 ---
 
+{/* ⚠️ Nothing renders at all when accounts are off — not a hidden link, not a
+    disabled one. The pages it points at are not in `dist/`, so a visible
+    control here would be a link to a 404, and an invisible one would still be
+    in the markup for anyone reading it. See `src/config/auth.ts`. */}
+{
+  AUTH_ENABLED && (
 <div class="account-button" data-account-button>
   {/* Default for everyone, including no-JS: a plain sign-in link. It is never
       wrong — a signed-in reader who lands here goes to /compte/ anyway. */}
@@ -64,7 +71,10 @@ const t = useTranslations(locale);
     {t('auth.account')}
   </a>
 </div>
+  )
+}
 
+{AUTH_ENABLED && (
 <script is:inline>
   /* Duplicated from src/lib/auth-flag.ts — see the component header. */
   (function () {
@@ -81,6 +91,7 @@ const t = useTranslations(locale);
     }
   })();
 </script>
+)}
 
 <style>
   .account-link {

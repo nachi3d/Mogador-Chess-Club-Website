@@ -1,6 +1,22 @@
 // @ts-check
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'astro/config';
+import { loadEnv } from 'vite';
 import preact from '@astrojs/preact';
+
+/**
+ * The account flag, read here the SAME WAY Astro reads it for `import.meta.env`.
+ *
+ * `loadEnv` walks `.env`, `.env.local` and the mode-specific files and lets a
+ * real `process.env` entry win, which is exactly Vite's own precedence. Reading
+ * `process.env` alone would be wrong locally: a developer who sets
+ * `PUBLIC_AUTH_ENABLED=true` in `.env.local` would get the routes emitted (that
+ * flag comes from `import.meta.env`) while the alias below still stubbed the
+ * client out — a build with sign-in pages that cannot sign anyone in. The two
+ * must be decided from one source.
+ */
+const { PUBLIC_AUTH_ENABLED } = loadEnv(process.env.NODE_ENV ?? 'production', process.cwd(), '');
+const AUTH_ENABLED = PUBLIC_AUTH_ENABLED === 'true';
 
 // https://astro.build/config
 export default defineConfig({
@@ -40,6 +56,28 @@ export default defineConfig({
   },
 
   vite: {
+    resolve: {
+      /**
+       * ⚠️ WITH ACCOUNTS OFF, `@lib/supabase` RESOLVES TO A STUB.
+       *
+       * `getStaticPaths()` returning `[]` stops the auth PAGES being emitted,
+       * but Astro collects a page's `<script>` blocks from the module graph
+       * rather than from what renders — so the client was still bundled. The
+       * v0.3.0 build shipped **216 KB of unreachable `@supabase/supabase-js`,
+       * precached by the service worker**, until this alias was added.
+       *
+       * Cutting the graph at the module is what makes "off means not built"
+       * true of the JavaScript as well as of the routes.
+       * `tests/e2e/auth-disabled.spec.ts` greps `dist/` to keep it true.
+       */
+      alias: AUTH_ENABLED
+        ? {}
+        : {
+            '@lib/supabase': fileURLToPath(
+              new URL('./src/lib/supabase.disabled.ts', import.meta.url),
+            ),
+          },
+    },
     optimizeDeps: {
       // Chessground is ESM-only and ships untranspiled; pre-bundling it keeps
       // the dev server from re-optimising on every board mount.

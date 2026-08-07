@@ -22,6 +22,7 @@ with itself.
 | Item | Status | Note |
 |---|---|---|
 | **v2-S2** — Google OAuth, prof-created student accounts, Resend SMTP | `blocked` | SMTP needs the domain. OAuth and prof-created accounts could ship without it, but all three are one coherent "getting people in" session. `handle_new_user()` already clamps the locale for the Google claim. |
+| **Turn accounts back on** | `blocked` | Set `PUBLIC_AUTH_ENABLED=true` in the Cloudflare build variables. **Blocked on v2-S3**, deliberately: v0.3.0 shipped with accounts switched off because there is nothing to sync yet, and an account that does nothing is a child's email address collected for no reason. One variable, no code. See CLAUDE.md → "Accounts are switched off in production". |
 | **v2-S3** — progress sync + `localStorage` import | `backlog` | The critical path of v2. Schema is already in place (`exercise_progress`, `lesson_progress`), and the tutorial writes under `tutorial:<slug>` in the same store, so it syncs with no special-casing. |
 | **v2-S4** — sessions, attendance, admin dashboard | `backlog` | Tables and RLS exist from migration 0001; nothing renders them. |
 | **v2-S5** — progress charts | `backlog` | Needs S3's data before it can show anything true. |

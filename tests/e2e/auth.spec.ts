@@ -3,6 +3,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { isSupabaseConfigured, loadE2EEnv } from './env';
 import { createConfirmedUser, deleteUser, e2eEmail, magicLinkFor } from './helpers/supabase-admin';
 import { AUTH_FLAG } from './helpers/auth';
+import { AUTH_ENABLED, AUTH_OFF_REASON } from './helpers/auth-mode';
 import { settleReveals } from './helpers/reveal';
 
 /**
@@ -25,6 +26,20 @@ import { settleReveals } from './helpers/reveal';
  * VISIBLY with a reason. The guest and a11y specs below need nothing and always
  * run — which matters, because the guest zero-request rule is the one this
  * session is most likely to break.
+ *
+ * ─────────────────────────────────────────────────────────────────────────
+ * ⚠️ SECOND GATE, ADDED IN v0.3.0: `PUBLIC_AUTH_ENABLED`.
+ *
+ * Production ships with accounts OFF — the routes are not emitted at all. Every
+ * describe below that navigates to `/connexion/` or `/compte/` therefore skips
+ * VISIBLY in the default build, naming the flag in its reason. Without that
+ * they would fail on a 404 and read as a regression, or worse, be quietly
+ * deleted by someone tidying up.
+ *
+ * The GUEST specs are the exception and run in BOTH shapes. "A reader browsing
+ * a lesson contacts no Supabase origin" is true of every build and is the rule
+ * most easily broken, so it is never gated on anything.
+ * ─────────────────────────────────────────────────────────────────────────
  */
 
 const configured = isSupabaseConfigured();
@@ -60,7 +75,13 @@ test.describe('guest — zero Supabase requests', () => {
     });
   }
 
+  /* ⚠️ Gated, unlike the six zero-request specs above. Those assert something
+     true of EVERY build ("a reader browsing a lesson contacts no Supabase
+     origin") and must never be skipped. These two assert the header CONTROL,
+     which only exists when accounts are on — with the flag off there is no
+     markup to find, and `auth-disabled.spec.ts` asserts that absence instead. */
   test('a guest header offers sign-in and never an account link', async ({ page }) => {
+    test.skip(!AUTH_ENABLED, AUTH_OFF_REASON);
     await page.goto('/');
     await expect(page.getByTestId('header-sign-in')).toBeVisible();
     await expect(page.getByTestId('header-account')).toBeHidden();
@@ -72,6 +93,7 @@ test.describe('guest — zero Supabase requests', () => {
    * duplicated key in `AccountButton.astro`, and a divergence must fail here.
    */
   test('the local flag alone flips the header, with no Supabase request', async ({ page }) => {
+    test.skip(!AUTH_ENABLED, AUTH_OFF_REASON);
     const hits: string[] = [];
     page.on('request', (r) => {
       if (isSupabaseRequest(r.url())) hits.push(r.url());
@@ -88,6 +110,7 @@ test.describe('guest — zero Supabase requests', () => {
 });
 
 test.describe('the build under test', () => {
+  test.skip(!AUTH_ENABLED, AUTH_OFF_REASON);
   /**
    * ⚠️ THE SITE UNDER TEST MUST CARRY TEST CREDENTIALS, NOT PRODUCTION ONES.
    *
@@ -129,6 +152,7 @@ test.describe('the build under test', () => {
 });
 
 test.describe('the sign-in page', () => {
+  test.skip(!AUTH_ENABLED, AUTH_OFF_REASON);
   test('renders a form and asks for nothing until submitted', async ({ page }) => {
     const hits: string[] = [];
     page.on('request', (r) => {
@@ -158,6 +182,7 @@ test.describe('the sign-in page', () => {
 });
 
 test.describe('signed in', () => {
+  test.skip(!AUTH_ENABLED, AUTH_OFF_REASON);
   test.skip(!configured, 'no .env.test — see .env.test.example (visible skip, not silent)');
 
   const created: string[] = [];
@@ -300,6 +325,7 @@ test.describe('signed in', () => {
 });
 
 test.describe('auth — accessibility', () => {
+  test.skip(!AUTH_ENABLED, AUTH_OFF_REASON);
   for (const path of ['/connexion/', '/en/connexion/', '/compte/', '/en/compte/']) {
     test(`${path} has no axe violations`, async ({ page }) => {
       await page.goto(path);

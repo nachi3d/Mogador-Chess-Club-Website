@@ -32,6 +32,10 @@
  */
 
 import type { Session, SupabaseClient, User } from '@supabase/supabase-js';
+/* A plain build-time constant with no imports of its own — it cannot drag
+   anything into a bundle, which is why the flag lives in its own module rather
+   than being read inline here. */
+import { AUTH_ENABLED } from '@config/auth';
 import { clearAuthFlag, setAuthFlag } from './auth-flag';
 
 /** Roles, mirrored from the CHECK constraint in migration 0001. */
@@ -47,10 +51,31 @@ export interface Profile {
 
 let client: SupabaseClient | null = null;
 
+/**
+ * The project ref, or empty strings when accounts are disabled at build time.
+ *
+ * ⚠️ THIS IS WHAT KEEPS THE PROJECT REF OUT OF THE BUNDLE, and it is not
+ * belt-and-braces over the route gating — it is the second half of the same
+ * guarantee. Gating the routes stops the PAGES being emitted; this stops the
+ * URL being emitted, in case a chunk survives as an orphan for a reason nobody
+ * predicted (a stray import, a future integration, an Astro change).
+ *
+ * `AUTH_ENABLED` folds to a literal `false` at build time, so Rollup drops the
+ * whole branch and with it every `import.meta.env.PUBLIC_SUPABASE_*` read.
+ * `tests/e2e/auth-disabled.spec.ts` greps the built output to prove it. Do not
+ * "simplify" this back into a direct read.
+ */
+function env(): { url: string; anonKey: string } {
+  if (!AUTH_ENABLED) return { url: '', anonKey: '' };
+  return {
+    url: import.meta.env.PUBLIC_SUPABASE_URL ?? '',
+    anonKey: import.meta.env.PUBLIC_SUPABASE_ANON_KEY ?? '',
+  };
+}
+
 /** Env, read at build time by Astro. Missing values are a configuration error. */
 function config(): { url: string; anonKey: string } {
-  const url = import.meta.env.PUBLIC_SUPABASE_URL;
-  const anonKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY;
+  const { url, anonKey } = env();
   if (!url || !anonKey) {
     throw new Error(
       'Supabase is not configured: PUBLIC_SUPABASE_URL and PUBLIC_SUPABASE_ANON_KEY ' +
@@ -62,7 +87,8 @@ function config(): { url: string; anonKey: string } {
 
 /** True when the build carries Supabase config at all. Callers degrade quietly. */
 export function isConfigured(): boolean {
-  return Boolean(import.meta.env.PUBLIC_SUPABASE_URL && import.meta.env.PUBLIC_SUPABASE_ANON_KEY);
+  const { url, anonKey } = env();
+  return Boolean(url && anonKey);
 }
 
 /**

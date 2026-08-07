@@ -11,6 +11,98 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+---
+
+## [0.3.0] — 2026-08-07
+
+The teaching release. v0.2.0 had a board, a handful of traps and three
+exercises; this one has a course structure, a path in for someone who has never
+played, and a site that answers when you touch it.
+
+### Accounts are built, and switched OFF
+
+`PUBLIC_AUTH_ENABLED` defaults to `false`, and **off means not built**: the
+account routes are not emitted into `dist/`, no Supabase project ref appears in
+any bundle, and `@supabase/supabase-js` is not shipped at all. The header
+carries no sign-in control — not a hidden one, not a disabled one.
+
+Nothing is deleted. The whole v2-S1 stack, its specs and its migrations stay
+exactly where they are; **v2-S3 sets the variable to `true` and it returns
+unchanged.** The reason for the delay is that there is nothing to sync yet: an
+account today is a door into an empty room, and opening it would ask parents to
+hand over a child's email address in exchange for nothing.
+
+The database stays at migrations 0001/0002 — schema ahead of the site, which is
+the safe ordering.
+
+### Added
+
+- **The beginner tutorial** — `/apprendre-les-bases/`, 13 guided steps for
+  someone who has never played, sitting below `debutant`. It adds no new board
+  and no new mode: exercise mode already lights every legal destination, so the
+  board that demonstrates a rule is the board that checks it.
+- **Course 1 — "Bien ouvrir une partie"**, six lessons in both languages, and
+  with it the per-locale Markdown lesson bodies deferred since Session 2.
+- **Course 2 — "Les mats élémentaires"**, six lessons in both languages: the
+  back-rank, the ladder, queen-and-king, rook-and-king, Philidor's legacy and
+  Boden's mate. Introduces still diagrams as a board kind.
+- **Grouped navigation** — seven flat links became three disclosure groups
+  (Apprendre / S'entraîner / Le club) plus Accueil. Built as the WAI disclosure
+  pattern, not `role="menu"`; opens on click at every viewport, because the
+  phone is the primary device and hover does not exist there.
+- **Board affordance labels** — every board now says whether you may touch it:
+  *Démonstration — utilise les flèches* or *À toi de jouer*, as real text, plus
+  a named full-size control to start a demonstration.
+- **E1 motion and feedback** — three motion families (Réponse / Transition /
+  Ambiance) with `src/lib/motion.ts` as the single source; a real button press;
+  a brief accent pulse on the destination square of a correct move; a reason on
+  a refused move; the solve landing in two beats; a second ambient layer.
+
+### Changed
+
+- **Board coordinates moved into an outer gutter**, off the squares. Readable on
+  a desktop before, poor on a phone — small text over a wood-toned square,
+  competing with the piece standing on it. Costs about 4.5% of the board on a
+  390px phone, which was judged worth it.
+- The board frame now encloses the whole component, coordinates included.
+- Scroll reveals, the replay step and every other duration moved onto the motion
+  vocabulary; nothing now sits between 180ms and 250ms.
+
+### Fixed
+
+- **Course cards were not clickable.** They had no `href` at all.
+- **`--mcc-border` never existed** — twelve occurrences across seven files had
+  been rendering borderless, because an unknown custom property invalidates the
+  whole `border` shorthand and the width computes to zero.
+- **Buttons were ~40px tall**, under the 44px touch target, on every phone.
+- **Reduced motion did not stop the far ambient layer** — a two-class selector
+  in an `@supports` block beat the one-class off-switch.
+- **`parseReplay` discarded the `[FEN]` header on move-less PGNs**, so every
+  still diagram silently rendered the standard opening position.
+- **`import.meta.env['X']` shipped the entire env object**, anon key included —
+  found in the build that was meant to prove accounts were disabled. Every read
+  is now dot access, and `src/env.d.ts` exists so it type-checks.
+- **216 KB of unreachable `@supabase/supabase-js` was still being bundled and
+  precached** in the disabled build, because Astro collects a page's scripts
+  from the module graph rather than from what renders.
+
+### Known gaps
+
+- Course 3 is referenced by course 2's last lesson and is not written.
+- The FR pedagogy of the tutorial and both courses is machine-verified for chess
+  legality only. **A human has not reviewed the teaching**, and lesson 5 of
+  course 1 has English that no human has read. Tracked in BACKLOG.md.
+- `onlyMove: false` still cannot accept a winning alternative; the engine-backed
+  validator is the remaining half of that rule.
+
+---
+
+### Session detail
+
+Everything above, session by session, with the reasoning behind anything
+surprising. Kept in full rather than summarised: the "why" is the part that is
+expensive to recover later.
+
 ### E1 — motion vocabulary and action feedback
 
 First session of the aesthetic rework. The direction, approved by Seàn and now

@@ -160,6 +160,13 @@ export default defineConfig({
       return {
         PUBLIC_SUPABASE_URL: e?.supabaseUrl ?? '',
         PUBLIC_SUPABASE_ANON_KEY: e?.anonKey ?? '',
+        /* Passed through so the BUILD and the SPECS agree about which shape of
+           site is under test. Default (unset ⇒ '') is OFF, which is what
+           production ships — so a plain `npx playwright test` exercises the
+           real artefact, and the auth specs skip visibly rather than passing
+           against a site that has no auth in it. Set PUBLIC_AUTH_ENABLED=true
+           to build and test the ON path. See tests/e2e/helpers/auth-mode.ts. */
+        PUBLIC_AUTH_ENABLED: process.env['PUBLIC_AUTH_ENABLED'] ?? '',
       };
     })(),
   },
