@@ -28,6 +28,11 @@ export interface E2EEnv {
   readonly productionRef: string;
   readonly emailDomain: string;
   readonly testRef: string;
+  /**
+   * Unprefixed `PUBLIC_SUPABASE_*` keys present in `.env.test` — the signature
+   * of a file adapted from `.env.example`. Non-empty means the interlock aborts.
+   */
+  readonly adaptedTemplateKeys: readonly string[];
 }
 
 /** Minimal dotenv: `KEY=value`, optional quotes, `#` comments, no interpolation. */
@@ -67,16 +72,37 @@ export function projectRefFromUrl(url: string): string | null {
 }
 
 /**
+ * The one sentence every failure here ends with. Kept as a constant so the
+ * three different ways of getting this wrong all give the same instruction —
+ * a reader who has just been stopped needs the fix, not a diagnosis.
+ */
+export const FIX_MESSAGE =
+  'copy .env.test.example, do not adapt .env.example';
+
+/**
+ * Unprefixed build-time keys. Their presence in `.env.test` is the SIGNATURE of
+ * a file adapted from `.env.example`, which is how `SUPABASE_PRODUCTION_REF`
+ * went missing twice — that template has no such key, so it vanishes silently.
+ */
+const ADAPTED_TEMPLATE_KEYS = ['PUBLIC_SUPABASE_URL', 'PUBLIC_SUPABASE_ANON_KEY'] as const;
+
+/**
  * Read the first key that is actually present.
  *
- * `TEST_`-prefixed names are preferred and are the documented convention: a
- * file where every credential literally says TEST is much harder to misread
- * than one whose keys are indistinguishable from `.env.local`'s. The unprefixed
- * spellings are still accepted so an older `.env.test` keeps working.
+ * `TEST_`-prefixed names are the ONLY supported spelling for the credentials: a
+ * file in which every credential literally says TEST cannot be confused with
+ * `.env.local`.
+ *
+ * ⚠️ The unprefixed fallback that used to live here has been REMOVED on purpose.
+ * It existed for backwards compatibility with the original example file, and it
+ * was actively harmful: it let a `.env.test` adapted from `.env.example` load
+ * far enough to look configured, which is exactly the state that kept losing the
+ * production ref. The shape it was compatible with is now the failure signature,
+ * so accepting it would defeat the guard in `assertNotProduction()`.
  *
  * ⚠️ `SUPABASE_PRODUCTION_REF` is deliberately NOT prefixed and NOT derived from
  * anything. It is the one value here that describes production, and the
- * interlock's entire judgement rests on it being stated explicitly by a human.
+ * interlock's entire judgement rests on it being stated explicitly.
  */
 function pick(raw: Record<string, string>, ...names: string[]): string {
   for (const n of names) if (raw[n]) return raw[n];
@@ -87,24 +113,20 @@ export function loadE2EEnv(): E2EEnv | null {
   if (!existsSync(ENV_TEST_PATH)) return null;
   const raw = parseEnvFile(readFileSync(ENV_TEST_PATH, 'utf8'));
 
-  const supabaseUrl = pick(raw, 'TEST_PUBLIC_SUPABASE_URL', 'PUBLIC_SUPABASE_URL');
+  const supabaseUrl = pick(raw, 'TEST_PUBLIC_SUPABASE_URL');
   const testRef = projectRefFromUrl(supabaseUrl);
   if (!testRef) return null;
 
   return {
     supabaseUrl,
-    anonKey: pick(raw, 'TEST_PUBLIC_SUPABASE_ANON_KEY', 'PUBLIC_SUPABASE_ANON_KEY'),
-    serviceRoleKey: pick(
-      raw,
-      'TEST_SUPABASE_SERVICE_ROLE_KEY',
-      'TEST_SUPABASE_SERVICE_ROLE',
-      'SUPABASE_SERVICE_ROLE_KEY',
-      'SUPABASE_SERVICE_ROLE',
-    ),
-    dbPassword: pick(raw, 'TEST_SUPABASE_PASSWORD', 'SUPABASE_PASSWORD'),
+    anonKey: pick(raw, 'TEST_PUBLIC_SUPABASE_ANON_KEY'),
+    serviceRoleKey: pick(raw, 'TEST_SUPABASE_SERVICE_ROLE_KEY', 'TEST_SUPABASE_SERVICE_ROLE'),
+    dbPassword: pick(raw, 'TEST_SUPABASE_PASSWORD'),
     productionRef: raw.SUPABASE_PRODUCTION_REF ?? '',
     emailDomain: pick(raw, 'E2E_EMAIL_DOMAIN') || 'mcc-e2e.test',
     testRef,
+    /** Unprefixed build-time keys found — the adapted-template signature. */
+    adaptedTemplateKeys: ADAPTED_TEMPLATE_KEYS.filter((k) => Boolean(raw[k])),
   };
 }
 
@@ -139,7 +161,9 @@ export function assertNotProduction(): void {
     console.error('  ' + why);
     console.error('');
     console.error('  The e2e suite creates users and purges by pattern. It must never');
-    console.error('  point at production. See .env.test.example.');
+    console.error('  point at production.');
+    console.error('');
+    console.error('  FIX: ' + FIX_MESSAGE + '.');
     console.error('='.repeat(72) + '\n');
     /* eslint-enable no-console */
     throw new Error(`assertNotProduction: ${why}`);
@@ -164,9 +188,40 @@ export function assertNotProduction(): void {
    */
   if (!existsSync(ENV_TEST_PATH)) return;
 
+  /**
+   * ⚠️ GUARD: the adapted-template signature.
+   *
+   * An unprefixed `PUBLIC_SUPABASE_URL` or `PUBLIC_SUPABASE_ANON_KEY` in
+   * `.env.test` means the file came from `.env.example`, which carries no
+   * `SUPABASE_PRODUCTION_REF` — the exact way that key went missing twice.
+   *
+   * Checked BEFORE anything else, and checked even when the file happens to be
+   * otherwise complete: someone may have adapted the wrong template AND pasted
+   * the production ref in by hand, which is how it once ended up naming the TEST
+   * project as production. The shape is wrong, so the file is wrong.
+   *
+   * This is read straight from the raw file rather than through `loadE2EEnv()`,
+   * because the loader no longer accepts those spellings at all.
+   */
+  const rawFile = parseEnvFile(readFileSync(ENV_TEST_PATH, 'utf8'));
+  const adapted = ADAPTED_TEMPLATE_KEYS.filter((k) => Boolean(rawFile[k]));
+  if (adapted.length > 0) {
+    fail(
+      [
+        `.env.test contains ${adapted.join(' and ')} without the TEST_ prefix.`,
+        '',
+        '  That is the signature of a file adapted from .env.example, which has',
+        '  no SUPABASE_PRODUCTION_REF — the exact way that key went missing twice.',
+        '  Credentials here must be TEST_PUBLIC_SUPABASE_URL,',
+        '  TEST_PUBLIC_SUPABASE_ANON_KEY and TEST_SUPABASE_SERVICE_ROLE.',
+      ].join('\n'),
+    );
+    return;
+  }
+
   const env = loadE2EEnv();
   if (!env) {
-    fail('.env.test exists but is unreadable or has no usable PUBLIC_SUPABASE_URL.');
+    fail('.env.test exists but has no usable TEST_PUBLIC_SUPABASE_URL.');
     return;
   }
   if (!env.productionRef) {

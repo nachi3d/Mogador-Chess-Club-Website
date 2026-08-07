@@ -810,10 +810,24 @@ suite that appears to cover email and does not is worse than one that admits it.
 | `SUPABASE_PRODUCTION_REF` | `.env.test` | Feeds the interlock — **see the trap below** |
 | `E2E_EMAIL_DOMAIN` | `.env.test` | The purge pattern |
 
-`.env.test` is gitignored because it carries a service-role key. See
-`.env.example` and `.env.test.example`. Local development uses **`.env.local`**,
-not `.env` — Vite loads both and `.env.local` wins, so keeping two is a way to
-lose an hour.
+`.env.test` is gitignored because it carries a service-role key. Local
+development uses **`.env.local`**, not `.env` — Vite loads both and `.env.local`
+wins, so keeping two is a way to lose an hour.
+
+### Setup — which template goes where
+
+> **`.env.test` comes from `.env.test.example`, never from `.env.example`.**
+
+| Copy | To | For |
+|---|---|---|
+| `.env.example` | `.env.local` | local development / the real build |
+| `.env.test.example` | `.env.test` | the e2e suite |
+
+Adapting `.env.example` into `.env.test` is what lost `SUPABASE_PRODUCTION_REF`
+twice. The interlock now refuses that file on sight — an unprefixed
+`PUBLIC_SUPABASE_*` key in `.env.test` is the signature, and it aborts even when
+the rest of the file looks complete, because the shape being wrong means the
+file's provenance is wrong.
 
 ### ⚠️ TRAP: .env.test copied from the WRONG template
 
