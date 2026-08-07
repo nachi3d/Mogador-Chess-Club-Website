@@ -21,6 +21,10 @@ const fr = {
   'nav.play': 'Jouer',
   'nav.agenda': 'Agenda',
   'nav.contact': 'Contact',
+  'nav.group.learn': 'Apprendre',
+  'nav.group.practise': "S'entraîner",
+  'nav.group.club': 'Le club',
+  'nav.basics': 'Les bases',
   'nav.label': 'Navigation principale',
   'nav.skipToContent': 'Aller au contenu principal',
 
@@ -38,9 +42,12 @@ const fr = {
   'tutorial.prerequisite': 'Jamais joué ? Commence par apprendre les bases.',
   'tutorial.step': 'Étape',
   'tutorial.of': 'sur',
-  'tutorial.prev': 'Étape précédente',
-  'tutorial.next': 'Étape suivante',
+  'tutorial.prev': 'Précédent',
+  'tutorial.next': 'Suivant',
   'tutorial.backToIndex': 'Toutes les étapes',
+  'nav.backToCourse': 'Toutes les leçons',
+  'nav.whatNext': 'Et maintenant ?',
+  'nav.toTraps': 'Les pièges d’ouverture',
   'tutorial.yourTurn': 'Essaie toi-même',
   'tutorial.done': 'Terminé',
   'tutorial.finished.title': 'Tu connais les règles.',
@@ -361,6 +368,10 @@ const en: Record<keyof typeof fr, string> = {
   'nav.play': 'Play',
   'nav.agenda': 'Schedule',
   'nav.contact': 'Contact',
+  'nav.group.learn': 'Learn',
+  'nav.group.practise': 'Practise',
+  'nav.group.club': 'The club',
+  'nav.basics': 'The basics',
   'nav.label': 'Main navigation',
   'nav.skipToContent': 'Skip to main content',
 
@@ -377,9 +388,12 @@ const en: Record<keyof typeof fr, string> = {
   'tutorial.prerequisite': 'Never played? Start by learning the basics.',
   'tutorial.step': 'Step',
   'tutorial.of': 'of',
-  'tutorial.prev': 'Previous step',
-  'tutorial.next': 'Next step',
+  'tutorial.prev': 'Previous',
+  'tutorial.next': 'Next',
   'tutorial.backToIndex': 'All steps',
+  'nav.backToCourse': 'All lessons',
+  'nav.whatNext': 'What next?',
+  'nav.toTraps': 'Opening traps',
   'tutorial.yourTurn': 'Your turn',
   'tutorial.done': 'Done',
   'tutorial.finished.title': 'You know the rules.',
@@ -687,16 +701,48 @@ export function useTranslations(locale: Locale): (key: UIKey) => string {
   return (key: UIKey) => table[key];
 }
 
-/** The nav, in render order. Route + its label key — one list, both locales. */
-export const NAV_ITEMS = [
-  { path: '/', key: 'nav.home' },
-  { path: '/cours/', key: 'nav.courses' },
-  { path: '/pieges/', key: 'nav.traps' },
-  { path: '/exercices/', key: 'nav.exercises' },
-  { path: '/jouer/', key: 'nav.play' },
-  { path: '/agenda/', key: 'nav.agenda' },
-  { path: '/contact/', key: 'nav.contact' },
-] as const satisfies readonly { path: string; key: UIKey }[];
+/**
+ * The nav, grouped.
+ *
+ * Seven flat items had outgrown a single row — especially on a phone, where
+ * they wrapped into an unreadable block. Three groups follow how the site is
+ * actually used: you learn something, you practise it, or you want the club
+ * itself.
+ *
+ *  stays a top-level link rather than joining a group: home is where the
+ * logo already goes, and burying it would be worse than the wrap.
+ */
+export const NAV_GROUPS = [
+  {
+    key: 'nav.group.learn',
+    id: 'learn',
+    items: [
+      { path: '/apprendre-les-bases/', key: 'nav.basics' },
+      { path: '/cours/', key: 'nav.courses' },
+      { path: '/pieges/', key: 'nav.traps' },
+    ],
+  },
+  {
+    key: 'nav.group.practise',
+    id: 'practise',
+    items: [
+      { path: '/exercices/', key: 'nav.exercises' },
+      { path: '/jouer/', key: 'nav.play' },
+    ],
+  },
+  {
+    key: 'nav.group.club',
+    id: 'club',
+    items: [
+      { path: '/agenda/', key: 'nav.agenda' },
+      { path: '/contact/', key: 'nav.contact' },
+    ],
+  },
+] as const satisfies readonly {
+  key: UIKey;
+  id: string;
+  items: readonly { path: string; key: UIKey }[];
+}[];
 
 /** Level → its label key. Keeps the badge component free of a switch statement. */
 export const LEVEL_KEYS = {

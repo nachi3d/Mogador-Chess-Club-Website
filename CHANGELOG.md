@@ -11,6 +11,51 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### Navigation, board coordinates, and step-to-step links
+
+#### Fixed
+
+- **Board file coordinates were displaced by a constant 24px**, pushing "h" off
+  the board entirely. Cause found by measurement, not by eye: Chessground's
+  default `coords.files { left: 24px; width: 100% }` shifts the whole label row
+  right while keeping it a full board wide. Those numbers suit lichess's layout,
+  where coordinates live in an outer margin; we draw them on the squares, so the
+  offset has nothing to sit in. Each track is now pinned to the board box with
+  `inset` and divided by `flex: 1 1 0`, so a label's centre is its file's centre
+  at every size and in both orientations — measured 0px error at 544px and
+  352px, White and Black. A spec asserts it within a quarter-square tolerance.
+
+#### Added
+
+- **Grouped navigation** — Apprendre / S'entraîner / Le club, plus Accueil.
+  Click-based disclosures (never hover: the phone is the primary device), one
+  panel at a time, Escape closes and returns focus, current *section* marked
+  without opening anything, and **0px layout shift** because open panels are
+  absolutely positioned.
+- **Prev/next controls that name their destination** on every tutorial step and
+  lesson — "Suivant : Le fou", not "Suivant →" — plus a permanent link back to
+  the index. The last lesson of course 1 now offers the exercises and the traps
+  rather than stopping dead.
+
+#### Notes
+
+- **`role="menu"` was deliberately NOT used**, despite the brief asking for menu
+  semantics. That role describes an application menu: screen readers announce
+  "menu", expect arrow-key roving focus, and stop announcing the contents as
+  links. These are navigation links, so the WAI disclosure pattern is correct.
+- **The a1 shade is not a bug and was not "fixed".** On the tutorial steps that
+  solve with `a1a8` or `a1h1`, a1 is the origin square of the move just played
+  and correctly carries the `last-move` highlight. Verified against the DOM:
+  `la-tour` highlights a1+a8, `le-cavalier` highlights g1+f3 and leaves a1
+  alone. Clearing it would delete the feedback showing what the reader played.
+- The coordinate fix is **CSS-only** — `BoardSurface.tsx` is untouched, so the
+  full-matrix trigger did not fire and chromium was the correct scope.
+- `smoke.spec.ts` was updated rather than worked around: it asserted a nav link
+  was visible on load, and those now sit inside a collapsed panel. It opens the
+  group first, which checks the string table *and* that the menu reveals links.
+
+---
+
 ### Course 1 — "Bien ouvrir une partie"
 
 Six lessons on the opening, both locales. Content batch; no architecture change.
