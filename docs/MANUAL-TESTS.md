@@ -228,6 +228,53 @@ On any exercise, and on `/jouer/` — **without touching the board at all**:
 
 ---
 
+## 7a. The beginner tutorial — `/apprendre-les-bases/`
+
+Written for someone who has never played. The chess is machine-checked; **the
+teaching is not** — that judgement is the point of this section.
+
+### Structure
+
+- [ ] `/apprendre-les-bases/` lists **13 steps**, numbered, in order
+- [ ] `/en/apprendre-les-bases/` shows the same 13 in English
+- [ ] The index shows **no chessboard at all** (the boards live on the steps)
+- [ ] Each step has prev/next; step 1 has no prev, step 13 has no next
+- [ ] Step 13 offers a way onward — exercises, or play the computer
+
+### The board on each step
+
+- [ ] **Tap a piece: every square it can legally reach lights up.** This is the
+      whole teaching mechanism — if it stops working the tutorial is just prose
+- [ ] Complete the task → the step is marked solved
+- [ ] Play a *different* legal move → it says the move is not what was asked, and
+      does **not** call the reader wrong in a way that suggests the move is illegal
+- [ ] The keyboard field works on every step (type `Cf3`, `Nf3` or `g1f3`)
+- [ ] Reload a solved step: the board resets so it can be replayed, but the page
+      greets you as a returning solver
+- [ ] Go back to the index: the solved step carries a tick
+
+### Pedagogy — ⚠️ Seàn's review, and only Seàn's
+
+Read the **French** of all 13 steps as though you had never played chess.
+
+- [ ] No word is used before it is explained (check especially *échec*, *pièce*,
+      *capturer*, *diagonale*)
+- [ ] Sentences are short enough for a 12-year-old, without sounding babyish
+- [ ] Step 10 (*la prise en passant*) is genuinely understandable — it is the
+      rule that loses people
+- [ ] Step 8 makes the difference between **mat** and **pat** unmistakable
+- [ ] The English reads as though written in English, not translated from French
+- [ ] Nothing is factually wrong about the rules
+
+### Entry points
+
+- [ ] Home: *Nouveau aux échecs ? Commence ici* is visible, below the two main
+      buttons and clearly quieter than them
+- [ ] `/cours/`: the prerequisite line is at the **top** of the page
+- [ ] It is **not** in the nav — that is deliberate; see CLAUDE.md
+
+---
+
 ## 7b. Pacing and ambient motion (Session 6)
 
 ### The home page

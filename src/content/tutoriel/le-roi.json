@@ -1,0 +1,29 @@
+{
+  "title_fr": "Le roi",
+  "title_en": "The king",
+  "slug": "le-roi",
+  "order": 5,
+  "summary_fr": "Une case à la fois. C'est lui qu'il faut protéger.",
+  "summary_en": "One square at a time. He is the one you must protect.",
+  "body_fr": [
+    "Le roi se déplace d'une seule case, dans n'importe quelle direction : tout droit ou en diagonale.",
+    "Il est lent, mais c'est la pièce la plus importante : toute la partie tourne autour de sa sécurité. On ne capture jamais un roi — la partie s'arrête avant, et tu vas voir comment dans quelques étapes.",
+    "Un roi ne peut pas non plus s'approcher du roi adverse : les deux rois ne se touchent jamais."
+  ],
+  "body_en": [
+    "The king moves one square at a time, in any direction: straight or diagonal.",
+    "He is slow, but he is the most important piece: the whole game turns on his safety. A king is never actually captured — the game stops before that, and you will see how in a few steps.",
+    "A king also cannot walk up to the enemy king: the two kings never stand next to each other."
+  ],
+  "task_fr": "Avance le roi d'une case, en **e2**.",
+  "task_en": "Move the king one square forward, to **e2**.",
+  "fen": "k7/8/8/8/8/8/8/4K3 w - - 0 1",
+  "solution": [
+    "e1e2"
+  ],
+  "opponentReplies": [],
+  "onlyMove": true,
+  "hint_fr": "Le roi est en e1. Une seule case, tout droit vers le haut.",
+  "hint_en": "The king is on e1. One square only, straight up.",
+  "draft": false
+}

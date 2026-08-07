@@ -1,0 +1,27 @@
+{
+  "title_fr": "La dame",
+  "title_en": "The queen",
+  "slug": "la-dame",
+  "order": 4,
+  "summary_fr": "La tour et le fou réunis. La pièce la plus puissante.",
+  "summary_en": "A rook and a bishop in one. The most powerful piece.",
+  "body_fr": [
+    "La dame fait tout ce que fait la tour, et tout ce que fait le fou : lignes droites **et** diagonales, aussi loin que la route est libre.",
+    "C'est la pièce la plus forte du jeu. Fais quand même attention : forte ne veut pas dire invincible. Une dame qui se promène trop tôt au milieu de l'échiquier se fait souvent chasser par des pièces bien moins puissantes qu'elle."
+  ],
+  "body_en": [
+    "The queen does everything a rook does and everything a bishop does: straight lines **and** diagonals, as far as the road is clear.",
+    "She is the strongest piece on the board. Be careful anyway: strong does not mean safe. A queen who wanders into the middle too early often gets chased around by far humbler pieces."
+  ],
+  "task_fr": "Emmène la dame en **h5**, en diagonale.",
+  "task_en": "Take the queen to **h5**, along the diagonal.",
+  "fen": "k7/8/8/8/8/8/8/3QK3 w - - 0 1",
+  "solution": [
+    "d1h5"
+  ],
+  "opponentReplies": [],
+  "onlyMove": true,
+  "hint_fr": "La dame est en d1. La diagonale d1-e2-f3-g4-h5 est libre.",
+  "hint_en": "The queen is on d1. The diagonal d1-e2-f3-g4-h5 is clear.",
+  "draft": false
+}

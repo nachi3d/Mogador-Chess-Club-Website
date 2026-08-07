@@ -1,0 +1,29 @@
+{
+  "title_fr": "La prise en passant",
+  "title_en": "En passant",
+  "slug": "la-prise-en-passant",
+  "order": 10,
+  "summary_fr": "La règle la plus étrange du jeu — et elle est vraie.",
+  "summary_en": "The strangest rule in chess — and it is real.",
+  "body_fr": [
+    "Un pion adverse vient d'avancer de deux cases d'un coup, et il atterrit juste à côté du tien. S'il n'avait avancé que d'une case, tu aurais pu le capturer. La règle dit : tu le peux quand même.",
+    "Ton pion le capture **en passant**, en allant sur la case qu'il a sautée. Le pion adverse est retiré de l'échiquier, même si ton pion ne s'arrête pas sur sa case.",
+    "Une seule condition, et elle est stricte : tu dois le faire **immédiatement**, au coup suivant. Si tu joues autre chose, l'occasion est perdue pour toujours."
+  ],
+  "body_en": [
+    "An enemy pawn has just gone two squares at once, landing right beside yours. Had it moved only one square, you could have captured it. The rule says: you may capture it anyway.",
+    "Your pawn takes it **en passant**, moving to the square it skipped over. The enemy pawn is removed from the board, even though your pawn does not land on its square.",
+    "One condition, and it is strict: you must do it **immediately**, on the very next move. Play anything else and the chance is gone for good."
+  ],
+  "task_fr": "Le pion noir vient de sauter de d7 à d5. Capture-le en passant, en **d6**.",
+  "task_en": "The black pawn has just jumped from d7 to d5. Take it en passant, on **d6**.",
+  "fen": "k7/8/8/3pP3/8/8/8/4K3 w - d6 0 2",
+  "solution": [
+    "e5d6"
+  ],
+  "opponentReplies": [],
+  "onlyMove": true,
+  "hint_fr": "Ton pion e5 va en diagonale sur d6 — et le pion d5 disparaît.",
+  "hint_en": "Your e5 pawn moves diagonally to d6 — and the d5 pawn vanishes.",
+  "draft": false
+}

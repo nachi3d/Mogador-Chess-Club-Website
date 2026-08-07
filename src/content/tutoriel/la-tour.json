@@ -1,0 +1,27 @@
+{
+  "title_fr": "La tour",
+  "title_en": "The rook",
+  "slug": "la-tour",
+  "order": 2,
+  "summary_fr": "Tout droit, aussi loin que la route est libre.",
+  "summary_en": "Straight lines, as far as the road is clear.",
+  "body_fr": [
+    "La tour avance en ligne droite : le long de sa colonne, ou le long de sa rangée. Jamais en diagonale.",
+    "Elle peut aller aussi loin qu'elle veut, tant que rien ne lui barre la route. Elle ne saute par-dessus personne : si une pièce est sur son chemin, elle s'arrête juste avant — ou elle la capture, si la pièce appartient à l'adversaire."
+  ],
+  "body_en": [
+    "The rook moves in straight lines: along its file, or along its rank. Never diagonally.",
+    "It travels as far as it likes, as long as nothing blocks the way. It never jumps over anything: if a piece stands in its path it stops just before — or captures it, if that piece belongs to the opponent."
+  ],
+  "task_fr": "Monte la tour tout en haut de sa colonne, en **a8**.",
+  "task_en": "Take the rook all the way up its file, to **a8**.",
+  "fen": "8/8/8/8/8/7k/8/R3K3 w - - 0 1",
+  "solution": [
+    "a1a8"
+  ],
+  "opponentReplies": [],
+  "onlyMove": true,
+  "hint_fr": "Reste sur la colonne a et monte jusque tout en haut.",
+  "hint_en": "Stay on the a-file and go all the way up.",
+  "draft": false
+}

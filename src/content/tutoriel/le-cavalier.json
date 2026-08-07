@@ -1,0 +1,29 @@
+{
+  "title_fr": "Le cavalier",
+  "title_en": "The knight",
+  "slug": "le-cavalier",
+  "order": 6,
+  "summary_fr": "En L — et il saute par-dessus tout le monde.",
+  "summary_en": "An L-shape — and it jumps over everything.",
+  "body_fr": [
+    "Le cavalier bouge en **L** : deux cases dans une direction, puis une case sur le côté. Deux et un, toujours.",
+    "C'est la seule pièce qui saute : peu importe ce qu'il y a entre son départ et son arrivée, il passe par-dessus. C'est ce qui le rend si utile quand l'échiquier est encombré.",
+    "Un cavalier change de couleur de case à chaque coup. Si tu le regardes assez longtemps, tu verras qu'il tourne."
+  ],
+  "body_en": [
+    "The knight moves in an **L**: two squares one way, then one square to the side. Two and one, always.",
+    "It is the only piece that jumps: whatever stands between its start and its finish, it goes straight over. That is what makes it so useful when the board is crowded.",
+    "A knight changes square colour with every move. Watch one for long enough and you will see it turning."
+  ],
+  "task_fr": "Sors le cavalier en **f3**.",
+  "task_en": "Develop the knight to **f3**.",
+  "fen": "k7/8/8/8/8/8/8/4K1N1 w - - 0 1",
+  "solution": [
+    "g1f3"
+  ],
+  "opponentReplies": [],
+  "onlyMove": true,
+  "hint_fr": "Le cavalier est en g1. Deux cases vers le haut, une vers la gauche.",
+  "hint_en": "The knight is on g1. Two squares up, one to the left.",
+  "draft": false
+}
