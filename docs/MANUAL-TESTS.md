@@ -97,6 +97,13 @@ look fine to the keyboard. Use fingers only.
       that is off-screen does nothing — if a board does not fit comfortably on
       your phone, say so, that is a real problem
 
+### The frame
+
+- [ ] The gold frame goes all the way round the board AND its coordinates —
+      the rank numbers and file letters are INSIDE it, not cut by it
+- [ ] The gap between the frame and its contents looks even on all four sides
+- [ ] Still true after solving an exercise, and after a refused move
+- [ ] Still true on a phone and on a desktop
 ### Coordinates in the gutter
 
 - [ ] Letters a–h sit BELOW the board, numbers 1–8 to its LEFT, outside the

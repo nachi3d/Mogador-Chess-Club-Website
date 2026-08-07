@@ -667,6 +667,37 @@ borders have a non-zero width, which is the general shape of a guard against
 this: **assert the border RENDERED, not that the rule exists.**
 ---
 
+## ⚠️ The frame belongs on the COMPONENT box, not the playing surface
+
+`.mcc-board` carries the frame (border, radius, shadow). `.mcc-board-host` — the
+Chessground element — carries none.
+
+It used to be on the host, which was correct until the coordinates moved into
+gutters living in `.mcc-board`'s padding, **outside** the host. The frame then
+enclosed the squares and excluded both gutters. Measured: it cut across the rank
+labels, the file labels hung 19px below it, and it overhung the component's right
+edge by exactly 6px — its own 2×3px border, added outside a content box that the
+left padding had already narrowed.
+
+**The rule: the frame goes on the box that contains everything the component
+draws.** If a later change adds anything outside `.mcc-board`, the frame moves
+with it.
+
+Padding is uniform on all four sides (`--mcc-board-inset`) **plus** the gutter on
+the two sides carrying coordinates. Without the uniform part the rank labels sit
+flush against the frame while the opposite side has a full gutter of space —
+enclosed, but visibly off-centre.
+
+`tests/e2e/board-frame.spec.ts` asserts the surface **and** both coordinate
+tracks lie inside the frame's inner edge, and that the four gaps agree within
+4px — in idle, refused and solved states, at two sizes.
+
+⚠️ It deliberately does **not** assert "a border exists": that would have passed
+throughout the bug. Verified to fail on the old geometry, with the message *"the
+file labels fall outside the frame"*.
+
+---
+
 ## Board coordinates live in an OUTER GUTTER (reversal)
 
 They used to be drawn on the squares. Readable on a desktop, poor on a phone:
