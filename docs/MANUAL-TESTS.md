@@ -81,6 +81,39 @@ another, which is exactly how the last one survived.
       where the piece came from. Correct, and the same on any other move
 
 ---
+## 1c. Boards: pointer play and coordinate legibility
+
+### ⚠️ Solve an exercise BY POINTER in every context — on a real phone
+
+Typing in the move field bypasses the board completely, so a broken board can
+look fine to the keyboard. Use fingers only.
+
+- [ ] Tutorial step: tap a piece, tap a square — the move registers
+- [ ] Course lesson (e.g. lesson 1): same
+- [ ] Course lesson with several boards (Récapitulatif): all three work
+- [ ] /exercices/[slug]: same
+- [ ] Tapping a piece lights up its legal squares
+- [ ] ⚠️ Scroll so the WHOLE board is on screen first. A tap aimed at a square
+      that is off-screen does nothing — if a board does not fit comfortably on
+      your phone, say so, that is a real problem
+
+### Coordinates in the gutter
+
+- [ ] Letters a–h sit BELOW the board, numbers 1–8 to its LEFT, outside the
+      playing squares
+- [ ] Each letter is centred under its file; each number beside its rank
+- [ ] The squares are still SQUARE, not rectangles
+- [ ] Legible in LIGHT mode and in DARK mode
+- [ ] Legible on all five board presets (/parametres/)
+- [ ] On a phone the board still feels big enough to tap accurately
+
+### Course index
+
+- [ ] /cours/ — clicking anywhere on the "Bien ouvrir une partie" card opens it
+- [ ] Tab reaches the card once, with a visible ring; Enter opens it
+- [ ] A course with no lessons yet is NOT clickable (it has no page)
+
+---
 ## 2. Legal, licence and credits
 
 - [ ] `/mentions-legales/` and `/en/mentions-legales/` both load

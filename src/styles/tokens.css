@@ -145,8 +145,15 @@
      The values match `.board-classique`, which is the default preset. */
   --mcc-board-light: #e8dcbe;
   --mcc-board-dark: #4f7053;
-  --mcc-board-light-ink: var(--color-ink-950); /* 13.7:1 */
-  --mcc-board-dark-ink: var(--color-cream-50); /* 5.5:1  */
+  /* ⚠️ ONE coordinate colour, not two.
+     Coordinates moved OUT of the squares into a gutter on the page
+     background, so there is no light/dark square parity left to satisfy — the
+     two-ink rule that required `--mcc-board-light-ink` and
+     `--mcc-board-dark-ink` is gone with it. This is checked against the PAGE
+     surface in check-contrast.mjs, in both palettes. */
+  --mcc-board-coord: var(--mcc-text-secondary);
+  --mcc-board-light-ink: var(--color-ink-950); /* 13.7:1 — legacy, presets only */
+  --mcc-board-dark-ink: var(--color-cream-50); /* 5.5:1  — legacy, presets only */
   --mcc-board-border: var(--color-wood-800); /* the frame around the squares */
 
   /* Move / analysis overlays. Alpha so the square colour still reads through. */
