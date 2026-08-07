@@ -183,3 +183,63 @@ cg-board square.oc.move-dest {
     transition: none !important;
   }
 }
+
+/* ============================================================
+   TELLING THE TWO BOARD TYPES APART
+
+   A lesson can hold a replayer that DEMONSTRATES and an exercise
+   board that EXPECTS A MOVE, and nothing distinguished them: the
+   site's own author reached for the pieces on a demonstration
+   board. The exercise board therefore carries the visual weight
+   and the demonstration stays deliberately quiet — the active one
+   should be the one that looks active.
+
+   ⚠️ Colour is the LAST signal here, never the only one. The tag
+   is a real sentence, the border weight differs, and the accent
+   bar is a fourth cue. Someone who cannot distinguish brass from
+   a hairline border still reads "À toi de jouer".
+   ============================================================ */
+
+.mcc-board-block {
+  margin-block: 0.75rem;
+}
+
+.mcc-board-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 0.5rem;
+  color: var(--mcc-text-secondary);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* The demonstration: a hairline, and nothing that says "touch me". */
+.mcc-board-block-demo {
+  padding-left: 0.75rem;
+  border-left: 2px solid var(--mcc-border-subtle);
+}
+
+/* The active board. `--mcc-accent-text` is the AA-safe brass step for text
+   (brass-700 on cream, brass-300 at night) — see the brass contrast rule.
+   Using raw brass here would fail on one palette or the other. */
+.mcc-board-block-exercise {
+  padding-left: 0.75rem;
+  border-left: 3px solid var(--mcc-accent-strong);
+}
+
+.mcc-board-tag-active {
+  color: var(--mcc-accent-text);
+}
+
+/* A small filled marker so the active board reads as active at a glance,
+   before any text is processed. Decorative: the sentence carries the meaning. */
+.mcc-board-tag-active::before {
+  content: '';
+  width: 0.55em;
+  height: 0.55em;
+  border-radius: 50%;
+  background-color: var(--mcc-accent-strong);
+}

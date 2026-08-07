@@ -11,6 +11,50 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### Telling a demonstration board from one you play on
+
+#### Added
+
+- **Every board now carries a tag**: *Démonstration — utilise les flèches* or
+  *À toi de jouer*. The exercise board takes the visual weight (accent border,
+  accent text, filled dot); the demonstration stays a quiet hairline. Real text
+  in both cases, so a screen reader can answer "may I move these pieces?" —
+  which is exactly the question the change exists to settle.
+- **A named launch control on the replayer** — *Lancer la démonstration*,
+  filled, ≥44px — shown until the first move, then it disappears. Four small
+  glyph buttons did not read as "press me": the site's own author reached for
+  the pieces instead.
+
+#### Fixed
+
+- ⚠️ **`--mcc-border` has never existed, and had silently removed twelve
+  borders.** The tokens are `--mcc-border-subtle` / `--mcc-border-strong`. An
+  unknown custom property invalidates the whole `border: 2px solid var(...)`
+  shorthand, so `border-style` falls back to `none` and the width computes to
+  0px — no error, no warning, no border. The home pillars, tutorial cards,
+  lesson cards, course cards and the login panel had all been rendering
+  borderless since the sessions that introduced them. Found because the new
+  demonstration border also failed to appear; all twelve now use
+  `--mcc-border-subtle`, and the spec asserts the border **rendered** rather
+  than that a rule exists.
+
+#### Notes
+
+- **Labels go on single-board pages too**, which departs from the brief's
+  suggestion. The confusion is not "which of these two?" but "may I touch
+  this?", and that question is just as live on a trap page whose only board is a
+  replayer — which is precisely the mistake that prompted the work.
+- **The compact controls are not hidden before launch.** Doing so broke eight
+  existing navigation specs and, more importantly, made "jump to the end"
+  unreachable as a first action. "Collapsing to the compact set" is achieved by
+  the launch button going away.
+- **The cursor was already correct and was not changed.** Chessground scopes
+  `cursor: pointer` to `.cg-wrap.manipulable`, which a `viewOnly` board never
+  gets: replay computes `auto`, exercise `pointer`. Verified, and now pinned by
+  a spec.
+
+---
+
 ### Board coordinates outside the squares, and clickable course cards
 
 #### Fixed
