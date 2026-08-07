@@ -35,6 +35,54 @@ can prove a duration is 150ms; they cannot prove 150ms is the right number.
 Do this section **first**, before you have looked at anything else — the answers
 are about first impressions and you only get one.
 
+### Q0 — Does the home page feel like opening a game? — ⚠️ AND is the club's purpose clear to an adult in five seconds?
+
+Two questions that pull in opposite directions, which is exactly why they are
+asked together. Open `/` on a phone, cold.
+
+**The game half:**
+
+- [ ] Does the first screen read as a **main menu** — title, a stack of choices —
+      rather than as a web page with links on it?
+- [ ] Move the selection with ↑ / ↓. A small **knight** marks the line you are
+      on. Does it feel like a cursor moving, or like six things lighting up?
+- [ ] Enter follows the selection. Home and End jump to the ends; the selection
+      wraps around, as a game menu does
+- [ ] **No scrolling to reach any entry**, on the smallest phone you have.
+      Rotate to landscape and check again — that is the tightest case
+- [ ] Every entry is comfortable to hit with a thumb
+
+**The adult half — ask someone who has never seen the site:**
+
+- [ ] Hand them the phone for **five seconds**, then take it back. Can they say
+      what this is and who it is for? If they cannot, the sentence under the menu
+      is the thing to fix — it is the only descriptive text above the fold
+- [ ] Scroll down. Is there enough there for a parent deciding whether to bring
+      their child — and for Google?
+- [ ] ⚠️ **The menu labels and the header nav labels are the same words.** Open
+      the nav and compare, in both languages. Two names for one destination reads
+      as two different sites
+
+**"Reprendre" — the detail that makes it a game:**
+
+- [ ] On a browser that has never used the site: **five** entries, no Reprendre
+- [ ] Start a tutorial step, get one move wrong, go home: **Reprendre** appears,
+      first in the list, and takes you back to that step
+- [ ] Finish that step, go home: Reprendre now points at the **next** one
+- [ ] Skip ahead — do a later lesson — then go home. It resumes at the **furthest**
+      point you reached, not the earliest thing you skipped
+- [ ] DevTools → Application → Local Storage → delete `mcc:progress:v1`, reload:
+      Reprendre is gone and the menu is otherwise untouched
+- [ ] Set `mcc:progress:v1` to `not json` by hand, reload: still five clean
+      entries, **nothing in the console**
+
+**With JavaScript disabled** (DevTools → Settings → Debugger → Disable JS):
+
+- [ ] **Five** entries, all visible, all clickable. No Reprendre — that is
+      correct, not a bug: progress cannot be read without JavaScript
+- [ ] Tab reaches each of the five in turn
+- [ ] The descriptive section below still renders in full
+
 ### Q1 — Does the site feel alive within five seconds of landing?
 
 - [ ] Open `/` on a phone and **do nothing** for five seconds. Is there any sense
@@ -532,9 +580,10 @@ Read the **French** of all 13 steps as though you had never played chess.
 
 ### The home page
 
-- [ ] The hero shows **Jouer** / **Play** as the primary (green) button, and it lands on `/jouer/`
-- [ ] **Découvrir les pièges** / **Explore traps** sits beside it and lands on `/pieges/`
-- [ ] Three pillar cards below: **Apprendre → /cours/**, **S'entraîner → /exercices/**, **Jouer → /jouer/**
+- [ ] The first screen is the **main menu** (see 0b above for the full pass)
+- [ ] **Jouer** / **Play** is the first standing entry and lands on `/jouer/`
+- [ ] **Pièges d'ouverture** / **Opening traps** lands on `/pieges/`
+- [ ] Three pillar cards further down: **Apprendre → /cours/**, **S'entraîner → /exercices/**, **Jouer → /jouer/**
 - [ ] Clicking anywhere on a pillar card follows its link; tabbing reaches each card once
       *(one link per card — if Tab stops twice on a card, the whole-card overlay has regressed)*
 - [ ] Chess-piece silhouettes drift slowly behind the hero. **They should be barely
@@ -599,6 +648,9 @@ Animation effects off; macOS: Accessibility → Display → Reduce motion; or De
 Rendering → Emulate `prefers-reduced-motion`).
 
 - [ ] Silhouettes are **still there** but completely still — the texture stays, the motion goes
+- [ ] The home menu's **knight cursor still marks the selected line** — it just
+      appears rather than sliding in. Removing it would take away the menu's only
+      state, so its absence is a bug, not a reduced-motion success
 - [ ] ⚠️ **Check the FAR pieces too, not just the near ones.** They are a separate
       layer with its own selector, and E1 shipped with them still drifting under
       reduced motion until a spec caught it. If any piece is moving, that is the bug

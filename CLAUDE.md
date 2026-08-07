@@ -166,6 +166,8 @@ Every session that reaches a merge updates all three, in the same commit as the 
 17. **Reduced motion means OFF for decoration and INSTANT for feedback** — never "the same show, slower". Both halves are tested.
 18. **Accounts are OFF in production, and OFF means NOT BUILT.** No auth route in `dist/`, no Supabase ref in any bundle. See the account-flag section.
 19. **`import.meta.env.NAME`, never `import.meta.env['NAME']`.** Bracket access ships the whole env object, anon key included.
+20. **The home menu's labels ARE the nav's labels**, from the same `nav.*` keys. Never a second string for the same destination.
+21. **The home menu works with no JavaScript**, and fits one screen on a phone. Both are tested.
 
 ---
 
@@ -577,7 +579,7 @@ FR at the root, EN under `/en/...`. **Route segments are not translated** (`/en/
 
 | Route | EN | Notes |
 |---|---|---|
-| `/` | `/en/` | Home — hero, CTAs into cours and pièges |
+| `/` | `/en/` | Home — the **main menu** (E5); descriptive content below the fold |
 | `/cours/` | `/en/cours/` | Course index (cards) |
 | `/pieges/` | `/en/pieges/` | Trap index (cards, ECO + theme chips) — **no board mounted here** |
 | `/pieges/[slug]/` | `/en/pieges/[slug]/` | Trap detail — the replayer, commentary, outbound WhatsApp share |
@@ -969,6 +971,125 @@ The drift periods were **47–71s before E1**, which is slow enough that a reade
 - **NO daily or consecutive-day streak.** The club meets *weekly*, so a daily streak would punish the normal rhythm of the people it is for. Session streaks only, in E3.
 - **Sound is synthesised via Web Audio and off by default.** E2, not built.
 - **No confetti on a solve.** Precision is the reward, not visual noise.
+
+---
+
+## The home page is a MAIN MENU (E5)
+
+Direction: `docs/direction/mcc-direction-esthetique-addendum.md` § E5. The home
+page is a 1990s PC-game main menu — club title, a centred vertical stack, a small
+**knight** marking the active line. It is CSS plus a roving tabindex; no new
+dependency, no island.
+
+### The three tensions, and where each is resolved
+
+| Tension | Resolution |
+|---|---|
+| **SEO** — six words do not index | The menu owns the first screen; the descriptive content lives BELOW it and carries the markup. `<h1>` stays at the top, the meta description is **set explicitly** rather than falling back to `site.description`, and `#a-propos` is real prose under a real `<h2>`. |
+| **Adults** — a parent must understand in five seconds | One descriptive sentence sits directly under the menu, **above the fold**, and a spec measures that it is. |
+| **Redundancy with the grouped nav** | Not a defect — games have a main menu *and* shortcuts. |
+
+### ⚠️ THE LABELS ARE THE NAV'S LABELS. NOT COPIES OF THEM.
+
+Every menu entry takes its label from the **same `nav.*` key** the header uses.
+There is deliberately no `menu.play` string, and adding one is the exact mistake
+the rule exists to prevent: two different names for one destination reads as two
+different sites.
+
+`main-menu.spec.ts` does not hard-code the words. It reads the **header's own
+labels** off the page and requires the menu's to be a subset — so renaming a nav
+item without renaming its menu entry fails there.
+
+A consequence worth knowing: an unscoped `getByRole('link', { name: … })` on the
+home page now matches **two** elements and fails Playwright's strict mode. That
+collision is the guarantee working. Scope to `.site-nav`; do not rename anything
+to make it go away.
+
+### Where the entries point
+
+Two of the six labels are nav **groups**, which are toggles rather than links, so
+each is pointed at the destination a reader most wants from it:
+
+| Entry | Target |
+|---|---|
+| Reprendre | resolved in the browser — see below |
+| Jouer | `/jouer/` |
+| Apprendre | `/cours/` |
+| S'entraîner | `/exercices/` |
+| Pièges d'ouverture | `/pieges/` |
+| Le club | `/agenda/` — "when does it meet" is asked far more than "how do I write to it", and the agenda links contact |
+
+### "Reprendre" — the resolution rule
+
+The **journey** is built at build time (content) and resolved in the browser
+(the reader's own `localStorage`).
+
+Journey order: the 13 tutorial steps by `order`, then every course lesson by
+course `order` then lesson `order`. **A lesson with no exercise board is
+excluded** — it records nothing in `mcc:progress:v1`, so it can be neither
+touched nor completed, and including it would block the scan forever.
+
+- **touched** — any of the step's keys has `solved`, `attempts > 0` or `hintUsed`. Opening a page leaves no trace; reading is not progress.
+- **complete** — every one of the step's keys is `solved`.
+
+Then, and this is the part that makes it feel like a game:
+
+1. find the **last** touched step;
+2. from there forward, take the first step that is not complete — which is that same step when the reader stopped mid-way through it;
+3. if everything after it is complete, fall back to the earliest incomplete step anywhere (one they skipped);
+4. if nothing is incomplete, or nothing was ever touched, **render nothing**.
+
+⚠️ **FURTHEST, not earliest.** A game's Continue resumes where you stopped, not
+at the first gap you skipped past. Both branches have a spec.
+
+### ⚠️ The resolver is `is:inline`, and it duplicates the progress key
+
+Both deliberate, and this is the **third** such duplication on the site after the
+theme head script and `AccountButton`.
+
+**Inline**, because it runs synchronously during parsing, before first paint. A
+bundled module script is deferred, so "Reprendre" would appear one frame late and
+push a vertically-centred menu down under the reader's eyes — a visible jump on
+the most-visited page and a CLS regression on the page least able to afford one.
+Measured: **CLS 0.000 before and after.**
+
+**Duplicating `mcc:progress:v1`**, because an inline script cannot import a bare
+specifier. The general rule in "the single migration point" still stands;
+`main-menu.spec.ts` seeds the key directly, so a divergence from
+`src/lib/progress.ts` fails there rather than in production. It only ever READS,
+and it fails silent — a corrupt store leaves five entries and no error.
+
+### ⚠️ With no JavaScript there are FIVE entries, not six
+
+"Reprendre" is a claim about stored progress, which cannot be read without
+JavaScript. Rendering it anyway would either point nowhere useful or assert
+something we do not know. The five standing entries are real links and all work.
+
+The roving tabindex is applied **by the script**, never in the server markup —
+otherwise a no-JS reader would meet five links marked `tabindex="-1"` that
+nothing will ever move focus to. Progressive enhancement means the enhanced state
+is the one that is *added*.
+
+### One screen, and how it is held
+
+`min-block-size: calc(100svh - 9rem)` on the menu screen. **`svh`, not `vh`**: on
+mobile Safari `vh` is the *largest* viewport, so `100vh` is taller than what is
+visible while the address bar shows, and the last entry would sit under it. Every
+size is a `clamp()` against viewport height so six entries, a title and a
+sentence all clear a short phone. A spec measures every entry's bottom edge
+against the viewport at 390×844 **with the sixth entry present**, and asserts
+nothing was scrolled to achieve it.
+
+The cursor sits in **reserved space to the left of the label**, and the rows are
+left-aligned inside a centred, width-limited list. A centred row would re-centre
+itself every time the cursor appeared — the label would twitch sideways on every
+arrow press.
+
+### Motion: one Réponse, and nothing else
+
+The cursor is `opacity` + a small `translateX`, both on `--motion-response`. No
+new family. Under `prefers-reduced-motion` the cursor **still marks the line** —
+it is the menu's only state — it simply arrives without travel.
 
 ---
 

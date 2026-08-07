@@ -11,6 +11,63 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### E5 — the home page becomes a main menu
+
+Direction: `docs/direction/mcc-direction-esthetique-addendum.md` § E5. A 1990s
+PC-chess-game main menu — club title, a centred vertical stack, a small knight
+marking the active line. CSS and a roving tabindex; no new dependency, no island.
+
+#### Added
+
+- **The main menu**, both locales: Reprendre (conditional), Jouer, Apprendre,
+  S'entraîner, Pièges d'ouverture, Le club. Arrow keys move the selection, Home
+  and End jump, Enter follows the link, and the selection wraps like a game menu.
+- **"Reprendre"** — the detail that makes it feel like a game. It appears only
+  when there is progress in `mcc:progress:v1`, and resolves to the **furthest**
+  incomplete step: the tutorial if it was started, otherwise the last course
+  lesson touched. A game's Continue resumes where you stopped, not at the first
+  gap you skipped — both branches have a spec.
+- **A descriptive section below the menu** (`#a-propos`) carrying an `<h2>`, real
+  prose and a start-here button, plus an explicit meta description. The menu owns
+  the first screen; this is what Google and a parent actually read.
+- `tests/e2e/main-menu.spec.ts` — 22 specs.
+
+#### Changed
+
+- **The home page's two CTA buttons and the beginner line are gone**, replaced by
+  the menu. The three pillar cards stay, below the fold.
+- The meta description on `/` is now set explicitly instead of falling back to
+  the site-wide one — six words of menu do not index.
+
+#### Notes
+
+- ⚠️ **The menu's labels are the NAV's labels**, from the same `nav.*` keys. The
+  spec reads the header's own labels off the page and requires the menu's to be a
+  subset, so a rename on one side fails there rather than shipping two names for
+  one destination. A side effect: an unscoped `getByRole('link', …)` on the home
+  page now matches two elements and fails strict mode. That collision is the
+  guarantee working; `smoke.spec.ts` scopes to `.site-nav`.
+- ⚠️ **With no JavaScript there are five entries, not six.** "Reprendre" is a
+  claim about stored progress, which cannot be read without JS; rendering it
+  anyway would assert something we do not know. The five standing entries are
+  real links and all work. The roving tabindex is applied *by* the script, so a
+  no-JS reader gets the ordinary tab order rather than five links stranded behind
+  `tabindex="-1"`.
+- ⚠️ **The resolver is `is:inline` and duplicates the progress key** — the third
+  such duplication after the theme head script and `AccountButton`, for the same
+  reason. A deferred module script would show "Reprendre" one frame late and push
+  a vertically-centred menu down under the reader's eyes. Measured: CLS 0.000
+  before and after.
+- `feel.spec.ts` retargeted from `home-cta-play` to the new below-fold button:
+  the former is now a menu entry rather than a button, and has neither a press
+  nor a shadow to assert.
+
+#### Performance
+
+Lighthouse mobile on `/`, median of three, before → after: **Performance
+100 → 100**, Accessibility 100 → 100, SEO 100 → 100. Speed Index 1108ms →
+1073ms, LCP 1663 → 1662, TBT 0, **CLS 0.000 → 0.000**.
+
 ---
 
 ## [0.3.0] — 2026-08-07

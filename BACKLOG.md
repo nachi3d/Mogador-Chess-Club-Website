@@ -44,7 +44,11 @@ with itself.
 | **E1 — motion vocabulary + action feedback** | **done** | Three families, the press, the correct-move pulse, the wrong-move reason, the two-beat solve, a second ambient layer. |
 | **E2 — sound** | `backlog` | Synthesised via Web Audio, **off by default**. No audio files, so no new licence and no new request. |
 | **E3 — progression** | `backlog` | Ranks Pion → Cavalier → Fou → Tour → Dame. **Session streaks only — never a daily streak**: the club meets weekly, so a daily streak would punish the normal rhythm of the people it is for. Wants v2-S3's synced progress to mean anything across devices. |
-| **E4 — vocabulary and atmosphere** | `backlog` | Evocative names on **page titles only**; nav labels stay functional (Cours, Exercices, Jouer). |
+| **E5 — retro main menu on the home page** | **done** | Six entries, roving tabindex, "Reprendre" resolving to the furthest incomplete step. |
+| **E6 — complete themes** (background + board + pieces) | `backlog` | Heavy — a dedicated session. Extra piece sets each need their own licence attribution on `/mentions-legales/`, verified set by set. Texture in CSS only, never images, so the zero-request rule and the precache budget hold. Every theme must clear `check-contrast.mjs` on all its pairs in both palettes **at design time**, not at the end. |
+| **E7 — thematic typography** | `backlog` | Depends on E6 (both touch the tokens). Headings follow the theme; **the body family never changes**. One theme loads one display font, never four. |
+| **E8 — the shop** | `blocked` | Catalogue display needs nothing; **the points exchange cannot open before v2-S3**. Points live in `localStorage` while accounts are off, so changing phone loses them — and that is a lost *reward*, not lost progress. Once accounts exist the balance must be computed in the database from exercises actually solved, never accepted from the client. **Points are never sold.** |
+| **E4 — vocabulary and atmosphere** | `backlog` | Evocative names on **page titles only**; nav labels stay functional (Cours, Exercices, Jouer). ⚠️ Now constrained by E5 as well: the home menu takes its labels from the same `nav.*` keys, so renaming a nav label renames a menu entry too. May be absorbed by E5 + E7 — see the addendum. |
 
 ### Refonte esthétique majeure — a direction session, not a patch
 

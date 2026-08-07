@@ -43,7 +43,13 @@ test.describe('home page renders in both locales', () => {
        actually reveals its links. */
     await expect(page.getByRole('button', { name: 'Apprendre' })).toBeVisible();
     await page.getByRole('button', { name: 'Apprendre' }).click();
-    await expect(page.getByRole('link', { name: "Pièges d'ouverture" })).toBeVisible();
+    /* ⚠️ Scoped to the header. Since E5 the home page also carries a main menu
+       whose labels are IDENTICAL to the nav's by design, so an unscoped
+       getByRole matches two elements and fails strict mode. That duplication is
+       the feature, not the bug — see tests/e2e/main-menu.spec.ts. */
+    await expect(
+      page.locator('.site-nav').getByRole('link', { name: "Pièges d'ouverture" }),
+    ).toBeVisible();
     // FR is the default locale and must NOT be served under a prefix.
     expect(new URL(page.url()).pathname).toBe('/');
   });
@@ -55,7 +61,9 @@ test.describe('home page renders in both locales', () => {
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Mogador Chess Club');
     await expect(page.getByRole('button', { name: 'Learn' })).toBeVisible();
     await page.getByRole('button', { name: 'Learn' }).click();
-    await expect(page.getByRole('link', { name: 'Opening traps' })).toBeVisible();
+    await expect(
+      page.locator('.site-nav').getByRole('link', { name: 'Opening traps' }),
+    ).toBeVisible();
   });
 
   test('the title falls back to the site name on home, not "Accueil — …"', async ({ page }) => {

@@ -151,7 +151,11 @@ test.describe('the motion vocabulary', () => {
 
   test('Réponse: a button transitions at the response duration', async ({ page }) => {
     await page.goto('/');
-    const cta = page.getByTestId('home-cta-play');
+    /* ⚠️ NOT `home-cta-play`. Since E5 that is a main-menu entry rather than a
+       button — it has one Réponse transition (colour) and no press. The home
+       page's real button now sits below the menu, in the descriptive section. */
+    await settleReveals(page);
+    const cta = page.getByTestId('home-cta-tutorial');
     const durations = await cta.evaluate((el) =>
       getComputedStyle(el)
         .transitionDuration.split(',')
@@ -178,7 +182,9 @@ test.describe('action feedback — the press', () => {
    */
   test('a button translates and tightens its shadow while held', async ({ page }) => {
     await page.goto('/');
-    const cta = page.getByTestId('home-cta-play');
+    await settleReveals(page);
+    const cta = page.getByTestId('home-cta-tutorial');
+    await cta.scrollIntoViewIfNeeded();
 
     const resting = await cta.evaluate((el) => ({
       transform: getComputedStyle(el).transform,
@@ -414,7 +420,9 @@ test.describe('prefers-reduced-motion — off, and instant', () => {
 
   test('responses are instantaneous, and the press still answers', async ({ page }) => {
     await page.goto('/');
-    const cta = page.getByTestId('home-cta-play');
+    await settleReveals(page);
+    const cta = page.getByTestId('home-cta-tutorial');
+    await cta.scrollIntoViewIfNeeded();
 
     const ms = await cta.evaluate(
       (el) => parseFloat(getComputedStyle(el).transitionDuration.split(',')[0] ?? '0s') * 1000,

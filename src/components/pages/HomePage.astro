@@ -1,6 +1,36 @@
 ---
+/**
+ * The home page — a MAIN MENU, in the spirit of a 1990s PC chess game (E5).
+ *
+ * Direction: `docs/direction/mcc-direction-esthetique-addendum.md` § E5.
+ *
+ * ── The three tensions, and how they are resolved here ───────────────────
+ *
+ * 1. SEO. The home page is the main entry from Google and six words do not
+ *    index. The menu owns the FIRST SCREEN; everything descriptive lives BELOW
+ *    it and carries the markup — the `<h1>` stays at the top where it belongs,
+ *    the meta description is set explicitly rather than falling back to the
+ *    site default, and the section below is real prose with a real `<h2>`.
+ *
+ * 2. Adults. A parent, Dar Souiri or the association has to understand what
+ *    this is within five seconds. One descriptive sentence sits directly under
+ *    the menu, above the fold, not below it.
+ *
+ * 3. Redundancy with the grouped nav. Not a defect — games have a main menu AND
+ *    shortcuts — but ⚠️ **the labels must be IDENTICAL**, or it reads as two
+ *    different sites. Every entry below takes its label from the SAME `nav.*`
+ *    key the header uses. Do not introduce a `menu.play` string; that is the
+ *    exact mistake this note exists to prevent.
+ *
+ * ── No JavaScript ────────────────────────────────────────────────────────
+ * The menu is a plain `<ul>` of real links. Arrow-key navigation is a
+ * progressive enhancement, and the roving tabindex is applied BY the script —
+ * so with no JS every entry stays in the natural tab order rather than being
+ * unreachable behind a `tabindex="-1"` that nothing will ever move.
+ */
 import type { Locale } from '@config/site';
 import { site } from '@config/site';
+import { getCollection } from 'astro:content';
 import { localizePath } from '@i18n/paths';
 import { useTranslations } from '@i18n/ui';
 import BaseLayout from '@layouts/BaseLayout.astro';
@@ -13,64 +43,172 @@ interface Props {
 const { locale } = Astro.props;
 const t = useTranslations(locale);
 
-/* The three pillars, in learning order rather than nav order: you learn, then
-   you drill, then you play. Held as data so the markup below stays one loop. */
-const pillars = [
-  {
-    href: '/cours/',
-    title: t('home.pillar.learn.title'),
-    text: t('home.pillar.learn.text'),
-  },
-  {
-    href: '/exercices/',
-    title: t('home.pillar.practise.title'),
-    text: t('home.pillar.practise.text'),
-  },
-  {
-    href: '/jouer/',
-    title: t('home.pillar.play.title'),
-    text: t('home.pillar.play.text'),
-  },
+/**
+ * The menu.
+ *
+ * ⚠️ `label` is a `nav.*` key on every single entry that has a nav counterpart.
+ * See tension 3 above.
+ *
+ * The two group labels (Apprendre, S'entraîner) are nav GROUPS, which are
+ * toggles rather than links — so each is pointed at the destination a reader
+ * most likely wants from it: the course index and the exercise index. "Le club"
+ * goes to the agenda rather than contact, because "when does it meet" is asked
+ * far more often than "how do I write to it", and the agenda links contact.
+ */
+const entries = [
+  { key: 'nav.play', href: '/jouer/', testId: 'home-cta-play' },
+  { key: 'nav.group.learn', href: '/cours/', testId: 'menu-learn' },
+  { key: 'nav.group.practise', href: '/exercices/', testId: 'menu-practise' },
+  { key: 'nav.traps', href: '/pieges/', testId: 'menu-traps' },
+  { key: 'nav.group.club', href: '/agenda/', testId: 'menu-club' },
 ] as const;
+
+/* ── "Reprendre" — the detail that makes it feel like a game ─────────────
+ *
+ * Built here, resolved in the browser: the ORDER of the journey is content and
+ * belongs at build time, but which part of it a reader has done lives in their
+ * own `localStorage` and cannot be known until then.
+ *
+ * A step is RESUMABLE when it has at least one exercise to record progress
+ * against. A lesson with only diagrams leaves no trace in `mcc:progress:v1`, so
+ * it can be neither touched nor completed — including it would let it block the
+ * scan forever.
+ */
+const tutorialSteps = (await getCollection('tutoriel'))
+  .filter((entry) => !entry.data.draft)
+  .sort((a, b) => a.data.order - b.data.order)
+  /* Short field names — `u`/`t`/`k` — because this JSON is inlined into the
+     HTML of the site's most-visited page and the long names would be pure
+     weight. The inline script below is the only reader. */
+  .map((entry) => ({
+    u: localizePath(`/apprendre-les-bases/${entry.data.slug}/`, locale),
+    t: locale === 'fr' ? entry.data.title_fr : entry.data.title_en,
+    k: [`tutorial:${entry.data.slug}`],
+  }));
+
+const courses = (await getCollection('cours'))
+  .filter((entry) => !entry.data.draft)
+  .sort((a, b) => a.data.order - b.data.order);
+
+const allLessons = (await getCollection('lessons')).filter(
+  (entry) => !entry.data.draft && entry.data.lang === locale,
+);
+
+const lessonSteps = courses.flatMap((course) =>
+  allLessons
+    .filter((lesson) => lesson.data.course === course.data.slug)
+    .sort((a, b) => a.data.order - b.data.order)
+    .map((lesson) => ({
+      u: localizePath(`/cours/${course.data.slug}/${lesson.data.slug}/`, locale),
+      t: lesson.data.title,
+      /* ⚠️ The index is the position in the FULL `boards` array, not among the
+         exercises — that is exactly what `LessonPage.astro` uses to build the
+         slug it records under. Filtering first would silently key off a
+         different number and never match a single stored record. */
+      k: lesson.data.boards
+        .map((board, index) => ({ board, index }))
+        .filter(({ board }) => board.kind === 'exercise')
+        .map(({ index }) => `lesson:${course.data.slug}:${lesson.data.slug}:${index}`),
+    }))
+    .filter((step) => step.k.length > 0),
+);
+
+/** Canonical journey order: the tutorial first, then the courses in order. */
+const journey = [...tutorialSteps, ...lessonSteps];
+const journeyJson = JSON.stringify(journey);
 ---
 
-<BaseLayout locale={locale} title={t('home.title')} reveals>
-  <section class="hero">
+<BaseLayout
+  locale={locale}
+  title={t('home.title')}
+  description={t('home.about.lede')}
+  reveals
+>
+  <section class="menu-screen">
     <HeroAmbient />
 
-    <div class="hero-content">
+    <div class="menu-content">
       <p class="eyebrow">{site.venue.city}, {site.venue.country}</p>
       <h1>{site.name}</h1>
-      <p class="lede">{t('home.intro')}</p>
-      <p class="actions">
-        <a
-          class="btn btn-primary"
-          href={localizePath('/jouer/', locale)}
-          data-testid="home-cta-play"
-        >
-          {t('home.cta.play')}
-        </a>
-        <a class="btn btn-ghost" href={localizePath('/pieges/', locale)}>
-          {t('home.cta.traps')}
-        </a>
-      </p>
 
-      {/* Deliberately BELOW the buttons and styled as a quiet line rather than
-          a third button: a complete beginner needs to find it instantly, and
-          everyone else needs it not to compete with the two real CTAs. */}
-      <p class="beginner-line">
-        <a href={localizePath('/apprendre-les-bases/', locale)} data-testid="home-cta-tutorial">
-          {t('tutorial.homeCta')}
-        </a>
+      <nav class="main-menu" aria-label={t('menu.label')} data-main-menu>
+        <ul class="menu-list">
+          {/* Hidden until the script proves there is something to resume. With
+              no JavaScript it stays hidden, and that is correct: "Reprendre"
+              with nothing to reprendre would be a lie, and progress is only
+              knowable in the browser. Five real links is the no-JS shape. */}
+          <li class="menu-entry" data-menu-resume data-resume-aria={t('menu.resume.aria')} hidden>
+            <a class="menu-link" href={localizePath('/apprendre-les-bases/', locale)} data-testid="menu-resume">
+              <span class="menu-cursor" aria-hidden="true">
+                <svg viewBox="0 0 44 64" fill="currentColor" width="16" height="23">
+                  <path
+                    d="M15 5c8-2 16 2 20 10 3 7 3 16 0 23-2 5-6 9-11 12h9v6H9v-6c0-7 4-13 10-17l-9-3-3-10 8-5z"
+                  ></path>
+                </svg>
+              </span>
+              <span class="menu-text">{t('menu.resume')}</span>
+            </a>
+          </li>
+
+          {
+            entries.map((entry) => (
+              <li class="menu-entry">
+                <a
+                  class="menu-link"
+                  href={localizePath(entry.href, locale)}
+                  data-testid={entry.testId}
+                >
+                  <span class="menu-cursor" aria-hidden="true">
+                    <svg viewBox="0 0 44 64" fill="currentColor" width="16" height="23">
+                      <path d="M15 5c8-2 16 2 20 10 3 7 3 16 0 23-2 5-6 9-11 12h9v6H9v-6c0-7 4-13 10-17l-9-3-3-10 8-5z" />
+                    </svg>
+                  </span>
+                  <span class="menu-text">{t(entry.key)}</span>
+                </a>
+              </li>
+            ))
+          }
+        </ul>
+      </nav>
+
+      {/* Tension 2: the one sentence an adult reads before deciding whether
+          this site is for their child. Above the fold, under the menu. */}
+      <p class="menu-tagline">{t('home.intro')}</p>
+
+      <p class="menu-more">
+        <a href="#a-propos">{t('menu.more')}</a>
       </p>
     </div>
+  </section>
+
+  {/* ── Below the fold: the markup Google reads and the adult scrolls to ── */}
+  <section class="about" id="a-propos" aria-labelledby="about-title" data-reveal>
+    <h2 id="about-title">{t('home.about.title')}</h2>
+    <p class="about-lede">{t('home.about.lede')}</p>
+    <p class="about-actions">
+      <a
+        class="btn btn-primary"
+        href={localizePath('/apprendre-les-bases/', locale)}
+        data-testid="home-cta-tutorial"
+      >
+        {t('home.about.cta')}
+      </a>
+    </p>
   </section>
 
   <section class="pillars" aria-labelledby="pillars-title" data-reveal>
     <h2 id="pillars-title">{t('home.pillars.title')}</h2>
     <ul class="pillar-grid" data-reveal-stagger>
       {
-        pillars.map((pillar) => (
+        [
+          { href: '/cours/', title: t('home.pillar.learn.title'), text: t('home.pillar.learn.text') },
+          {
+            href: '/exercices/',
+            title: t('home.pillar.practise.title'),
+            text: t('home.pillar.practise.text'),
+          },
+          { href: '/jouer/', title: t('home.pillar.play.title'), text: t('home.pillar.play.text') },
+        ].map((pillar) => (
           <li class="pillar">
             {/* One link per card, wrapping the heading — the card is made
                 clickable by CSS below rather than by a second overlapping
@@ -85,60 +223,381 @@ const pillars = [
       }
     </ul>
   </section>
+
+  {/* The journey table, read by the inline resolver below. `application/json`
+      so it is data rather than code — nothing executes it, and a CSP that
+      forbids inline script would still leave the data readable. */}
+  <script type="application/json" data-menu-journey set:html={journeyJson}></script>
 </BaseLayout>
 
+{/*
+  ⚠️ `is:inline`, AND IT DUPLICATES THE PROGRESS KEY. Both are deliberate.
+
+  INLINE, because it runs synchronously during parsing, before the browser
+  paints. A bundled module script is deferred, so "Reprendre" would appear one
+  frame late and push a vertically-centred menu down under the reader's eyes —
+  a visible jump on the site's most-visited page, and a CLS regression on the
+  page least able to afford one.
+
+  DUPLICATING `mcc:progress:v1`, because an inline script cannot import a bare
+  specifier. This is the THIRD such duplication on the site, after the theme
+  head script (which copies `applyTheme`) and `AccountButton` (which copies
+  `mcc:auth:v1`), and it is the same trade for the same reason: importing would
+  reintroduce exactly the round trip the script exists to avoid.
+
+  The general rule in CLAUDE.md still stands — nothing else may touch
+  `localStorage` — and `tests/e2e/main-menu.spec.ts` seeds the key directly, so
+  a divergence between here and `src/lib/progress.ts` fails there rather than in
+  production.
+
+  It only ever READS, and it fails silent: a broken or absent store leaves the
+  entry hidden, which is a menu with five items rather than a broken page.
+*/}
+<script is:inline>
+  (function () {
+    try {
+      var mount = document.querySelector('[data-menu-resume]');
+      var data = document.querySelector('[data-menu-journey]');
+      if (!mount || !data) return;
+
+      var journey = JSON.parse(data.textContent || '[]');
+      if (!journey.length) return;
+
+      var raw = window.localStorage.getItem('mcc:progress:v1');
+      if (!raw) return;
+      var store = JSON.parse(raw);
+      var records = (store && store.exercises) || {};
+
+      function record(key) {
+        var r = records[key];
+        return r && typeof r === 'object' ? r : null;
+      }
+
+      /* Touched: the reader has done ANYTHING here — solved it, attempted it,
+         or asked for the hint. Opening the page alone leaves no trace, which is
+         correct: reading is not progress. */
+      function touched(step) {
+        return step.k.some(function (key) {
+          var r = record(key);
+          return !!r && (r.solved === true || r.attempts > 0 || r.hintUsed === true);
+        });
+      }
+
+      function complete(step) {
+        return step.k.every(function (key) {
+          var r = record(key);
+          return !!r && r.solved === true;
+        });
+      }
+
+      /* ── THE RESOLUTION RULE ──────────────────────────────────────────
+         "Reprendre" means what Continue means in a game: pick up at the
+         FURTHEST point reached, not the earliest gap.
+
+           1. find the last step the reader has touched;
+           2. from there forward, take the first step that is not complete —
+              which is that same step if they stopped mid-way through it;
+           3. if everything after it is complete, fall back to the earliest
+              incomplete step anywhere (a lesson they skipped past);
+           4. if nothing at all is incomplete, or nothing has been touched,
+              render nothing. There is nothing to resume. */
+      var last = -1;
+      for (var i = 0; i < journey.length; i++) if (touched(journey[i])) last = i;
+      if (last < 0) return;
+
+      var target = -1;
+      for (var j = last; j < journey.length; j++) {
+        if (!complete(journey[j])) {
+          target = j;
+          break;
+        }
+      }
+      if (target < 0) {
+        for (var m = 0; m < last; m++) {
+          if (!complete(journey[m])) {
+            target = m;
+            break;
+          }
+        }
+      }
+      if (target < 0) return;
+
+      var step = journey[target];
+      var link = mount.querySelector('a');
+      if (link) {
+        link.setAttribute('href', step.u);
+        /* The label stays the bare word — it is a menu, and a wrapping entry
+           would break the one-screen rule. The destination is announced to a
+           screen reader and shown on hover instead. */
+        var pattern = mount.getAttribute('data-resume-aria') || '%s';
+        link.setAttribute('aria-label', pattern.replace('%s', step.t));
+        link.setAttribute('title', step.t);
+      }
+      mount.removeAttribute('hidden');
+      mount.setAttribute('data-resolved', 'true');
+    } catch (e) {
+      /* Storage unavailable, or a hand-edited value. Five entries, no error.
+         The same silent-failure contract as src/lib/progress.ts. */
+    }
+  })();
+</script>
+
+<script is:inline>
+  /**
+   * Roving tabindex over the menu — the retro half, and a standard pattern.
+   *
+   * ⚠️ EVERY tabindex here is set BY THIS SCRIPT. The server renders plain
+   * links, so a reader with no JavaScript gets the ordinary tab order rather
+   * than five links marked `tabindex="-1"` that nothing will ever move focus
+   * to. Progressive enhancement means the enhanced state is the one that is
+   * added, never the one that is removed.
+   */
+  (function () {
+    try {
+      var menu = document.querySelector('[data-main-menu]');
+      if (!menu) return;
+
+      function items() {
+        return [].slice
+          .call(menu.querySelectorAll('.menu-entry'))
+          .filter(function (li) {
+            return !li.hasAttribute('hidden');
+          })
+          .map(function (li) {
+            return li.querySelector('a');
+          })
+          .filter(Boolean);
+      }
+
+      var links = items();
+      if (!links.length) return;
+
+      function select(index, focus) {
+        links = items();
+        if (!links.length) return;
+        var next = (index + links.length) % links.length;
+        for (var i = 0; i < links.length; i++) {
+          var isCurrent = i === next;
+          links[i].tabIndex = isCurrent ? 0 : -1;
+          links[i].parentNode.setAttribute('data-selected', isCurrent ? 'true' : 'false');
+        }
+        if (focus) links[next].focus();
+      }
+
+      /* The first entry is the selected one on arrival — which is "Reprendre"
+         when it exists, and that is the whole point of putting it first. */
+      select(0, false);
+
+      menu.addEventListener('keydown', function (e) {
+        var key = e.key;
+        if (key !== 'ArrowDown' && key !== 'ArrowUp' && key !== 'Home' && key !== 'End') return;
+
+        links = items();
+        var current = links.indexOf(document.activeElement);
+        if (current < 0) current = 0;
+
+        e.preventDefault();
+        if (key === 'ArrowDown') select(current + 1, true);
+        else if (key === 'ArrowUp') select(current - 1, true);
+        else if (key === 'Home') select(0, true);
+        else select(links.length - 1, true);
+      });
+
+      /* Focus and pointer keep the cursor honest: whatever the reader is on IS
+         the selected line, however they got there. Enter needs no handler — a
+         focused link already activates on Enter, and reimplementing that would
+         only break middle-click and modifier-click. */
+      menu.addEventListener('focusin', function (e) {
+        var link = e.target && e.target.closest ? e.target.closest('.menu-link') : null;
+        if (!link) return;
+        links = items();
+        var index = links.indexOf(link);
+        if (index >= 0) select(index, false);
+      });
+    } catch (e) {
+      /* A menu that cannot be arrow-driven is still a list of working links. */
+    }
+  })();
+</script>
+
 <style>
-  .hero {
-    /* Establishes the containing block for the ambient layer, which is
-       absolutely positioned against it. */
+  /* ══ The menu screen ══════════════════════════════════════════════════
+     ⚠️ ONE SCREEN, NO SCROLLING TO REACH AN ENTRY — including on a phone.
+     `svh` rather than `vh`: on mobile Safari `vh` is the LARGEST viewport, so
+     100vh is taller than what is actually visible while the address bar is
+     showing, and the last entry would sit under it. The subtraction is the
+     header, which is outside this section but inside the same screen. */
+  .menu-screen {
     position: relative;
-    /* Full-bleed enough for the silhouettes to have somewhere to drift; the
-       text stays measured by .hero-content. */
-    padding-block: 2rem 3rem;
+    display: grid;
+    align-content: center;
+    justify-items: center;
+    min-block-size: calc(100svh - 9rem);
+    padding-block: 1.5rem;
+    text-align: center;
   }
 
-  .hero-content {
+  .menu-content {
     position: relative;
     /* Above .ambient, which sits at z-index 0. */
     z-index: 1;
-    max-width: 42ch;
+    inline-size: 100%;
+    max-inline-size: 34rem;
   }
 
   .eyebrow {
-    margin: 0 0 0.75rem;
+    margin: 0 0 0.5rem;
     /* brass-700, not the nominal accent — brass fails AA as text on cream.
        See the brass contrast rule in tokens.css. */
     color: var(--mcc-accent-text);
-    font-size: 0.8125rem;
+    font-size: 0.75rem;
     font-weight: 600;
-    letter-spacing: 0.12em;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
   }
 
-  .hero h1 {
-    margin: 0 0 1rem;
-    font-size: clamp(2.5rem, 7vw, 4rem);
+  .menu-screen h1 {
+    margin: 0 0 clamp(1.25rem, 4vh, 2.5rem);
+    font-size: clamp(2rem, 8vw, 3.5rem);
     line-height: 1.05;
   }
 
-  .lede {
-    margin: 0 0 2rem;
+  /* ── The entries ──────────────────────────────────────────────────── */
+
+  .menu-list {
+    display: grid;
+    /* Tight enough that six entries plus a title plus a sentence clear a short
+       phone, loose enough that each row is a comfortable target. */
+    gap: clamp(0.1rem, 0.6vh, 0.4rem);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .menu-link {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.65rem;
+    /* ≥44px touch target, and the padding is what provides it — the text alone
+       is nowhere near. */
+    min-block-size: 2.75rem;
+    /* The cursor sits in reserved space to the LEFT of the label, so revealing
+       it cannot shift the text sideways. That is why the row is left-aligned
+       inside a centred, width-limited list rather than centred itself: a
+       centred row would recentre every time the cursor appeared. */
+    padding: 0.35rem 1rem;
+    inline-size: fit-content;
+    margin-inline: auto;
+    color: var(--mcc-text-heading);
+    font-family: var(--font-display);
+    font-size: clamp(1.125rem, 4.5vw, 1.5rem);
+    font-weight: 600;
+    text-decoration: none;
+    border-radius: var(--radius-card);
+    transition: color var(--motion-response) var(--ease-response);
+  }
+
+  .menu-cursor {
+    /* Reserved whether or not it is showing — see the note above. */
+    flex: 0 0 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--mcc-accent-text);
+    opacity: 0;
+    /* Réponse (E1). The cursor answers an arrow key; nothing else here moves. */
+    transition:
+      opacity var(--motion-response) var(--ease-response),
+      transform var(--motion-response) var(--ease-response);
+    transform: translateX(-0.35rem);
+  }
+
+  .menu-cursor svg {
+    display: block;
+    inline-size: 0.8em;
+    block-size: auto;
+  }
+
+  /* Selected (arrow keys), focused (Tab), or hovered — one cursor, three ways
+     of being the active line. Hover and focus work with NO JavaScript, which is
+     what keeps the menu legible when the roving script never runs. */
+  .menu-entry[data-selected='true'] .menu-cursor,
+  .menu-link:hover .menu-cursor,
+  .menu-link:focus-visible .menu-cursor {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  .menu-entry[data-selected='true'] .menu-link,
+  .menu-link:hover,
+  .menu-link:focus-visible {
+    color: var(--mcc-link);
+  }
+
+  /* ⚠️ Reduced motion: the cursor still MOVES between lines — it is how the
+     reader knows where they are — it simply arrives without travel. Removing
+     it outright would take away the one piece of state the menu has. */
+  @media (prefers-reduced-motion: reduce) {
+    .menu-cursor {
+      transition: none;
+      transform: none;
+    }
+
+    .menu-entry[data-selected='true'] .menu-cursor,
+    .menu-link:hover .menu-cursor,
+    .menu-link:focus-visible .menu-cursor {
+      transform: none;
+    }
+  }
+
+  /* ── Under the menu ───────────────────────────────────────────────── */
+
+  .menu-tagline {
+    margin: clamp(1.25rem, 4vh, 2.25rem) auto 0;
+    max-inline-size: 32rem;
     color: var(--mcc-text-secondary);
-    font-size: 1.1875rem;
+    font-size: clamp(0.9375rem, 3.4vw, 1.0625rem);
     line-height: 1.6;
     text-wrap: pretty;
   }
 
-  .actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.75rem;
+  .menu-more {
+    margin: 1rem 0 0;
+    font-size: 0.875rem;
+  }
+
+  .menu-more a {
+    color: var(--mcc-accent-text);
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+  }
+
+  /* ── Below the fold ───────────────────────────────────────────────── */
+
+  .about {
+    margin-block-start: var(--mcc-section-gap, 4rem);
+    scroll-margin-block-start: 2rem;
+    max-inline-size: 46rem;
+  }
+
+  .about h2 {
+    margin: 0 0 1rem;
+    font-size: clamp(1.5rem, 4vw, 2rem);
+  }
+
+  .about-lede {
+    margin: 0 0 1.5rem;
+    color: var(--mcc-text-secondary);
+    font-size: 1.0625rem;
+    line-height: 1.65;
+    text-wrap: pretty;
+  }
+
+  .about-actions {
     margin: 0;
   }
 
-  /* Structure, press and the background transition all live in
-     `src/styles/controls.css` — see the note there about scoped specificity.
-     Only the larger hero padding is page-specific. */
   .btn {
     padding: 0.7rem 1.4rem;
   }
@@ -151,28 +610,6 @@ const pillars = [
 
   .btn-primary:hover {
     background-color: var(--mcc-primary-hover);
-  }
-
-  .btn-ghost {
-    border: 1px solid var(--mcc-border-strong);
-    color: var(--mcc-link);
-    background-color: var(--mcc-surface-page);
-  }
-
-  .btn-ghost:hover {
-    background-color: var(--mcc-surface-sunken);
-  }
-
-  .beginner-line {
-    margin: 1rem 0 0;
-    font-size: 0.9375rem;
-  }
-
-  .beginner-line a {
-    color: var(--mcc-accent-text);
-    text-decoration: underline;
-    text-underline-offset: 0.2em;
-    font-weight: 500;
   }
 
   /* ── The three pillars ──────────────────────────────────────────────── */
