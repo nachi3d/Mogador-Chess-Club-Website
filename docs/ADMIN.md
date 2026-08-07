@@ -24,31 +24,44 @@ holding a real user session, and asserts the stored role is unchanged.
 
 ## Promoting somebody
 
-Run this in the **Supabase SQL editor** for the project concerned (it executes
-as the table owner and bypasses RLS). Substitute the address:
+### ⚠️ A plain UPDATE does NOT work, and the reason is worth knowing
 
-```sql
--- Promote to professeur
-update public.profiles
-set role = 'prof'
-where id = (select id from auth.users where email = 'person@example.com');
+The obvious statement fails, in the SQL editor, as `postgres`:
+
+```
+ERROR: role may not be changed by the client (see docs/ADMIN.md)
 ```
 
-```sql
--- Promote to administrateur
-update public.profiles
-set role = 'admin'
-where id = (select id from auth.users where email = 'person@example.com');
-```
+**Being the table owner bypasses RLS. It does not bypass TRIGGERS.**
+`profiles_forbid_role_self_change` fires on every update regardless of who you
+are, and it allows a role change only when `is_admin_direct()` is true — which
+reads `auth.uid()`. In the SQL editor there is no logged-in user, so `auth.uid()`
+is **NULL**, `is_admin_direct()` is false, and the trigger refuses.
+
+That is the guard doing its job, not a bug. It has to be stood down deliberately
+for the duration of the change.
+
+### The working procedure
+
+Run the whole block in the **Supabase SQL editor** for the project concerned.
+Substitute the address in the two places it appears. Copy-paste it whole — the
+`begin`/`commit` matters:
 
 ```sql
--- Demote back to élève
+begin;
+
+alter table public.profiles disable trigger profiles_forbid_role_self_change;
+
 update public.profiles
-set role = 'eleve'
+set role = 'admin'   -- 'admin' | 'prof' | 'eleve'
 where id = (select id from auth.users where email = 'person@example.com');
+
+alter table public.profiles enable trigger profiles_forbid_role_self_change;
+
+commit;
 ```
 
-Check the result rather than assuming:
+Then verify — never assume:
 
 ```sql
 select u.email, p.role, p.display_name, p.created_at
@@ -56,6 +69,30 @@ from public.profiles p
 join auth.users u on u.id = p.id
 order by p.created_at desc;
 ```
+
+⚠️ **`disable trigger` takes the TRIGGER name, not the function name.** The
+trigger is `profiles_forbid_role_self_change`; the function it calls is
+`forbid_role_self_change()`. Passing the function name fails with
+`trigger "forbid_role_self_change" for table "profiles" does not exist` — which
+is what an earlier version of this document told people to do.
+
+⚠️ **Run it as one transaction.** `alter table ... disable trigger` is
+transactional in Postgres, so if the update fails the disable rolls back with it.
+Without `begin`/`commit`, a failed update between the two `alter` statements
+leaves **the guard switched off** on a live table, and nothing announces it.
+
+To confirm the guard is armed again afterwards:
+
+```sql
+select tgname, tgenabled   -- tgenabled must be 'O' (enabled)
+from pg_trigger
+where tgname = 'profiles_forbid_role_self_change';
+```
+
+*Verified against the production database on 2026-08-07: the plain update was
+reproduced failing, and the block above was run end-to-end inside a transaction
+that was rolled back — promotion applied, trigger re-armed, a subsequent role
+change correctly refused.*
 
 ### Why an email lookup rather than a uuid
 
@@ -80,5 +117,15 @@ cascade direction is the one that matters, and
 
 ## First admin
 
-A brand-new project has no admin, and there is no bootstrap UI. Sign in once
-through the normal magic link, then promote yourself with the SQL above.
+A brand-new project has no admin, and there is no bootstrap UI.
+
+1. Sign in once through the normal magic link, so the signup trigger creates your
+   profile (it will be `eleve`).
+2. Run the promotion block above with your own address, setting `role = 'admin'`.
+3. Verify with the join.
+
+⚠️ This is the step that fails if you reach for a plain `update` — see the note
+above. There is no admin yet, so `is_admin_direct()` cannot be true for anybody,
+which makes the trigger refuse **every** first promotion by construction.
+Standing it down for the transaction is the only way in, and that is intentional:
+it means gaining `admin` always requires database access, never a session.

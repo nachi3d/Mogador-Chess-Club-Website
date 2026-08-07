@@ -740,11 +740,39 @@ suite that appears to cover email and does not is worse than one that admits it.
 | `PUBLIC_SUPABASE_URL` | Cloudflare build vars + `.env` | Public by design |
 | `PUBLIC_SUPABASE_ANON_KEY` | Cloudflare build vars + `.env` | Public by design; RLS is the boundary |
 | `SUPABASE_SERVICE_ROLE_KEY` | **`.env.test` only** | Bypasses RLS. Never in a build |
-| `SUPABASE_PRODUCTION_REF` | `.env.test` | Feeds the interlock |
+| `SUPABASE_PRODUCTION_REF` | `.env.test` | Feeds the interlock — **see the trap below** |
 | `E2E_EMAIL_DOMAIN` | `.env.test` | The purge pattern |
 
 `.env.test` is gitignored because it carries a service-role key. See
-`.env.example` and `.env.test.example`.
+`.env.example` and `.env.test.example`. Local development uses **`.env.local`**,
+not `.env` — Vite loads both and `.env.local` wins, so keeping two is a way to
+lose an hour.
+
+### ⚠️ TRAP: the production project ref begins with "vtest"
+
+```
+SUPABASE_PRODUCTION_REF=vtestpaufxmrvdhgrrsy
+```
+
+**That is PRODUCTION.** Supabase refs are random strings and this one happens to
+start with the letters `vtest`, which reads exactly like "the test project". It
+is not. It is the live database, in EU (`aws-1-eu-west-1`), holding real
+accounts.
+
+Why this specific string is dangerous rather than merely unfortunate: the
+interlock in `tests/e2e/env.ts` decides "am I about to delete real data?" by
+comparing the resolved test ref against `SUPABASE_PRODUCTION_REF`. Put the wrong
+value there — or leave it out because "that one is obviously the test project" —
+and the guard compares against nothing useful. The e2e suite **purges by
+pattern**.
+
+So when the test project is created:
+
+- `SUPABASE_PRODUCTION_REF` in `.env.test` **must be `vtestpaufxmrvdhgrrsy`**;
+- `PUBLIC_SUPABASE_URL` in `.env.test` must be the *other* ref, whatever it is;
+- if the two are ever equal, the run aborts — which is the interlock working.
+
+Read the ref, never the vibe of the ref.
 
 ---
 
