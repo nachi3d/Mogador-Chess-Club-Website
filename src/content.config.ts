@@ -204,6 +204,88 @@ const exercices = defineCollection({
     }),
 });
 
+/* ──────────────────────────── lessons ────────────────────────────── */
+
+/**
+ * Long-form course bodies — DECIDED in Session 2, implemented here.
+ *
+ * `src/content/lessons/<course-slug>/<lesson-slug>.<locale>.md`
+ *
+ * One file per language, because a lesson is prose: headings, lists, worked
+ * examples. A `body_fr` / `body_en` pair of frontmatter strings is the wrong
+ * shape for three screens of teaching, and Markdown is exactly the right one.
+ * The one-language-per-file constraint is the same rule the JSON content obeys,
+ * just enforced at file granularity instead of field granularity.
+ *
+ * ⚠️ Language-NEUTRAL board data (`fen`, `pgn`, `solution`, `onlyMove`) is
+ * duplicated across the pair, and `scripts/check-content.mjs` asserts the two
+ * files agree. Duplication is the price of one-language-per-file; an unchecked
+ * duplication would be a bug waiting to happen, so it is checked.
+ *
+ * Boards are placed inline with a `<!--board-->` marker in the body — see
+ * `LessonPage.astro`.
+ */
+const lessonBoard = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('position'),
+    fen: z.string().min(1),
+    caption: z.string(),
+    orientation: z.enum(['white', 'black']).optional(),
+  }),
+  z.object({
+    kind: z.literal('replay'),
+    /** Standard PGN, language-neutral, no `{...}` commentary. Rule 1. */
+    pgn: z.string().min(1),
+    caption: z.string().optional(),
+    orientation: z.enum(['white', 'black']).optional(),
+    /** ⚠️ Ply 0 is the FIRST half-move. See CLAUDE.md → PGN language rule. */
+    comments: z.array(z.object({ ply, text: z.string() })).default([]),
+  }),
+  z.object({
+    kind: z.literal('exercise'),
+    fen: z.string().min(1),
+    solution: z.array(uciMove).min(1),
+    opponentReplies: z.array(uciMove).default([]),
+    onlyMove: z.boolean().default(false),
+    task: z.string(),
+    hint: z.string(),
+    orientation: z.enum(['white', 'black']).optional(),
+  }),
+]);
+
+const lessons = defineCollection({
+  loader: glob({
+    base: './src/content/lessons',
+    pattern: '**/*.{md,mdx}',
+    /**
+     * ⚠️ WITHOUT THIS, THE PAIR COLLIDES AND ONE LANGUAGE VANISHES.
+     *
+     * The default id generator treats `.fr` / `.en` as part of the extension, so
+     * `occuper-le-centre.fr.md` and `occuper-le-centre.en.md` both reduce to the
+     * id `occuper-le-centre` — the second silently overwrites the first, and the
+     * site ships one language with no error beyond a build WARNING that is easy
+     * to scroll past.
+     *
+     * Keeping the full relative path (minus the `.md`) makes the locale part of
+     * the id, which is the whole point of the naming convention.
+     */
+    generateId: ({ entry }) => entry.replace(/\.mdx?$/, ''),
+  }),
+  schema: z.object({
+    /** The course this belongs to — matches a `cours` slug. */
+    course: slug,
+    /** Lesson slug, shared by the `.fr.md` / `.en.md` pair. */
+    slug,
+    /** Position within the course. Contiguous from 1; the checker enforces it. */
+    order: z.number().int().positive(),
+    lang: z.enum(['fr', 'en']),
+    title: z.string(),
+    summary: z.string(),
+    boards: z.array(lessonBoard).default([]),
+    draft: z.boolean().default(false),
+  }),
+});
+
 /* ──────────────────────────── tutoriel ───────────────────────────── */
 
 /**
@@ -284,4 +366,4 @@ const agenda = defineCollection({
   }),
 });
 
-export const collections = { traps, cours, exercices, tutoriel, agenda };
+export const collections = { traps, cours, exercices, lessons, tutoriel, agenda };
