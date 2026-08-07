@@ -267,8 +267,16 @@ cannot judge whether the teaching is correct.
 - [ ] Lesson 4: does the Qh5 line fairly represent why an early queen is bad?
 - [ ] Lesson 5: are the three openings the right three for a beginner, and are
       the stated plans accurate?
-- [ ] Lesson 6 exercise C: the task says "the move you must NOT play is the
-      queen", but the exercise accepts **only** `Nf3` — see the report
+- [ ] ⚠️ **Lesson 5, ENGLISH — read this one properly.** The FR is Seàn's; the
+      **EN prose was written by Claude**, because the brief supplied an
+      instruction ("same three sections, translated natively") rather than copy.
+      It has had no human read at all. Check it says the same things as the FR,
+      and that it reads as English rather than as a translation.
+- [ ] Lesson 6 exercise C now asks for a developing move and accepts `Nf3`
+      permissively — confirm the task and the accepted answer agree
+- [ ] Only ONE exercise in the course is `onlyMove: true` (lesson 3, castling).
+      Play a different legal move in any other exercise: it must say "not the
+      line we had in mind", never that you are wrong
 - [ ] Cross-links land: lesson 4 → Légal's mate, lesson 6 → exercises and the
       beginner tutorial
 
