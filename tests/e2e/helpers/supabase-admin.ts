@@ -70,10 +70,12 @@ export async function createConfirmedUser(opts: {
      the service role deliberately, which is the same escape hatch documented in
      docs/ADMIN.md. */
   if (opts.role && opts.role !== 'eleve') {
-    const { error: roleError } = await sb
-      .from('profiles')
-      .update({ role: opts.role })
-      .eq('id', data.user.id);
+    /* Via the sanctioned RPC: the guard trigger refuses a direct role UPDATE
+       even for service_role, because auth.uid() is NULL. See migration 0002. */
+    const { error: roleError } = await sb.rpc('admin_set_role', {
+      target_id: data.user.id,
+      new_role: opts.role,
+    });
     if (roleError) throw new Error(`createConfirmedUser role: ${roleError.message}`);
   }
 
@@ -88,9 +90,30 @@ export async function createConfirmedUser(opts: {
  * URL fragment — so the code path under test is the real one even though the
  * delivery is not.
  */
-export async function magicLinkFor(email: string): Promise<string> {
+/**
+ * ⚠️ `redirectTo` is NOT optional in practice.
+ *
+ * Without it, Supabase stamps the link with the project's **Site URL**, which on
+ * a fresh project is `http://localhost:3000` — so the browser follows the verify
+ * link and lands somewhere that is not the site under test, and the spec times
+ * out waiting for `/compte/` with nothing explaining why.
+ *
+ * Passing it explicitly keeps the test on the real path: the browser follows the
+ * genuine `/auth/v1/verify` link, Supabase redirects to our callback, and the
+ * tokens arrive in the URL fragment exactly as they would from a real inbox.
+ * (The target must be in the project's redirect allow-list; verified honoured
+ * for `http://localhost:4321/auth/callback`.)
+ */
+export async function magicLinkFor(
+  email: string,
+  redirectTo = 'http://localhost:4321/auth/callback',
+): Promise<string> {
   const sb = adminClient();
-  const { data, error } = await sb.auth.admin.generateLink({ type: 'magiclink', email });
+  const { data, error } = await sb.auth.admin.generateLink({
+    type: 'magiclink',
+    email,
+    options: { redirectTo },
+  });
   if (error || !data.properties) throw new Error(`magicLinkFor: ${error?.message ?? 'no link'}`);
   return data.properties.action_link;
 }

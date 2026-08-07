@@ -1,5 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
-import { assertNotProduction } from './tests/e2e/env';
+import { assertNotProduction, loadE2EEnv } from './tests/e2e/env';
 
 /**
  * ⚠️ THE PRODUCTION-SAFETY INTERLOCK, AT CONFIG LOAD.
@@ -134,5 +134,33 @@ export default defineConfig({
     timeout: 180_000,
     stdout: 'ignore',
     stderr: 'pipe',
+    /**
+     * ⚠️ THE SITE UNDER TEST MUST NEVER POINT AT PRODUCTION.
+     *
+     * `PUBLIC_*` variables are baked into the bundle at build time, and Astro
+     * reads them from `.env.local` — which holds the PRODUCTION project, because
+     * that is what a real deploy build needs. Without this override, every
+     * Playwright run would serve a site whose Supabase client is wired to the
+     * live database. Nothing exploits that today (the signed-in specs are gated
+     * on `.env.test`), but a single future spec that signs in through the UI
+     * would create a real account in production, and the interlock would not
+     * catch it: `assertNotProduction()` inspects `.env.test`, and knows nothing
+     * about what the BUILD embedded.
+     *
+     * Vite gives an existing `process.env` entry precedence over a `.env` file
+     * for the same prefixed key, so passing them here wins over `.env.local`.
+     * `tests/e2e/auth.spec.ts` asserts the built bundle carries the test ref —
+     * the mechanism is verified rather than assumed.
+     *
+     * Empty strings when `.env.test` is absent: the build then has no Supabase
+     * config at all, which is strictly safer than inheriting production.
+     */
+    env: (() => {
+      const e = loadE2EEnv();
+      return {
+        PUBLIC_SUPABASE_URL: e?.supabaseUrl ?? '',
+        PUBLIC_SUPABASE_ANON_KEY: e?.anonKey ?? '',
+      };
+    })(),
   },
 });

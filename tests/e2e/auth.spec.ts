@@ -95,6 +95,47 @@ test.describe('guest — zero Supabase requests', () => {
   });
 });
 
+test.describe('the build under test', () => {
+  /**
+   * ⚠️ THE SITE UNDER TEST MUST CARRY TEST CREDENTIALS, NOT PRODUCTION ONES.
+   *
+   * `PUBLIC_*` values are baked into the bundle at build time from `.env.local`,
+   * which holds PRODUCTION because that is what a deploy needs. The webServer in
+   * `playwright.config.ts` overrides them; this asserts the override actually
+   * took, by reading the built JavaScript rather than trusting the mechanism.
+   *
+   * Without it, a future spec that signs in through the UI would create a real
+   * account in the live database — and `assertNotProduction()` would not catch
+   * it, because that guard inspects `.env.test` and knows nothing about what the
+   * build embedded.
+   */
+  test('the built bundle carries the TEST project ref, never production', async () => {
+    test.skip(!configured, 'no .env.test — nothing to compare against');
+
+    const { readdirSync, readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const env = loadE2EEnv();
+    const dir = 'dist/_astro';
+
+    const bundles = readdirSync(dir)
+      .filter((f) => f.endsWith('.js'))
+      .map((f) => ({ name: f, text: readFileSync(join(dir, f), 'utf8') }));
+    expect(bundles.length, 'no built JS found — was the site built?').toBeGreaterThan(0);
+
+    const withTest = bundles.filter((b) => b.text.includes(env!.testRef)).map((b) => b.name);
+    const withProd = bundles.filter((b) => b.text.includes(env!.productionRef)).map((b) => b.name);
+
+    expect(
+      withProd,
+      `the PRODUCTION ref "${env!.productionRef}" is baked into: ${withProd.join(', ')}`,
+    ).toEqual([]);
+    expect(
+      withTest.length,
+      `the TEST ref "${env!.testRef}" is in no bundle — the webServer override did not apply`,
+    ).toBeGreaterThan(0);
+  });
+});
+
 test.describe('the sign-in page', () => {
   test('renders a form and asks for nothing until submitted', async ({ page }) => {
     const hits: string[] = [];

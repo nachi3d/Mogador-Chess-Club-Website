@@ -23,6 +23,8 @@ export interface E2EEnv {
   readonly supabaseUrl: string;
   readonly anonKey: string;
   readonly serviceRoleKey: string;
+  /** Direct Postgres password, for `supabase db push` / seeding. */
+  readonly dbPassword: string;
   readonly productionRef: string;
   readonly emailDomain: string;
   readonly testRef: string;
@@ -64,20 +66,44 @@ export function projectRefFromUrl(url: string): string | null {
   }
 }
 
+/**
+ * Read the first key that is actually present.
+ *
+ * `TEST_`-prefixed names are preferred and are the documented convention: a
+ * file where every credential literally says TEST is much harder to misread
+ * than one whose keys are indistinguishable from `.env.local`'s. The unprefixed
+ * spellings are still accepted so an older `.env.test` keeps working.
+ *
+ * ⚠️ `SUPABASE_PRODUCTION_REF` is deliberately NOT prefixed and NOT derived from
+ * anything. It is the one value here that describes production, and the
+ * interlock's entire judgement rests on it being stated explicitly by a human.
+ */
+function pick(raw: Record<string, string>, ...names: string[]): string {
+  for (const n of names) if (raw[n]) return raw[n];
+  return '';
+}
+
 export function loadE2EEnv(): E2EEnv | null {
   if (!existsSync(ENV_TEST_PATH)) return null;
   const raw = parseEnvFile(readFileSync(ENV_TEST_PATH, 'utf8'));
 
-  const supabaseUrl = raw.PUBLIC_SUPABASE_URL ?? '';
+  const supabaseUrl = pick(raw, 'TEST_PUBLIC_SUPABASE_URL', 'PUBLIC_SUPABASE_URL');
   const testRef = projectRefFromUrl(supabaseUrl);
   if (!testRef) return null;
 
   return {
     supabaseUrl,
-    anonKey: raw.PUBLIC_SUPABASE_ANON_KEY ?? '',
-    serviceRoleKey: raw.SUPABASE_SERVICE_ROLE_KEY ?? '',
+    anonKey: pick(raw, 'TEST_PUBLIC_SUPABASE_ANON_KEY', 'PUBLIC_SUPABASE_ANON_KEY'),
+    serviceRoleKey: pick(
+      raw,
+      'TEST_SUPABASE_SERVICE_ROLE_KEY',
+      'TEST_SUPABASE_SERVICE_ROLE',
+      'SUPABASE_SERVICE_ROLE_KEY',
+      'SUPABASE_SERVICE_ROLE',
+    ),
+    dbPassword: pick(raw, 'TEST_SUPABASE_PASSWORD', 'SUPABASE_PASSWORD'),
     productionRef: raw.SUPABASE_PRODUCTION_REF ?? '',
-    emailDomain: raw.E2E_EMAIL_DOMAIN ?? 'mcc-e2e.test',
+    emailDomain: pick(raw, 'E2E_EMAIL_DOMAIN') || 'mcc-e2e.test',
     testRef,
   };
 }

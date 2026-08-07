@@ -38,8 +38,20 @@ const sb = createClient(env.supabaseUrl, env.serviceRoleKey, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
 
-/** Every seeded address sits inside the purge pattern so cleanup finds them. */
-const at = (local) => `${local}@${env.emailDomain}`;
+/**
+ * ⚠️ SEED ACCOUNTS USE THEIR OWN DOMAIN, DELIBERATELY OUTSIDE THE PURGE PATTERN.
+ *
+ * The e2e purge deletes every user matching E2E_EMAIL_DOMAIN, before AND after
+ * the suite. Seeding into that domain means the first test run silently destroys
+ * the sample data — which is exactly what happened the first time: seed, run the
+ * suite, and the project comes back with zero users.
+ *
+ * Ephemeral test users and persistent sample data have different lifecycles, so
+ * they get different domains. These are re-created by re-running this script;
+ * nothing else touches them.
+ */
+const SEED_DOMAIN = 'mcc-seed.test';
+const at = (local) => `${local}@${SEED_DOMAIN}`;
 
 const PEOPLE = [
   { email: at('seed-admin'), name: 'Amina', role: 'admin', locale: 'fr' },
@@ -56,8 +68,20 @@ async function upsertPerson(person) {
   });
   if (error) {
     if (/already/i.test(error.message)) {
-      console.log(`  = ${person.email} (exists)`);
-      return null;
+      /* Re-apply the role rather than skipping it. A previous run that created
+         the user but failed before the role was set would otherwise leave a
+         "seed-admin" who is an élève — silently, and for good. */
+      const { data: list } = await sb.auth.admin.listUsers({ page: 1, perPage: 200 });
+      const found = (list?.users ?? []).find((u) => u.email === person.email);
+      if (found && person.role !== 'eleve') {
+        const { error: roleError } = await sb.rpc('admin_set_role', {
+          target_id: found.id,
+          new_role: person.role,
+        });
+        if (roleError) throw new Error(`${person.email} role: ${roleError.message}`);
+      }
+      console.log(`  = ${person.email} (exists, role re-applied: ${person.role})`);
+      return found?.id ?? null;
     }
     throw new Error(`${person.email}: ${error.message}`);
   }
@@ -65,10 +89,12 @@ async function upsertPerson(person) {
   /* The trigger has already made the profile. Role is service-role-only — the
      client can never do this (see docs/ADMIN.md). */
   if (person.role !== 'eleve') {
-    const { error: roleError } = await sb
-      .from('profiles')
-      .update({ role: person.role })
-      .eq('id', data.user.id);
+    /* The guard trigger refuses a direct role UPDATE even for service_role —
+       auth.uid() is NULL there. admin_set_role() is the sanctioned path (0002). */
+    const { error: roleError } = await sb.rpc('admin_set_role', {
+      target_id: data.user.id,
+      new_role: person.role,
+    });
     if (roleError) throw new Error(`${person.email} role: ${roleError.message}`);
   }
   console.log(`  + ${person.email} (${person.role})`);
@@ -116,6 +142,9 @@ async function main() {
     },
   ];
 
+  /* Idempotent: clear previous seed sessions so re-running does not stack up
+     duplicates. Test project only — the interlock above guarantees that. */
+  await sb.from('sessions').delete().not('id', 'is', null);
   const { error } = await sb.from('sessions').insert(sessions);
   if (error) throw new Error(`sessions: ${error.message}`);
   console.log(`  + ${sessions.length} sessions (2 published, 1 draft)`);
