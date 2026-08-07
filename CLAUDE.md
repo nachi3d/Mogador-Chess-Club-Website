@@ -430,6 +430,30 @@ Piece letters in the notation stay English (`N`, `B`, `Q`) — that is what "sta
 
 ## Content model (Astro content collections)
 
+> ### ⚠️ PLY 0 IS THE FIRST HALF-MOVE. READ THIS BEFORE WRITING ANY COMMENTARY.
+>
+> Every `ply` in this repo — `moveComments`, `shapes`, lesson board `comments` —
+> is **0-based**:
+>
+> | ply | move |
+> |---|---|
+> | `0` | `1. e4` — White's first |
+> | `1` | `1... e5` — Black's reply |
+> | `2` | `2. Nf3` |
+> | `-1` | the starting position, before any move |
+>
+> **A comment on White's *n*-th move is at ply `2(n-1)`; on Black's, `2(n-1)+1`.**
+>
+> This is the single most repeated authoring error in the project. A batch
+> written elsewhere used 1-based numbering throughout: two comments overflowed
+> the PGN and failed the build, and **eleven attached silently to the wrong
+> move** — "the knight comes out and attacks e5" rendered on Black's reply
+> instead. It looks completely normal on the page.
+>
+> `scripts/check-content.mjs` catches an overflow. **It cannot catch an
+> off-by-one that still lands inside the game** — only reading the replayer can.
+> So: count from zero, and step through the board once before merging.
+
 ```
 src/content.config.ts   # ⚠️ Astro 7 location — NOT src/content/config.ts
 src/content/

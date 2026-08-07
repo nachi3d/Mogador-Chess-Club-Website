@@ -5,7 +5,7 @@ order: 6
 lang: "fr"
 title: "Récapitulatif"
 summary: "Quatre règles, dans l’ordre — et trois exercices pour vérifier."
-boards: [{"kind":"exercise","opponentReplies":[],"fen":"rnbqkb1r/pppp1ppp/5n2/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3","solution":["f1c4"],"onlyMove":false,"task":"Exercice A — trouve le coup de développement.","hint":"Ton dernier fou d’aile roi. Vise la case la plus fragile."},{"kind":"exercise","opponentReplies":[],"fen":"r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 4 3","solution":["f1c4"],"onlyMove":false,"task":"Exercice B — trouve le coup de développement.","hint":"Sors le fou, prépare le roque."},{"kind":"exercise","opponentReplies":[],"fen":"rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2","solution":["g1f3"],"onlyMove":true,"task":"Exercice C — le coup que tu ne dois PAS jouer est la dame. Joue le bon.","hint":"Pas la dame. Jamais la dame maintenant."}]
+boards: [{"kind":"exercise","opponentReplies":[],"fen":"rnbqkb1r/pppp1ppp/5n2/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3","solution":["f1c4"],"onlyMove":false,"task":"Exercice A — trouve le coup de développement.","hint":"Ton dernier fou d’aile roi. Vise la case la plus fragile."},{"kind":"exercise","opponentReplies":[],"fen":"r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 4 3","solution":["f1c4"],"onlyMove":false,"task":"Exercice B — trouve le coup de développement.","hint":"Sors le fou, prépare le roque."},{"kind":"exercise","fen":"rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2","solution":["g1f3"],"opponentReplies":[],"onlyMove":false,"task":"Exercice C — développe, ne sors pas la dame","hint":"Une pièce mineure vers le centre. La dame attendra son tour."}]
 draft: false
 ---
 

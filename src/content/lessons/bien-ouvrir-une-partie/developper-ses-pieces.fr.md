@@ -5,7 +5,7 @@ order: 2
 lang: "fr"
 title: "Développer ses pièces"
 summary: "Une pièce à la fois, une seule fois, les cavaliers d’abord — et jamais sur le bord."
-boards: [{"kind":"replay","pgn":"1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. O-O Nf6","caption":"Développement modèle des Blancs.","comments":[{"ply":2,"text":"Le cavalier sort vers le centre et attaque déjà le pion e5. Sortir en attaquant, c’est gagner un temps."},{"ply":4,"text":"Le fou vise f7, la case la plus fragile du camp noir : elle n’est défendue que par le roi."},{"ply":6,"text":"Trois pièces sorties, le roi à l’abri. Quatre coups, aucun gaspillé."}]},{"kind":"exercise","fen":"rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2","solution":["g1f3"],"opponentReplies":[],"onlyMove":true,"task":"Les Blancs viennent de jouer 1.e4 et les Noirs 1...e5. Sors ton cavalier sur sa meilleure case.","hint":"Vers le centre, et il attaque quelque chose en arrivant."}]
+boards: [{"kind":"replay","pgn":"1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. O-O Nf6","caption":"Développement modèle des Blancs.","comments":[{"ply":2,"text":"Le cavalier sort vers le centre et attaque déjà le pion e5. Sortir en attaquant, c’est gagner un temps."},{"ply":4,"text":"Le fou vise f7, la case la plus fragile du camp noir : elle n’est défendue que par le roi."},{"ply":6,"text":"Trois pièces sorties, le roi à l’abri. Quatre coups, aucun gaspillé."}]},{"kind":"exercise","fen":"rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2","solution":["g1f3"],"opponentReplies":[],"onlyMove":false,"task":"Les Blancs viennent de jouer 1.e4 et les Noirs 1...e5. Sors ton cavalier sur sa meilleure case.","hint":"Vers le centre, et il attaque quelque chose en arrivant."}]
 draft: false
 ---
 

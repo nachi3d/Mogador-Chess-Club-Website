@@ -50,8 +50,25 @@ Six lessons on the opening, both locales. Content batch; no architecture change.
   targets index pages and diagram galleries; a long-form lesson needs a board
   per idea, and each is `client:visible`.
 
+#### Fixed after review
+
+- **Lesson 6, Exercise C replaced.** Its task and its accepted answer
+  contradicted each other — titled "the move you must NOT play" while accepting
+  only the move you *should* play. It now asks for a developing move.
+- **`onlyMove` relaxed to `false` on every developing-move exercise.** After
+  1.e4 e5, `Nc3`, `Bc4` and `Bb5` are all perfectly good; telling a beginner
+  they are wrong is exactly what the exercise-validation rule exists to prevent,
+  and that rule outranks authored metadata. Only lesson 3 keeps
+  `onlyMove: true`, and correctly — castling really is the one move that puts
+  that king safe. Exactly one `true` in the course; the batch is now consistent.
+- The **ply-indexing convention** is now stated at the top of CLAUDE.md's
+  content model section, so a batch authored elsewhere cannot repeat the
+  off-by-one.
+
 ⚠️ **Chess accuracy is Seàn's review.** The checker proves legality and ply
-bounds, nothing more — see the report and `docs/MANUAL-TESTS.md`.
+bounds, nothing more — see the report and `docs/MANUAL-TESTS.md`. Lesson 5's
+**English prose was written by Claude** (the brief supplied an instruction
+rather than copy) and has had no human read.
 
 ---
 
