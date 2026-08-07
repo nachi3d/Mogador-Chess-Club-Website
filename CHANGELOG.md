@@ -11,6 +11,50 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### Course 1 — "Bien ouvrir une partie"
+
+Six lessons on the opening, both locales. Content batch; no architecture change.
+
+#### Added
+
+- **Per-locale Markdown lesson bodies** — deferred since Session 2, implemented
+  here. `src/content/lessons/<course>/<lesson>.<locale>.md`, a `lessons`
+  collection, and routes at `/cours/<course>/` and `/cours/<course>/<lesson>/`.
+- Course 1's six lessons: occupying the centre, developing, castling early,
+  keeping the queen home, three openings to start with, and a recap with three
+  exercises. Nine boards in total — five replayers and eight exercises across
+  the course.
+- `check-content.mjs` extended for the batch.
+
+#### Notes
+
+- ⚠️ **Every `moveComments` ply in the brief was off by one**, and this is the
+  finding that mattered most. The copy numbered plies from 1; the schema numbers
+  from 0 (`ply 0` is the first half-move). Two overflowed the PGN and would have
+  failed the build — the other **eleven would have attached silently to the
+  wrong move**, so "the knight comes out and attacks e5" would have appeared on
+  Black's `Nc6`. All thirteen were shifted by −1; the prose is untouched. The
+  checker now catches this class of error with a message that names the cause.
+- **The fr/en pair collided in the glob loader.** `.fr` / `.en` are treated as
+  part of the extension, so both files reduced to the same id and one language
+  silently overwrote the other — surfacing only as a build *warning*. A custom
+  `generateId` keeps the locale in the id; a spec asserts each locale renders
+  its own prose.
+- **Boards are placed inline** by splitting the rendered HTML on a
+  `<!--board-->` marker. MDX would be the "proper" answer and was NOT added —
+  it is an integration, and this batch was scoped to content.
+- The two authored **static positions became short replays** that reach them
+  (verified to land on the exact FENs). There is no static-FEN renderer, and
+  adding one would have meant changing the board components.
+- Lesson 5 mounts **three replayers on one page**. The "not N live boards" rule
+  targets index pages and diagram galleries; a long-form lesson needs a board
+  per idea, and each is `client:visible`.
+
+⚠️ **Chess accuracy is Seàn's review.** The checker proves legality and ply
+bounds, nothing more — see the report and `docs/MANUAL-TESTS.md`.
+
+---
+
 ### Beginner tutorial — `/apprendre-les-bases/`
 
 Thirteen guided steps for someone who has never played chess. Touches none of

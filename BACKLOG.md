@@ -40,7 +40,9 @@ with itself.
 | Item | Status | Note |
 |---|---|---|
 | ~~**Beginner tutorial** (`/apprendre-les-bases/`)~~ | **done** | 13 steps, both locales, shipped this session. |
-| **Course detail pages** | `backlog` | Body format is decided (per-locale Markdown pairs) and so is ordering (`order` in frontmatter). Only lesson granularity is open — one page per course, or a `lessons` collection with a `reference('cours')` back-link. |
+| ~~**Course detail pages**~~ | **done** | Per-locale Markdown pairs shipped with course 1. A `lessons` collection keyed by `course` + `slug` + `lang`; routes are `/cours/<course>/<lesson>/`. |
+| **Courses 2+** | `backlog` | Course 1 ("Bien ouvrir une partie") is the only one written. The structure is proven; the remaining work is authoring. |
+| **MDX for lesson bodies** | `backlog` | Boards are currently placed with a `<!--board-->` marker split out of the rendered HTML. It works and costs nothing, but MDX would allow real components inline. Only worth it when a lesson needs something a marker cannot express. |
 | **Engine-backed validator for `onlyMove: false`** | `backlog` | The remaining half of the exercise-validation rule. Stockfish is here now; this is what finally lets a winning alternative be accepted instead of "not the line we had in mind". |
 | **YouTube facade rendering** | `dormant` | The `youtube` field exists on `traps` and `cours` and validates an 11-character ID. Nothing renders it. When it lands it MUST be a click-to-load facade on `youtube-nocookie.com` — a plain iframe would break the zero-third-party-request rule the specs assert. |
 | **Printable handouts from the PGN** | `backlog` | — |

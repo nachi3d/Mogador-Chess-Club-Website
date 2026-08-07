@@ -228,6 +228,52 @@ On any exercise, and on `/jouer/` — **without touching the board at all**:
 
 ---
 
+## 6b. Course 1 — `/cours/bien-ouvrir-une-partie/`
+
+### Structure
+
+- [ ] The course index lists **six** lessons, numbered, in order, with no board
+- [ ] `/en/cours/bien-ouvrir-une-partie/` shows the same six in English
+- [ ] Each lesson has prev/next; lesson 1 has no prev, lesson 6 no next
+- [ ] Boards appear **inside** the prose, after the paragraph they illustrate —
+      not all bunched at the end
+- [ ] Lesson 5 has three separate replayers, one per opening
+
+### ⚠️ The locale-pair check
+
+The `.fr.md` / `.en.md` files collide in the loader unless `generateId` keeps the
+locale. If that regresses, both URLs render the **same** language.
+
+- [ ] `/cours/bien-ouvrir-une-partie/roquer-tot/` is in French
+- [ ] `/en/cours/bien-ouvrir-une-partie/roquer-tot/` is in English
+- [ ] Spot-check one more pair — the bodies must genuinely differ
+
+### The boards
+
+- [ ] Every replayer steps through with the arrows/next button, and the
+      commentary changes with the move
+- [ ] **Each comment describes the move actually on the board.** This is the
+      one to read carefully: an off-by-one would put the right words on the
+      wrong move, and it would look completely normal
+- [ ] Lesson 6's three exercises each solve, and the ticks persist on reload
+- [ ] The keyboard field works on every exercise
+
+### ⚠️ Chess accuracy — Seàn's review
+
+The checker proves the moves are **legal** and the plies are **in range**. It
+cannot judge whether the teaching is correct.
+
+- [ ] Lesson 2: is `Nf3` genuinely the best knight move to recommend here?
+- [ ] Lesson 4: does the Qh5 line fairly represent why an early queen is bad?
+- [ ] Lesson 5: are the three openings the right three for a beginner, and are
+      the stated plans accurate?
+- [ ] Lesson 6 exercise C: the task says "the move you must NOT play is the
+      queen", but the exercise accepts **only** `Nf3` — see the report
+- [ ] Cross-links land: lesson 4 → Légal's mate, lesson 6 → exercises and the
+      beginner tutorial
+
+---
+
 ## 7a. The beginner tutorial — `/apprendre-les-bases/`
 
 Written for someone who has never played. The chess is machine-checked; **the

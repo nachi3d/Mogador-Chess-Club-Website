@@ -29,14 +29,6 @@ import { settleReveals } from './helpers/reveal';
 
 const configured = isSupabaseConfigured();
 
-/** Every Supabase origin this site may ever contact. No wildcards, on purpose. */
-function supabaseOrigins(): string[] {
-  const env = loadE2EEnv();
-  if (!env) return [];
-  const host = new URL(env.supabaseUrl).host;
-  return [`https://${host}`, `wss://${host}`];
-}
-
 /** Any request that looks like Supabase, whether or not a project is configured. */
 function isSupabaseRequest(url: string): boolean {
   return /supabase\.(co|in)|supabase-js/i.test(url);
@@ -257,7 +249,7 @@ test.describe('signed in', () => {
    * does not offer it" is worth nothing. A reader with devtools can call
    * PostgREST directly. Column-level GRANTs plus a trigger must refuse.
    */
-  test('a client cannot promote itself to admin', async ({ page }) => {
+  test('a client cannot promote itself to admin', async () => {
     const email = e2eEmail('escalate');
     const user = await createConfirmedUser({ email, displayName: 'Sara' });
     created.push(user.id);

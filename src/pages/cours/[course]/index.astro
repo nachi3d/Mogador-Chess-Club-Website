@@ -1,0 +1,25 @@
+---
+/** Course detail — the lessons of one course. Segment is structural. */
+import { getCollection } from 'astro:content';
+import CourseDetailPage from '@components/pages/CourseDetailPage.astro';
+
+export async function getStaticPaths() {
+  const courses = await getCollection('cours', ({ data }) => !data.draft);
+  const all = await getCollection('lessons', ({ data }) => !data.draft);
+  return courses
+    .map((course) => ({
+      params: { course: course.data.slug },
+      props: {
+        course,
+        lessons: all
+          .filter((l) => l.data.course === course.data.slug && l.data.lang === 'fr')
+          .sort((a, b) => a.data.order - b.data.order),
+      },
+    }))
+    .filter((r) => r.props.lessons.length > 0);
+}
+
+const { course, lessons } = Astro.props;
+---
+
+<CourseDetailPage locale="fr" course={course} lessons={lessons} />
