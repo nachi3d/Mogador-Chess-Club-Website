@@ -114,6 +114,41 @@ look fine to the keyboard. Use fingers only.
 - [ ] A course with no lessons yet is NOT clickable (it has no page)
 
 ---
+## 1d. Which board do I play on?
+
+### ⚠️ The two-second test — on a real phone
+
+Open a lesson that has two boards (course 1, lesson 1) and DO NOT read carefully.
+
+- [ ] Within two seconds, is it obvious which board you are meant to play on?
+- [ ] The demonstration says *Démonstration — utilise les flèches* and looks quiet
+- [ ] The exercise says *À toi de jouer* and looks like the active one
+- [ ] If you hand the phone to someone who has never seen the site, do they
+      reach for the right board? That is the actual test
+
+### The demonstration
+
+- [ ] *Lancer la démonstration* is an obvious, full-size, filled button
+- [ ] Pressing it plays the first move and the button disappears
+- [ ] The small arrow controls remain usable throughout
+- [ ] Trying to drag a piece on the demonstration does nothing, and no squares
+      light up
+- [ ] The mouse cursor over the demonstration is a normal arrow, not a pointer
+- [ ] Arrow keys still step through it
+
+### The exercise
+
+- [ ] Tapping a piece lights its legal squares, and the move can be completed
+- [ ] Typing a move still works
+- [ ] Both labels are readable in LIGHT and DARK mode
+
+### Single-board pages
+
+- [ ] /pieges/[slug] shows the demonstration tag (deliberate — the same
+      "can I touch this?" question applies with only one board)
+- [ ] /exercices/[slug] shows the *À toi de jouer* tag
+
+---
 ## 2. Legal, licence and credits
 
 - [ ] `/mentions-legales/` and `/en/mentions-legales/` both load

@@ -593,6 +593,80 @@ Detail routes take their URL from the content's **`slug` field, not the filename
 
 ---
 
+## Demonstration boards vs boards you play on
+
+A lesson can carry a replayer that DEMONSTRATES and an exercise board that
+EXPECTS A MOVE. Nothing distinguished them, and the site's own author reached
+for the pieces on a demonstration board. A twelve-year-old will do it every time.
+
+Every board now carries a tag above it:
+
+| Board | Tag | Weight |
+|---|---|---|
+| replay | *Démonstration — utilise les flèches* | 2px hairline, secondary text |
+| exercise | *À toi de jouer* | 3px accent border, accent text, filled dot |
+
+### ⚠️ The tag is REAL TEXT, and that is the point
+
+An icon or a colour alone leaves a screen-reader user with exactly the question
+the change exists to answer — "may I move these pieces?" — and no way to answer
+it. `board-affordance.spec.ts` asserts both tags have non-empty text, so a
+future "tidy-up" into pseudo-element content fails there.
+
+Colour is the LAST of four signals: the sentence, the border weight, the accent
+colour, and the dot. Someone who cannot distinguish brass from a hairline still
+reads *À toi de jouer*.
+
+### Scope: labelled EVERYWHERE, including single-board pages
+
+The tags live in `ReplayBoard.astro` and `ExerciseBoard.astro`, so every call
+site gets them: lessons, tutorial steps, `/pieges/[slug]`, `/exercices/[slug]`.
+
+That is a deliberate choice over labelling only pages that hold both. The
+confusion is not "which of these two is mine?" — it is **"may I touch this?"**,
+and that question exists just as much on a trap page whose only board is a
+replayer. That is precisely the mistake that prompted this work.
+
+### The launch control
+
+Four small glyph buttons did not read as "press me". Before the demonstration
+has been started there is one useful action, so it is offered as one filled,
+named, ≥44px control — *Lancer la démonstration* — which disappears once the
+first move is made.
+
+⚠️ **The compact controls are NOT hidden beforehand.** "Collapsing to the compact
+set" happens by the launch button going away, not by removing the others. Hiding
+them made "jump to the end" unreachable as a first action and broke eight
+existing navigation specs that legitimately expect the controls on arrival. The
+launch button is an additional entry point, never a gate.
+
+Keyboard behaviour is untouched: the arrow keys drive the replayer whether or not
+the button has been used, and its handler is bound to the document.
+
+### Cursor: already correct, deliberately unchanged
+
+Chessground scopes `cursor: pointer` to `.cg-wrap.manipulable cg-board`, and it
+only adds `manipulable` when the board is not `viewOnly`. Verified: a replay
+board computes `auto`, an exercise board `pointer`. No change was needed; a spec
+now pins it so it cannot drift.
+
+### ⚠️ `--mcc-border` DOES NOT EXIST — and silently kills a border
+
+The tokens are `--mcc-border-subtle` and `--mcc-border-strong`. There has never
+been a plain `--mcc-border`.
+
+An unknown custom property makes the whole `border-left: 2px solid var(...)`
+shorthand invalid at computed-value time, so `border-style` falls back to `none`
+and the width computes to **0px** — no error, no warning, just no border. Twelve
+occurrences across seven files had been rendering borderless since the sessions
+that introduced them: the home pillars, tutorial cards, lesson cards, course
+cards, the login panel, and more.
+
+All twelve now use `--mcc-border-subtle`. The affordance spec asserts both board
+borders have a non-zero width, which is the general shape of a guard against
+this: **assert the border RENDERED, not that the rule exists.**
+---
+
 ## Board coordinates live in an OUTER GUTTER (reversal)
 
 They used to be drawn on the squares. Readable on a desktop, poor on a phone:

@@ -92,6 +92,9 @@ const fr = {
   'replay.jumpTo': 'Aller au coup',
   'replay.commentary': 'Commentaire',
   'replay.intro': "Utilisez les flèches ← et → du clavier, ou cliquez un coup dans la liste.",
+  'replay.launch': 'Lancer la démonstration',
+  'board.tag.demo': 'Démonstration — utilise les flèches',
+  'board.tag.exercise': 'À toi de jouer',
   'replay.checkmate': 'Échec et mat',
   'replay.startLabel': 'Départ',
 
@@ -433,6 +436,9 @@ const en: Record<keyof typeof fr, string> = {
   'replay.jumpTo': 'Go to move',
   'replay.commentary': 'Commentary',
   'replay.intro': 'Use the ← and → arrow keys, or click a move in the list.',
+  'replay.launch': 'Play the demonstration',
+  'board.tag.demo': 'Demonstration — use the arrows',
+  'board.tag.exercise': 'Your turn',
   'replay.checkmate': 'Checkmate',
   'replay.startLabel': 'Start',
 

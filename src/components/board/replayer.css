@@ -169,3 +169,45 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
+
+/* ============================================================
+   THE LAUNCH CONTROL
+
+   Four small glyph buttons did not read as "press me" — the site's
+   author reached for the pieces instead. Before the demonstration
+   starts there is one useful action, so it gets one named, filled,
+   full-size control; afterwards the compact set takes over.
+   ============================================================ */
+.mcc-replay-launch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  /* ⚠️ 44px minimum touch target — the WCAG 2.5.5 figure, and the size a
+     thumb actually needs on a phone. Padding alone is not a guarantee, so the
+     floor is explicit. */
+  min-height: 44px;
+  padding: 0.6rem 1.25rem;
+  border: 1px solid var(--mcc-primary);
+  border-radius: var(--radius-card);
+  background-color: var(--mcc-primary);
+  color: var(--mcc-primary-contrast);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.mcc-replay-launch:hover {
+  background-color: var(--mcc-primary-hover);
+}
+
+.mcc-replay-launch:focus-visible {
+  outline: 2px solid var(--mcc-focus-ring);
+  outline-offset: 2px;
+}
+
+/* The compact controls need the same thumb allowance once they appear. */
+.mcc-controls button {
+  min-width: 44px;
+  min-height: 44px;
+}

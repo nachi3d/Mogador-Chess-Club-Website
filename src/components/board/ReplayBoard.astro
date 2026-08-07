@@ -65,17 +65,32 @@ const labels = {
   checkmate: t('replay.checkmate'),
   startLabel: t('replay.startLabel'),
   intro: t('replay.intro'),
+  launch: t('replay.launch'),
 };
 ---
 
-<ChessBoard
-  client:visible
-  mode="replay"
-  startFen={replay.startFen}
-  plies={replay.plies}
-  orientation={orientation}
-  coordinates={true}
-  comments={comments}
-  shapes={boardShapes}
-  labels={labels}
-/>
+{/*
+  ⚠️ THE TAG IS REAL TEXT, NOT DECORATION.
+
+  A lesson page can carry a replayer AND an exercise board, and nothing told
+  them apart — the site's own author reached for the pieces on a demonstration
+  board. A twelve-year-old will do it every time.
+
+  It is a <p> with a real sentence, so a screen reader announces which kind of
+  board it has arrived at. An icon or a colour alone would leave that reader
+  with the same question and no way to answer it.
+*/}
+<div class="mcc-board-block mcc-board-block-demo">
+  <p class="mcc-board-tag">{t('board.tag.demo')}</p>
+  <ChessBoard
+    client:visible
+    mode="replay"
+    startFen={replay.startFen}
+    plies={replay.plies}
+    orientation={orientation}
+    coordinates={true}
+    comments={comments}
+    shapes={boardShapes}
+    labels={labels}
+  />
+</div>
