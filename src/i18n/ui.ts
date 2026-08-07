@@ -61,6 +61,21 @@ const fr = {
 
   /* The three pillars. Order is the learning path, not the nav order:
      you learn, then you drill, then you play. */
+  /* ── The main menu (E5) ──────────────────────────────────────────
+     ⚠️ The menu entries themselves DO NOT get their own strings. They reuse
+     `nav.*` verbatim, because two different names for the same destination
+     reads as two different sites. Only the entries with no nav counterpart
+     are declared here. */
+  'menu.label': 'Menu principal',
+  'menu.resume': 'Reprendre',
+  /* Announced instead of the bare label once resolved, so a screen-reader user
+     hears WHERE they are being resumed to. `%s` is the step title. */
+  'menu.resume.aria': 'Reprendre — %s',
+  'menu.more': 'En savoir plus',
+  'home.about.title': 'Un club, et un site pour apprendre entre les séances',
+  'home.about.lede':
+    "Le Mogador Chess Club enseigne les échecs à Essaouira, aux enfants comme aux adultes. Ce site prolonge les séances : des cours progressifs, une bibliothèque de pièges d'ouverture, des exercices interactifs et une partie contre l'ordinateur — gratuitement, en français comme en anglais, sans compte et sans publicité.",
+  'home.about.cta': 'Commencer par les bases',
   'home.pillars.title': 'Trois façons de progresser',
   'home.pillar.learn.title': 'Apprendre',
   'home.pillar.learn.text':
@@ -413,6 +428,14 @@ const en: Record<keyof typeof fr, string> = {
   'home.cta.play': 'Play',
   'home.cta.traps': 'Explore traps',
 
+  'menu.label': 'Main menu',
+  'menu.resume': 'Resume',
+  'menu.resume.aria': 'Resume — %s',
+  'menu.more': 'Find out more',
+  'home.about.title': 'A club, and a site to learn between sessions',
+  'home.about.lede':
+    'Mogador Chess Club teaches chess in Essaouira, to children and adults alike. This site carries on between sessions: progressive courses, a library of opening traps, interactive exercises and a game against the computer — free, in English as well as French, with no account and no advertising.',
+  'home.about.cta': 'Start with the basics',
   'home.pillars.title': 'Three ways to get better',
   'home.pillar.learn.title': 'Learn',
   'home.pillar.learn.text': 'Step-by-step lessons, from moving the pieces to endgames.',
