@@ -13,21 +13,49 @@
 /* ---------- Sizing ---------- */
 /* The board is square, fills its column on mobile, and stops growing at a
    size where a piece is still comfortably tappable but the move list can sit
-   beside it on a desktop. --mcc-board-max is the token (34rem ≈ 544px). */
+   beside it on a desktop. --mcc-board-max is the token (34rem ≈ 544px).
+
+   ⚠️ THE FRAME IS DRAWN ON THIS ELEMENT, NOT ON THE CHESSGROUND HOST.
+
+   It used to sit on `.mcc-board-host`, which is the playing surface alone.
+   That was correct until the coordinates moved into gutters, which live in
+   THIS element's padding — outside the host. The frame then enclosed the
+   squares and excluded the gutters, so it cut across the rank labels and the
+   file labels hung below it. It also overhung the component's right edge by
+   exactly 6px: its own 2×3px border, added outside a content box that the
+   left padding had already narrowed.
+
+   The rule that keeps it honest: the frame belongs on the box that contains
+   EVERYTHING the component draws — surface plus both gutters. Padding is on
+   all four sides so the frame is centred on the component; the left and bottom
+   are occupied by coordinates, the top and right are matching breathing room.
+
+   `tests/e2e/board-frame.spec.ts` asserts the frame box and the component box
+   coincide, in every exercise state and at every size, so this cannot drift
+   apart again. */
 .mcc-board {
   width: 100%;
   max-width: var(--mcc-board-max);
   margin-inline: auto;
+  /* Uniform breathing room on all four sides, PLUS the gutter on the two sides
+     that carry coordinates. Without the uniform part the rank labels sit flush
+     against the frame on the left while the right has a full gutter of space —
+     enclosed, but visibly off-centre. */
+  padding:
+    var(--mcc-board-inset)
+    var(--mcc-board-inset)
+    calc(var(--mcc-board-inset) + var(--mcc-coord-gutter))
+    calc(var(--mcc-board-inset) + var(--mcc-coord-gutter));
+  border: 3px solid var(--mcc-board-border);
+  border-radius: 2px;
+  box-shadow: var(--shadow-board);
 }
 
 .mcc-board-host {
   width: 100%;
   aspect-ratio: 1 / 1;
-  border: 3px solid var(--mcc-board-border);
-  border-radius: 2px;
-  box-shadow: var(--shadow-board);
-  /* Chessground measures the element on init; without an explicit box it can
-     come up zero-height inside a flex/grid parent on first paint. */
+  /* No border and no shadow here any more — both moved to `.mcc-board` above.
+     Leaving a border here would draw a second frame around the squares alone. */
   display: block;
 }
 
@@ -108,10 +136,11 @@ cg-board square.oc.move-dest {
    Padding the wrapper shrinks the host instead, and the coordinates are then
    projected into that reserved space with negative insets. */
 .mcc-board {
+  /* The gutter, used by the frame padding above and by the coordinate tracks
+     below. Declared here beside the coordinate rules it explains. */
   --mcc-coord-gutter: 1.15rem;
-
-  padding-left: var(--mcc-coord-gutter);
-  padding-bottom: var(--mcc-coord-gutter);
+  /* Even margin between the frame and everything it encloses. */
+  --mcc-board-inset: 0.4rem;
 }
 
 .cg-wrap coords {

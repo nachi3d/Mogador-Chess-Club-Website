@@ -11,6 +11,40 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### The board frame encloses the whole component again
+
+#### Fixed
+
+- **The gold frame was drawn on the playing surface, not on the component.** It
+  had always been on `.mcc-board-host`, which was correct until the coordinates
+  moved into gutters living in `.mcc-board`'s padding — outside the host. The
+  frame then enclosed the squares and excluded both gutters.
+
+  Measured rather than eyeballed: the frame was inset 18.4px on the left and
+  bottom, cut across the rank labels, left the file labels 19px below it, and
+  overhung the component's right edge by exactly **6px** — its own 2×3px border,
+  added outside a content box the left padding had already narrowed.
+
+  The frame now sits on `.mcc-board`, the box that contains everything the
+  component draws. Padding is uniform on all four sides plus the gutter on the
+  two sides that carry coordinates: without the uniform part the rank labels sat
+  flush against the frame while the opposite side had a full gutter of space —
+  enclosed, but visibly off-centre. Gaps now agree within ~1.4px, which is
+  sub-pixel rounding of an 8-square grid.
+
+#### Notes
+
+- The new spec asserts the surface **and** both coordinate tracks lie inside the
+  frame, and that the four gaps agree — in idle, refused and solved states, at
+  two sizes. It deliberately does **not** assert that a border exists, which
+  would have passed throughout the bug. **Verified to fail on the old geometry**
+  before being kept.
+- CSS only — `BoardSurface.tsx` untouched, so the full-matrix trigger did not
+  fire. Chromium (240 passed) plus iPhone 13 (239 passed) were run, one project
+  at a time.
+
+---
+
 ### Telling a demonstration board from one you play on
 
 #### Added
