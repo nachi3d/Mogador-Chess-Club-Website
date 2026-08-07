@@ -72,7 +72,18 @@ export function parseReplay(pgn: string): Replay {
   game.loadPgn(pgn);
 
   const moves = game.history({ verbose: true });
-  const startFen = moves[0]?.before ?? new Chess().fen();
+  /**
+   * ⚠️ The fallback must be the LOADED game, not a fresh board.
+   *
+   * With moves, `moves[0].before` is the start position and everything is fine.
+   * With NO moves — a still diagram, a PGN carrying only `[SetUp]`/`[FEN]` —
+   * there is no `moves[0]`, and `new Chess().fen()` silently substitutes the
+   * standard opening position. The diagram then renders 32 pieces in their
+   * starting squares instead of the position it was written to show, with no
+   * error anywhere. `game.fen()` after `loadPgn` is the SetUp position, which is
+   * correct in both cases.
+   */
+  const startFen = moves[0]?.before ?? game.fen();
 
   const plies = moves.map((move, index): ReplayPly => {
     // Check state is asked of the resulting position rather than sniffed off

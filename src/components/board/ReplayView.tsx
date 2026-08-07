@@ -236,7 +236,7 @@ export default function ReplayView(props: ReplayViewProps) {
           Keyboard behaviour is untouched: the arrow keys still drive the
           replayer whether or not this button has been used.
         */}
-        {atStart ? (
+        {plies.length > 0 && atStart ? (
           <button
             type="button"
             class="mcc-replay-launch"
@@ -255,7 +255,7 @@ export default function ReplayView(props: ReplayViewProps) {
             navigation specs that legitimately expect the controls to be there
             on arrival. The launch button adds a prominent entry point; it does
             not gate the rest. */}
-        <div class="mcc-controls" role="group" aria-label={labels.controls}>
+        <div class="mcc-controls" role="group" aria-label={labels.controls} hidden={plies.length === 0}>
           <button
             type="button"
             onClick={() => step(() => START, true)}
@@ -294,7 +294,7 @@ export default function ReplayView(props: ReplayViewProps) {
           </button>
         </div>
 
-        <p class="mcc-replayer-hint">{labels.intro}</p>
+        {plies.length > 0 && <p class="mcc-replayer-hint">{labels.intro}</p>}
       </div>
 
       <div class="mcc-replayer-side">

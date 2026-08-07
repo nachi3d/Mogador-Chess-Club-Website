@@ -109,3 +109,48 @@ test.describe('course 1 — accessibility', () => {
     });
   }
 });
+
+test.describe('course 2 — still diagrams', () => {
+  /**
+   * ⚠️ A still diagram is a PGN carrying only `[SetUp]`/`[FEN]` and no moves.
+   *
+   * `parseReplay` fell back to `new Chess().fen()` when there were no moves, so
+   * every diagram silently rendered the STANDARD OPENING POSITION — 32 pieces in
+   * their starting squares — instead of the position it was written to show. No
+   * error, and it looks like a chessboard, so nothing but a piece count catches it.
+   */
+  test('a still diagram shows its own position, not the starting position', async ({ page }) => {
+    await page.goto('/cours/les-mats-elementaires/le-mat-du-couloir/');
+    const boards = page.locator('[data-testid="chessboard"]');
+    await boards.first().scrollIntoViewIfNeeded();
+    await boards.first().locator('cg-board').waitFor({ timeout: 20_000 });
+
+    const pieces = await boards.first().locator('piece').count();
+    expect(pieces, 'the diagram rendered the standard opening position').toBeLessThan(12);
+  });
+
+  /** With no moves there is nothing to launch or step through. */
+  test('a still diagram offers no playback controls', async ({ page }) => {
+    await page.goto('/cours/les-mats-elementaires/le-mat-du-couloir/');
+    await page.locator('[data-testid="chessboard"]').first().scrollIntoViewIfNeeded();
+    await page.locator('[data-testid="chessboard"] cg-board').first().waitFor({ timeout: 20_000 });
+    await expect(page.getByTestId('replay-launch')).toHaveCount(0);
+    await expect(page.locator('.mcc-controls').first()).toBeHidden();
+  });
+
+  /** A replay that DOES have moves keeps its launch control. */
+  test('a replay with moves still offers playback', async ({ page }) => {
+    await page.goto('/cours/les-mats-elementaires/le-mat-de-lescalier/');
+    await page.locator('[data-testid="chessboard"]').first().scrollIntoViewIfNeeded();
+    await page.locator('[data-testid="chessboard"] cg-board').first().waitFor({ timeout: 20_000 });
+    await expect(page.getByTestId('replay-launch')).toBeVisible();
+  });
+
+  test('course 2 lists six lessons in both locales', async ({ page }) => {
+    for (const path of ['/cours/les-mats-elementaires/', '/en/cours/les-mats-elementaires/']) {
+      await page.goto(path);
+      await settleReveals(page);
+      await expect(page.locator('.lesson-card')).toHaveCount(6);
+    }
+  });
+});

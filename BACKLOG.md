@@ -35,16 +35,47 @@ with itself.
 | **Two-year inactive-account rule** | `backlog` | Stated as policy, enforced by nothing. Needs a scheduled job — most likely a Supabase cron, since this architecture has nowhere else to put one. |
 | **Custom SMTP (Resend)** | `blocked` | Needs `mogadorchess.ma`. Supabase's built-in mailer is rate-limited, sends from an unfamiliar domain, and its template is untranslated — all three matter when the recipient is a parent being asked to click a sign-in link. Verify SPF/DKIM/DMARC when it lands. |
 
+## Design direction
+
+| Item | Status | Note |
+|---|---|---|
+| **Refonte esthétique majeure** — make it feel like a GAME | `backlog` **(high)** | See below. Blocked on nothing. |
+
+### Refonte esthétique majeure — a direction session, not a patch
+
+The site should read as a **game first and a learning site second**: more motion
+around buttons, boards and backgrounds — playful, alive, arcade-adjacent.
+
+What it must NOT cost:
+
+- **The "old chess club" identity.** Wood, baize, brass, yellowing score sheets.
+  Arcade energy inside that world, not instead of it.
+- **The AA contrast guarantees.** `check-contrast.mjs` runs first in the build,
+  both palettes, every board preset. A livelier palette still has to clear it.
+- **`prefers-reduced-motion`.** Every added motion needs its off switch, and
+  "off" means off, not faster.
+- **No GSAP.** Its licence is not OSI and conflicts with this project's
+  GPL-3.0-or-later (see the note in CLAUDE.md). CSS and small vanilla JS have
+  carried the ambient motion so far at ~1.3 KB; a new library must clear the
+  same licence bar before it is even evaluated on merit.
+
+⚠️ **This wants a written direction and Seàn's sign-off before any
+implementation.** It is a look-and-feel decision about what the club *is*, not a
+list of effects — and it touches every page, so getting it wrong is expensive to
+unwind.
+
+---
+
 ## Teaching and content
 
 | Item | Status | Note |
 |---|---|---|
+| **Lessons built around a YouTube video** | `dormant` | Seàn supplies a URL; a lesson is authored around it. The `youtube` field already exists on `traps` and `cours` and validates an 11-character ID — **nothing renders it**. Requires the click-to-load facade on `youtube-nocookie.com` (decided in Session 3, never built) so the zero-third-party-request posture holds: a plain iframe sets cookies at page load and would break the specs that assert it. Dormant until the first video exists. |
 | ~~**Beginner tutorial** (`/apprendre-les-bases/`)~~ | **done** | 13 steps, both locales, shipped this session. |
 | ~~**Course detail pages**~~ | **done** | Per-locale Markdown pairs shipped with course 1. A `lessons` collection keyed by `course` + `slug` + `lang`; routes are `/cours/<course>/<lesson>/`. |
-| **Courses 2+** | `backlog` | Course 1 ("Bien ouvrir une partie") is the only one written. The structure is proven; the remaining work is authoring. |
+| **Courses 3+** | `backlog` | Courses 1 and 2 are written. The structure is proven; the remaining work is authoring. Course 3 (tactical motifs) is referenced by course 2 lesson 6. |
 | **MDX for lesson bodies** | `backlog` | Boards are currently placed with a `<!--board-->` marker split out of the rendered HTML. It works and costs nothing, but MDX would allow real components inline. Only worth it when a lesson needs something a marker cannot express. |
 | **Engine-backed validator for `onlyMove: false`** | `backlog` | The remaining half of the exercise-validation rule. Stockfish is here now; this is what finally lets a winning alternative be accepted instead of "not the line we had in mind". |
-| **YouTube facade rendering** | `dormant` | The `youtube` field exists on `traps` and `cours` and validates an 11-character ID. Nothing renders it. When it lands it MUST be a click-to-load facade on `youtube-nocookie.com` — a plain iframe would break the zero-third-party-request rule the specs assert. |
 | **Printable handouts from the PGN** | `backlog` | — |
 
 ## Board and interaction

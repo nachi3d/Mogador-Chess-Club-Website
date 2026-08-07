@@ -11,6 +11,52 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### Course 2 — "Les mats élémentaires"
+
+Six lessons on the basic checkmates, both locales. Authored brief now lives in
+`docs/content-batches/`.
+
+#### Added
+
+- `/cours/les-mats-elementaires/` — back-rank, ladder, queen-and-king,
+  rook-and-king, smothered mate (Philidor's legacy) and Boden's mate
+- **Still diagrams** — a new `position` board kind, rendered as a move-less
+  replay. Batch 1 had to convert its two diagrams into short replays that
+  *reached* them; batch 2's are terminal states (a stalemate, a finished mate)
+  that no legal line arrives at, so they had to be shown as they are
+- `docs/content-batches/` — the authored briefs are the provenance of the
+  content and belong in the repo
+
+#### Fixed
+
+- ⚠️ **`parseReplay` discarded the `[FEN]` header when a PGN had no moves.**
+  `moves[0]?.before ?? new Chess().fen()` — with zero moves there is no
+  `moves[0]`, so every still diagram silently rendered the **standard opening
+  position**, 32 pieces in their starting squares. It looks like a chessboard,
+  so only a piece count catches it. Now falls back to `game.fen()`, which is the
+  SetUp position in both cases. A spec asserts a diagram has fewer than twelve
+  pieces.
+
+#### Notes — two errors in the brief, both corrected
+
+- **Lesson 5's PGN could not be played.** The start FEN already had the white
+  queen on b3, so `1. Qb3+` — the queen moving *to* b3 — was impossible and
+  chess.js rejected the whole line. The queen starts on **d1** instead, from
+  which the full nine-ply Philidor's legacy is legal and ends in checkmate.
+- **Lesson 4's diagram was an impossible position.** It showed a finished mate
+  with **White** to move, i.e. with Black in check on Black's opponent's turn —
+  unreachable in a real game, and chess.js accepts it silently. Flipped to Black
+  to move, it is a genuine checkmate, which is what the copy describes.
+  `check-content.mjs` now rejects any `position` board whose side-not-to-move is
+  in check; verified to fail on the original FEN.
+- All six `onlyMove: true` positions were checked for mate uniqueness and all
+  six are genuinely unique. **None had to be flipped.**
+- Both replayers were stepped through move by move: every comment lands on the
+  move it describes. The plies in the brief were already 0-indexed and correct —
+  batch 1's off-by-one did not recur.
+
+---
+
 ### The board frame encloses the whole component again
 
 #### Fixed
