@@ -170,7 +170,29 @@ export function assertNotProduction(): void {
     return;
   }
   if (!env.productionRef) {
-    fail('SUPABASE_PRODUCTION_REF is not set, so "is this production?" cannot be answered.');
+    /**
+     * ⚠️ THE OBSERVED FAILURE, TWICE — so the message names its own cause.
+     *
+     * Both times, `.env.test` had been recreated by copying `.env.example` (the
+     * build-time template) instead of `.env.test.example`. `.env.example` has no
+     * `SUPABASE_PRODUCTION_REF`, so the key vanishes silently and the suite
+     * aborts with a message that, on its own, reads like a mystery.
+     *
+     * The tell is a commented-out `PUBLIC_UMAMI_WEBSITE_ID` in `.env.test`:
+     * analytics has nothing to do with testing, and that line exists only in the
+     * wrong template.
+     */
+    const looksMidSetup = Boolean(env.supabaseUrl && env.anonKey);
+    fail(
+      'SUPABASE_PRODUCTION_REF is not set, so "is this production?" cannot be answered.' +
+        (looksMidSetup
+          ? '\n\n  The TEST_ values ARE present, so this is a half-configured .env.test.' +
+            '\n  This has happened twice, and both times the file had been copied from' +
+            '\n  .env.example (which has no such key) instead of .env.test.example.' +
+            '\n  Check for a stray PUBLIC_UMAMI_WEBSITE_ID line — that is the tell.' +
+            '\n  Fix: copy .env.test.example, which now carries the real value.'
+          : ''),
+    );
     return;
   }
   if (env.testRef === env.productionRef) {

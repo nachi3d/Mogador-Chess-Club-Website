@@ -815,6 +815,29 @@ suite that appears to cover email and does not is worse than one that admits it.
 not `.env` — Vite loads both and `.env.local` wins, so keeping two is a way to
 lose an hour.
 
+### ⚠️ TRAP: .env.test copied from the WRONG template
+
+`SUPABASE_PRODUCTION_REF` went missing from `.env.test` twice, aborting the whole
+suite both times. Root cause, found by comparing the file against its own comment
+header: **it had been created by copying `.env.example`** — the build-time
+template — **instead of `.env.test.example`**. `.env.example` has no such key, so
+it disappears by construction on every recreation.
+
+- **The tell**: a commented-out `PUBLIC_UMAMI_WEBSITE_ID` inside `.env.test`.
+  Analytics has nothing to do with testing; that line exists only in the wrong
+  template.
+- **local development** → copy `.env.example` → `.env.local`
+- **e2e suite** → copy `.env.test.example` → `.env.test`
+
+Three things now make a third occurrence self-diagnosing:
+
+1. `.env.test.example` carries the **real** production ref rather than a
+   placeholder, so a straight copy is already correct. The ref is not a secret —
+   it is the subdomain of the public project URL and already ships in the bundle.
+2. `.env.example` opens with a warning that it is NOT the test template.
+3. The interlock error names this cause when the TEST_ values are present but the
+   production ref is not.
+
 ### ⚠️ TRAP: the production project ref begins with "vtest"
 
 ```
