@@ -54,6 +54,15 @@ const pillars = [
           {t('home.cta.traps')}
         </a>
       </p>
+
+      {/* Deliberately BELOW the buttons and styled as a quiet line rather than
+          a third button: a complete beginner needs to find it instantly, and
+          everyone else needs it not to compete with the two real CTAs. */}
+      <p class="beginner-line">
+        <a href={localizePath('/apprendre-les-bases/', locale)} data-testid="home-cta-tutorial">
+          {t('tutorial.homeCta')}
+        </a>
+      </p>
     </div>
   </section>
 
@@ -154,6 +163,18 @@ const pillars = [
 
   .btn-ghost:hover {
     background-color: var(--mcc-surface-sunken);
+  }
+
+  .beginner-line {
+    margin: 1rem 0 0;
+    font-size: 0.9375rem;
+  }
+
+  .beginner-line a {
+    color: var(--mcc-accent-text);
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+    font-weight: 500;
   }
 
   /* ── The three pillars ──────────────────────────────────────────────── */

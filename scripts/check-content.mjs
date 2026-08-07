@@ -289,6 +289,98 @@ for (const { file, data } of readCollection('exercices')) {
   console.log(`  ok  ${file} — ${solution.length} player move(s), ${note}`);
 }
 
+/* ─────────────────────────── tutoriel ──────────────────────────── */
+
+/**
+ * The beginner tutorial ships 13 hand-written positions, which is exactly the
+ * kind of content where a typo in a FEN produces a page that looks fine and
+ * teaches something false. Everything checkable is checked:
+ *
+ *   - the FEN parses and carries all six fields;
+ *   - the solution is legal from it;
+ *   - `onlyMove: true` on a mate-in-1 is genuinely unique;
+ *   - the steps form a contiguous ordered sequence with no duplicate slugs,
+ *     because the prev/next navigation walks that order and a gap or a repeat
+ *     silently strands a reader mid-tutorial;
+ *   - neither language of any prose field is empty.
+ */
+const tutorialSlugs = new Map();
+const tutorialOrders = [];
+
+for (const { file, data } of readCollection('tutoriel')) {
+  const seen = tutorialSlugs.get(data.slug);
+  if (seen) fail(file, `slug "${data.slug}" is already used by ${seen}`);
+  else tutorialSlugs.set(data.slug, file);
+
+  if (data.fen.trim().split(/\s+/).length !== 6) {
+    fail(file, 'FEN must have all six fields — a four-field FEN silently assumes White');
+  }
+
+  let game;
+  try {
+    game = new Chess(data.fen);
+  } catch (error) {
+    fail(file, `FEN rejected: ${error.message}`);
+    continue;
+  }
+
+  let legal = true;
+  for (const move of data.solution) {
+    try {
+      game.move(uci(move));
+    } catch {
+      fail(file, `solution move "${move}" is not legal from the position it arrives at`);
+      legal = false;
+      break;
+    }
+  }
+  if (!legal) continue;
+
+  /* A tutorial that says "wrong" when the reader found another mate would be
+     the exact lie the onlyMove rule exists to prevent. */
+  if (data.onlyMove === true && data.solution.length === 1 && game.isCheckmate()) {
+    const mates = forcedMateMoves(data.fen, 1);
+    if (mates.length > 1) {
+      fail(file, `onlyMove:true but ${mates.length} different moves mate: ${mates.join(', ')}`);
+    }
+  }
+
+  for (const field of ['title', 'summary', 'task', 'hint']) {
+    for (const lang of ['fr', 'en']) {
+      if (!String(data[`${field}_${lang}`] ?? '').trim()) {
+        fail(file, `${field}_${lang} is empty — a half-translated step ships one language`);
+      }
+    }
+  }
+  for (const lang of ['fr', 'en']) {
+    const body = data[`body_${lang}`] ?? [];
+    if (!body.length || body.some((p) => !String(p).trim())) {
+      fail(file, `body_${lang} is empty or has a blank paragraph`);
+    }
+  }
+
+  tutorialOrders.push({ file, order: data.order });
+  const end = game.isCheckmate() ? 'mate' : game.isStalemate() ? 'stalemate' : 'quiet';
+  console.log(`  ok  ${file} — step ${data.order}, ${data.solution.join(' ')} → ${end}`);
+}
+
+if (tutorialOrders.length > 0) {
+  const orders = tutorialOrders.map((t) => t.order).sort((a, b) => a - b);
+  const dupes = orders.filter((o, i) => i > 0 && o === orders[i - 1]);
+  if (dupes.length) {
+    fail('tutoriel', `duplicate order value(s): ${[...new Set(dupes)].join(', ')}`);
+  }
+  for (let i = 0; i < orders.length; i++) {
+    if (orders[i] !== i + 1) {
+      fail(
+        'tutoriel',
+        `steps must be numbered 1..${orders.length} with no gaps — found ${orders.join(', ')}`,
+      );
+      break;
+    }
+  }
+}
+
 /* ─────────────────────────── agenda ────────────────────────────── */
 
 for (const { file, data } of readCollection('agenda')) {

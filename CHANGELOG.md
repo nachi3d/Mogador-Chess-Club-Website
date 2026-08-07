@@ -11,6 +11,56 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### Beginner tutorial — `/apprendre-les-bases/`
+
+Thirteen guided steps for someone who has never played chess. Touches none of
+the v2 auth work.
+
+#### Added
+
+- **`/apprendre-les-bases/`** (both locales): an index of 13 steps, plus one
+  route per step — the board, the coordinates, each piece in turn, check/mate/
+  stalemate, castling, en passant, promotion, piece values, and reading notation
+- A `tutoriel` content collection under the existing CC BY-NC-ND licence
+- Entry points: a quiet line on the home page below the two CTAs, and a
+  prerequisite link at the top of `/cours/`
+- `BACKLOG.md` consolidated into the single list of everything not yet built;
+  CLAUDE.md's open-questions section now points at it instead of duplicating it
+
+#### Notes
+
+- **No new board, and no new mode — none was needed.** The brief asked whether to
+  add a lightweight "sandbox" sub-mode where tapping a piece shows its legal
+  destinations. Exercise mode already does precisely that: `destsOf()` builds
+  `dests` from *every* legal move in the position, so Chessground lights all of
+  them when a piece is picked up. The board that demonstrates a rule is the same
+  board that checks it, through the same `judgeMove` path, with the same keyboard
+  input and the same progress store. `BoardSurface.tsx` and `ChessBoard.tsx` are
+  untouched, so this merged on **chromium** rather than the full matrix.
+- **Progress is namespaced, not special-cased.** Steps record under
+  `tutorial:<slug>` in the same `mcc:progress:v1` store, so v2-S3's sync collects
+  them with no branching.
+- **The index mounts no board.** Thirteen live boards would be thirteen hydrated
+  islands on the page a beginner opens first, usually on a phone. A spec asserts
+  zero islands there.
+- **No nav slot, deliberately.** The nav is already seven items and tight on a
+  phone, and the tutorial is a journey you finish rather than a destination you
+  return to — a permanent slot would keep advertising it to people who completed
+  it. Home and `/cours/` reach the people who need it.
+- **`check-content.mjs` now validates the tutorial**: FEN parses with six fields,
+  the solution is legal, `onlyMove: true` on a mate-in-1 is genuinely unique, no
+  duplicate slugs, `order` is contiguous 1..N (a gap strands a reader, since
+  prev/next walks it), and neither language of any prose field is empty. All 13
+  positions verified.
+- One position was rewritten during authoring: step 1 originally ended in
+  **check**, putting a red check highlight on the tutorial's first board seven
+  steps before check is explained. The black king moved off the h-file.
+
+⚠️ **The FR pedagogy needs Seàn's review.** The chess is machine-verified; the
+teaching is not. `docs/MANUAL-TESTS.md` has the specific things to read for.
+
+---
+
 ### v2-S1 — Supabase foundation and email magic-link auth
 
 v2 begins. **Nothing about v1 changes**: the site is still fully static, guests

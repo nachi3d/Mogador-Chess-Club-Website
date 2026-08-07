@@ -1,6 +1,7 @@
 ---
 import { getCollection } from 'astro:content';
 import type { Locale } from '@config/site';
+import { localizePath } from '@i18n/paths';
 import { useTranslations } from '@i18n/ui';
 import BaseLayout from '@layouts/BaseLayout.astro';
 import PageIntro from '@components/PageIntro.astro';
@@ -26,5 +27,27 @@ const items: CardItem[] = entries.map(({ data }) => ({
 
 <BaseLayout locale={locale} title={t('courses.title')} description={t('courses.intro')} reveals>
   <PageIntro title={t('courses.title')} intro={t('courses.intro')} />
+
+  {/* The tutorial is the prerequisite for these courses, so it is named at the
+      TOP rather than buried at the bottom — a beginner who scrolls past it has
+      already started the wrong thing. */}
+  <p class="prerequisite">
+    <a href={localizePath('/apprendre-les-bases/', locale)} data-testid="cours-tutorial-link">
+      {t('tutorial.prerequisite')}
+    </a>
+  </p>
   <CardGrid locale={locale} items={items} emptyMessage={t('agenda.empty')} />
 </BaseLayout>
+
+<style>
+  .prerequisite {
+    margin: 0 0 1.5rem;
+  }
+
+  .prerequisite a {
+    color: var(--mcc-accent-text);
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+    font-weight: 500;
+  }
+</style>

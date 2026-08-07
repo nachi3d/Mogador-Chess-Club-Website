@@ -1,0 +1,27 @@
+{
+  "title_fr": "Le fou",
+  "title_en": "The bishop",
+  "slug": "le-fou",
+  "order": 3,
+  "summary_fr": "En diagonale, et toujours sur la même couleur de case.",
+  "summary_en": "Diagonally — and always on one colour of square.",
+  "body_fr": [
+    "Le fou se déplace en diagonale, aussi loin que la route est libre. Lui non plus ne saute par-dessus rien.",
+    "Remarque une chose : un fou qui commence sur une case claire restera sur des cases claires toute la partie. Il ne peut pas changer de couleur. C'est pour cela que chaque camp en a deux — un pour chaque couleur."
+  ],
+  "body_en": [
+    "The bishop moves diagonally, as far as the road is clear. It cannot jump over anything either.",
+    "Notice something: a bishop that starts on a light square stays on light squares for the whole game. It can never switch colour. That is why each side has two — one for each colour."
+  ],
+  "task_fr": "Fais glisser le fou en diagonale jusqu'en **h6**.",
+  "task_en": "Slide the bishop along the diagonal to **h6**.",
+  "fen": "8/8/8/8/8/7k/8/2B1K3 w - - 0 1",
+  "solution": [
+    "c1h6"
+  ],
+  "opponentReplies": [],
+  "onlyMove": true,
+  "hint_fr": "Le fou est en c1. Suis la diagonale qui monte vers la droite.",
+  "hint_en": "The bishop is on c1. Follow the diagonal going up and to the right.",
+  "draft": false
+}

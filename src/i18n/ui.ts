@@ -30,6 +30,25 @@ const fr = {
   'home.title': 'Mogador Chess Club',
   'home.intro':
     "Le club d'échecs d'Essaouira. Des cours progressifs, une bibliothèque de pièges d'ouverture, et des exercices pour s'entraîner — en français comme en anglais.",
+  /* ── The beginner tutorial ───────────────────────────────────────── */
+  'tutorial.title': 'Apprendre les bases',
+  'tutorial.intro':
+    "Tu n'as jamais joué aux échecs ? Commence ici. Treize étapes courtes, un échiquier à chaque fois, et tu sauras jouer une partie complète.",
+  'tutorial.homeCta': 'Nouveau aux échecs ? Commence ici',
+  'tutorial.prerequisite': 'Jamais joué ? Commence par apprendre les bases.',
+  'tutorial.step': 'Étape',
+  'tutorial.of': 'sur',
+  'tutorial.prev': 'Étape précédente',
+  'tutorial.next': 'Étape suivante',
+  'tutorial.backToIndex': 'Toutes les étapes',
+  'tutorial.yourTurn': 'Essaie toi-même',
+  'tutorial.done': 'Terminé',
+  'tutorial.finished.title': 'Tu connais les règles.',
+  'tutorial.finished.body':
+    'Tu peux maintenant jouer une partie complète. La suite : les exercices pour t’entraîner, ou une partie contre l’ordinateur.',
+  'tutorial.toExercises': "Passer aux exercices",
+  'tutorial.toPlay': "Jouer contre l'ordinateur",
+
   'home.cta.play': 'Jouer',
   'home.cta.traps': 'Découvrir les pièges',
 
@@ -351,6 +370,24 @@ const en: Record<keyof typeof fr, string> = {
   'home.title': 'Mogador Chess Club',
   'home.intro':
     "Essaouira's chess club. Progressive courses, an opening-trap library, and exercises to practise on — in English as well as French.",
+  'tutorial.title': 'Learn the basics',
+  'tutorial.intro':
+    'Never played chess? Start here. Thirteen short steps, a board on every one, and you will know how to play a full game.',
+  'tutorial.homeCta': 'New to chess? Start here',
+  'tutorial.prerequisite': 'Never played? Start by learning the basics.',
+  'tutorial.step': 'Step',
+  'tutorial.of': 'of',
+  'tutorial.prev': 'Previous step',
+  'tutorial.next': 'Next step',
+  'tutorial.backToIndex': 'All steps',
+  'tutorial.yourTurn': 'Your turn',
+  'tutorial.done': 'Done',
+  'tutorial.finished.title': 'You know the rules.',
+  'tutorial.finished.body':
+    'You can now play a full game. Next: the exercises to practise on, or a game against the computer.',
+  'tutorial.toExercises': 'Go to the exercises',
+  'tutorial.toPlay': 'Play the computer',
+
   'home.cta.play': 'Play',
   'home.cta.traps': 'Explore traps',
 

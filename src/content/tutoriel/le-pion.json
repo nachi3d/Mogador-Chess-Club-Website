@@ -1,0 +1,27 @@
+{
+  "title_fr": "Le pion",
+  "title_en": "The pawn",
+  "slug": "le-pion",
+  "order": 7,
+  "summary_fr": "Il avance tout droit, mais il capture en diagonale.",
+  "summary_en": "It moves straight ahead, but captures diagonally.",
+  "body_fr": [
+    "Le pion avance d'une case, tout droit, et jamais en arrière. À son tout premier coup, il a le droit d'avancer de deux cases s'il le souhaite.",
+    "Attention, voici le piège qui surprend tout le monde au début : le pion **avance** tout droit, mais il **capture** en diagonale. Une pièce juste devant lui le bloque complètement — il ne peut ni la prendre, ni la contourner."
+  ],
+  "body_en": [
+    "A pawn moves one square straight ahead, and never backwards. On its very first move it may go two squares instead, if you like.",
+    "Now the part that surprises everyone at the start: a pawn **moves** straight but **captures** diagonally. A piece directly in front of it blocks it completely — it can neither take that piece nor go around it."
+  ],
+  "task_fr": "Profite du premier coup du pion : avance-le de deux cases, en **e4**.",
+  "task_en": "Use the pawn's first-move option: push it two squares, to **e4**.",
+  "fen": "k7/8/8/8/8/8/4P3/4K3 w - - 0 1",
+  "solution": [
+    "e2e4"
+  ],
+  "opponentReplies": [],
+  "onlyMove": true,
+  "hint_fr": "Le pion est en e2. Deux cases tout droit.",
+  "hint_en": "The pawn is on e2. Two squares straight ahead.",
+  "draft": false
+}

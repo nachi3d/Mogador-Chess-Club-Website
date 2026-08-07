@@ -1,0 +1,27 @@
+---
+/**
+ * One tutorial step. The URL comes from the content's `slug` field, not the
+ * filename, so renaming a file can never silently move a published URL.
+ */
+import { getCollection } from 'astro:content';
+import TutorialStepPage from '@components/pages/TutorialStepPage.astro';
+
+export async function getStaticPaths() {
+  const steps = (await getCollection('tutoriel', ({ data }) => !data.draft)).sort(
+    (a, b) => a.data.order - b.data.order,
+  );
+  return steps.map((entry, i) => ({
+    params: { slug: entry.data.slug },
+    props: {
+      entry,
+      prev: steps[i - 1] ?? null,
+      next: steps[i + 1] ?? null,
+      total: steps.length,
+    },
+  }));
+}
+
+const { entry, prev, next, total } = Astro.props;
+---
+
+<TutorialStepPage locale="fr" entry={entry} prev={prev} next={next} total={total} />

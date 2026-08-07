@@ -1,0 +1,29 @@
+{
+  "title_fr": "La promotion",
+  "title_en": "Promotion",
+  "slug": "la-promotion",
+  "order": 11,
+  "summary_fr": "Un pion qui traverse tout devient ce que tu veux.",
+  "summary_en": "A pawn that crosses the board becomes whatever you like.",
+  "body_fr": [
+    "Si ton pion atteint la dernière rangée, il ne reste pas un pion : il se transforme. Tu choisis en quoi — dame, tour, fou ou cavalier.",
+    "Presque toujours on choisit la dame, parce que c'est la pièce la plus forte. Tu peux avoir deux dames, ou trois : rien ne l'interdit.",
+    "De temps en temps, un cavalier est meilleur qu'une dame — parce que lui seul donne un échec que la dame ne donnerait pas. C'est rare, mais c'est joli."
+  ],
+  "body_en": [
+    "If your pawn reaches the far rank, it does not stay a pawn: it transforms. You choose into what — queen, rook, bishop or knight.",
+    "Almost always you choose the queen, because she is the strongest. You may have two queens, or three: nothing forbids it.",
+    "Once in a while a knight is better than a queen — because only the knight gives a check the queen could not. It is rare, and it is lovely."
+  ],
+  "task_fr": "Amène le pion en **a8** et prends une dame.",
+  "task_en": "Take the pawn to **a8** and make a queen.",
+  "fen": "7k/P7/8/8/8/8/8/4K3 w - - 0 1",
+  "solution": [
+    "a7a8q"
+  ],
+  "opponentReplies": [],
+  "onlyMove": true,
+  "hint_fr": "Le pion est en a7. Une case, et tu choisis la dame.",
+  "hint_en": "The pawn is on a7. One square, and you pick the queen.",
+  "draft": false
+}

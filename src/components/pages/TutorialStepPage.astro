@@ -1,0 +1,258 @@
+---
+/**
+ * One step of `/apprendre-les-bases/`.
+ *
+ * ⚠️ NO NEW BOARD, AND NO NEW MODE. This mounts the existing `ExerciseBoard`,
+ * which is the existing `ChessBoard` island in `mode="exercise"`.
+ *
+ * That already provides everything a beginner needs, and the reason is worth
+ * writing down so nobody builds a "sandbox mode" later: exercise mode computes
+ * `dests` from **every legal move in the position** (`destsOf()` in
+ * `src/lib/chess/exercise.ts`), so tapping a piece already lights up exactly
+ * where that piece may go. Demonstration and checking are the same board.
+ *
+ * Progress is stored under a `tutorial:` slug namespace in the same
+ * `mcc:progress:v1` store as every other exercise — so v2-S3's sync picks these
+ * up with no special-casing at all.
+ */
+import type { Locale } from '@config/site';
+import type { CollectionEntry } from 'astro:content';
+import { localizePath } from '@i18n/paths';
+import { useTranslations } from '@i18n/ui';
+import BaseLayout from '@layouts/BaseLayout.astro';
+import ExerciseBoard from '@components/board/ExerciseBoard.astro';
+
+interface Props {
+  locale: Locale;
+  entry: CollectionEntry<'tutoriel'>;
+  prev: CollectionEntry<'tutoriel'> | null;
+  next: CollectionEntry<'tutoriel'> | null;
+  total: number;
+}
+
+const { locale, entry, prev, next, total } = Astro.props;
+const { data } = entry;
+const t = useTranslations(locale);
+
+const fr = locale === 'fr';
+const title = fr ? data.title_fr : data.title_en;
+const body = fr ? data.body_fr : data.body_en;
+const task = fr ? data.task_fr : data.task_en;
+const hint = fr ? data.hint_fr : data.hint_en;
+
+/**
+ * The copy uses `**bold**` for the one or two words that carry the rule. Full
+ * Markdown would be overkill for that, and a Markdown body would also break the
+ * one-language-per-field rule the JSON content model exists to enforce — so a
+ * single deliberate transform, applied to text that is already escaped.
+ */
+function emphasise(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+}
+
+const indexPath = localizePath('/apprendre-les-bases/', locale);
+---
+
+<BaseLayout locale={locale} title={title} description={fr ? data.summary_fr : data.summary_en}>
+  <article class="step">
+    <header class="step-head">
+      <p class="step-counter">
+        <a href={indexPath}>{t('tutorial.title')}</a>
+        <span aria-hidden="true">·</span>
+        <span>{t('tutorial.step')} {data.order} {t('tutorial.of')} {total}</span>
+      </p>
+      <h1>{title}</h1>
+    </header>
+
+    <div class="step-prose">
+      {body.map((paragraph) => <p set:html={emphasise(paragraph)} />)}
+    </div>
+
+    <section class="step-task" aria-labelledby="task-heading">
+      <h2 id="task-heading">{t('tutorial.yourTurn')}</h2>
+      <p set:html={emphasise(task)} />
+    </section>
+
+    <ExerciseBoard
+      locale={locale}
+      slug={`tutorial:${data.slug}`}
+      fen={data.fen}
+      solution={data.solution}
+      opponentReplies={data.opponentReplies}
+      onlyMove={data.onlyMove}
+      hint={hint}
+      {...(data.orientation ? { orientation: data.orientation } : {})}
+    />
+
+    {
+      !next && (
+        <section class="step-finished">
+          <h2>{t('tutorial.finished.title')}</h2>
+          <p>{t('tutorial.finished.body')}</p>
+          <p class="step-finished-links">
+            <a class="btn-primary" href={localizePath('/exercices/', locale)}>
+              {t('tutorial.toExercises')}
+            </a>
+            <a class="btn-ghost" href={localizePath('/jouer/', locale)}>
+              {t('tutorial.toPlay')}
+            </a>
+          </p>
+        </section>
+      )
+    }
+
+    <nav class="step-nav" aria-label={t('tutorial.title')}>
+      {
+        prev ? (
+          <a
+            class="step-nav-link"
+            href={localizePath(`/apprendre-les-bases/${prev.data.slug}/`, locale)}
+            rel="prev"
+            data-testid="tutorial-prev"
+          >
+            ← {t('tutorial.prev')}
+          </a>
+        ) : (
+          <a class="step-nav-link" href={indexPath}>
+            ← {t('tutorial.backToIndex')}
+          </a>
+        )
+      }
+      {
+        next && (
+          <a
+            class="step-nav-link step-nav-next"
+            href={localizePath(`/apprendre-les-bases/${next.data.slug}/`, locale)}
+            rel="next"
+            data-testid="tutorial-next"
+          >
+            {t('tutorial.next')} →
+          </a>
+        )
+      }
+    </nav>
+  </article>
+</BaseLayout>
+
+<style>
+  .step {
+    max-width: 60ch;
+  }
+
+  .step-counter {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 0 0 0.5rem;
+    color: var(--mcc-text-secondary);
+    font-size: 0.875rem;
+  }
+
+  .step-counter a {
+    color: var(--mcc-link);
+  }
+
+  .step h1 {
+    margin: 0 0 1.25rem;
+    font-size: clamp(1.75rem, 5vw, 2.5rem);
+    line-height: 1.1;
+  }
+
+  .step-prose p {
+    margin: 0 0 0.9rem;
+    line-height: 1.7;
+    text-wrap: pretty;
+  }
+
+  .step-task {
+    margin: 1.5rem 0;
+    padding: 1rem 1.25rem;
+    border-left: 4px solid var(--mcc-accent-strong);
+    border-radius: var(--radius-card);
+    background-color: var(--mcc-surface-sunken);
+  }
+
+  .step-task h2 {
+    margin: 0 0 0.35rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--mcc-accent-text);
+  }
+
+  .step-task p {
+    margin: 0;
+    line-height: 1.6;
+  }
+
+  .step-finished {
+    margin-top: 2rem;
+    padding: 1.25rem;
+    border: 1px solid var(--mcc-border);
+    border-radius: var(--radius-card);
+    background-color: var(--mcc-surface-raised);
+  }
+
+  .step-finished h2 {
+    margin: 0 0 0.4rem;
+    font-size: 1.25rem;
+  }
+
+  .step-finished p {
+    margin: 0 0 1rem;
+    color: var(--mcc-text-secondary);
+  }
+
+  .step-finished-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin: 0;
+  }
+
+  .btn-primary,
+  .btn-ghost {
+    display: inline-block;
+    padding: 0.6rem 1.2rem;
+    border-radius: var(--radius-card);
+    font-weight: 500;
+    text-decoration: none;
+  }
+
+  .btn-primary {
+    border: 1px solid var(--mcc-primary);
+    background-color: var(--mcc-primary);
+    color: var(--mcc-primary-contrast);
+  }
+
+  .btn-ghost {
+    border: 1px solid var(--mcc-border-strong);
+    color: var(--mcc-link);
+  }
+
+  .step-nav {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-top: 2rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--mcc-border);
+  }
+
+  .step-nav-link {
+    color: var(--mcc-link);
+    text-decoration: underline;
+    text-underline-offset: 0.15em;
+  }
+
+  .step-nav-next {
+    margin-left: auto;
+    font-weight: 500;
+  }
+</style>

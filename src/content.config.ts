@@ -204,6 +204,63 @@ const exercices = defineCollection({
     }),
 });
 
+/* ──────────────────────────── tutoriel ───────────────────────────── */
+
+/**
+ * The beginner tutorial — `/apprendre-les-bases/`.
+ *
+ * Written for someone who has never played, so it sits BELOW `debutant`: the
+ * `level` field is deliberately absent rather than set, because "pre-débutant"
+ * is not one of the three levels the rest of the site uses and inventing a
+ * fourth would ripple into every badge and filter.
+ *
+ * Each step carries its prose AND one micro-exercise. That pairing is the whole
+ * design: the board that demonstrates a rule is the same board that checks the
+ * reader understood it, judged through the same `judgeMove` path as every other
+ * exercise on the site. There is no second board component and no new mode —
+ * exercise mode already highlights every legal destination when a piece is
+ * picked up, which is exactly the "sandbox" behaviour a beginner needs.
+ */
+const tutoriel = defineCollection({
+  loader: glob({ base: './src/content/tutoriel', pattern: '**/*.{md,mdx,json}' }),
+  schema: z
+    .object({
+      title_fr: z.string(),
+      title_en: z.string(),
+      slug,
+      /** Position in the guided sequence. Ascending; gaps are allowed. */
+      order: z.number().int().positive(),
+      /** One-line summary, shown on the index card. */
+      summary_fr: z.string(),
+      summary_en: z.string(),
+      /** The teaching itself: one string per paragraph. */
+      body_fr: z.array(z.string()).min(1),
+      body_en: z.array(z.string()).min(1),
+      /** What the reader is asked to do on the board, in plain language. */
+      task_fr: z.string(),
+      task_en: z.string(),
+      /** Starting position. Full FEN, six fields. */
+      fen: z.string().min(1),
+      solution: z.array(uciMove).min(1),
+      opponentReplies: z.array(uciMove).default([]),
+      /**
+       * Tutorial tasks name a destination ("bring the rook to h8"), so a
+       * different move genuinely is not the task — `onlyMove: true` is honest
+       * here in a way it would not be for a tactics puzzle, where another
+       * winning move exists. See CLAUDE.md → Exercise validation rule.
+       */
+      onlyMove: z.boolean().default(true),
+      hint_fr: z.string(),
+      hint_en: z.string(),
+      orientation: z.enum(['white', 'black']).optional(),
+      draft: z.boolean().default(false),
+    })
+    .refine((e) => e.opponentReplies.length <= e.solution.length, {
+      message: 'opponentReplies must align with solution: at most one reply per player move.',
+      path: ['opponentReplies'],
+    }),
+});
+
 /* ────────────────────────────── agenda ───────────────────────────── */
 
 const agenda = defineCollection({
@@ -227,4 +284,4 @@ const agenda = defineCollection({
   }),
 });
 
-export const collections = { traps, cours, exercices, agenda };
+export const collections = { traps, cours, exercices, tutoriel, agenda };

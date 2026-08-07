@@ -475,6 +475,73 @@ The script checks that PGNs parse, that note plies exist, that solutions and opp
 
 ---
 
+## The beginner tutorial — `/apprendre-les-bases/`
+
+Thirteen steps for someone who has never played, sitting **below** `debutant`.
+Index at `/apprendre-les-bases/`, one route per step, both locales.
+
+### ⚠️ It adds NO new board and NO new mode — and here is why none was needed
+
+The brief asked whether to build a lightweight "sandbox" sub-mode where tapping a
+piece highlights its legal destinations. **Exercise mode already does exactly
+that**, and it is worth knowing so nobody builds the second thing later:
+
+> `destsOf()` in `src/lib/chess/exercise.ts` builds `dests` from
+> `game.moves({ verbose: true })` — **every legal move in the position**, not the
+> expected one. Chessground lights all of them when a piece is picked up.
+
+So the board that demonstrates a rule *is* the board that checks it, judged
+through the same `judgeMove` path as every other exercise, with `MoveInput` for
+keyboard entry and `mcc:progress:v1` for progress. `BoardSurface.tsx` and
+`ChessBoard.tsx` are untouched by this feature, which is why it merged on
+chromium rather than the full matrix.
+
+### Progress is namespaced, not special-cased
+
+Each step records under **`tutorial:<slug>`** in the same `mcc:progress:v1` store
+as every exercise. v2-S3's sync therefore picks the tutorial up with no branching
+at all — the namespace is the only thing distinguishing it, and it is only there
+so a tutorial step and an exercise can never collide on a slug.
+
+### The index mounts no board
+
+Thirteen live boards on one page would be thirteen hydrated islands on the page a
+complete beginner opens first, usually on a phone. The index is a list; the board
+lives on each step's route, exactly as `/exercices/` works. A spec asserts zero
+`astro-island` and zero `cg-board` on the index.
+
+### Entry points — and why it gets no nav slot
+
+- **Home**: a quiet underlined line *below* the two CTAs. A beginner must find it
+  instantly; everyone else must not have it competing with Jouer and Pièges.
+- **`/cours/`**: named at the TOP as the prerequisite — a beginner who scrolls
+  past it has already started the wrong thing.
+- **Nav: deliberately not.** The nav already carries seven items and is tight on
+  a phone. More importantly the tutorial is a *journey you finish*, not a
+  destination you return to; a permanent slot would keep advertising it to people
+  who completed it months ago. Home and `/cours/` reach the people who need it.
+
+### `onlyMove: true` is honest here
+
+Elsewhere `onlyMove: true` is a claim that must be proven (see the exercise
+validation rule). Tutorial tasks name a destination — "bring the rook to h8" — so
+a different move genuinely is not the task, and saying so is accurate rather than
+a lie about correctness. `check-content.mjs` still brute-forces uniqueness for
+any step that ends in mate.
+
+### Content is checked, not trusted
+
+`scripts/check-content.mjs` validates the `tutoriel` collection on every build:
+FEN parses and has six fields, the solution is legal, `onlyMove: true` on a
+mate-in-1 is genuinely unique, no duplicate slugs, **`order` is contiguous
+1..N** (a gap strands a reader mid-sequence, because prev/next walks that order),
+and neither language of any prose field is empty.
+
+⚠️ **The chess is machine-verified. The teaching is not.** The FR pedagogy is
+flagged for Seàn's review — see BACKLOG.md.
+
+---
+
 ## Routes
 
 FR at the root, EN under `/en/...`. **Route segments are not translated** (`/en/pieges/`, not `/en/traps/`) — one segment vocabulary means the language switcher is a pure prefix swap that can never fail to find its counterpart. Visible nav labels are translated; URLs are structural.
@@ -1227,26 +1294,14 @@ It is a **living document**: keep it in step with the site, in the same commit a
 
 ---
 
-## Open questions for Seàn
+## Open questions and everything not yet built
 
-- ~~**The exercise board cannot be played with a keyboard.**~~ RESOLVED (Session 4) — `MoveInput` feeds the same judge path on both the exercise and play boards. See "Both inputs, one path".
-- **Custom colours are board-only, and that is a v1 decision rather than a limitation** — see Theming. If site-wide theming is ever wanted it needs a validation story first, not a second colour picker.
-- **The board does not change with light/dark**, by design. Worth a look on a real phone in a dark room: if Classique feels too bright at night, the answer is probably a sixth preset rather than coupling the two systems.
-- **Should the level presets show an Elo number?** They currently show names only. The vendored build has no `UCI_Elo`, so the design targets (~800 / ~1400 / ~2000) are hand-set `Skill Level` + depth and have never been measured. Printing a rating would be inventing a fact; measuring one properly means playing rated opposition. Names-only is the honest default until someone wants to do that work.
-- **Pass-and-play (2 players, 1 device)** was scoped as an optional bonus and **skipped**. It is not free from `PlayView`: no engine, no thinking state, a board that flips or does not, and a second result vocabulary ("White wins" rather than "you win"). It is a small separate mode, not a flag — worth doing deliberately if wanted.
-- **Promotion:** the pointer path auto-queens (and, in an exercise, adopts the expected move's piece when the squares match, so nobody is failed for an under-promotion they were never asked about). The **typed** path honours what you type — `e8=D` under-promotes correctly. So a keyboard player has strictly more control than a mouse user here, which is backwards. A picker on the pointer path would fix it; no current exercise promotes, and in a real game against the engine a queen is right ~99% of the time.
-- **EN legal-notice URL:** `/en/mentions-legales/` (structural, keeps the switcher a pure prefix swap) or `/en/legal-notice/` (needs a segment-translation map)? Implemented as the former — see the note under Routes. Same question now applies to `/en/jouer/`.
-- **Domain:** is `mogadorchess.ma` registered / registrable? `.ma` needs a Moroccan registrar and can require paperwork.
-- ~~**WhatsApp number**~~ — RESOLVED: the real club number is in `site.contact.whatsapp`. Still the only number on the site, and still reached solely through `whatsappUrl()`.
-- **Club email** — create one, or route to Seàn's inbox?
-- **Socials** — does the club have its own Instagram, or does it post through the association's account? A Lichess team for v2?
-- **Brand mark** — the current one is an explicit placeholder (a board in a brass frame). Commission a real one?
-- **Dar Souiri address** — what exact street line may be published?
-- **Lesson granularity** — is a course one page, or a course with N lesson pages? The body format is settled (per-locale Markdown) and so is the ordering: **`order: number` in the course frontmatter** (decided Session 3, to be implemented in the `/cours` session). What is still open is only whether lessons become their own collection.
-- ~~**`youtube` field**~~ — DECIDED (Session 3): click-to-load facade on `youtube-nocookie` only, never a plain iframe. Now a standing rule — see "No third-party requests without an explicit click". Still unimplemented; nothing renders the field yet.
-- **Arabic / Darija** — a third locale is a real question in Essaouira. The i18n layer supports it structurally, but RTL would need design work. Worth it?
+**➡️ [`BACKLOG.md`](./BACKLOG.md) is the single list.** Every deferred item,
+conditional decision, dormant field and open question for Seàn lives there with a
+status, and this section deliberately keeps no second copy — a list that exists
+twice is a list that disagrees with itself.
 
----
+Add new items there, not here.
 
 ## Key Contacts
 

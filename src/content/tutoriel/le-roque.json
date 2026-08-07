@@ -1,0 +1,29 @@
+{
+  "title_fr": "Le roque",
+  "title_en": "Castling",
+  "slug": "le-roque",
+  "order": 9,
+  "summary_fr": "Le seul coup où deux pièces bougent en même temps.",
+  "summary_en": "The only move where two pieces move at once.",
+  "body_fr": [
+    "Le roque met le roi à l'abri et fait sortir une tour, en un seul coup. Le roi se déplace de deux cases vers la tour, et la tour saute par-dessus lui pour se poser juste à côté.",
+    "Il y a des conditions : ni le roi ni cette tour ne doivent avoir déjà bougé, les cases entre eux doivent être vides, et le roi ne doit pas être en échec — ni traverser une case attaquée.",
+    "Roque tôt. Un roi laissé au centre finit presque toujours par le regretter."
+  ],
+  "body_en": [
+    "Castling tucks the king away and brings a rook into play, in a single move. The king steps two squares towards the rook, and the rook hops over him to land right beside him.",
+    "There are conditions: neither the king nor that rook may have moved already, the squares between them must be empty, and the king must not be in check — nor pass through a square that is attacked.",
+    "Castle early. A king left in the centre almost always comes to regret it."
+  ],
+  "task_fr": "Roque du côté du roi : le roi va en **g1**.",
+  "task_en": "Castle on the king side: the king goes to **g1**.",
+  "fen": "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1",
+  "solution": [
+    "e1g1"
+  ],
+  "opponentReplies": [],
+  "onlyMove": true,
+  "hint_fr": "Déplace le roi de e1 vers g1 — la tour suivra toute seule.",
+  "hint_en": "Move the king from e1 to g1 — the rook follows by itself.",
+  "draft": false
+}
