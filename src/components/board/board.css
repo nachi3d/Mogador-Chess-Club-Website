@@ -13,21 +13,49 @@
 /* ---------- Sizing ---------- */
 /* The board is square, fills its column on mobile, and stops growing at a
    size where a piece is still comfortably tappable but the move list can sit
-   beside it on a desktop. --mcc-board-max is the token (34rem ≈ 544px). */
+   beside it on a desktop. --mcc-board-max is the token (34rem ≈ 544px).
+
+   ⚠️ THE FRAME IS DRAWN ON THIS ELEMENT, NOT ON THE CHESSGROUND HOST.
+
+   It used to sit on `.mcc-board-host`, which is the playing surface alone.
+   That was correct until the coordinates moved into gutters, which live in
+   THIS element's padding — outside the host. The frame then enclosed the
+   squares and excluded the gutters, so it cut across the rank labels and the
+   file labels hung below it. It also overhung the component's right edge by
+   exactly 6px: its own 2×3px border, added outside a content box that the
+   left padding had already narrowed.
+
+   The rule that keeps it honest: the frame belongs on the box that contains
+   EVERYTHING the component draws — surface plus both gutters. Padding is on
+   all four sides so the frame is centred on the component; the left and bottom
+   are occupied by coordinates, the top and right are matching breathing room.
+
+   `tests/e2e/board-frame.spec.ts` asserts the frame box and the component box
+   coincide, in every exercise state and at every size, so this cannot drift
+   apart again. */
 .mcc-board {
   width: 100%;
   max-width: var(--mcc-board-max);
   margin-inline: auto;
+  /* Uniform breathing room on all four sides, PLUS the gutter on the two sides
+     that carry coordinates. Without the uniform part the rank labels sit flush
+     against the frame on the left while the right has a full gutter of space —
+     enclosed, but visibly off-centre. */
+  padding:
+    var(--mcc-board-inset)
+    var(--mcc-board-inset)
+    calc(var(--mcc-board-inset) + var(--mcc-coord-gutter))
+    calc(var(--mcc-board-inset) + var(--mcc-coord-gutter));
+  border: 3px solid var(--mcc-board-border);
+  border-radius: 2px;
+  box-shadow: var(--shadow-board);
 }
 
 .mcc-board-host {
   width: 100%;
   aspect-ratio: 1 / 1;
-  border: 3px solid var(--mcc-board-border);
-  border-radius: 2px;
-  box-shadow: var(--shadow-board);
-  /* Chessground measures the element on init; without an explicit box it can
-     come up zero-height inside a flex/grid parent on first paint. */
+  /* No border and no shadow here any more — both moved to `.mcc-board` above.
+     Leaving a border here would draw a second frame around the squares alone. */
   display: block;
 }
 
@@ -72,37 +100,145 @@ cg-board square.oc.move-dest {
   background: radial-gradient(transparent 0%, transparent 79%, var(--mcc-board-hint) 80%);
 }
 
+/* ---------- The correct-move pulse ----------
+   Fed by `pulseSquare` on BoardSurface, via Chessground's own
+   `highlight.custom`, so the square is located by the board rather than by
+   geometry we recompute.
+
+   ⚠️ THE BOARD STAYS SOBER (CLAUDE.md → E1 motion). This is the whole of it:
+   ONE Transition, no loop, no glow left behind, and only on a correct move in
+   an exercise. It is an inset ring rather than a fill because the destination
+   square is simultaneously `last-move` — a competing background would either
+   lose to it or replace it, and both read as the highlight glitching.
+
+   The ring is drawn inside the square's own box, so it cannot overhang onto a
+   neighbour and cannot move anything: `box-shadow: inset` participates in no
+   layout at all. */
+cg-board square.mcc-pulse {
+  animation: mcc-square-pulse var(--motion-transition) var(--ease-transition) 1;
+}
+
+@keyframes mcc-square-pulse {
+  from {
+    box-shadow: inset 0 0 0 0.28em var(--mcc-board-pulse);
+  }
+  to {
+    box-shadow: inset 0 0 0 0.28em rgb(0 0 0 / 0);
+  }
+}
+
+/* Reduced motion: the ring still appears — it is the answer to a move the
+   reader just made, and removing feedback is not what "reduced" means — but it
+   arrives and leaves without a curve to watch. */
+@media (prefers-reduced-motion: reduce) {
+  cg-board square.mcc-pulse {
+    animation: none;
+    box-shadow: inset 0 0 0 0.28em var(--mcc-board-pulse);
+  }
+}
+
 /* ---------- Coordinates ---------- */
-/*
-  AA, per CLAUDE.md: coordinates are real text sitting ON a square, so each
-  square colour needs the ink that clears 4.5:1 against IT. Chessground
-  alternates coordinate colour by square parity; we feed both inks in.
-    ink-950  on --mcc-board-light ... 13.7:1
-    cream-50 on --mcc-board-dark  ...  5.5:1
-  One ink for both would fail on one of them. That is why two tokens exist.
-*/
+/* ============================================================
+   COORDINATES LIVE IN AN OUTER GUTTER (reversal, this session)
+
+   They used to be drawn ON the squares. Readable enough on a
+   desktop, poor on a phone: small text over a wood-toned square,
+   competing with the piece standing on it.
+
+   They now sit OUTSIDE the playing surface — ranks in a left
+   gutter, files in a bottom gutter. This is the layout Chessground
+   was built for, which is also why its defaults carried
+   `left: 24px` and `top: -20px`: those offsets were reserving
+   exactly this gutter. We now provide it, so the offsets are
+   replaced by a track pinned to the gutter instead.
+
+   ⚠️ THE PLAYING SURFACE STAYS SQUARE. The gutter is padding on
+   the OUTER element; `cg-container` keeps its 1:1 aspect. Get this
+   wrong and the squares turn into rectangles, which is far worse
+   than unreadable coordinates.
+
+   ⚠️ COORDINATES ARE NOW ON THE PAGE BACKGROUND, NOT ON A SQUARE.
+   The two-ink rule is therefore GONE: there is no light/dark
+   square parity to satisfy, so there is exactly one colour per
+   palette, `--mcc-board-coord`, checked against the page surface
+   in `check-contrast.mjs` for BOTH palettes.
+   ============================================================ */
+
+/* ⚠️ THE GUTTER GOES ON THE OUTER WRAPPER, NEVER ON THE CHESSGROUND HOST.
+   Chessground sizes cg-container from the host element, and absolutely
+   positioned children resolve their insets against the host's PADDING box —
+   so padding on the host both inflates the playing surface and double-counts
+   into every coordinate inset. Measured when it was tried: labels 12-26px out
+   and the board overflowing a phone viewport.
+   Padding the wrapper shrinks the host instead, and the coordinates are then
+   projected into that reserved space with negative insets. */
+.mcc-board {
+  /* The gutter, used by the frame padding above and by the coordinate tracks
+     below. Declared here beside the coordinate rules it explains. */
+  --mcc-coord-gutter: 1.15rem;
+  /* Even margin between the frame and everything it encloses. */
+  --mcc-board-inset: 0.4rem;
+}
+
 .cg-wrap coords {
+  position: absolute;
+  display: flex;
+  color: var(--mcc-board-coord);
   font-family: var(--font-notation);
-  font-size: 0.6875em;
+  font-size: 0.6875rem;
   font-weight: 600;
+  /* Chessground dims its own coordinates because they sat on a
+     square. On the page background that only makes them harder to
+     read, which is the defect being fixed. */
+  opacity: 1;
+  pointer-events: none;
 }
 
-.orientation-white .ranks :nth-child(odd),
-.orientation-white .files :nth-child(even),
-.orientation-black .ranks :nth-child(even),
-.orientation-black .files :nth-child(odd),
-coords.squares:nth-of-type(odd) :nth-child(even),
-coords.squares:nth-of-type(even) :nth-child(odd) {
-  color: var(--mcc-board-dark-ink);
+/* Files: the bottom gutter, spanning exactly the playing surface. */
+.cg-wrap coords.files {
+  inset: auto 0 calc(-1 * var(--mcc-coord-gutter)) 0;
+  width: auto;
+  height: var(--mcc-coord-gutter);
+  flex-flow: row;
+  align-items: center;
+  text-transform: none;
 }
 
-.orientation-white .ranks :nth-child(even),
-.orientation-white .files :nth-child(odd),
-.orientation-black .ranks :nth-child(odd),
-.orientation-black .files :nth-child(even),
-coords.squares:nth-of-type(odd) :nth-child(odd),
-coords.squares:nth-of-type(even) :nth-child(even) {
-  color: var(--mcc-board-light-ink);
+.cg-wrap coords.files.black {
+  flex-flow: row-reverse;
+}
+
+/* Ranks: the left gutter, spanning exactly the playing surface. */
+.cg-wrap coords.ranks {
+  inset: 0 auto 0 calc(-1 * var(--mcc-coord-gutter));
+  width: var(--mcc-coord-gutter);
+  height: auto;
+  flex-flow: column-reverse;
+  align-items: center;
+}
+
+.cg-wrap coords.ranks.black {
+  flex-flow: column;
+}
+
+/* ⚠️ `flex: 1 1 0`, never Chessground's `1 1 auto`. With an `auto`
+   basis the cells are content-sized first, so a wide glyph steals
+   space from its neighbours and the labels drift off their files. */
+.cg-wrap coords coord {
+  display: flex;
+  flex: 1 1 0;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ⚠️ SPECIFICITY, NOT JUST THE DECLARATION.
+   Chessground nudges ranks with `.cg-wrap coords.ranks coord { transform:
+   translateY(39%) }` to compensate for its own offset track. Resetting that
+   from `.cg-wrap coords coord` LOSES — one class fewer — and the reset
+   silently does nothing. Measured when it did: every rank label sat 16.4px
+   low, which is exactly 39% of a 42px cell. The selector must match theirs. */
+.cg-wrap coords.ranks coord {
+  transform: none;
 }
 
 /* Motion accessibility: the piece slide is decorative. Chessground's animation
@@ -112,4 +248,64 @@ coords.squares:nth-of-type(even) :nth-child(even) {
   .cg-wrap piece.anim {
     transition: none !important;
   }
+}
+
+/* ============================================================
+   TELLING THE TWO BOARD TYPES APART
+
+   A lesson can hold a replayer that DEMONSTRATES and an exercise
+   board that EXPECTS A MOVE, and nothing distinguished them: the
+   site's own author reached for the pieces on a demonstration
+   board. The exercise board therefore carries the visual weight
+   and the demonstration stays deliberately quiet — the active one
+   should be the one that looks active.
+
+   ⚠️ Colour is the LAST signal here, never the only one. The tag
+   is a real sentence, the border weight differs, and the accent
+   bar is a fourth cue. Someone who cannot distinguish brass from
+   a hairline border still reads "À toi de jouer".
+   ============================================================ */
+
+.mcc-board-block {
+  margin-block: 0.75rem;
+}
+
+.mcc-board-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 0.5rem;
+  color: var(--mcc-text-secondary);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* The demonstration: a hairline, and nothing that says "touch me". */
+.mcc-board-block-demo {
+  padding-left: 0.75rem;
+  border-left: 2px solid var(--mcc-border-subtle);
+}
+
+/* The active board. `--mcc-accent-text` is the AA-safe brass step for text
+   (brass-700 on cream, brass-300 at night) — see the brass contrast rule.
+   Using raw brass here would fail on one palette or the other. */
+.mcc-board-block-exercise {
+  padding-left: 0.75rem;
+  border-left: 3px solid var(--mcc-accent-strong);
+}
+
+.mcc-board-tag-active {
+  color: var(--mcc-accent-text);
+}
+
+/* A small filled marker so the active board reads as active at a glance,
+   before any text is processed. Decorative: the sentence carries the meaning. */
+.mcc-board-tag-active::before {
+  content: '';
+  width: 0.55em;
+  height: 0.55em;
+  border-radius: 50%;
+  background-color: var(--mcc-accent-strong);
 }

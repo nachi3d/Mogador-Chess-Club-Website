@@ -1,0 +1,29 @@
+---
+/** One lesson. URL comes from the content slugs, never the filename. */
+import { getCollection } from 'astro:content';
+import LessonPage from '@components/pages/LessonPage.astro';
+
+export async function getStaticPaths() {
+  const courses = await getCollection('cours', ({ data }) => !data.draft);
+  const all = await getCollection('lessons', ({ data }) => !data.draft);
+  return courses.flatMap((course) => {
+    const lessons = all
+      .filter((l) => l.data.course === course.data.slug && l.data.lang === 'en')
+      .sort((a, b) => a.data.order - b.data.order);
+    return lessons.map((entry, i) => ({
+      params: { course: course.data.slug, lesson: entry.data.slug },
+      props: {
+        entry,
+        course,
+        prev: lessons[i - 1] ?? null,
+        next: lessons[i + 1] ?? null,
+        total: lessons.length,
+      },
+    }));
+  });
+}
+
+const { entry, course, prev, next, total } = Astro.props;
+---
+
+<LessonPage locale="en" entry={entry} course={course} prev={prev} next={next} total={total} />

@@ -1,0 +1,29 @@
+{
+  "title_fr": "L'échiquier et les cases",
+  "title_en": "The board and its squares",
+  "slug": "lechiquier-et-les-coordonnees",
+  "order": 1,
+  "summary_fr": "Chaque case a un nom. Une lettre, un chiffre, et on se comprend.",
+  "summary_en": "Every square has a name. One letter, one number, and we understand each other.",
+  "body_fr": [
+    "L'échiquier a 64 cases : 8 colonnes et 8 rangées. Les colonnes portent des lettres, de **a** à **h**, en allant de la gauche vers la droite. Les rangées portent des chiffres, de **1** à **8**, en montant.",
+    "Le nom d'une case, c'est sa lettre suivie de son chiffre. La case en bas à gauche s'appelle **a1**. Celle juste au-dessus, **a2**. Celle juste à droite de a1, **b1**.",
+    "C'est tout. Une fois que tu sais lire une case, tu peux lire une partie entière, parler d'une position au téléphone, ou noter tes coups sur une feuille."
+  ],
+  "body_en": [
+    "A chessboard has 64 squares: 8 files and 8 ranks. The files are lettered **a** to **h**, left to right. The ranks are numbered **1** to **8**, going up.",
+    "A square's name is its letter followed by its number. The bottom-left square is **a1**. The one above it is **a2**. The one to the right of a1 is **b1**.",
+    "That is the whole system. Once you can read a square, you can read a whole game, describe a position over the phone, or write your moves down."
+  ],
+  "task_fr": "Amène la tour tout au bout de sa rangée, en **h1**.",
+  "task_en": "Send the rook all the way along its rank, to **h1**.",
+  "fen": "8/4k3/8/8/K7/8/8/R7 w - - 0 1",
+  "solution": [
+    "a1h1"
+  ],
+  "opponentReplies": [],
+  "onlyMove": true,
+  "hint_fr": "La tour est en a1. Reste sur la rangée 1 et va jusqu'à la colonne h.",
+  "hint_en": "The rook is on a1. Stay on rank 1 and travel to the h-file.",
+  "draft": false
+}

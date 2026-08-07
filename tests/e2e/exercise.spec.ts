@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import { settleReveals } from './helpers/reveal';
 import { movePiece, typeMove } from './helpers/board';
 
 /**
@@ -447,6 +448,10 @@ test.describe('exercise — architecture', () => {
 });
 
 async function expectNoAxeViolations(page: Page) {
+  /* Reveal pages hide below-fold content at opacity 0 until scrolled to; axe
+     would otherwise measure the contrast of text no reader is looking at.
+     See tests/e2e/helpers/reveal.ts. */
+  await settleReveals(page);
   const results = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
     .analyze();

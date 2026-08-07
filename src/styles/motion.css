@@ -26,8 +26,8 @@ html.js body[data-reveals] [data-reveal] {
      read as the page settling, which is a different thing. */
   transform: translateY(0.75rem);
   transition:
-    opacity var(--duration-slow) var(--ease-soft),
-    transform var(--duration-slow) var(--ease-soft);
+    opacity var(--motion-transition) var(--ease-transition),
+    transform var(--motion-transition) var(--ease-transition);
 }
 
 html.js body[data-reveals] [data-reveal].is-revealed {

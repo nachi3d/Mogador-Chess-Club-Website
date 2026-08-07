@@ -1,0 +1,137 @@
+/* ============================================================
+   Pressable controls — the Réponse family made visible.
+
+   ── Why this file exists ─────────────────────────────────────
+   `.btn-primary` and `.btn-ghost` were defined SEVEN times, once
+   in each page component's scoped <style>, with small drifts
+   between them (0.6rem vs 0.7rem padding, `background: none` vs a
+   surface colour). Scoped styles carry an attribute selector, so
+   they beat any global rule of the same class specificity — which
+   means a press defined globally would have been silently ignored
+   on whichever properties a scoped block happened to also set.
+
+   So the STRUCTURE lives here and the scoped blocks keep only
+   what is genuinely page-specific: colours, and margins that
+   depend on what the button sits next to.
+
+   ── The press ────────────────────────────────────────────────
+   A button that only changes colour on :active does not read as
+   pressed — it reads as a link doing something. The press is a
+   translate plus a shadow TIGHTENING: the control moves toward
+   the page and the gap beneath it closes, which is what a
+   physical key does. Both together; either alone reads as a
+   glitch.
+
+   Shadow, not scale. Scaling a button resamples its text for the
+   duration of the press and looks cheap at small sizes, and it
+   changes the hit area mid-click.
+
+   ── Touch targets ────────────────────────────────────────────
+   `min-height: 2.75rem` is 44px, and it is not decoration. The
+   old scoped definitions came out at ~40px (0.6rem padding + a
+   ~19px line box + 2px of border) — under the target on every
+   phone, which nothing was checking. `tests/e2e/motion.spec.ts`
+   now measures it.
+   ============================================================ */
+
+.btn,
+.btn-primary,
+.btn-ghost,
+.share {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  /* 44px. See the note above — this was a real pre-existing miss. */
+  min-height: 2.75rem;
+  padding: 0.6rem 1.2rem;
+  border-radius: var(--radius-card);
+  font: inherit;
+  font-weight: 500;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+/* ── The press vocabulary ─────────────────────────────────────
+   Applied to everything a reader can push. Kept as one rule so
+   the site cannot develop two different presses.
+
+   `.mcc-exercise-button`, `.mcc-play-button` and the replayer
+   controls are NOT in this list: they live in island CSS, which
+   is a separate chunk whose order relative to this file is not
+   guaranteed. They carry the same declarations locally, next to
+   a comment pointing back here. One vocabulary, two places it is
+   spelled, because the cascade leaves no honest alternative. */
+.btn,
+.btn-primary,
+.btn-ghost,
+.share,
+.settings-button,
+.lesson-nav-link {
+  box-shadow: 0 var(--motion-press-y) 0 var(--mcc-press-shadow);
+  transition:
+    transform var(--motion-response) var(--ease-response),
+    box-shadow var(--motion-response) var(--ease-response),
+    background-color var(--motion-response) var(--ease-response),
+    border-color var(--motion-response) var(--ease-response);
+}
+
+.btn:active,
+.btn-primary:active,
+.btn-ghost:active,
+.share:active,
+.settings-button:active,
+.lesson-nav-link:active {
+  transform: translateY(var(--motion-press-y));
+  /* The gap closes as the control meets the page. */
+  box-shadow: 0 0 0 var(--mcc-press-shadow);
+}
+
+/* ── Cards: a grab, not a push ────────────────────────────────
+   A card is already lifted (`--shadow-lift`) and rises further on
+   hover. Pressing it puts it back down flat — the same gesture as
+   a button, read on a surface that starts raised rather than
+   flush. `.card-linked` and `.pillar` set their own transition in
+   scoped blocks, already on the Réponse family, so only the
+   :active state is needed here. */
+.card-linked:active,
+.pillar:active,
+.lesson-card:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+/* ── Reduced motion ───────────────────────────────────────────
+   The press is FEEDBACK, not decoration, so it is not removed —
+   it is made instant. `--motion-response` is already 1ms under
+   this query and `--motion-press-y` is 0, so the control still
+   reports the press through its shadow and colour without
+   anything travelling. Stated explicitly rather than left to the
+   tokens, because "the button stops answering" is the failure
+   this guards against. */
+@media (prefers-reduced-motion: reduce) {
+  .btn,
+  .btn-primary,
+  .btn-ghost,
+  .share,
+  .settings-button,
+  .lesson-nav-link,
+  .card-linked,
+  .pillar,
+  .lesson-card {
+    transition-duration: 1ms;
+  }
+
+  .btn:active,
+  .btn-primary:active,
+  .btn-ghost:active,
+  .share:active,
+  .settings-button:active,
+  .lesson-nav-link:active,
+  .card-linked:active,
+  .pillar:active,
+  .lesson-card:active {
+    transform: none;
+  }
+}

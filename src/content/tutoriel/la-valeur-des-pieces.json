@@ -1,0 +1,29 @@
+{
+  "title_fr": "La valeur des pièces",
+  "title_en": "What the pieces are worth",
+  "slug": "la-valeur-des-pieces",
+  "order": 12,
+  "summary_fr": "Un ordre de grandeur pour décider quoi échanger.",
+  "summary_en": "A rough scale, to decide what to trade.",
+  "body_fr": [
+    "Pour s'y retrouver, on donne une valeur approximative à chaque pièce : le pion vaut **1**, le cavalier et le fou **3**, la tour **5**, la dame **9**. Le roi n'a pas de valeur — sans lui il n'y a plus de partie.",
+    "Ces chiffres ne sont pas une loi, ce sont des repères. Ils servent à répondre vite à une question fréquente : est-ce que cet échange est bon pour moi ?",
+    "Un cavalier bien placé peut valoir plus qu'une tour endormie dans un coin. Mais tant que tu débutes, ces nombres t'éviteront beaucoup de mauvaises affaires."
+  ],
+  "body_en": [
+    "To keep track, each piece is given a rough value: a pawn is worth **1**, a knight and a bishop **3**, a rook **5**, the queen **9**. The king has no value — without him there is no game.",
+    "These numbers are not a law, they are landmarks. They answer one very common question quickly: is this trade good for me?",
+    "A well-placed knight can be worth more than a rook asleep in a corner. But while you are starting out, these numbers will save you from a lot of bad bargains."
+  ],
+  "task_fr": "Deux captures sont possibles. Prends la pièce qui vaut le plus.",
+  "task_en": "Two captures are available. Take the piece that is worth more.",
+  "fen": "7k/8/8/3q4/8/8/8/b2R1K2 w - - 0 1",
+  "solution": [
+    "d1d5"
+  ],
+  "opponentReplies": [],
+  "onlyMove": true,
+  "hint_fr": "Un fou vaut 3, une dame vaut 9. Compare avant de choisir.",
+  "hint_en": "A bishop is worth 3, a queen is worth 9. Compare before you choose.",
+  "draft": false
+}

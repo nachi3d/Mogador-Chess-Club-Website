@@ -39,7 +39,7 @@
   outline: 3px solid transparent;
   outline-offset: 4px;
   border-radius: 3px;
-  transition: outline-color var(--duration-base) var(--ease-soft);
+  transition: outline-color var(--motion-transition) var(--ease-transition);
 }
 
 .mcc-fb-correct {
@@ -59,8 +59,11 @@
   outline-color: var(--mcc-accent);
 }
 
+/* FOUR Réponse beats, spelled as arithmetic so it cannot drift into being a
+   fourth family. See SHAKE_MS in src/lib/motion.ts — the JS timer that ends the
+   shake carries 20ms of slack over this, or the board snaps back mid-wobble. */
 .mcc-exercise-surface[data-shake='true'] {
-  animation: mcc-shake 600ms var(--ease-soft);
+  animation: mcc-shake calc(var(--motion-response) * 4) var(--ease-transition);
 }
 
 @keyframes mcc-shake {
@@ -85,23 +88,95 @@
   }
 }
 
-/* The celebration: a single brass breath around the frame, not confetti. */
+/* ── The solve, in TWO BEATS ───────────────────────────────────────────────
+   BEAT ONE: the frame settles to its final state.
+   BEAT TWO: the badge arrives on top of it, one Transition later.
+
+   It used to be a single 900ms block in which the frame breathed and the badge
+   simply appeared in the same frame, which read as "a thing happened" rather
+   than as an event with a shape. The beat of stillness between the two is what
+   makes them read as two things instead of one long one — remove the delay and
+   you are back to the old effect at a shorter duration.
+
+   Still not confetti. The reward for precision is precision. */
 .mcc-fb-solved {
-  animation: mcc-settle 900ms var(--ease-soft);
+  animation: mcc-settle var(--motion-transition) var(--ease-transition);
 }
 
 @keyframes mcc-settle {
-  0% {
+  from {
     outline-color: var(--mcc-primary);
     outline-offset: 4px;
   }
-  40% {
-    outline-color: var(--mcc-accent-strong);
-    outline-offset: 10px;
-  }
-  100% {
+  to {
     outline-color: var(--mcc-accent);
     outline-offset: 4px;
+  }
+}
+
+/* Beat two. `both` fill is what makes the delay legible: the badge holds the
+   from-state (invisible) for the whole delay instead of flashing in at full
+   opacity and then animating. A spec asserts it is still transparent at t=0. */
+.mcc-exercise-solved {
+  animation: mcc-badge-in var(--motion-transition) var(--ease-transition)
+    var(--motion-transition) both;
+}
+
+@keyframes mcc-badge-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.4rem) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ── Hint, and the verdict text: the Transition family ─────────────────────
+   A hint that is simply present on the next frame is indistinguishable from a
+   hint that was always there — the reader has to re-scan the panel to find what
+   changed. One Transition is enough to say "this is the new thing". */
+.mcc-exercise-hint,
+.mcc-exercise-message {
+  animation: mcc-reveal var(--motion-transition) var(--ease-transition);
+}
+
+@keyframes mcc-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(0.35rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ── The move counter's hop ────────────────────────────────────────────────
+   A Réponse: the reader played a correct move and the counter answers. It is
+   keyed on the step index in ExerciseView (`key={stepIndex}`), so Preact
+   remounts the element and the animation runs fresh — restarting a CSS
+   animation on a surviving node needs a reflow hack, and a remount of one
+   <span> is cheaper and clearer than that.
+
+   Vertical only, and small. A counter that scales pushes its neighbour around;
+   this one moves inside the space it already occupies. (`display: inline-block`
+   is set on the base rule further down — a transform does not apply to an inline
+   box, so without it the hop is silently a no-op.) */
+.mcc-meter-value[data-hop='true'] {
+  animation: mcc-hop var(--motion-response) var(--ease-response);
+}
+
+@keyframes mcc-hop {
+  0% {
+    transform: translateY(0);
+  }
+  45% {
+    transform: translateY(-0.3rem);
+  }
+  100% {
+    transform: translateY(0);
   }
 }
 
@@ -110,8 +185,22 @@
      verdict is still visible without anything moving — and the message in the
      live region says it in words regardless. */
   .mcc-exercise-surface[data-shake='true'],
-  .mcc-fb-solved {
+  .mcc-fb-solved,
+  .mcc-exercise-hint,
+  .mcc-exercise-message,
+  .mcc-meter-value[data-hop='true'] {
     animation: none;
+  }
+
+  /* ⚠️ The badge included, and deliberately: the two beats COLLAPSE here.
+     A reader who has asked for reduced motion has asked for the outcome, not
+     for a choreographed arrival of it — staging a delay they did not ask to
+     wait through would be treating "reduced motion" as "the same show, slower".
+     The verdict is in the live region either way, and it is the same words. */
+  .mcc-exercise-solved {
+    animation: none;
+    opacity: 1;
+    transform: none;
   }
 
   .mcc-exercise-surface {
@@ -147,6 +236,8 @@
 }
 
 .mcc-meter-value {
+  /* Needed by the hop above: transforms do not apply to inline boxes. */
+  display: inline-block;
   font-family: var(--font-notation);
   font-size: 1.125rem;
   font-variant-numeric: tabular-nums;
@@ -175,7 +266,7 @@
   background-color: var(--mcc-surface-sunken);
   border-inline-start: 3px solid var(--mcc-border-subtle);
   border-radius: var(--radius-card);
-  transition: border-color var(--duration-fast) var(--ease-soft);
+  transition: border-color var(--motion-response) var(--ease-response);
 }
 
 .mcc-exercise-status p {
@@ -236,8 +327,26 @@
   font-size: 0.9375rem;
   cursor: pointer;
   justify-self: start;
-  transition: background-color var(--duration-fast) var(--ease-soft);
 }
+/* ── The press ────────────────────────────────────────────────────────────
+   Same vocabulary as `src/styles/controls.css`, spelled again here because
+   island CSS is a separate chunk whose order against the global sheet is not
+   guaranteed — and both rules are class-specificity, so whichever lands last
+   would win. See the note in controls.css. */
+.mcc-exercise-button {
+  box-shadow: 0 var(--motion-press-y) 0 var(--mcc-press-shadow);
+  transition:
+    transform var(--motion-response) var(--ease-response),
+    box-shadow var(--motion-response) var(--ease-response),
+    background-color var(--motion-response) var(--ease-response),
+    border-color var(--motion-response) var(--ease-response);
+}
+
+.mcc-exercise-button:active {
+  transform: translateY(var(--motion-press-y));
+  box-shadow: 0 0 0 var(--mcc-press-shadow);
+}
+
 
 .mcc-exercise-button:hover {
   background-color: var(--mcc-surface-sunken);

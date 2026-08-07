@@ -1,0 +1,29 @@
+{
+  "title_fr": "Lire la notation",
+  "title_en": "Reading the notation",
+  "slug": "lire-la-notation",
+  "order": 13,
+  "summary_fr": "Une lettre pour la pièce, une case pour l’arrivée. Rien de plus.",
+  "summary_en": "A letter for the piece, a square for the destination. That is all.",
+  "body_fr": [
+    "Un coup s'écrit avec l'initiale de la pièce et la case d'arrivée. En français : **R** roi, **D** dame, **T** tour, **F** fou, **C** cavalier. Le pion n'a pas de lettre — on écrit juste la case.",
+    "Donc **Cf3** veut dire « le cavalier va en f3 ». **e4** veut dire « le pion va en e4 ». Un **x** signale une capture, un **+** un échec, un **#** un échec et mat.",
+    "Tu peux taper tes coups directement sur ce site, dans le champ sous l'échiquier — en français (**Cf3**), en anglais (**Nf3**), ou simplement en nommant les deux cases (**g1f3**). Essaie sur cette dernière étape."
+  ],
+  "body_en": [
+    "A move is written as the piece's initial plus the destination square. In English: **K** king, **Q** queen, **R** rook, **B** bishop, **N** knight. Pawns have no letter — you just write the square.",
+    "So **Nf3** means \"the knight goes to f3\". **e4** means \"the pawn goes to e4\". An **x** marks a capture, a **+** a check, and a **#** checkmate.",
+    "You can type your moves straight into this site, in the field under the board — in English (**Nf3**), in French (**Cf3**), or simply by naming both squares (**g1f3**). Try it on this last step."
+  ],
+  "task_fr": "Joue **Cf3** — au clavier si tu veux, dans le champ sous l’échiquier.",
+  "task_en": "Play **Nf3** — from the keyboard if you like, in the field under the board.",
+  "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+  "solution": [
+    "g1f3"
+  ],
+  "opponentReplies": [],
+  "onlyMove": true,
+  "hint_fr": "Le cavalier de g1 va en f3. Tape « Cf3 », « Nf3 » ou « g1f3 ».",
+  "hint_en": "The g1 knight goes to f3. Type \"Nf3\", \"Cf3\" or \"g1f3\".",
+  "draft": false
+}

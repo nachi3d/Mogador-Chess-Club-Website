@@ -276,9 +276,9 @@ export const site = {
      * unset — no empty <script> tag, no request to umami.is in dev or in tests.
      * Set PUBLIC_UMAMI_WEBSITE_ID in the Cloudflare Pages BUILD variables.
      */
-    umamiWebsiteId: (import.meta.env['PUBLIC_UMAMI_WEBSITE_ID'] as string | undefined) ?? null,
+    umamiWebsiteId: (import.meta.env.PUBLIC_UMAMI_WEBSITE_ID) ?? null,
     umamiScriptUrl:
-      (import.meta.env['PUBLIC_UMAMI_SCRIPT_URL'] as string | undefined) ??
+      (import.meta.env.PUBLIC_UMAMI_SCRIPT_URL) ??
       'https://cloud.umami.is/script.js',
   },
 

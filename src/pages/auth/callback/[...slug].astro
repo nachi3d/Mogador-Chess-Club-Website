@@ -1,0 +1,108 @@
+---
+/**
+ * /auth/callback — where a magic link lands.
+ *
+ * ─────────────────────────────────────────────────────────────────────────
+ * ⚠️ THIS IS A STATIC HTML FILE. THERE IS NO SERVER HERE.
+ *
+ * The implicit flow returns tokens in the URL **fragment**
+ * (`#access_token=…&refresh_token=…`). A fragment is never transmitted to the
+ * origin — the browser strips it before the request goes out — so Cloudflare
+ * serves this page as an ordinary static asset and the token exchange happens
+ * entirely in `@supabase/supabase-js` on the client. That is precisely why this
+ * works with `output: 'static'` and no adapter, and it is the reason the flow is
+ * implicit rather than PKCE (see the note in `src/lib/supabase.ts`).
+ * ─────────────────────────────────────────────────────────────────────────
+ *
+ * ⚠️ DELIBERATELY NOT LOCALISED, and the only route on the site that is not.
+ *
+ * Supabase holds ONE redirect allow-list per project. A per-locale callback
+ * would mean two entries and a rule for choosing between them at link-send
+ * time, for a page nobody reads — it renders a spinner and redirects. The
+ * reader's locale is recovered from their profile and they land on the right
+ * `/compte`. The no-translated-segments rule is about pages a reader navigates
+ * to; this is machinery.
+ *
+ * ⚠️ GATED, and the rest parameter is why the filename is strange. Astro's
+ * static build has no "skip this page" switch on a plain `.astro` route, but a
+ * DYNAMIC route decides for itself: `getStaticPaths()` returning `[]` emits
+ * nothing and the URL 404s like any unwritten one. See `src/config/auth.ts`.
+ *
+ * This one matters more than the other four. `/auth/callback/` is the address
+ * sitting in Supabase's redirect allow-list, so it is the one URL an outsider
+ * could plausibly guess is here. With accounts off it must not resolve.
+ */
+import { AUTH_ENABLED } from '@config/auth';
+import BaseLayout from '@layouts/BaseLayout.astro';
+import { useTranslations } from '@i18n/ui';
+
+export function getStaticPaths() {
+  return AUTH_ENABLED ? [{ params: { slug: undefined } }] : [];
+}
+
+const t = useTranslations('fr');
+---
+
+<BaseLayout locale="fr" title={t('callback.title')}>
+  <div class="callback" data-testid="auth-callback" data-state="working">
+    <p class="callback-working" data-testid="callback-working">{t('callback.working')}</p>
+
+    <div class="callback-failed" data-testid="callback-failed" hidden>
+      <p>{t('callback.failed')}</p>
+      <p><a href="/connexion/" data-testid="callback-retry">{t('callback.retry')}</a></p>
+    </div>
+  </div>
+
+  <script>
+    import { completeSignIn } from '@lib/supabase';
+
+    const root = document.querySelector('[data-testid="auth-callback"]') as HTMLElement | null;
+    const working = document.querySelector('[data-testid="callback-working"]') as HTMLElement | null;
+    const failed = document.querySelector('[data-testid="callback-failed"]') as HTMLElement | null;
+
+    function fail() {
+      root?.setAttribute('data-state', 'failed');
+      if (working) working.hidden = true;
+      if (failed) failed.hidden = false;
+    }
+
+    (async () => {
+      try {
+        /* `detectSessionInUrl` has already consumed the fragment by the time the
+           client resolves; this reads the resulting session, records the local
+           flag, and scrubs the tokens out of the address bar. */
+        const session = await completeSignIn();
+        if (!session) {
+          fail();
+          return;
+        }
+
+        /* Land the reader in their own locale. The profile is the record of
+           record; the fallback is French, which is the site default. */
+        let locale = 'fr';
+        try {
+          const { getProfile } = await import('@lib/supabase');
+          const profile = await getProfile();
+          if (profile?.locale === 'en') locale = 'en';
+        } catch {
+          /* A missing profile should not strand a signed-in reader. */
+        }
+
+        root?.setAttribute('data-state', 'done');
+        window.location.replace(locale === 'en' ? '/en/compte/' : '/compte/');
+      } catch {
+        fail();
+      }
+    })();
+  </script>
+</BaseLayout>
+
+<style>
+  .callback {
+    padding-block: 3rem;
+  }
+
+  .callback-failed a {
+    color: var(--mcc-link);
+  }
+</style>

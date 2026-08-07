@@ -1,4 +1,21 @@
 import { defineConfig, devices } from '@playwright/test';
+import { assertNotProduction, loadE2EEnv } from './tests/e2e/env';
+
+/**
+ * ⚠️ THE PRODUCTION-SAFETY INTERLOCK, AT CONFIG LOAD.
+ *
+ * Runs before a single test is collected. The auth suite creates users and
+ * PURGES BY PATTERN; pointed at production it would delete real accounts, so
+ * this aborts the ENTIRE run rather than letting one spec decide.
+ *
+ * It fails CLOSED on every ambiguity — refs equal, production ref undeclared,
+ * service key absent, URL unparseable. The single exception is a completely
+ * absent .env.test, where no Supabase project is reachable at all and the auth
+ * specs skip visibly; see the note in tests/e2e/env.ts.
+ *
+ * Never wrap this in a try/catch and never make it conditional on CI.
+ */
+assertNotProduction();
 
 /**
  * Mogador Chess Club — end-to-end test matrix.
@@ -107,6 +124,9 @@ export default defineConfig({
     },
   ],
 
+  globalSetup: './tests/e2e/global-setup.ts',
+  globalTeardown: './tests/e2e/global-teardown.ts',
+
   webServer: {
     command: 'npm run build && npm run preview',
     url: BASE_URL,
@@ -114,5 +134,40 @@ export default defineConfig({
     timeout: 180_000,
     stdout: 'ignore',
     stderr: 'pipe',
+    /**
+     * ⚠️ THE SITE UNDER TEST MUST NEVER POINT AT PRODUCTION.
+     *
+     * `PUBLIC_*` variables are baked into the bundle at build time, and Astro
+     * reads them from `.env.local` — which holds the PRODUCTION project, because
+     * that is what a real deploy build needs. Without this override, every
+     * Playwright run would serve a site whose Supabase client is wired to the
+     * live database. Nothing exploits that today (the signed-in specs are gated
+     * on `.env.test`), but a single future spec that signs in through the UI
+     * would create a real account in production, and the interlock would not
+     * catch it: `assertNotProduction()` inspects `.env.test`, and knows nothing
+     * about what the BUILD embedded.
+     *
+     * Vite gives an existing `process.env` entry precedence over a `.env` file
+     * for the same prefixed key, so passing them here wins over `.env.local`.
+     * `tests/e2e/auth.spec.ts` asserts the built bundle carries the test ref —
+     * the mechanism is verified rather than assumed.
+     *
+     * Empty strings when `.env.test` is absent: the build then has no Supabase
+     * config at all, which is strictly safer than inheriting production.
+     */
+    env: (() => {
+      const e = loadE2EEnv();
+      return {
+        PUBLIC_SUPABASE_URL: e?.supabaseUrl ?? '',
+        PUBLIC_SUPABASE_ANON_KEY: e?.anonKey ?? '',
+        /* Passed through so the BUILD and the SPECS agree about which shape of
+           site is under test. Default (unset ⇒ '') is OFF, which is what
+           production ships — so a plain `npx playwright test` exercises the
+           real artefact, and the auth specs skip visibly rather than passing
+           against a site that has no auth in it. Set PUBLIC_AUTH_ENABLED=true
+           to build and test the ON path. See tests/e2e/helpers/auth-mode.ts. */
+        PUBLIC_AUTH_ENABLED: process.env['PUBLIC_AUTH_ENABLED'] ?? '',
+      };
+    })(),
   },
 });

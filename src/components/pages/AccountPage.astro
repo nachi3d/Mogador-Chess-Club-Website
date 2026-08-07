@@ -1,0 +1,267 @@
+---
+/**
+ * /compte — display name, language, sign out.
+ *
+ * Minimal on purpose. Progress sync is v2-S3 and attendance is v2-S4; both are
+ * marked "à venir" here rather than hidden, so a reader can see the shape of
+ * what an account is for.
+ *
+ * ⚠️ The whole page renders server-side in its signed-OUT state and is revealed
+ * by script. There is no SSR to ask "who is this?", so the HTML cannot know —
+ * and rendering a signed-in shell that flashes for guests would be worse.
+ */
+import type { Locale } from '@config/site';
+import { localizePath } from '@i18n/paths';
+import { useTranslations } from '@i18n/ui';
+import BaseLayout from '@layouts/BaseLayout.astro';
+import PageIntro from '@components/PageIntro.astro';
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const t = useTranslations(locale);
+---
+
+<BaseLayout locale={locale} title={t('account.title')} description={t('account.intro')}>
+  <PageIntro title={t('account.title')} intro={t('account.intro')} />
+
+  <div
+    class="account"
+    data-testid="account"
+    data-state="loading"
+    data-locale={locale}
+    data-msg-saved={t('account.saved')}
+    data-msg-error={t('account.saveError')}
+  >
+    {/* Signed out — the default, because that is what a static page can prove. */}
+    <div class="account-signed-out" data-testid="account-signed-out" hidden>
+      <p>{t('account.signedOut')}</p>
+      <p>
+        <a class="btn-primary" href={localizePath('/connexion/', locale)}>
+          {t('account.goSignIn')}
+        </a>
+      </p>
+    </div>
+
+    <div class="account-panel" data-testid="account-panel" hidden>
+      <dl class="account-facts">
+        <dt>{t('account.email')}</dt>
+        <dd data-testid="account-email"></dd>
+        <dt>{t('account.role')}</dt>
+        <dd data-testid="account-role"></dd>
+      </dl>
+
+      <form class="account-form" data-testid="account-form">
+        <label for="account-display-name">{t('account.displayName')}</label>
+        <input
+          id="account-display-name"
+          type="text"
+          maxlength="40"
+          autocomplete="given-name"
+          data-testid="account-display-name"
+        />
+
+        <label for="account-locale">{t('account.locale')}</label>
+        <select id="account-locale" data-testid="account-locale">
+          <option value="fr">Français</option>
+          <option value="en">English</option>
+        </select>
+
+        <button type="submit" class="btn-primary" data-testid="account-save">
+          {t('account.save')}
+        </button>
+        <p class="account-status" role="status" data-testid="account-status"></p>
+      </form>
+
+      <section class="account-soon">
+        <h2>
+          {t('account.progress.heading')}
+          <span class="soon-badge">{t('account.progress.soon')}</span>
+        </h2>
+        <p>{t('account.progress.body')}</p>
+      </section>
+
+      <section class="account-soon">
+        <h2>
+          {t('account.attendance.heading')}
+          <span class="soon-badge">{t('account.attendance.soon')}</span>
+        </h2>
+        <p>{t('account.attendance.body')}</p>
+      </section>
+
+      <p>
+        <button type="button" class="btn-ghost" data-testid="account-signout">
+          {t('auth.signOut')}
+        </button>
+      </p>
+    </div>
+  </div>
+
+  <script>
+    import { getProfile, getSession, signOut, updateProfile } from '@lib/supabase';
+
+    const root = document.querySelector('[data-testid="account"]') as HTMLElement | null;
+    const signedOut = document.querySelector('[data-testid="account-signed-out"]') as HTMLElement | null;
+    const panel = document.querySelector('[data-testid="account-panel"]') as HTMLElement | null;
+    const emailEl = document.querySelector('[data-testid="account-email"]') as HTMLElement | null;
+    const roleEl = document.querySelector('[data-testid="account-role"]') as HTMLElement | null;
+    const nameInput = document.querySelector('[data-testid="account-display-name"]') as HTMLInputElement | null;
+    const localeSelect = document.querySelector('[data-testid="account-locale"]') as HTMLSelectElement | null;
+    const form = document.querySelector('[data-testid="account-form"]') as HTMLFormElement | null;
+    const status = document.querySelector('[data-testid="account-status"]') as HTMLElement | null;
+    const signOutBtn = document.querySelector('[data-testid="account-signout"]') as HTMLButtonElement | null;
+
+    const roleLabels: Record<string, string> = {
+      admin: root?.dataset.locale === 'en' ? 'Administrator' : 'Administrateur',
+      prof: root?.dataset.locale === 'en' ? 'Teacher' : 'Professeur',
+      eleve: root?.dataset.locale === 'en' ? 'Student' : 'Élève',
+    };
+
+    function showSignedOut() {
+      root?.setAttribute('data-state', 'signed-out');
+      if (signedOut) signedOut.hidden = false;
+      if (panel) panel.hidden = true;
+    }
+
+    (async () => {
+      const session = await getSession();
+      if (!session) {
+        showSignedOut();
+        return;
+      }
+
+      const profile = await getProfile();
+      if (emailEl) emailEl.textContent = session.user.email ?? '';
+      if (roleEl) roleEl.textContent = profile ? (roleLabels[profile.role] ?? profile.role) : '';
+      if (nameInput) nameInput.value = profile?.display_name ?? '';
+      if (localeSelect) localeSelect.value = profile?.locale === 'en' ? 'en' : 'fr';
+
+      root?.setAttribute('data-state', 'signed-in');
+      if (panel) panel.hidden = false;
+      if (signedOut) signedOut.hidden = true;
+    })();
+
+    form?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (!status) return;
+      status.textContent = '';
+
+      const patch: { display_name?: string; locale?: string } = {};
+      if (nameInput) patch.display_name = nameInput.value.trim();
+      if (localeSelect) patch.locale = localeSelect.value;
+
+      const result = await updateProfile(patch);
+      status.textContent = result.ok
+        ? (root?.dataset.msgSaved ?? '')
+        : (root?.dataset.msgError ?? '');
+    });
+
+    signOutBtn?.addEventListener('click', async () => {
+      await signOut();
+      /* Full document load, not a client-side swap: it guarantees the header
+         re-reads the (now cleared) flag from scratch. */
+      window.location.assign(root?.dataset.locale === 'en' ? '/en/' : '/');
+    });
+  </script>
+</BaseLayout>
+
+<style>
+  .account-facts {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.35rem 1rem;
+    margin: 0 0 1.5rem;
+  }
+
+  .account-facts dt {
+    color: var(--mcc-text-secondary);
+  }
+
+  .account-facts dd {
+    margin: 0;
+  }
+
+  .account-form {
+    max-width: 26rem;
+    margin-bottom: 2rem;
+  }
+
+  .account-form label {
+    display: block;
+    margin: 1rem 0 0.35rem;
+    font-weight: 500;
+  }
+
+  .account-form input,
+  .account-form select {
+    width: 100%;
+    padding: 0.55rem 0.7rem;
+    border: 1px solid var(--mcc-border-strong);
+    border-radius: var(--radius-card);
+    background-color: var(--mcc-surface-page);
+    color: var(--mcc-text-primary);
+    font: inherit;
+  }
+
+  .btn-primary {
+    margin-top: 1rem;
+    padding: 0.6rem 1.2rem;
+    border: 1px solid var(--mcc-primary);
+    border-radius: var(--radius-card);
+    background-color: var(--mcc-primary);
+    color: var(--mcc-primary-contrast);
+    font: inherit;
+    font-weight: 500;
+    text-decoration: none;
+    cursor: pointer;
+  }
+
+  .btn-ghost {
+    padding: 0.55rem 1.1rem;
+    border: 1px solid var(--mcc-border-strong);
+    border-radius: var(--radius-card);
+    background: none;
+    color: var(--mcc-link);
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .account-status {
+    margin: 0.75rem 0 0;
+    color: var(--mcc-text-secondary);
+  }
+
+  .account-soon {
+    margin-bottom: 1.5rem;
+    padding: 1rem 1.25rem;
+    border: 1px dashed var(--mcc-border-strong);
+    border-radius: var(--radius-card);
+  }
+
+  .account-soon h2 {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6rem;
+    margin: 0 0 0.4rem;
+    font-size: 1.125rem;
+  }
+
+  .account-soon p {
+    margin: 0;
+    color: var(--mcc-text-secondary);
+  }
+
+  .soon-badge {
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    background-color: var(--color-brass-300);
+    color: var(--color-ink-950);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+</style>

@@ -54,6 +54,15 @@ const pillars = [
           {t('home.cta.traps')}
         </a>
       </p>
+
+      {/* Deliberately BELOW the buttons and styled as a quiet line rather than
+          a third button: a complete beginner needs to find it instantly, and
+          everyone else needs it not to compete with the two real CTAs. */}
+      <p class="beginner-line">
+        <a href={localizePath('/apprendre-les-bases/', locale)} data-testid="home-cta-tutorial">
+          {t('tutorial.homeCta')}
+        </a>
+      </p>
     </div>
   </section>
 
@@ -127,13 +136,11 @@ const pillars = [
     margin: 0;
   }
 
+  /* Structure, press and the background transition all live in
+     `src/styles/controls.css` — see the note there about scoped specificity.
+     Only the larger hero padding is page-specific. */
   .btn {
-    display: inline-block;
     padding: 0.7rem 1.4rem;
-    border-radius: var(--radius-card);
-    font-weight: 500;
-    text-decoration: none;
-    transition: background-color var(--duration-fast) var(--ease-soft);
   }
 
   .btn-primary {
@@ -154,6 +161,18 @@ const pillars = [
 
   .btn-ghost:hover {
     background-color: var(--mcc-surface-sunken);
+  }
+
+  .beginner-line {
+    margin: 1rem 0 0;
+    font-size: 0.9375rem;
+  }
+
+  .beginner-line a {
+    color: var(--mcc-accent-text);
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+    font-weight: 500;
   }
 
   /* ── The three pillars ──────────────────────────────────────────────── */
@@ -179,12 +198,12 @@ const pillars = [
   .pillar {
     position: relative;
     padding: 1.25rem;
-    border: 1px solid var(--mcc-border);
+    border: 1px solid var(--mcc-border-subtle);
     border-radius: var(--radius-card);
     background-color: var(--mcc-surface-raised);
     transition:
-      border-color var(--duration-fast) var(--ease-soft),
-      transform var(--duration-fast) var(--ease-soft);
+      border-color var(--motion-response) var(--ease-response),
+      transform var(--motion-response) var(--ease-response);
   }
 
   .pillar:hover {

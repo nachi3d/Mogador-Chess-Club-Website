@@ -1,6 +1,7 @@
 ---
 import { getCollection } from 'astro:content';
 import type { Locale } from '@config/site';
+import { localizePath } from '@i18n/paths';
 import { useTranslations } from '@i18n/ui';
 import BaseLayout from '@layouts/BaseLayout.astro';
 import PageIntro from '@components/PageIntro.astro';
@@ -17,14 +18,55 @@ const entries = (await getCollection('cours', ({ data }) => !data.draft)).sort(
   (a, b) => a.data.order - b.data.order,
 );
 
+/**
+ * ⚠️ A course is only linked if it HAS lessons in this locale.
+ *
+ * The detail route is generated from the lessons collection and skips a course
+ * with none, so linking every card would send a reader to a 404. `les-bases` is
+ * exactly that case today: a course record with no lessons written yet.
+ *
+ * The cards carried no href at all until now — the course-1 session added the
+ * detail routes and never came back to link the index to them, so the only way
+ * in was to type the URL.
+ */
+const lessonEntries = await getCollection('lessons', ({ data }) => !data.draft);
+const coursesWithLessons = new Set(
+  lessonEntries.filter((l) => l.data.lang === locale).map((l) => l.data.course),
+);
+
 const items: CardItem[] = entries.map(({ data }) => ({
   title: locale === 'fr' ? data.title_fr : data.title_en,
   summary: locale === 'fr' ? data.summary_fr : data.summary_en,
   level: data.level,
+  ...(coursesWithLessons.has(data.slug)
+    ? { href: localizePath(`/cours/${data.slug}/`, locale) }
+    : {}),
 }));
 ---
 
 <BaseLayout locale={locale} title={t('courses.title')} description={t('courses.intro')} reveals>
   <PageIntro title={t('courses.title')} intro={t('courses.intro')} />
+
+  {/* The tutorial is the prerequisite for these courses, so it is named at the
+      TOP rather than buried at the bottom — a beginner who scrolls past it has
+      already started the wrong thing. */}
+  <p class="prerequisite">
+    <a href={localizePath('/apprendre-les-bases/', locale)} data-testid="cours-tutorial-link">
+      {t('tutorial.prerequisite')}
+    </a>
+  </p>
   <CardGrid locale={locale} items={items} emptyMessage={t('agenda.empty')} />
 </BaseLayout>
+
+<style>
+  .prerequisite {
+    margin: 0 0 1.5rem;
+  }
+
+  .prerequisite a {
+    color: var(--mcc-accent-text);
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+    font-weight: 500;
+  }
+</style>

@@ -15,7 +15,7 @@
  *                if the line ends in mate, the last move actually IS mate.
  */
 
-import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { Chess } from 'chess.js';
 
@@ -30,6 +30,47 @@ const readCollection = (name) => {
   return readdirSync(dir)
     .filter((f) => f.endsWith('.json'))
     .map((f) => ({ file: `${name}/${f}`, data: JSON.parse(readFileSync(join(dir, f), 'utf8')) }));
+};
+
+/**
+ * Lessons are Markdown pairs in per-course subdirectories, not flat JSON, so
+ * they need their own reader.
+ *
+ * The frontmatter is written with JSON scalars (which YAML accepts), so each
+ * value parses with `JSON.parse`. A hand-edited plain-YAML value falls back to
+ * the trimmed string rather than throwing — the schema is the real validator;
+ * this reader only has to get far enough to check the chess.
+ */
+const readLessons = () => {
+  const root = join(CONTENT, 'lessons');
+  if (!existsSync(root)) return [];
+  const out = [];
+  for (const course of readdirSync(root)) {
+    const dir = join(root, course);
+    if (!statSync(dir).isDirectory()) continue;
+    for (const name of readdirSync(dir).filter((f) => /\.mdx?$/.test(f))) {
+      const text = readFileSync(join(dir, name), 'utf8');
+      const m = text.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+      if (!m) {
+        fail(`lessons/${course}/${name}`, 'no frontmatter block');
+        continue;
+      }
+      const data = {};
+      for (const line of m[1].split(/\r?\n/)) {
+        const i = line.indexOf(':');
+        if (i === -1) continue;
+        const key = line.slice(0, i).trim();
+        const raw = line.slice(i + 1).trim();
+        try {
+          data[key] = JSON.parse(raw);
+        } catch {
+          data[key] = raw.replace(/^["']|["']$/g, '');
+        }
+      }
+      out.push({ file: `lessons/${course}/${name}`, data, body: text.slice(m[0].length) });
+    }
+  }
+  return out;
 };
 
 /* ───────────────────────────── traps ───────────────────────────── */
@@ -287,6 +328,281 @@ for (const { file, data } of readCollection('exercices')) {
     : `ends quiet (${game.turn() === 'w' ? 'white' : 'black'} to move)`;
 
   console.log(`  ok  ${file} — ${solution.length} player move(s), ${note}`);
+}
+
+/* ──────────────────────────── lessons ──────────────────────────── */
+
+/**
+ * Course lesson pairs — `<lesson>.fr.md` / `<lesson>.en.md`.
+ *
+ * Everything checkable is checked, because these files are hand-authored and a
+ * wrong FEN or a mis-numbered ply produces a page that looks right and teaches
+ * something false:
+ *
+ *   - every FEN parses, has six fields, and matches the side to move implied
+ *     by whose move the exercise asks for;
+ *   - every solution is legal from its FEN;
+ *   - every PGN parses, and every comment ply is INSIDE the game;
+ *   - `order` is contiguous 1..N per course and per language;
+ *   - the fr/en pair agrees on every language-NEUTRAL board field, which is the
+ *     price of one-language-per-file and therefore has to be enforced;
+ *   - no half-translated pair (a lesson present in one language only).
+ */
+const lessonFiles = readLessons();
+const byKey = new Map();
+
+for (const { file, data } of lessonFiles) {
+  const key = `${data.course}/${data.slug}`;
+  if (!byKey.has(key)) byKey.set(key, {});
+  const slot = byKey.get(key);
+  if (slot[data.lang]) fail(file, `duplicate ${data.lang} file for ${key}`);
+  slot[data.lang] = { file, data };
+
+  for (const [i, board] of (data.boards ?? []).entries()) {
+    const where = `board ${i} (${board.kind})`;
+
+    if (board.kind === 'replay') {
+      const game = new Chess();
+      try {
+        game.loadPgn(board.pgn);
+      } catch (error) {
+        fail(file, `${where}: PGN rejected — ${error.message}`);
+        continue;
+      }
+      const plies = game.history().length;
+      for (const c of board.comments ?? []) {
+        if (c.ply >= plies) {
+          fail(
+            file,
+            `${where}: comment ply ${c.ply} is past the end (last ply is ${plies - 1}). ` +
+              'Ply 0 is the FIRST half-move — 1-based numbering silently attaches ' +
+              'commentary to the wrong move.',
+          );
+        }
+        if (!String(c.text ?? '').trim()) fail(file, `${where}: empty comment at ply ${c.ply}`);
+      }
+    }
+
+    /**
+     * A still diagram. It illustrates a claim in the prose, so the position has
+     * to be legal AND has to be the thing the prose says it is — a "this is
+     * what mate looks like" board that is not actually mate teaches the wrong
+     * picture, and nothing else would catch it.
+     *
+     * ⚠️ chess.js accepts a position where the side NOT to move is in check,
+     * which is impossible in a real game. Batch 2 shipped one: a finished mate
+     * written with White to move. It renders, it looks right, and it is not a
+     * position that can occur.
+     */
+    if (board.kind === 'position') {
+      if (board.fen.trim().split(/\s+/).length !== 6) {
+        fail(file, `${where}: FEN must have all six fields`);
+        continue;
+      }
+      let game;
+      try {
+        game = new Chess(board.fen);
+      } catch (error) {
+        fail(file, `${where}: FEN rejected — ${error.message}`);
+        continue;
+      }
+      /* Is the side that is NOT to move in check? Then the position is
+         unreachable: the previous player left their own king attacked. */
+      const flipped = board.fen.replace(/ (w|b) /, (m, c) => ` ${c === 'w' ? 'b' : 'w'} `);
+      try {
+        if (new Chess(flipped).isCheck()) {
+          fail(
+            file,
+            `${where}: the side NOT to move is in check — impossible position. ` +
+              'If this is meant to show a finished mate, the mated side must be to move.',
+          );
+        }
+      } catch {
+        /* If the flip does not load, the original already told us what we need. */
+      }
+      if (!String(board.caption ?? '').trim()) fail(file, `${where}: caption is empty`);
+    }
+
+    if (board.kind === 'exercise') {
+      if (board.fen.trim().split(/\s+/).length !== 6) {
+        fail(file, `${where}: FEN must have all six fields`);
+        continue;
+      }
+      let game;
+      try {
+        game = new Chess(board.fen);
+      } catch (error) {
+        fail(file, `${where}: FEN rejected — ${error.message}`);
+        continue;
+      }
+      /* The orientation, when stated, must match whose move it is — otherwise
+         the reader is shown the board from the wrong side and asked to move
+         pieces they are not playing. */
+      if (board.orientation) {
+        const turn = game.turn() === 'w' ? 'white' : 'black';
+        if (board.orientation !== turn) {
+          fail(file, `${where}: orientation "${board.orientation}" but ${turn} is to move`);
+        }
+      }
+      for (const move of board.solution) {
+        try {
+          game.move(uci(move));
+        } catch {
+          fail(file, `${where}: solution move "${move}" is illegal`);
+          break;
+        }
+      }
+      for (const f of ['task', 'hint']) {
+        if (!String(board[f] ?? '').trim()) fail(file, `${where}: ${f} is empty`);
+      }
+    }
+  }
+
+  for (const f of ['title', 'summary']) {
+    if (!String(data[f] ?? '').trim()) fail(file, `${f} is empty`);
+  }
+}
+
+/** Language-neutral board fields must agree across the pair. */
+const NEUTRAL = ['kind', 'fen', 'pgn', 'solution', 'opponentReplies', 'onlyMove', 'orientation'];
+for (const [key, pair] of byKey) {
+  if (!pair.fr || !pair.en) {
+    fail(pair.fr?.file ?? pair.en?.file ?? key, `missing the ${pair.fr ? 'en' : 'fr'} half of the pair`);
+    continue;
+  }
+  if (pair.fr.data.order !== pair.en.data.order) {
+    fail(pair.fr.file, `order differs across the pair (${pair.fr.data.order} vs ${pair.en.data.order})`);
+  }
+  const a = pair.fr.data.boards ?? [];
+  const b = pair.en.data.boards ?? [];
+  if (a.length !== b.length) {
+    fail(pair.fr.file, `board count differs across the pair (${a.length} vs ${b.length})`);
+    continue;
+  }
+  for (let i = 0; i < a.length; i++) {
+    for (const f of NEUTRAL) {
+      if (JSON.stringify(a[i][f]) !== JSON.stringify(b[i][f])) {
+        fail(
+          pair.fr.file,
+          `board ${i}: "${f}" differs across the fr/en pair — language-neutral ` +
+            'board data must be identical, or the two languages teach different chess',
+        );
+      }
+    }
+    const ca = (a[i].comments ?? []).map((c) => c.ply).join(',');
+    const cb = (b[i].comments ?? []).map((c) => c.ply).join(',');
+    if (ca !== cb) fail(pair.fr.file, `board ${i}: comment plies differ across the pair`);
+  }
+  console.log(`  ok  lessons/${key} — pair complete, ${a.length} board(s)`);
+}
+
+/** Order must be contiguous 1..N within each course, per language. */
+const byCourseLang = new Map();
+for (const { data } of lessonFiles) {
+  const k = `${data.course}:${data.lang}`;
+  if (!byCourseLang.has(k)) byCourseLang.set(k, []);
+  byCourseLang.get(k).push(data.order);
+}
+for (const [k, orders] of byCourseLang) {
+  const sorted = [...orders].sort((x, y) => x - y);
+  for (let i = 0; i < sorted.length; i++) {
+    if (sorted[i] !== i + 1) {
+      fail(`lessons/${k}`, `order must be 1..${sorted.length} with no gaps — found ${sorted.join(', ')}`);
+      break;
+    }
+  }
+}
+
+/* ─────────────────────────── tutoriel ──────────────────────────── */
+
+/**
+ * The beginner tutorial ships 13 hand-written positions, which is exactly the
+ * kind of content where a typo in a FEN produces a page that looks fine and
+ * teaches something false. Everything checkable is checked:
+ *
+ *   - the FEN parses and carries all six fields;
+ *   - the solution is legal from it;
+ *   - `onlyMove: true` on a mate-in-1 is genuinely unique;
+ *   - the steps form a contiguous ordered sequence with no duplicate slugs,
+ *     because the prev/next navigation walks that order and a gap or a repeat
+ *     silently strands a reader mid-tutorial;
+ *   - neither language of any prose field is empty.
+ */
+const tutorialSlugs = new Map();
+const tutorialOrders = [];
+
+for (const { file, data } of readCollection('tutoriel')) {
+  const seen = tutorialSlugs.get(data.slug);
+  if (seen) fail(file, `slug "${data.slug}" is already used by ${seen}`);
+  else tutorialSlugs.set(data.slug, file);
+
+  if (data.fen.trim().split(/\s+/).length !== 6) {
+    fail(file, 'FEN must have all six fields — a four-field FEN silently assumes White');
+  }
+
+  let game;
+  try {
+    game = new Chess(data.fen);
+  } catch (error) {
+    fail(file, `FEN rejected: ${error.message}`);
+    continue;
+  }
+
+  let legal = true;
+  for (const move of data.solution) {
+    try {
+      game.move(uci(move));
+    } catch {
+      fail(file, `solution move "${move}" is not legal from the position it arrives at`);
+      legal = false;
+      break;
+    }
+  }
+  if (!legal) continue;
+
+  /* A tutorial that says "wrong" when the reader found another mate would be
+     the exact lie the onlyMove rule exists to prevent. */
+  if (data.onlyMove === true && data.solution.length === 1 && game.isCheckmate()) {
+    const mates = forcedMateMoves(data.fen, 1);
+    if (mates.length > 1) {
+      fail(file, `onlyMove:true but ${mates.length} different moves mate: ${mates.join(', ')}`);
+    }
+  }
+
+  for (const field of ['title', 'summary', 'task', 'hint']) {
+    for (const lang of ['fr', 'en']) {
+      if (!String(data[`${field}_${lang}`] ?? '').trim()) {
+        fail(file, `${field}_${lang} is empty — a half-translated step ships one language`);
+      }
+    }
+  }
+  for (const lang of ['fr', 'en']) {
+    const body = data[`body_${lang}`] ?? [];
+    if (!body.length || body.some((p) => !String(p).trim())) {
+      fail(file, `body_${lang} is empty or has a blank paragraph`);
+    }
+  }
+
+  tutorialOrders.push({ file, order: data.order });
+  const end = game.isCheckmate() ? 'mate' : game.isStalemate() ? 'stalemate' : 'quiet';
+  console.log(`  ok  ${file} — step ${data.order}, ${data.solution.join(' ')} → ${end}`);
+}
+
+if (tutorialOrders.length > 0) {
+  const orders = tutorialOrders.map((t) => t.order).sort((a, b) => a - b);
+  const dupes = orders.filter((o, i) => i > 0 && o === orders[i - 1]);
+  if (dupes.length) {
+    fail('tutoriel', `duplicate order value(s): ${[...new Set(dupes)].join(', ')}`);
+  }
+  for (let i = 0; i < orders.length; i++) {
+    if (orders[i] !== i + 1) {
+      fail(
+        'tutoriel',
+        `steps must be numbered 1..${orders.length} with no gaps — found ${orders.join(', ')}`,
+      );
+      break;
+    }
+  }
 }
 
 /* ─────────────────────────── agenda ────────────────────────────── */

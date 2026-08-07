@@ -85,14 +85,39 @@
 
   --text-2xs: 0.6875rem;
 
-  /* ---------- Motion ---------- */
-  /* A board should settle, not bounce. Piece movement is the only motion that
-     really matters here and it wants to feel weighted. */
-  --ease-soft: cubic-bezier(0.22, 1, 0.36, 1);
-  --ease-in-soft: cubic-bezier(0.55, 0, 0.55, 0.2);
-  --duration-fast: 150ms;
-  --duration-base: 300ms;
-  --duration-slow: 600ms;
+  /* ---------- Motion — THE THREE FAMILIES ----------
+     The CSS mirror of `src/lib/motion.ts`, which is the single source and
+     carries the full rationale. Read it before changing a number here.
+
+       Réponse    120–180ms, fast-out.  What follows a click.
+       Transition 250–350ms, gentle.    A visible state change.
+       Ambiance   4–20s, linear loop.   Background drift only.
+
+     ⚠️ NOTHING between 180ms and 250ms. The gap is what keeps "the site heard
+     me" and "watch this change" legible as two different things.
+
+     ⚠️ These are duplicated in TypeScript, because CSS cannot import it.
+     `tests/e2e/motion.spec.ts` reads these properties off the live document and
+     asserts they equal the constants in `motion.ts` — a mirror the build checks
+     rather than one we hope stays aligned. */
+
+  /* Réponse: leaves immediately, lands soft. The reader must feel the answer
+     start in the same instant as their click. */
+  --ease-response: cubic-bezier(0.2, 0, 0.1, 1);
+  --motion-response: 150ms;
+
+  /* Transition: a board should settle, not bounce. The same curve the piece
+     movement has always used — it wants to feel weighted. */
+  --ease-transition: cubic-bezier(0.22, 1, 0.36, 1);
+  --motion-transition: 300ms;
+
+  /* Ambiance: the band, for reference. Individual drift periods are chosen per
+     piece inside it (mutually non-multiple, so the arrangement never repeats). */
+  --motion-ambient-min: 4s;
+  --motion-ambient-max: 20s;
+
+  /* The pressed offset of a button. A token because six components press. */
+  --motion-press-y: 2px;
 
   /* ---------- Radii & elevation ---------- */
   --radius-card: 3px; /* club stationery, not a SaaS dashboard */
@@ -145,8 +170,15 @@
      The values match `.board-classique`, which is the default preset. */
   --mcc-board-light: #e8dcbe;
   --mcc-board-dark: #4f7053;
-  --mcc-board-light-ink: var(--color-ink-950); /* 13.7:1 */
-  --mcc-board-dark-ink: var(--color-cream-50); /* 5.5:1  */
+  /* ⚠️ ONE coordinate colour, not two.
+     Coordinates moved OUT of the squares into a gutter on the page
+     background, so there is no light/dark square parity left to satisfy — the
+     two-ink rule that required `--mcc-board-light-ink` and
+     `--mcc-board-dark-ink` is gone with it. This is checked against the PAGE
+     surface in check-contrast.mjs, in both palettes. */
+  --mcc-board-coord: var(--mcc-text-secondary);
+  --mcc-board-light-ink: var(--color-ink-950); /* 13.7:1 — legacy, presets only */
+  --mcc-board-dark-ink: var(--color-cream-50); /* 5.5:1  — legacy, presets only */
   --mcc-board-border: var(--color-wood-800); /* the frame around the squares */
 
   /* Move / analysis overlays. Alpha so the square colour still reads through. */
@@ -154,6 +186,12 @@
   --mcc-board-selected: rgb(110 84 25 / 0.4); /* brass-700 wash */
   --mcc-board-check: rgb(159 60 45 / 0.55);
   --mcc-board-hint: rgb(29 66 48 / 0.28); /* legal-move dots */
+  /* The correct-move pulse — an inset ring, one Transition long. brass-500 at
+     high alpha because it must read on BOTH squares of every preset: the board
+     does not follow light/dark, so there is one value and it has to work
+     against a cream square and a deep-green one alike. Never audited as a text
+     pair — it is a ring on a square, and nothing is printed inside it. */
+  --mcc-board-pulse: rgb(171 133 52 / 0.92);
 
   /* ---------- Level badges (débutant / intermédiaire / avancé) ---------- */
   /* Fills, always with ink-950 or cream label — never used as text. */
@@ -245,6 +283,15 @@
   /* Held separately from the light value because the dark page is a much
      narrower canvas — the same alpha that is a whisper on cream is a smudge here. */
   --mcc-ambient-opacity: 0.07;
+  /* The far layer's share of the ceiling above. See HeroAmbient.astro: the cap
+     is applied to the group, so this is a fraction of an already-capped value
+     and cannot push the composite past it. Dark takes the smaller share — it
+     starts from a higher base, and brass on green-black gains contrast fast. */
+  --mcc-ambient-far: 0.55;
+  /* The gap under a pressable control. Warm ink on cream reads as a shadow; on
+     a green-black page only black does — a tinted shadow there just looks like
+     a misaligned border. */
+  --mcc-press-shadow: rgb(0 0 0 / 0.5);
 }
 
 /* Light-mode values for the aliases introduced alongside dark mode. They live
@@ -257,6 +304,10 @@
   --mcc-border-on-inverse: var(--color-green-900);
   --mcc-ambient: var(--color-green-800);
   --mcc-ambient-opacity: 0.055;
+  /* Light mode is the flatter of the two palettes and takes the larger share:
+     a bigger slice of a smaller budget is where the second layer buys the most. */
+  --mcc-ambient-far: 0.7;
+  --mcc-press-shadow: rgb(43 32 20 / 0.28);
 }
 
 @media (min-width: 768px) {
@@ -269,9 +320,16 @@
 /* Motion accessibility — non-negotiable. */
 @media (prefers-reduced-motion: reduce) {
   :root {
-    --duration-fast: 1ms;
-    --duration-base: 1ms;
-    --duration-slow: 1ms;
+    /* Réponse and Transition collapse to instant. 1ms rather than 0 so a
+       `transitionend` listener still fires — nothing relies on that today, but
+       a transition that can never complete is a trap to leave lying around.
+
+       The Ambiance band has no reduced-motion value at all: ambient motion is
+       not shortened under this query, it is switched OFF at each call site.
+       "Reduced" means off for decoration, not faster. */
+    --motion-response: 1ms;
+    --motion-transition: 1ms;
+    --motion-press-y: 0px;
   }
 }
 

@@ -161,6 +161,11 @@ Every session that reaches a merge updates all three, in the same commit as the 
 12. **Code and content are licensed separately.** Substance vs structure — see "Licence".
 13. **Both palettes clear AA.** `check-contrast.mjs` runs light AND dark, plus every board preset, as the first step of the build.
 14. **No flash of the wrong theme.** The head script applies it before `<body>` exists; a spec proves it.
+15. **Every animation belongs to one of three motion families, and nothing sits between 180ms and 250ms.** `src/lib/motion.ts` is the single source; a spec sweeps every element for violations. See "Motion".
+16. **The board stays sober.** Motion lives around it. The one exception is the correct-move pulse — one Transition, one square, exercise mode only.
+17. **Reduced motion means OFF for decoration and INSTANT for feedback** — never "the same show, slower". Both halves are tested.
+18. **Accounts are OFF in production, and OFF means NOT BUILT.** No auth route in `dist/`, no Supabase ref in any bundle. See the account-flag section.
+19. **`import.meta.env.NAME`, never `import.meta.env['NAME']`.** Bracket access ships the whole env object, anon key included.
 
 ---
 
@@ -430,6 +435,30 @@ Piece letters in the notation stay English (`N`, `B`, `Q`) — that is what "sta
 
 ## Content model (Astro content collections)
 
+> ### ⚠️ PLY 0 IS THE FIRST HALF-MOVE. READ THIS BEFORE WRITING ANY COMMENTARY.
+>
+> Every `ply` in this repo — `moveComments`, `shapes`, lesson board `comments` —
+> is **0-based**:
+>
+> | ply | move |
+> |---|---|
+> | `0` | `1. e4` — White's first |
+> | `1` | `1... e5` — Black's reply |
+> | `2` | `2. Nf3` |
+> | `-1` | the starting position, before any move |
+>
+> **A comment on White's *n*-th move is at ply `2(n-1)`; on Black's, `2(n-1)+1`.**
+>
+> This is the single most repeated authoring error in the project. A batch
+> written elsewhere used 1-based numbering throughout: two comments overflowed
+> the PGN and failed the build, and **eleven attached silently to the wrong
+> move** — "the knight comes out and attacks e5" rendered on Black's reply
+> instead. It looks completely normal on the page.
+>
+> `scripts/check-content.mjs` catches an overflow. **It cannot catch an
+> off-by-one that still lands inside the game** — only reading the replayer can.
+> So: count from zero, and step through the board once before merging.
+
 ```
 src/content.config.ts   # ⚠️ Astro 7 location — NOT src/content/config.ts
 src/content/
@@ -475,6 +504,73 @@ The script checks that PGNs parse, that note plies exist, that solutions and opp
 
 ---
 
+## The beginner tutorial — `/apprendre-les-bases/`
+
+Thirteen steps for someone who has never played, sitting **below** `debutant`.
+Index at `/apprendre-les-bases/`, one route per step, both locales.
+
+### ⚠️ It adds NO new board and NO new mode — and here is why none was needed
+
+The brief asked whether to build a lightweight "sandbox" sub-mode where tapping a
+piece highlights its legal destinations. **Exercise mode already does exactly
+that**, and it is worth knowing so nobody builds the second thing later:
+
+> `destsOf()` in `src/lib/chess/exercise.ts` builds `dests` from
+> `game.moves({ verbose: true })` — **every legal move in the position**, not the
+> expected one. Chessground lights all of them when a piece is picked up.
+
+So the board that demonstrates a rule *is* the board that checks it, judged
+through the same `judgeMove` path as every other exercise, with `MoveInput` for
+keyboard entry and `mcc:progress:v1` for progress. `BoardSurface.tsx` and
+`ChessBoard.tsx` are untouched by this feature, which is why it merged on
+chromium rather than the full matrix.
+
+### Progress is namespaced, not special-cased
+
+Each step records under **`tutorial:<slug>`** in the same `mcc:progress:v1` store
+as every exercise. v2-S3's sync therefore picks the tutorial up with no branching
+at all — the namespace is the only thing distinguishing it, and it is only there
+so a tutorial step and an exercise can never collide on a slug.
+
+### The index mounts no board
+
+Thirteen live boards on one page would be thirteen hydrated islands on the page a
+complete beginner opens first, usually on a phone. The index is a list; the board
+lives on each step's route, exactly as `/exercices/` works. A spec asserts zero
+`astro-island` and zero `cg-board` on the index.
+
+### Entry points — and why it gets no nav slot
+
+- **Home**: a quiet underlined line *below* the two CTAs. A beginner must find it
+  instantly; everyone else must not have it competing with Jouer and Pièges.
+- **`/cours/`**: named at the TOP as the prerequisite — a beginner who scrolls
+  past it has already started the wrong thing.
+- **Nav: deliberately not.** The nav already carries seven items and is tight on
+  a phone. More importantly the tutorial is a *journey you finish*, not a
+  destination you return to; a permanent slot would keep advertising it to people
+  who completed it months ago. Home and `/cours/` reach the people who need it.
+
+### `onlyMove: true` is honest here
+
+Elsewhere `onlyMove: true` is a claim that must be proven (see the exercise
+validation rule). Tutorial tasks name a destination — "bring the rook to h8" — so
+a different move genuinely is not the task, and saying so is accurate rather than
+a lie about correctness. `check-content.mjs` still brute-forces uniqueness for
+any step that ends in mate.
+
+### Content is checked, not trusted
+
+`scripts/check-content.mjs` validates the `tutoriel` collection on every build:
+FEN parses and has six fields, the solution is legal, `onlyMove: true` on a
+mate-in-1 is genuinely unique, no duplicate slugs, **`order` is contiguous
+1..N** (a gap strands a reader mid-sequence, because prev/next walks that order),
+and neither language of any prose field is empty.
+
+⚠️ **The chess is machine-verified. The teaching is not.** The FR pedagogy is
+flagged for Seàn's review — see BACKLOG.md.
+
+---
+
 ## Routes
 
 FR at the root, EN under `/en/...`. **Route segments are not translated** (`/en/pieges/`, not `/en/traps/`) — one segment vocabulary means the language switcher is a pure prefix swap that can never fail to find its counterpart. Visible nav labels are translated; URLs are structural.
@@ -492,6 +588,9 @@ FR at the root, EN under `/en/...`. **Route segments are not translated** (`/en/
 | `/contact/` | `/en/contact/` | WhatsApp CTA, venue, socials |
 | `/mentions-legales/` | `/en/mentions-legales/` | Legal notice + credits. **Footer only, not in the nav.** |
 | `/parametres/` | `/en/parametres/` | Appearance settings. Footer only; the header carries a quick toggle. |
+| `/connexion/` | `/en/connexion/` | **NOT EMITTED by default** — see the account flag below |
+| `/compte/` | `/en/compte/` | **NOT EMITTED by default** — see the account flag below |
+| `/auth/callback/` | — | **NOT EMITTED by default.** The only unlocalised route |
 | `/manifest.webmanifest` | — | Generated from `src/config/site.ts` |
 
 Each route file is a two-line shell that renders a shared component from `src/components/pages/` with a `locale` prop, so the two locales cannot drift apart structurally.
@@ -499,6 +598,377 @@ Each route file is a two-line shell that renders a shared component from `src/co
 Detail routes take their URL from the content's **`slug` field, not the filename**, so renaming a file can never silently move a published URL. `/cours/[slug]/` is still to come.
 
 ⚠️ **The EN legal notice is `/en/mentions-legales/`, not `/en/legal-notice/`.** The Session 3 brief asked for the translated segment; it is deliberately not implemented that way, because the no-translated-segments rule above is what makes the switcher a pure prefix swap that *cannot* fail to find its counterpart. A translated segment needs a lookup map, and a missing entry 404s a reader mid-visit — on the one page whose whole job is to be findable. The visible link label **is** translated ("Mentions légales" / "Legal notice"); the URL is structural. Flagged for Seàn: it is a one-line change in `paths.ts` plus a map if he wants the English URL, and the site is unlaunched so it is still cheap to reverse.
+
+---
+
+## Demonstration boards vs boards you play on
+
+A lesson can carry a replayer that DEMONSTRATES and an exercise board that
+EXPECTS A MOVE. Nothing distinguished them, and the site's own author reached
+for the pieces on a demonstration board. A twelve-year-old will do it every time.
+
+Every board now carries a tag above it:
+
+| Board | Tag | Weight |
+|---|---|---|
+| replay | *Démonstration — utilise les flèches* | 2px hairline, secondary text |
+| exercise | *À toi de jouer* | 3px accent border, accent text, filled dot |
+
+### ⚠️ The tag is REAL TEXT, and that is the point
+
+An icon or a colour alone leaves a screen-reader user with exactly the question
+the change exists to answer — "may I move these pieces?" — and no way to answer
+it. `board-affordance.spec.ts` asserts both tags have non-empty text, so a
+future "tidy-up" into pseudo-element content fails there.
+
+Colour is the LAST of four signals: the sentence, the border weight, the accent
+colour, and the dot. Someone who cannot distinguish brass from a hairline still
+reads *À toi de jouer*.
+
+### Scope: labelled EVERYWHERE, including single-board pages
+
+The tags live in `ReplayBoard.astro` and `ExerciseBoard.astro`, so every call
+site gets them: lessons, tutorial steps, `/pieges/[slug]`, `/exercices/[slug]`.
+
+That is a deliberate choice over labelling only pages that hold both. The
+confusion is not "which of these two is mine?" — it is **"may I touch this?"**,
+and that question exists just as much on a trap page whose only board is a
+replayer. That is precisely the mistake that prompted this work.
+
+### The launch control
+
+Four small glyph buttons did not read as "press me". Before the demonstration
+has been started there is one useful action, so it is offered as one filled,
+named, ≥44px control — *Lancer la démonstration* — which disappears once the
+first move is made.
+
+⚠️ **The compact controls are NOT hidden beforehand.** "Collapsing to the compact
+set" happens by the launch button going away, not by removing the others. Hiding
+them made "jump to the end" unreachable as a first action and broke eight
+existing navigation specs that legitimately expect the controls on arrival. The
+launch button is an additional entry point, never a gate.
+
+Keyboard behaviour is untouched: the arrow keys drive the replayer whether or not
+the button has been used, and its handler is bound to the document.
+
+### Cursor: already correct, deliberately unchanged
+
+Chessground scopes `cursor: pointer` to `.cg-wrap.manipulable cg-board`, and it
+only adds `manipulable` when the board is not `viewOnly`. Verified: a replay
+board computes `auto`, an exercise board `pointer`. No change was needed; a spec
+now pins it so it cannot drift.
+
+### ⚠️ `--mcc-border` DOES NOT EXIST — and silently kills a border
+
+The tokens are `--mcc-border-subtle` and `--mcc-border-strong`. There has never
+been a plain `--mcc-border`.
+
+An unknown custom property makes the whole `border-left: 2px solid var(...)`
+shorthand invalid at computed-value time, so `border-style` falls back to `none`
+and the width computes to **0px** — no error, no warning, just no border. Twelve
+occurrences across seven files had been rendering borderless since the sessions
+that introduced them: the home pillars, tutorial cards, lesson cards, course
+cards, the login panel, and more.
+
+All twelve now use `--mcc-border-subtle`. The affordance spec asserts both board
+borders have a non-zero width, which is the general shape of a guard against
+this: **assert the border RENDERED, not that the rule exists.**
+---
+
+## ⚠️ The frame belongs on the COMPONENT box, not the playing surface
+
+`.mcc-board` carries the frame (border, radius, shadow). `.mcc-board-host` — the
+Chessground element — carries none.
+
+It used to be on the host, which was correct until the coordinates moved into
+gutters living in `.mcc-board`'s padding, **outside** the host. The frame then
+enclosed the squares and excluded both gutters. Measured: it cut across the rank
+labels, the file labels hung 19px below it, and it overhung the component's right
+edge by exactly 6px — its own 2×3px border, added outside a content box that the
+left padding had already narrowed.
+
+**The rule: the frame goes on the box that contains everything the component
+draws.** If a later change adds anything outside `.mcc-board`, the frame moves
+with it.
+
+Padding is uniform on all four sides (`--mcc-board-inset`) **plus** the gutter on
+the two sides carrying coordinates. Without the uniform part the rank labels sit
+flush against the frame while the opposite side has a full gutter of space —
+enclosed, but visibly off-centre.
+
+`tests/e2e/board-frame.spec.ts` asserts the surface **and** both coordinate
+tracks lie inside the frame's inner edge, and that the four gaps agree within
+4px — in idle, refused and solved states, at two sizes.
+
+⚠️ It deliberately does **not** assert "a border exists": that would have passed
+throughout the bug. Verified to fail on the old geometry, with the message *"the
+file labels fall outside the frame"*.
+
+---
+
+## Board coordinates live in an OUTER GUTTER (reversal)
+
+They used to be drawn on the squares. Readable on a desktop, poor on a phone:
+small text over a wood-toned square, competing with the piece standing on it.
+
+They now sit outside the playing surface — ranks in a left gutter, files in a
+bottom gutter. This is the layout Chessground was built for, which is why its
+defaults carried `left: 24px` / `top: -20px`: those offsets were reserving
+exactly this gutter. We now provide it.
+
+### ⚠️ The gutter goes on the WRAPPER, never on the Chessground host
+
+Chessground sizes `cg-container` from the host element, and absolutely
+positioned children resolve insets against the host's **padding box**. Padding
+on the host therefore does two wrong things at once: it inflates the playing
+surface and double-counts into every coordinate inset. Measured when it was
+tried: labels 12–26px out, and the board overflowing a 390px viewport.
+
+`.mcc-board` (the wrapper) carries the padding; the coordinates are projected
+into that reserved space with negative insets. The playing surface stays
+**exactly square** — verified Δ0.0px at every size.
+
+### ⚠️ Specificity, not just the declaration
+
+Chessground nudges ranks with `.cg-wrap coords.ranks coord { transform:
+translateY(39%) }`. Resetting that from `.cg-wrap coords coord` **loses** — one
+class fewer — and the reset silently does nothing. Measured when it did: every
+rank label 16.4px low, which is exactly 39% of a 42px cell. Match their selector.
+
+### One coordinate colour per palette
+
+Coordinates are on the page background now, so there is no light/dark square
+parity to satisfy. The two-ink rule is **gone**: `--mcc-board-coord`, one per
+palette, checked against `--mcc-surface-page` in `check-contrast.mjs` for both.
+The old per-preset on-square pairs were removed — they audited a relationship
+the site no longer has. Measured 5.13:1 light, 7.79:1 dark.
+
+### The mobile cost, and why it was accepted
+
+The gutter comes out of the board, not out of the page: on a 390px phone the
+playing surface goes **352px → 336px**, about 4.5%. A square drops from 44px to
+42px. That was judged worth it — a 42px square is still comfortably above the
+24px minimum touch target, and the coordinates went from barely legible to
+plainly legible, which is the entire point of the change.
+
+---
+
+## ⚠️ Pointer play must be tested BY POINTER
+
+Every exercise spec that solved a position on a course lesson did it by typing
+into `MoveInput`. That path bypasses Chessground entirely and calls `onMove`
+directly, so it stays green even if the board refuses every tap. A pointer-only
+regression could therefore ship completely unnoticed.
+
+`tests/e2e/board-pointer.spec.ts` solves a position with taps/clicks in all four
+contexts a judged board appears in: course lesson, a lesson with several boards,
+tutorial step, and `/exercices/[slug]`.
+
+### ⚠️ Scroll the board FULLY into view, not merely "if needed"
+
+`scrollIntoViewIfNeeded()` guarantees only that the element is PARTLY visible. On
+a phone viewport a 336px board can end up with its top half above the fold, and a
+tap aimed at an off-screen square is silently dropped — the board looks dead.
+
+This produced a completely convincing false positive during this session: an
+apparent reproduction of "course exercises are not playable", which was the test
+harness scrolling the board half off-screen. Use
+`el.scrollIntoView({ block: 'center' })`.
+
+It is also a real hazard for a reader: a board embedded mid-way through a long
+lesson may not fit on a phone screen with room to spare.
+
+### ⚠️ WebKit skips links when tabbing — do not assert Tab order into a menu
+
+Safari ships with "Press Tab to highlight each item on a webpage" OFF, so Tab
+moves between form controls and **skips links**, across the whole web. A test
+asserting that Tab from a menu button lands on the first link passes in Chromium
+and Firefox and fails in WebKit for a reason unrelated to the menu. Assert that
+the links are present and focusable instead.
+---
+
+## Navigation — grouped disclosures, not a dropdown
+
+Seven flat links had outgrown one row, badly on a phone. The nav is now three
+groups plus a home link:
+
+| Group | Contents |
+|---|---|
+| **Apprendre** | Les bases, Cours, Pièges |
+| **S'entraîner** | Exercices, Jouer |
+| **Le club** | Agenda, Contact |
+
+`/` stays a top-level link — home is where the logo already goes, and burying it
+would be worse than the wrap. The language switcher, account button and theme
+toggle are untouched.
+
+### ⚠️ Disclosure semantics, NOT `role="menu"`
+
+The brief asked for "menu semantics". It is deliberately **not** built that way.
+
+`role="menu"` / `menuitem` describes an APPLICATION menu: screen readers announce
+"menu", expect arrow-key roving focus with a single tab stop, and stop announcing
+the contents as links. These are site navigation links. The WAI **disclosure
+navigation** pattern is the correct semantics — a `<button>` with `aria-expanded`
+and `aria-controls` revealing a plain `<ul>` of links, walked with Tab, which is
+what every reader already expects of a website.
+
+### ⚠️ Click, never hover
+
+The phone is the primary device and hover does not exist there. The panels open
+on click at every viewport; there is no hover behaviour to be unreachable.
+
+### ⚠️ The `html.js` gate — no layout shift, and no no-JS trap
+
+Panels are hidden by CSS gated on `html.js`, exactly as the theme toggle and the
+scroll reveals are:
+
+```css
+:global(html.js) .nav-panel { display: none; }
+:global(html.js) .nav-group[data-open] .nav-panel { display: flex; position: absolute; }
+```
+
+Because the inline head script sets `js` before `<body>` exists, panels are
+closed from the FIRST paint — nothing flashes open and collapses. Without JS the
+rule never applies and every link renders, visible. Open panels are absolutely
+positioned, so opening one cannot move the page: **measured 0px shift of
+`<main>`**.
+
+Escape closes and **returns focus to the toggle** — without that a keyboard
+reader is dropped at the top of the document. Opening one group closes the
+others; two open panels overlap on a narrow screen.
+
+**Current section, not current page.** The toggle carries `is-current` when the
+reader is anywhere inside its group, so the section is visible without opening
+anything.
+
+---
+
+## ⚠️ Board coordinates: the track must BE the board box (SUPERSEDED — see the gutter section above; the alignment principle still holds, the on-square placement does not)
+
+Fixed in `board.css`. Chessground's defaults are wrong for how we draw
+coordinates, and not subtly:
+
+```css
+coords.files { left: 24px; width: 100%; }   /* ← 24px right, still full width */
+coords.ranks { left: 4px; top: -20px; }
+```
+
+`left: 24px` with `width: 100%` shifts the whole row of eight labels 24px right
+while keeping it a board wide, so it overhangs the right edge and the **"h" falls
+off the board**. Measured: every label off by exactly **+24px**, identical at
+544px and at 352px — a CONSTANT, so on a phone it is more than half a square.
+
+Those numbers are tuned for lichess's layout, where the board sits inside a
+wrapper with a margin and the coordinates live in that margin. We draw
+coordinates ON the squares (which is why two inks exist), so the offsets have
+nothing to sit in and simply displace everything.
+
+**The fix is geometric, never a nudge:** pin each track to the board box with
+`inset`, and let the eight children divide it with `flex: 1 1 0`. One cell is then
+exactly one square, and a label's centre is its file's centre at every size and in
+both orientations.
+
+⚠️ **`flex: 1 1 0`, not Chessground's `flex: 1 1 auto`.** With an `auto` basis the
+cells are content-sized first, so a wide glyph steals space from its neighbours
+and the labels drift apart.
+
+⚠️ **Aesthetic insets go on the `coord` child, never on the track.** Padding on a
+child cannot move a label off its file; padding on the track moves all eight.
+
+`tests/e2e/nav-coords.spec.ts` measures label centres against file centres at two
+viewports and in both orientations, so a constant offset — invisible in a
+screenshot review, obvious in arithmetic — cannot come back.
+
+### a1 looking different is NOT a bug
+
+Investigated and closed. On the tutorial steps that solve with `a1a8` or `a1h1`,
+a1 is the **origin square of the move just played**, so it correctly carries
+Chessground's `last-move` highlight — brass at 55% opacity, which reads as gold.
+Verified: on `la-tour` the highlighted squares are `a1` and `a8`; on
+`le-cavalier` they are `g1` and `f3` and a1 is untouched. The element stacks over
+a1 and c1 are identical, and the checker is a deterministic conic gradient, so the
+two cannot differ in background.
+
+**Do not "clear board state on solve" to make it go away** — that highlight is
+the feedback telling the reader which move they just made.
+
+---
+
+## Motion — THE THREE FAMILIES (E1)
+
+`src/lib/motion.ts` is the single source for every duration on the site. It was already the home of the board and pacing numbers; E1 made it the whole vocabulary.
+
+Direction, approved by Seàn and recorded in `docs/direction/mcc-direction-esthetique.md`: **the site should feel like a game because it RESPONDS, not because it is dressed up.** An animation that is not the answer to something the reader did is decoration, and decoration goes last or not at all.
+
+| Family | Band | Curve | What belongs in it |
+|---|---|---|---|
+| **Réponse** | 120–180ms | `--ease-response`, fast-out | What follows a **click**. Button press, card grab, tab switch, replay step, the chevron on a nav group, the move counter's hop. |
+| **Transition** | 250–350ms | `--ease-transition`, gentle | A visible **state change** the reader should watch land. Hint reveal, panel open, verdict text, a piece moving, a scroll reveal, the solve's two beats, the correct-move pulse. |
+| **Ambiance** | 4–20s | linear, looping | Background drift **only**. Never tied to an action, never carrying information. |
+
+### ⚠️ NOTHING SITS BETWEEN 180ms AND 250ms
+
+The gap is the point. It is what keeps *"the site heard me"* and *"watch this change"* legible as two different things rather than one smear of vaguely-quick. A duration that wants to live in the gap is a **design question, not a tuning question**: decide which family it is and take that family's number.
+
+`tests/e2e/feel.spec.ts` sweeps **every element** on three routes and fails on any computed transition or animation duration inside the gap. It is a sweep rather than a list because the failure it guards against is a `220ms` appearing in a component nobody thought to add to a list.
+
+### What is NOT a family — and must not be forced into one
+
+Three things came out of the audit that legitimately fit no family. They are documented as exceptions rather than given a fourth band:
+
+- **Pacing.** `THINK_FLOOR_MIN_MS`/`MAX_MS` (500–800ms) and the scripted opponent's reply delay. Nothing *moves* for these — they are a wait before motion starts, they have no curve, so they have no family.
+- **Offsets.** `REVEAL_STEP_MS` (60ms stagger) and the ambient layer's negative `animation-delay`s. A delay is *when* a duration starts, not how long it runs; the family governs the duration it offsets.
+- **Composites.** A shake is four Réponse beats, not a 600ms animation. A solve is two Transitions with a gap. Both are spelled as **arithmetic on a family constant** (`SHAKE_MS = RESPONSE_MS * 4 + 20`, `calc(var(--motion-response) * 4)` in CSS) so they cannot drift into being a fourth family.
+
+### The CSS mirror, and how it is kept honest
+
+CSS cannot import TypeScript, so `tokens.css` restates the numbers as `--motion-response` / `--motion-transition` / `--motion-ambient-min|max`. That is a mirror, and mirrors drift — so **`feel.spec.ts` reads the custom properties off the live document and asserts they equal the imported constants.** Change a number in one place and the spec says so. Same trick as the `BRUSHES` mirror in `BoardSurface.tsx`, but checked rather than trusted.
+
+`--duration-fast` / `--duration-base` / `--duration-slow` and `--ease-soft` are **gone**. `--duration-slow` (600ms) fitted no family at all; the other two were renamed to say which family they are.
+
+### `src/styles/controls.css` — the press, in one place
+
+A button that only changes colour on `:active` reads as a link doing something, not as a control being pushed. The press is a **translate plus a shadow tightening**: the control moves toward the page and the gap beneath it closes. Both together.
+
+⚠️ **`.btn-primary` and `.btn-ghost` were defined seven times**, once per page component's scoped `<style>`, with drifts between them. Astro scoped styles carry an attribute selector, so they beat any global rule of the same class specificity — a press defined globally would have been **silently ignored** on whichever properties a scoped block happened to also set. So the *structure* moved to `controls.css` and the scoped blocks keep only colours and page-specific margins.
+
+That refactor also fixed a **pre-existing miss**: the old definitions came out at ~40px tall, under the 44px touch target, and nothing was measuring it. `min-height: 2.75rem` is now in one place and `feel.spec.ts` measures every button on three routes.
+
+Island CSS (`exercise.css`, `play.css`, `replayer.css`) spells the same declarations locally, because those are separate chunks whose cascade order against the global sheet is not guaranteed. One vocabulary, two places it is written, with a comment in each pointing at the other.
+
+### ⚠️ THE BOARD STAYS SOBER
+
+Motion lives **around** the board — buttons, cards, transitions, background. A shimmering board is a board that reads badly, and the audience does not yet know where f7 is.
+
+The single exception is the **correct-move pulse**: one Transition, one square, no loop, and only in exercise mode. It uses Chessground's own `highlight.custom` (a `Map<Key, string>` of extra square classes) rather than an overlay of our own, because Chessground already knows where a square is — including after a flip. `pulseSquare` on `BoardSurface` always passes a Map, never `undefined`: an empty Map is unambiguous in both directions, where `undefined` would depend on the same config-merge behaviour that `lastMove: undefined` already gets wrong.
+
+**Play mode deliberately does not use it.** There is no "correct" there, and a board that flashes on every engine reply is a board that is hard to read.
+
+### The ambient layer is TWO layers, and the ceiling is enforced by the group
+
+`HeroAmbient.astro` has a near layer (4 pieces) and a far layer (3). Depth comes from the **rate**, not the period: the far pieces travel about a third as far over a longer cycle, so they move roughly four times slower in px/s — which is what the eye reads as distance. A longer period alone would just have made them lazier.
+
+The drift periods were **47–71s before E1**, which is slow enough that a reader sees no motion at all in their first five seconds; the layer was paying its full cost and delivering nothing. They are now 13–20s, inside the Ambiance band and mutually non-multiple.
+
+⚠️ **The 0.075 opacity ceiling is enforced by the GROUP, not by each piece.** `.ambient` carries `--mcc-ambient-opacity`, and group opacity is applied to the *flattened* group — so two overlapping pieces composite to the group's alpha and **not** to the sum of their own. That is the only reason a second layer could be added without re-auditing the hero text against a new worst case. **Do not move the opacity down onto the pieces.** `--mcc-ambient-far` is the far layer's share of that already-capped budget, and light mode takes the larger share (0.7 vs 0.55) because it starts flatter.
+
+⚠️ **The reduced-motion off-switch needs BOTH selectors.** The `@supports (animation-timeline: scroll())` block sets `animation-name` via `.layer-far .piece` — two classes — so the single-class `.piece { animation: none }` lost the specificity fight and **the far layer kept drifting for a reader who had asked for stillness.** The near layer was unaffected, which is exactly why this needed a spec rather than an eyeball. Anything added to that `@supports` block needs a matching selector in the reduced-motion block.
+
+### Reduced motion: off for decoration, instant for feedback
+
+- **Ambiance is switched OFF**, not shortened. There is no version of decorative drift that a reader who asked for stillness wants at a different speed. It is the one family with no reduced-motion value at all.
+- **Réponse and Transition collapse to 1ms** (not 0 — a transition that can never complete is a trap to leave lying around).
+- **Feedback is never removed.** The press still reports itself through its shadow; the correct-move pulse still marks the square as a static ring; the verdict still changes the frame's colour. Only the travel goes.
+- **The solve's two beats collapse.** A reader who asked for reduced motion asked for the outcome, not a choreographed arrival of it — staging a delay they did not ask to wait through would be treating "reduced motion" as "the same show, slower".
+
+### Decisions taken in E1 (recorded, not re-litigated)
+
+- **Nav labels stay functional** — Cours, Exercices, Jouer. Evocative names go on **page titles only**, in E4.
+- **Ranks will be Pion → Cavalier → Fou → Tour → Dame.** E3, not built.
+- **NO daily or consecutive-day streak.** The club meets *weekly*, so a daily streak would punish the normal rhythm of the people it is for. Session streaks only, in E3.
+- **Sound is synthesised via Web Audio and off by default.** E2, not built.
+- **No confetti on a solve.** Precision is the reward, not visual noise.
 
 ---
 
@@ -607,6 +1077,292 @@ Its first run in this shape found a **real pre-existing bug**: the `ink-950` lab
 
 ---
 
+## ⚠️ ACCOUNTS ARE SWITCHED OFF IN PRODUCTION (v0.3.0)
+
+`PUBLIC_AUTH_ENABLED`, read once in `src/config/auth.ts`. **Default `false`.**
+Everything below in the v2 section is built, tested and merged; it is simply not
+shipped yet.
+
+**Why:** v2-S1 delivered the whole auth stack, but there is nothing to sync
+until v2-S3. An account is currently a door into an empty room, and opening it
+would ask parents to hand over a child's email address in exchange for nothing.
+
+### OFF means NOT BUILT — five things, all tested
+
+| | |
+|---|---|
+| Routes | `/connexion/`, `/compte/` (both locales) and `/auth/callback/` are **not in `dist/`**. They 404 like any unwritten URL. |
+| Bundle | **No Supabase project ref, host or anon key anywhere in `dist/`.** |
+| Client | `@supabase/supabase-js` is not bundled at all. |
+| Header | `AccountButton` renders nothing — not a hidden link, not a disabled one. |
+| Nothing deleted | Every page, spec, migration and RLS policy stays. v2-S3 sets the variable to `true` and the feature returns unchanged. |
+
+`tests/e2e/auth-disabled.spec.ts` asserts all of it, against **`dist/` on disk**
+as well as over HTTP. The auth specs skip **visibly**, naming the flag, so a
+build with no auth in it can never read as "auth works".
+
+### ⚠️ `getStaticPaths()` RETURNING `[]` IS NOT ENOUGH ON ITS OWN
+
+That is what stops a **page** being emitted (and it is why those five routes are
+named `[...slug].astro` — a static `.astro` route has no way to opt out, a
+dynamic one decides for itself).
+
+But **Astro collects a page's `<script>` blocks from the module graph, not from
+what actually renders.** The first disabled build therefore shipped **216 KB of
+unreachable `@supabase/supabase-js`, precached by the service worker** — every
+first visit on Essaouira mobile data paying for a switched-off feature.
+
+The fix is in `astro.config.mjs`: when the flag is off, `@lib/supabase` is
+**aliased to `src/lib/supabase.disabled.ts`**, cutting the graph at the module.
+The config reads the flag through Vite's `loadEnv` rather than `process.env`, so
+the alias and `import.meta.env` can never disagree — a build with sign-in pages
+that cannot sign anyone in would be worse than either state.
+
+### ⚠️⚠️ `import.meta.env['X']` LEAKS THE ENTIRE ENV. USE DOT ACCESS.
+
+Vite statically replaces **`import.meta.env.FOO` only**. Given a computed key it
+cannot know what to substitute, so it emits the **whole env object** into the
+chunk — every `PUBLIC_*` variable, including `PUBLIC_SUPABASE_ANON_KEY`.
+
+That is not a style nit. The first version of the flag was
+`import.meta.env['PUBLIC_AUTH_ENABLED']`, and the build meant to prove accounts
+were disabled contained:
+
+```js
+r={ASSETS_PREFIX:void 0,…,PUBLIC_SUPABASE_ANON_KEY:`eyJhbGciOi…`}
+```
+
+The anon key is a JWT whose payload carries the project ref, so **one bracket
+access put the production ref into a shipped file while the flag it implemented
+was supposed to keep it out.** It also meant `AUTH_ENABLED` was never folded to
+a constant, so none of the dead-branch elimination happened either.
+
+Nothing was exploitable — the anon key is public by design and RLS is the real
+boundary. The lesson is that **the guarantee was false while looking true**, and
+only reading `dist/` showed it.
+
+`src/env.d.ts` now declares every `PUBLIC_*` variable so dot access type-checks,
+and `src/config/site.ts` was switched over too (it had the same pattern for
+Umami). The grep in `auth-disabled.spec.ts` is what makes this enforced rather
+than remembered.
+
+### Turning accounts back on
+
+Set `PUBLIC_AUTH_ENABLED=true` in the Cloudflare build variables. Nothing else
+changes: the database is already at 0001/0002, ahead of the site, which is the
+safe ordering. Run the suite with the same variable set to exercise the ON path
+— `npx playwright test` alone tests the OFF artefact, which is the one that
+ships.
+
+---
+
+## v2 architecture — Supabase, and what it is NOT allowed to change
+
+v2 adds accounts. It does **not** change what this site is.
+
+### Locked decisions
+
+| | |
+|---|---|
+| Hosting | **Still static.** Astro + Workers assets, `output: 'static'`, no adapter, no SSR, no server. **Non-negotiable.** |
+| Supabase | Called **client-side only** |
+| Security | **ALL of it is RLS.** The anon key is public by design |
+| Guests | **First-class forever.** Every lesson, trap and exercise works with no account |
+| Content | **Stays in git.** The database holds identities, roles, progress, sessions, attendance — nothing a lesson is made of |
+| Roles | `admin` / `prof` / `eleve`. All profs see all students (v2.0); groups are v2.1 |
+| Auth | Magic link (v2-S1) + Google OAuth and prof-created accounts (v2-S2). **NO passwords, anywhere** |
+| SMS | **Rejected.** No Twilio, no SMS/WhatsApp OTP. Do not reintroduce |
+
+**Accounts add sync and teacher oversight. They gate nothing.** If a feature ever
+requires an account to read content, it is the wrong feature.
+
+### ⚠️ The guest zero-request rule wins every conflict
+
+A visitor reading a lesson must cause **zero** requests to any Supabase origin
+and must not download `@supabase/supabase-js` at all. Three mechanisms:
+
+1. **`src/lib/supabase.ts` is the only file importing the client**, and it is a
+   lazy singleton — importing the module constructs nothing.
+2. **Every caller reaches it through `await import()`**, so Vite gives it its
+   own chunk. At v2-S1 that chunk is **207 KB raw**, fetched only by an auth
+   page or a submitted sign-in form.
+3. **`src/lib/auth-flag.ts` knows nothing about Supabase.** The header asks it
+   whether showing an account link is worth it, and never asks Supabase.
+
+⚠️ **`auth-flag.ts` must never import `supabase.ts`, directly or transitively.**
+One static import and Vite hoists the client into every page's graph. The header
+script in `AccountButton.astro` duplicates the key string `mcc:auth:v1` verbatim
+for the same reason the theme head script duplicates `applyTheme()` — importing
+would reintroduce the request it exists to avoid. Three copies exist
+(`auth-flag.ts`, the inline script, and `tests/e2e/helpers/auth.ts`); the spec
+pins the contract.
+
+`tests/e2e/auth.spec.ts` asserts this against the **network log** on six content
+routes, so it holds however the chunking changes.
+
+**The flag is a HINT, never authorisation.** A hand-edited `true` buys one
+wasted module fetch and a page that says "you are not signed in".
+
+### The magic-link flow is IMPLICIT, and that is what makes a static host work
+
+`flowType: 'implicit'` is set explicitly in `supabase.ts`.
+
+The link returns tokens in the URL **fragment** (`#access_token=…`). A fragment
+is never transmitted to the origin, so `/auth/callback` is served as an ordinary
+static HTML file and the exchange happens entirely in the browser. **Verified:
+`dist/auth/callback/index.html` is a plain static file; no server, no adapter,
+no Function.**
+
+⚠️ **PKCE would break magic links here.** It keeps a `code_verifier` in the
+localStorage of the browser that *requested* the link — and email is routinely
+opened somewhere else (a phone when the request came from a laptop, a mail app's
+in-app browser). Every one of those fails with an opaque error. The cost of
+implicit is tokens briefly in the address bar, so `completeSignIn()` scrubs the
+fragment as soon as it is consumed.
+
+`/auth/callback` is the **only unlocalised route on the site**. Supabase holds
+one redirect allow-list per project, and this page renders a spinner and
+redirects — the reader's locale comes from their profile. The
+no-translated-segments rule is about pages a reader navigates to; this is
+machinery.
+
+### Schema and RLS
+
+`supabase/migrations/`, numbered, **never edited after merge** — a fix is 0002.
+
+⚠️ **Slugs are free text, deliberately not foreign keys.** Content lives in git,
+so there is nothing to point at. Orphaned progress after a lesson is renamed is
+harmless; the alternative makes the database a second, lagging source of truth
+and turns a content rename into failing writes in production.
+
+⚠️ **`is_staff()` must be `SECURITY DEFINER` with a pinned `search_path`.** A
+policy on `profiles` that checks staffness by selecting `profiles` re-enters
+itself and Postgres raises *"infinite recursion detected in policy"*.
+
+⚠️ **Ordering inside a migration matters.** A `language sql` function body has
+its object references resolved at `CREATE` time, so `is_staff()` cannot precede
+the `profiles` table. Tables → functions → policies.
+
+⚠️ **`role` is never client-updatable, and RLS alone does not achieve that.**
+Policies operate on rows, and the row *is* the reader's own — so
+`profiles_update_own` would happily allow it. The actual mechanism is
+**column-level privileges** (`grant update (display_name, locale)`), with
+`forbid_role_self_change()` as a second line and no INSERT policy at all.
+Promotion is SQL only — `docs/ADMIN.md` holds the exact statements.
+
+**Deletion cascades** from `auth.users` → profile → progress → attendance. The
+erasure right depends on that chain and nothing else, so delete the *auth user*,
+never just the profile. `tests/e2e/helpers/purge.ts` re-checks the cascade on
+every run.
+
+⚠️ **`handle_new_user()` clamps the locale, and that is a bug prevented in
+advance.** A Google claim arrives as `en-GB` / `fr_CA`; written verbatim it
+violates the CHECK, the trigger raises, and signup fails as an opaque *"Database
+error saving new user"* with nothing pointing at the locale.
+
+### Test infrastructure — the interlock
+
+`assertNotProduction()` runs at **Playwright config load**, before a test is
+collected, and aborts the whole run. The suite creates users and **purges by
+pattern**; pointed at production it would delete real accounts.
+
+It **fails closed**: refs equal, production ref undeclared, service key absent,
+or an unparseable URL all abort. The single exception is a completely **absent**
+`.env.test` — no credentials are reachable at all then (the loader never reads
+`process.env`), and aborting would instead brick the ~750 specs that have
+nothing to do with auth. Auth specs skip **visibly** in that case.
+
+⚠️ **Never widen `tests/e2e/env.ts` to fall back to `.env` or `.env.local`.**
+That single edit is what would let a developer's production credentials into a
+suite that deletes by pattern.
+
+**The known gap, stated rather than hidden:** nothing automated proves Supabase
+*delivers* email. Users and links are minted through the admin API, so the flow
+under test begins at "the link resolves". Real delivery is a manual check in
+`docs/MANUAL-TESTS.md`. It is written at the top of `auth.spec.ts` because a
+suite that appears to cover email and does not is worse than one that admits it.
+
+### Environment variables
+
+| Variable | Where | Notes |
+|---|---|---|
+| `PUBLIC_AUTH_ENABLED` | Cloudflare build vars | **Unset in production.** `'true'` — exactly that string — emits the account routes. Anything else is off. |
+| `PUBLIC_SUPABASE_URL` | Cloudflare build vars + `.env` | Public by design |
+| `PUBLIC_SUPABASE_ANON_KEY` | Cloudflare build vars + `.env` | Public by design; RLS is the boundary |
+| `SUPABASE_SERVICE_ROLE_KEY` | **`.env.test` only** | Bypasses RLS. Never in a build |
+| `SUPABASE_PRODUCTION_REF` | `.env.test` | Feeds the interlock — **see the trap below** |
+| `E2E_EMAIL_DOMAIN` | `.env.test` | The purge pattern |
+
+`.env.test` is gitignored because it carries a service-role key. Local
+development uses **`.env.local`**, not `.env` — Vite loads both and `.env.local`
+wins, so keeping two is a way to lose an hour.
+
+### Setup — which template goes where
+
+> **`.env.test` comes from `.env.test.example`, never from `.env.example`.**
+
+| Copy | To | For |
+|---|---|---|
+| `.env.example` | `.env.local` | local development / the real build |
+| `.env.test.example` | `.env.test` | the e2e suite |
+
+Adapting `.env.example` into `.env.test` is what lost `SUPABASE_PRODUCTION_REF`
+twice. The interlock now refuses that file on sight — an unprefixed
+`PUBLIC_SUPABASE_*` key in `.env.test` is the signature, and it aborts even when
+the rest of the file looks complete, because the shape being wrong means the
+file's provenance is wrong.
+
+### ⚠️ TRAP: .env.test copied from the WRONG template
+
+`SUPABASE_PRODUCTION_REF` went missing from `.env.test` twice, aborting the whole
+suite both times. Root cause, found by comparing the file against its own comment
+header: **it had been created by copying `.env.example`** — the build-time
+template — **instead of `.env.test.example`**. `.env.example` has no such key, so
+it disappears by construction on every recreation.
+
+- **The tell**: a commented-out `PUBLIC_UMAMI_WEBSITE_ID` inside `.env.test`.
+  Analytics has nothing to do with testing; that line exists only in the wrong
+  template.
+- **local development** → copy `.env.example` → `.env.local`
+- **e2e suite** → copy `.env.test.example` → `.env.test`
+
+Three things now make a third occurrence self-diagnosing:
+
+1. `.env.test.example` carries the **real** production ref rather than a
+   placeholder, so a straight copy is already correct. The ref is not a secret —
+   it is the subdomain of the public project URL and already ships in the bundle.
+2. `.env.example` opens with a warning that it is NOT the test template.
+3. The interlock error names this cause when the TEST_ values are present but the
+   production ref is not.
+
+### ⚠️ TRAP: the production project ref begins with "vtest"
+
+```
+SUPABASE_PRODUCTION_REF=vtestpaufxmrvdhgrrsy
+```
+
+**That is PRODUCTION.** Supabase refs are random strings and this one happens to
+start with the letters `vtest`, which reads exactly like "the test project". It
+is not. It is the live database, in EU (`aws-1-eu-west-1`), holding real
+accounts.
+
+Why this specific string is dangerous rather than merely unfortunate: the
+interlock in `tests/e2e/env.ts` decides "am I about to delete real data?" by
+comparing the resolved test ref against `SUPABASE_PRODUCTION_REF`. Put the wrong
+value there — or leave it out because "that one is obviously the test project" —
+and the guard compares against nothing useful. The e2e suite **purges by
+pattern**.
+
+So when the test project is created:
+
+- `SUPABASE_PRODUCTION_REF` in `.env.test` **must be `vtestpaufxmrvdhgrrsy`**;
+- `PUBLIC_SUPABASE_URL` in `.env.test` must be the *other* ref, whatever it is;
+- if the two are ever equal, the run aborts — which is the interlock working.
+
+Read the ref, never the vibe of the ref.
+
+---
+
 ## Animation policy (Session 6)
 
 Every duration on the site is a constant in **`src/lib/motion.ts`**, and nothing
@@ -664,6 +1420,24 @@ motion means "do not animate", not "do not pace".
 The preference is read **at call time, never cached**: it can change mid-session,
 and `BoardSurface` re-reads it on every update as well as at mount, which is what
 lets a spec emulate it after the island has already mounted.
+
+### ⚠️ Scroll reveals break axe unless the page is settled first
+
+Found in v2-S1, caused by Session 6. A `[data-reveal]` element sits at
+`opacity: 0` until the observer sees it, so **every card below the fold is fully
+transparent text that axe can still find** — and it reports `color-contrast` for
+each one. On `/exercices/` under Firefox that was `color-contrast (19×)`.
+
+It presents as **flakiness, not breakage**, because it depends on viewport
+height (worse on the phone projects, where more cards start below the fold) and
+on transition timing. It flaked on iPhone 13 for two matrix runs before a serial
+Firefox run finally failed hard enough to show the real violation — which is why
+"a flaky axe test" on an index page should be investigated rather than retried.
+
+**Every axe check on a reveal-bearing page must call `settleReveals(page)`**
+(`tests/e2e/helpers/reveal.ts`) first. That is not weakening the assertion: a
+card nobody has scrolled to is a card nobody is reading, and the helper measures
+the page in the state a reader actually experiences.
 
 ### Where ambient motion is allowed
 
@@ -779,6 +1553,7 @@ no adapter and no server-side code: `dist/` is uploaded and served directly.
 | Deploy command | `npx wrangler deploy` |
 | Output directory | `dist/` |
 | Config | `wrangler.jsonc` at the repo root |
+| Build variables | `PUBLIC_SUPABASE_URL`, `PUBLIC_SUPABASE_ANON_KEY` (public by design), optional `PUBLIC_UMAMI_WEBSITE_ID` — set in the Cloudflare dashboard. **Never** `SUPABASE_SERVICE_ROLE_KEY`. |
 
 `wrangler.jsonc` declares `name`, `compatibility_date` and an `assets` block, and
 **nothing else**. There is deliberately no `main`: a Worker with `assets` and no
@@ -917,6 +1692,47 @@ Same shape, different browser, found in Session 3. Under the full fan-out the Wi
 
 The tell is that it lands on a **different test each run**, including specs that predate whatever you are working on. Confirmed with `--workers=1`, where the same specs pass 21/21 in ~2.5 minutes. Firefox therefore carries one local retry, exactly as WebKit does. A genuine failure still fails the retry — **if a Firefox spec fails twice, believe it.**
 
+### `auth.spec.ts` hard-fails under the Firefox fan-out — and it is the NETWORK, not the browser
+
+Found in E1's full-matrix run. Six `auth.spec.ts` "signed in" tests failed on
+Firefox with **`createConfirmedUser: fetch failed`**, and every one of them
+passed on `--workers=1`.
+
+⚠️ **This is a different mechanism from the compositor flake above, and the tell
+is that the error comes from Node rather than from a page.** `createConfirmedUser`
+calls the Supabase **admin API over the network** from the test process. Under the
+full fan-out, six Firefox contexts each want a freshly-minted user at once, and the
+outbound requests contend hard enough that some simply fail to connect. Nothing in
+the browser is involved — which is why it presents as `fetch failed` rather than as
+a timeout or an assertion.
+
+**These do NOT get absorbed by the local retry**, because the retry runs while the
+crowd is still there. Unlike the compositor crashes, they surface as hard failures
+in the summary.
+
+If a full-matrix run reports failures confined to `auth.spec.ts` on one project,
+re-run that project with `--workers=1` before touching anything. As always: a
+genuine failure is deterministic and fails serially too.
+
+### ⚠️ Never assert a short-lived class with a MutationObserver — use rAF
+
+The correct-move pulse lasts one Transition (300ms) and is then removed, so a
+spec has to catch it in flight. The obvious tool is a `MutationObserver`, and it
+is the wrong one.
+
+Observer callbacks are **batched at the end of a microtask checkpoint**, and a
+callback that re-queries the LIVE DOM (rather than reading the `MutationRecord`s
+it was handed) can run after the window has already closed — finding nothing and
+reporting that the thing never happened. It failed the v0.3.0 matrix on WebKit
+and passed on `--workers=1`, which looks exactly like the documented WebKit flake
+and was not: it was a racy test.
+
+Sample from a `requestAnimationFrame` loop started before the action instead.
+That is ~18 looks inside one Transition and cannot be batched past the window.
+The tell that you have this bug rather than a browser one: the failure is
+`length` being 0 on a collection that should be non-empty, and it moves between
+projects rather than being deterministic on one.
+
 ### Driving Chessground's drag from a spec needs a real animation frame
 
 Chessground marks a drag as *started* inside a `requestAnimationFrame` loop (`processDrag` in `drag.ts`), and its `end()` only emits a move when that flag is set. Playwright dispatches `mouse.move(..., { steps })` back to back with no delay, so an entire synthetic drag can begin and finish **inside a single frame**. Chessground then reads it as a click-select: the piece sits there selected with its legal-move dots showing, no move is emitted, and nothing errors.
@@ -1039,26 +1855,14 @@ It is a **living document**: keep it in step with the site, in the same commit a
 
 ---
 
-## Open questions for Seàn
+## Open questions and everything not yet built
 
-- ~~**The exercise board cannot be played with a keyboard.**~~ RESOLVED (Session 4) — `MoveInput` feeds the same judge path on both the exercise and play boards. See "Both inputs, one path".
-- **Custom colours are board-only, and that is a v1 decision rather than a limitation** — see Theming. If site-wide theming is ever wanted it needs a validation story first, not a second colour picker.
-- **The board does not change with light/dark**, by design. Worth a look on a real phone in a dark room: if Classique feels too bright at night, the answer is probably a sixth preset rather than coupling the two systems.
-- **Should the level presets show an Elo number?** They currently show names only. The vendored build has no `UCI_Elo`, so the design targets (~800 / ~1400 / ~2000) are hand-set `Skill Level` + depth and have never been measured. Printing a rating would be inventing a fact; measuring one properly means playing rated opposition. Names-only is the honest default until someone wants to do that work.
-- **Pass-and-play (2 players, 1 device)** was scoped as an optional bonus and **skipped**. It is not free from `PlayView`: no engine, no thinking state, a board that flips or does not, and a second result vocabulary ("White wins" rather than "you win"). It is a small separate mode, not a flag — worth doing deliberately if wanted.
-- **Promotion:** the pointer path auto-queens (and, in an exercise, adopts the expected move's piece when the squares match, so nobody is failed for an under-promotion they were never asked about). The **typed** path honours what you type — `e8=D` under-promotes correctly. So a keyboard player has strictly more control than a mouse user here, which is backwards. A picker on the pointer path would fix it; no current exercise promotes, and in a real game against the engine a queen is right ~99% of the time.
-- **EN legal-notice URL:** `/en/mentions-legales/` (structural, keeps the switcher a pure prefix swap) or `/en/legal-notice/` (needs a segment-translation map)? Implemented as the former — see the note under Routes. Same question now applies to `/en/jouer/`.
-- **Domain:** is `mogadorchess.ma` registered / registrable? `.ma` needs a Moroccan registrar and can require paperwork.
-- ~~**WhatsApp number**~~ — RESOLVED: the real club number is in `site.contact.whatsapp`. Still the only number on the site, and still reached solely through `whatsappUrl()`.
-- **Club email** — create one, or route to Seàn's inbox?
-- **Socials** — does the club have its own Instagram, or does it post through the association's account? A Lichess team for v2?
-- **Brand mark** — the current one is an explicit placeholder (a board in a brass frame). Commission a real one?
-- **Dar Souiri address** — what exact street line may be published?
-- **Lesson granularity** — is a course one page, or a course with N lesson pages? The body format is settled (per-locale Markdown) and so is the ordering: **`order: number` in the course frontmatter** (decided Session 3, to be implemented in the `/cours` session). What is still open is only whether lessons become their own collection.
-- ~~**`youtube` field**~~ — DECIDED (Session 3): click-to-load facade on `youtube-nocookie` only, never a plain iframe. Now a standing rule — see "No third-party requests without an explicit click". Still unimplemented; nothing renders the field yet.
-- **Arabic / Darija** — a third locale is a real question in Essaouira. The i18n layer supports it structurally, but RTL would need design work. Worth it?
+**➡️ [`BACKLOG.md`](./BACKLOG.md) is the single list.** Every deferred item,
+conditional decision, dormant field and open question for Seàn lives there with a
+status, and this section deliberately keeps no second copy — a list that exists
+twice is a list that disagrees with itself.
 
----
+Add new items there, not here.
 
 ## Key Contacts
 

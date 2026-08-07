@@ -63,6 +63,7 @@ const labels = {
   hintHeading: t('exercise.hint.heading'),
   correct: t('exercise.correct'),
   wrong: t('exercise.wrong'),
+  wrongReason: t('exercise.wrong.reason'),
   offLine: t('exercise.offLine'),
   offLineNote: t('exercise.offLine.note'),
   solved: t('exercise.solved'),
@@ -85,14 +86,19 @@ const labels = {
 };
 ---
 
-<ChessBoard
-  client:visible
-  mode="exercise"
-  slug={slug}
-  locale={locale}
-  definition={{ fen, solution, opponentReplies, onlyMove }}
-  hint={hint}
-  coordinates={true}
-  labels={labels}
-  {...(orientation ? { orientation } : {})}
-/>
+{/* The active board. Carries the visual weight; see ReplayBoard for why the
+    tag is real text rather than an icon. */}
+<div class="mcc-board-block mcc-board-block-exercise">
+  <p class="mcc-board-tag mcc-board-tag-active">{t('board.tag.exercise')}</p>
+  <ChessBoard
+    client:visible
+    mode="exercise"
+    slug={slug}
+    locale={locale}
+    definition={{ fen, solution, opponentReplies, onlyMove }}
+    hint={hint}
+    coordinates={true}
+    labels={labels}
+    {...(orientation ? { orientation } : {})}
+  />
+</div>

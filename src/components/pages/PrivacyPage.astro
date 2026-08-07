@@ -1,0 +1,141 @@
+---
+/**
+ * /politique-confidentialite — what is stored, why, and how to erase it.
+ *
+ * Every sentence is a string in `src/i18n/ui.ts`; nothing legal is hardcoded in
+ * a component, so the notice cannot drift from the two locales it serves. The
+ * WhatsApp contact goes through `whatsappUrl()` like every other one.
+ */
+import type { Locale } from '@config/site';
+import { whatsappUrl } from '@config/site';
+import { localizePath } from '@i18n/paths';
+import { useTranslations } from '@i18n/ui';
+import BaseLayout from '@layouts/BaseLayout.astro';
+import PageIntro from '@components/PageIntro.astro';
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const t = useTranslations(locale);
+
+/* Stamped at build time. A privacy notice with no date is a privacy notice
+   nobody can tell is current. */
+const updated = new Date().toISOString().slice(0, 10);
+---
+
+<BaseLayout locale={locale} title={t('privacy.title')} description={t('privacy.intro')} reveals>
+  <PageIntro title={t('privacy.title')} intro={t('privacy.intro')} />
+
+  <div class="prose">
+    <section data-reveal>
+      <h2>{t('privacy.guest.heading')}</h2>
+      <p>{t('privacy.guest.body')}</p>
+    </section>
+
+    <section data-reveal>
+      <h2>{t('privacy.stored.heading')}</h2>
+      <ul>
+        <li>{t('privacy.stored.name')}</li>
+        <li>{t('privacy.stored.email')}</li>
+        <li>{t('privacy.stored.guardian')}</li>
+        <li>{t('privacy.stored.progress')}</li>
+        <li>{t('privacy.stored.attendance')}</li>
+      </ul>
+    </section>
+
+    <section data-reveal>
+      <h2>{t('privacy.why.heading')}</h2>
+      <p>{t('privacy.why.body')}</p>
+    </section>
+
+    <section data-reveal>
+      <h2>{t('privacy.no.heading')}</h2>
+      <ul>
+        <li>{t('privacy.no.photos')}</li>
+        <li>{t('privacy.no.messaging')}</li>
+        <li>{t('privacy.no.tracking')}</li>
+        <li>{t('privacy.no.passwords')}</li>
+      </ul>
+    </section>
+
+    <section data-reveal>
+      <h2>{t('privacy.minors.heading')}</h2>
+      <p>{t('privacy.minors.body')}</p>
+    </section>
+
+    <section data-reveal>
+      <h2>{t('privacy.retention.heading')}</h2>
+      <p>{t('privacy.retention.body')}</p>
+    </section>
+
+    <section data-reveal>
+      <h2>{t('privacy.erasure.heading')}</h2>
+      <p>{t('privacy.erasure.body')}</p>
+    </section>
+
+    <section data-reveal>
+      <h2>{t('privacy.processor.heading')}</h2>
+      <p>{t('privacy.processor.body')}</p>
+    </section>
+
+    <section data-reveal>
+      <h2>{t('privacy.contact.heading')}</h2>
+      <p>
+        {t('privacy.contact.body')}{' '}
+        <a href={whatsappUrl(locale)} rel="noopener noreferrer" target="_blank">WhatsApp</a>
+      </p>
+      <p class="muted">
+        <a href={localizePath('/mentions-legales/', locale)}>{t('footer.legal')}</a>
+      </p>
+      <p class="muted">{t('privacy.updated')} : <time datetime={updated}>{updated}</time></p>
+    </section>
+  </div>
+</BaseLayout>
+
+<style>
+  .prose {
+    max-width: 68ch;
+  }
+
+  .prose section {
+    margin-bottom: 2rem;
+  }
+
+  .prose h2 {
+    margin: 0 0 0.6rem;
+    font-size: 1.375rem;
+  }
+
+  .prose p {
+    margin: 0 0 0.75rem;
+    line-height: 1.65;
+    text-wrap: pretty;
+  }
+
+  .prose ul {
+    margin: 0;
+    padding-left: 1.25rem;
+    line-height: 1.65;
+  }
+
+  .prose li {
+    margin-bottom: 0.4rem;
+  }
+
+  /* Underlined, not merely coloured. A link sitting inside a sentence must be
+     distinguishable without perceiving colour — axe's `link-in-text-block`
+     caught this one, and it is a real defect rather than a test artefact: the
+     WhatsApp link in the contact paragraph was colour-only. */
+  .prose a {
+    color: var(--mcc-link);
+    text-decoration: underline;
+    text-underline-offset: 0.15em;
+  }
+
+  .muted {
+    color: var(--mcc-text-secondary);
+    font-size: 0.9375rem;
+  }
+</style>

@@ -1,0 +1,222 @@
+---
+/**
+ * /connexion — email magic link, and nothing else.
+ *
+ * No passwords exist anywhere in this system, so there is no reset flow, no
+ * strength meter and no credential to leak. Google OAuth and prof-created
+ * accounts arrive in v2-S2.
+ *
+ * ⚠️ NOT AN ISLAND. The one-hydrated-component rule still holds — the board is
+ * the only Preact island on the site. This is a plain form plus a module script,
+ * which is also what keeps `@supabase/supabase-js` out of every other page's
+ * chunk graph.
+ */
+import type { Locale } from '@config/site';
+import { localizePath } from '@i18n/paths';
+import { useTranslations } from '@i18n/ui';
+import BaseLayout from '@layouts/BaseLayout.astro';
+import PageIntro from '@components/PageIntro.astro';
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const t = useTranslations(locale);
+---
+
+<BaseLayout locale={locale} title={t('login.title')} description={t('login.intro')}>
+  <PageIntro title={t('login.title')} intro={t('login.intro')} />
+
+  <div class="auth-card">
+    {/* Translated strings ride on the element rather than through a global or
+        `define:vars`: a bundled module script cannot take `define:vars`, and an
+        `is:inline` one cannot `import` a bare specifier. Data attributes are
+        the seam that lets the i18n layer stay server-side and the logic stay
+        bundled. */}
+    <form
+      id="login-form"
+      data-testid="login-form"
+      novalidate
+      data-msg-sending={t('login.sending')}
+      data-msg-submit={t('login.submit')}
+      data-msg-error={t('login.error')}
+      data-msg-invalid={t('login.invalidEmail')}
+      data-msg-unconfigured={t('login.unconfigured')}
+      data-callback-path="/auth/callback"
+    >
+      <label for="login-email">{t('login.emailLabel')}</label>
+      <input
+        id="login-email"
+        name="email"
+        type="email"
+        inputmode="email"
+        autocomplete="email"
+        required
+        data-testid="login-email"
+      />
+
+      <button type="submit" class="btn-primary" data-testid="login-submit">
+        {t('login.submit')}
+      </button>
+
+      {/* role="alert" so a screen reader hears the failure without hunting. */}
+      <p class="auth-error" role="alert" data-testid="login-error" hidden></p>
+    </form>
+
+    {/* Rendered server-side and revealed on success rather than injected, so the
+        success copy is real translated markup and not a string built in JS. */}
+    <div class="auth-sent" data-testid="login-sent" hidden>
+      <h2>{t('login.sent.title')}</h2>
+      <p>{t('login.sent.body')}</p>
+    </div>
+
+    <p class="auth-guest">
+      <a href={localizePath('/', locale)}>{t('login.guestNote')}</a>
+    </p>
+  </div>
+
+  <script>
+    /**
+     * A bundled module, not inline: it needs the Supabase client, which is
+     * itself reached with `await import()` so the ~30 KB only lands when
+     * somebody actually submits the form — not merely by opening this page.
+     */
+    const form = document.getElementById('login-form') as HTMLFormElement | null;
+    const email = document.querySelector('[data-testid="login-email"]') as HTMLInputElement | null;
+    const submit = document.querySelector('[data-testid="login-submit"]') as HTMLButtonElement | null;
+    const errorEl = document.querySelector('[data-testid="login-error"]') as HTMLElement | null;
+    const sentEl = document.querySelector('[data-testid="login-sent"]') as HTMLElement | null;
+
+    const msg = {
+      sending: form?.dataset.msgSending ?? '',
+      submit: form?.dataset.msgSubmit ?? '',
+      error: form?.dataset.msgError ?? '',
+      invalid: form?.dataset.msgInvalid ?? '',
+      unconfigured: form?.dataset.msgUnconfigured ?? '',
+    };
+    const callbackPath = form?.dataset.callbackPath ?? '/auth/callback';
+
+    function showError(message: string) {
+      if (!errorEl) return;
+      errorEl.textContent = message;
+      errorEl.hidden = false;
+    }
+
+    form?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (!email || !submit) return;
+      if (errorEl) errorEl.hidden = true;
+
+      const value = email.value.trim();
+      /* Deliberately loose. The server is the real validator; this only catches
+         the obvious typo before spending a round trip. */
+      if (!value || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value)) {
+        showError(msg.invalid);
+        email.focus();
+        return;
+      }
+
+      submit.disabled = true;
+      submit.textContent = msg.sending;
+
+      try {
+        const { isConfigured, signInWithMagicLink } = await import('@lib/supabase');
+        if (!isConfigured()) {
+          showError(msg.unconfigured);
+          return;
+        }
+        const redirectTo = new URL(callbackPath, window.location.origin).toString();
+        const result = await signInWithMagicLink(value, redirectTo);
+
+        if (!result.ok) {
+          showError(msg.error);
+          return;
+        }
+        /* Replace the form with the confirmation. The address is not echoed
+           back — it is already in the reader's own field, and echoing it into
+           the page is one more place it can be shoulder-surfed. */
+        form.hidden = true;
+        if (sentEl) sentEl.hidden = false;
+      } catch {
+        showError(msg.error);
+      } finally {
+        submit.disabled = false;
+        submit.textContent = msg.submit;
+      }
+    });
+  </script>
+</BaseLayout>
+
+<style>
+  .auth-card {
+    max-width: 32rem;
+    padding: 1.5rem;
+    border: 1px solid var(--mcc-border-subtle);
+    border-radius: var(--radius-card);
+    background-color: var(--mcc-surface-raised);
+  }
+
+  label {
+    display: block;
+    margin-bottom: 0.35rem;
+    font-weight: 500;
+  }
+
+  input[type='email'] {
+    width: 100%;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--mcc-border-strong);
+    border-radius: var(--radius-card);
+    background-color: var(--mcc-surface-page);
+    color: var(--mcc-text-primary);
+    font: inherit;
+  }
+
+  input[type='email']:focus-visible {
+    outline: 2px solid var(--mcc-focus-ring);
+    outline-offset: 1px;
+  }
+
+  .btn-primary {
+    margin-top: 1rem;
+    padding: 0.7rem 1.4rem;
+    border: 1px solid var(--mcc-primary);
+    border-radius: var(--radius-card);
+    background-color: var(--mcc-primary);
+    color: var(--mcc-primary-contrast);
+    font: inherit;
+    font-weight: 500;
+    cursor: pointer;
+  }
+
+  .btn-primary:disabled {
+    opacity: 0.7;
+    cursor: default;
+  }
+
+  .auth-error {
+    margin: 0.75rem 0 0;
+    color: var(--mcc-danger-text);
+  }
+
+  .auth-sent h2 {
+    margin: 0 0 0.5rem;
+    font-size: 1.25rem;
+  }
+
+  .auth-sent p {
+    margin: 0;
+    color: var(--mcc-text-secondary);
+  }
+
+  .auth-guest {
+    margin: 1.25rem 0 0;
+    padding-top: 1rem;
+    border-top: 1px solid var(--mcc-border-subtle);
+  }
+
+  .auth-guest a {
+    color: var(--mcc-link);
+  }
+</style>

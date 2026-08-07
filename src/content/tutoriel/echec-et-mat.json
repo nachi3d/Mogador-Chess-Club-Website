@@ -1,0 +1,29 @@
+{
+  "title_fr": "Échec, échec et mat, pat",
+  "title_en": "Check, checkmate, stalemate",
+  "slug": "echec-et-mat",
+  "order": 8,
+  "summary_fr": "Trois mots à connaître. Le troisième sauve beaucoup de parties.",
+  "summary_en": "Three words to know. The third one saves a lot of games.",
+  "body_fr": [
+    "**Échec** : le roi est attaqué. Tu dois réagir immédiatement — bouger le roi, capturer l'attaquant, ou mettre une pièce sur le chemin. On n'a pas le droit de laisser son roi en échec.",
+    "**Échec et mat** : le roi est attaqué et il n'existe aucune réponse. La partie est finie, celui qui a maté a gagné.",
+    "**Pat** : le roi n'est **pas** attaqué, mais le joueur ne peut jouer aucun coup légal. Ce n'est pas une défaite : la partie est nulle, match nul. Beaucoup de parties perdues se sauvent comme ça."
+  ],
+  "body_en": [
+    "**Check**: the king is under attack. You must deal with it right now — move the king, capture the attacker, or block the line. You are never allowed to leave your king in check.",
+    "**Checkmate**: the king is under attack and there is no answer at all. The game is over, and the player giving mate wins.",
+    "**Stalemate**: the king is **not** under attack, but the player has no legal move at all. That is not a loss — the game is drawn. A great many lost positions are rescued this way."
+  ],
+  "task_fr": "La tour a la dernière rangée pour elle seule. Trouve le mat en un coup.",
+  "task_en": "The rook has the back rank to itself. Find mate in one.",
+  "fen": "6k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1",
+  "solution": [
+    "a1a8"
+  ],
+  "opponentReplies": [],
+  "onlyMove": true,
+  "hint_fr": "Le roi noir est enfermé par ses propres pions. Occupe la rangée 8.",
+  "hint_en": "The black king is boxed in by his own pawns. Take over rank 8.",
+  "draft": false
+}

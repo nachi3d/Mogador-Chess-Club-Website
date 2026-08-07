@@ -1,0 +1,120 @@
+---
+/**
+ * The header's auth-aware account link.
+ *
+ * ─────────────────────────────────────────────────────────────────────────
+ * ⚠️ THE GUEST ZERO-REQUEST RULE IS THE WHOLE DESIGN HERE.
+ *
+ * A visitor who has never signed in must cause NO Supabase request and must not
+ * download `@supabase/supabase-js` at all. So this component:
+ *
+ *   1. Is NOT an island. No Preact, no hydration — the board remains the only
+ *      hydrated component on the site.
+ *   2. Renders BOTH states as plain HTML, one of them `hidden`.
+ *   3. Chooses between them from a `localStorage` flag, read by an `is:inline`
+ *      script that imports nothing.
+ *
+ * The signed-in link is a link to `/compte/`, not a session read. Nothing here
+ * asks Supabase anything — `/compte/` does that, once the reader goes there.
+ * That is what keeps the cost of being signed in at zero bytes on every other
+ * page.
+ * ─────────────────────────────────────────────────────────────────────────
+ *
+ * ⚠️ The key string below is DUPLICATED from `src/lib/auth-flag.ts`, exactly as
+ * the theme head script duplicates `applyTheme()` and for the same reason:
+ * importing the module would reintroduce the request this exists to avoid.
+ * Keep the two in step by hand. `tests/e2e/auth.spec.ts` drives this key
+ * directly, so a divergence fails there rather than in production.
+ *
+ * The flag is a HINT, never authorisation. A hand-edited value shows a link to
+ * a page that will simply say "you are not signed in" — RLS decides everything
+ * that matters, and this decides nothing at all.
+ */
+import type { Locale } from '@config/site';
+import { AUTH_ENABLED } from '@config/auth';
+import { localizePath } from '@i18n/paths';
+import { useTranslations } from '@i18n/ui';
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const t = useTranslations(locale);
+---
+
+{/* ⚠️ Nothing renders at all when accounts are off — not a hidden link, not a
+    disabled one. The pages it points at are not in `dist/`, so a visible
+    control here would be a link to a 404, and an invisible one would still be
+    in the markup for anyone reading it. See `src/config/auth.ts`. */}
+{
+  AUTH_ENABLED && (
+<div class="account-button" data-account-button>
+  {/* Default for everyone, including no-JS: a plain sign-in link. It is never
+      wrong — a signed-in reader who lands here goes to /compte/ anyway. */}
+  <a
+    class="account-link"
+    href={localizePath('/connexion/', locale)}
+    data-account-signed-out
+    data-testid="header-sign-in"
+  >
+    {t('auth.signIn')}
+  </a>
+
+  <a
+    class="account-link is-account"
+    href={localizePath('/compte/', locale)}
+    data-account-signed-in
+    data-testid="header-account"
+    hidden
+  >
+    {t('auth.account')}
+  </a>
+</div>
+  )
+}
+
+{AUTH_ENABLED && (
+<script is:inline>
+  /* Duplicated from src/lib/auth-flag.ts — see the component header. */
+  (function () {
+    try {
+      if (window.localStorage.getItem('mcc:auth:v1') !== '1') return;
+      var root = document.querySelector('[data-account-button]');
+      if (!root) return;
+      var out = root.querySelector('[data-account-signed-out]');
+      var inn = root.querySelector('[data-account-signed-in]');
+      if (out) out.hidden = true;
+      if (inn) inn.hidden = false;
+    } catch (e) {
+      /* Storage unavailable ⇒ the sign-in link stands. Never a broken header. */
+    }
+  })();
+</script>
+)}
+
+<style>
+  .account-link {
+    display: inline-block;
+    padding: 0.35rem 0.7rem;
+    border: 1px solid var(--mcc-border-on-inverse);
+    border-radius: var(--radius-card);
+    color: var(--mcc-text-inverse);
+    font-size: 0.875rem;
+    text-decoration: none;
+  }
+
+  .account-link:hover {
+    background-color: var(--mcc-surface-inverse-hover, rgb(255 255 255 / 8%));
+  }
+
+  .account-link:focus-visible {
+    outline: 2px solid var(--mcc-focus-ring-inverse);
+    outline-offset: 2px;
+  }
+
+  .account-link.is-account {
+    border-color: var(--mcc-accent-on-inverse);
+    color: var(--mcc-accent-on-inverse);
+  }
+</style>

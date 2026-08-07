@@ -9,6 +9,614 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ---
 
+## [Unreleased]
+
+---
+
+## [0.3.0] — 2026-08-07
+
+The teaching release. v0.2.0 had a board, a handful of traps and three
+exercises; this one has a course structure, a path in for someone who has never
+played, and a site that answers when you touch it.
+
+### Accounts are built, and switched OFF
+
+`PUBLIC_AUTH_ENABLED` defaults to `false`, and **off means not built**: the
+account routes are not emitted into `dist/`, no Supabase project ref appears in
+any bundle, and `@supabase/supabase-js` is not shipped at all. The header
+carries no sign-in control — not a hidden one, not a disabled one.
+
+Nothing is deleted. The whole v2-S1 stack, its specs and its migrations stay
+exactly where they are; **v2-S3 sets the variable to `true` and it returns
+unchanged.** The reason for the delay is that there is nothing to sync yet: an
+account today is a door into an empty room, and opening it would ask parents to
+hand over a child's email address in exchange for nothing.
+
+The database stays at migrations 0001/0002 — schema ahead of the site, which is
+the safe ordering.
+
+### Added
+
+- **The beginner tutorial** — `/apprendre-les-bases/`, 13 guided steps for
+  someone who has never played, sitting below `debutant`. It adds no new board
+  and no new mode: exercise mode already lights every legal destination, so the
+  board that demonstrates a rule is the board that checks it.
+- **Course 1 — "Bien ouvrir une partie"**, six lessons in both languages, and
+  with it the per-locale Markdown lesson bodies deferred since Session 2.
+- **Course 2 — "Les mats élémentaires"**, six lessons in both languages: the
+  back-rank, the ladder, queen-and-king, rook-and-king, Philidor's legacy and
+  Boden's mate. Introduces still diagrams as a board kind.
+- **Grouped navigation** — seven flat links became three disclosure groups
+  (Apprendre / S'entraîner / Le club) plus Accueil. Built as the WAI disclosure
+  pattern, not `role="menu"`; opens on click at every viewport, because the
+  phone is the primary device and hover does not exist there.
+- **Board affordance labels** — every board now says whether you may touch it:
+  *Démonstration — utilise les flèches* or *À toi de jouer*, as real text, plus
+  a named full-size control to start a demonstration.
+- **E1 motion and feedback** — three motion families (Réponse / Transition /
+  Ambiance) with `src/lib/motion.ts` as the single source; a real button press;
+  a brief accent pulse on the destination square of a correct move; a reason on
+  a refused move; the solve landing in two beats; a second ambient layer.
+
+### Changed
+
+- **Board coordinates moved into an outer gutter**, off the squares. Readable on
+  a desktop before, poor on a phone — small text over a wood-toned square,
+  competing with the piece standing on it. Costs about 4.5% of the board on a
+  390px phone, which was judged worth it.
+- The board frame now encloses the whole component, coordinates included.
+- Scroll reveals, the replay step and every other duration moved onto the motion
+  vocabulary; nothing now sits between 180ms and 250ms.
+
+### Fixed
+
+- **Course cards were not clickable.** They had no `href` at all.
+- **`--mcc-border` never existed** — twelve occurrences across seven files had
+  been rendering borderless, because an unknown custom property invalidates the
+  whole `border` shorthand and the width computes to zero.
+- **Buttons were ~40px tall**, under the 44px touch target, on every phone.
+- **Reduced motion did not stop the far ambient layer** — a two-class selector
+  in an `@supports` block beat the one-class off-switch.
+- **`parseReplay` discarded the `[FEN]` header on move-less PGNs**, so every
+  still diagram silently rendered the standard opening position.
+- **`import.meta.env['X']` shipped the entire env object**, anon key included —
+  found in the build that was meant to prove accounts were disabled. Every read
+  is now dot access, and `src/env.d.ts` exists so it type-checks.
+- **216 KB of unreachable `@supabase/supabase-js` was still being bundled and
+  precached** in the disabled build, because Astro collects a page's scripts
+  from the module graph rather than from what renders.
+
+### Known gaps
+
+- Course 3 is referenced by course 2's last lesson and is not written.
+- The FR pedagogy of the tutorial and both courses is machine-verified for chess
+  legality only. **A human has not reviewed the teaching**, and lesson 5 of
+  course 1 has English that no human has read. Tracked in BACKLOG.md.
+- `onlyMove: false` still cannot accept a winning alternative; the engine-backed
+  validator is the remaining half of that rule.
+
+---
+
+### Session detail
+
+Everything above, session by session, with the reasoning behind anything
+surprising. Kept in full rather than summarised: the "why" is the part that is
+expensive to recover later.
+
+### E1 — motion vocabulary and action feedback
+
+First session of the aesthetic rework. The direction, approved by Seàn and now
+in `docs/direction/mcc-direction-esthetique.md`: **the site should feel like a
+game because it RESPONDS, not because it is dressed up.** This session is the
+feel layer only — progression (E3) and vocabulary/atmosphere (E4) come later.
+
+#### Added
+
+- **Three motion families**, with `src/lib/motion.ts` extended from "the board
+  and pacing numbers" into the single source for every duration on the site:
+  **Réponse** (120–180ms, fast-out — what follows a click), **Transition**
+  (250–350ms, gentle — a visible state change), **Ambiance** (4–20s, linear
+  loop — background drift only).
+- **`src/styles/controls.css`** — the press, in one place. A button now moves
+  toward the page and its shadow closes up, like a key; cards settle flat.
+- **A reason on a refused move.** Under `onlyMove: true` the verdict now carries
+  *"Ce coup est légal, mais il ne fait pas ce qu'on cherche ici."* / *"That move
+  is legal, but it isn't what we're looking for here."* Failure must inform: a
+  beginner who cannot tell "illegal" from "not the point" learns the wrong
+  lesson from the same red text. **It counts exactly the same attempt** — the
+  `onlyMove` rule is that the two verdicts differ in wording only, and a spec
+  asserts the count and that the two panels stay the same shape.
+- **A correct-move pulse** — one Transition, one square, no loop, exercise mode
+  only. Uses Chessground's own `highlight.custom` rather than an overlay, so the
+  square is located by the board including after a flip. **Play mode
+  deliberately does not use it**: there is no "correct" there.
+- **A second ambient layer** — queen, knight and a second pawn, drifting a third
+  as far over a longer cycle. Depth comes from the *rate*, not the period.
+- `tests/e2e/feel.spec.ts` — 23 specs covering all of the above.
+
+#### Changed
+
+- **The solve lands in two beats.** The frame settles, *then* the badge arrives
+  one Transition later. It was a single 900ms block in which everything happened
+  at once, which read as "a thing appeared" rather than as an event with a
+  shape. The beat of stillness between them is the whole effect. Still no
+  confetti — precision is the reward, not visual noise.
+- **`REPLAY_ANIMATION_MS` 200 → 180.** 200ms sat squarely inside the forbidden
+  180–250ms gap; it was the clearest thing the audit turned up. Navigation is
+  still faster than gameplay (250ms), which is the relationship that mattered.
+- **Ambient drift 47–71s → 13–20s.** The old periods were slow enough that a
+  reader saw no motion at all in their first five seconds: the layer was paying
+  its full cost and delivering nothing.
+- **Scroll reveals 600ms → 300ms** (Transition). `--duration-slow` fitted no
+  family and is gone; `--duration-fast`/`--duration-base`/`--ease-soft` were
+  renamed to say which family they are.
+- **The shake and the solve are spelled as arithmetic on a family constant**
+  (`SHAKE_MS = RESPONSE_MS * 4 + 20`, `calc(var(--motion-response) * 4)`), so a
+  composite cannot drift into being a fourth family.
+- Nav panels fade and drop in on a Transition; the chevron answers on a Réponse.
+- The hint reveal and the verdict text are on the Transition family.
+
+#### Fixed
+
+- ⚠️ **Reduced motion did not stop the far ambient layer.** The
+  `@supports (animation-timeline: scroll())` block sets `animation-name` through
+  `.layer-far .piece` — two classes — so the single-class `.piece { animation:
+  none }` off-switch **lost the specificity fight**, and a reader who had asked
+  for stillness got three drifting pieces. The near layer was unaffected, which
+  is exactly why an eyeball would not have caught it. Found by the spec written
+  for it, in the same session that introduced it.
+- ⚠️ **Buttons were ~40px tall, under the 44px touch target, on every phone.**
+  `.btn-primary`/`.btn-ghost` were defined **seven times** across page
+  components' scoped `<style>` blocks, and nothing measured any of them. The
+  structure is now in `controls.css` with `min-height: 2.75rem`, and
+  `feel.spec.ts` measures every button on three routes. Pre-existing; found
+  while working out where the press could live.
+
+#### Notes — the audit, and what did not fit a family
+
+Three kinds of duration legitimately fit no family, and are documented as
+exceptions rather than given a fourth band:
+
+- **Pacing** — the engine's thinking floor (500–800ms) and the scripted
+  opponent's reply. Nothing *moves*; they are a wait before motion starts, with
+  no curve.
+- **Offsets** — the 60ms reveal stagger, and the ambient layer's negative
+  `animation-delay`s (−3s to −30s). A delay is *when* a duration starts.
+- **Composites** — the shake (4 × Réponse) and the two-beat solve. Now spelled
+  as arithmetic rather than as new numbers.
+
+Nothing else was left outside the vocabulary. `feel.spec.ts` sweeps every
+element on three routes and fails on any computed duration inside the 180–250ms
+gap, so this is enforced rather than asserted.
+
+#### Performance
+
+Lighthouse mobile on `/`, median of three, before → after:
+**Performance 100 → 100**, Accessibility 100 → 100, SEO 100 → 100.
+Speed Index 1069ms → 1076ms, LCP 1662 → 1663, TBT 0, CLS 0. The faster ambient
+motion did not cost the Speed Index that was budgeted for — at 0.055 opacity the
+drift is below what the metric resolves.
+
+#### Decisions recorded (see CLAUDE.md → Motion)
+
+- Nav labels stay functional; evocative names go on **page titles only**, in E4.
+- Ranks will be Pion → Cavalier → Fou → Tour → Dame (E3).
+- **No daily or consecutive-day streak** — the club meets weekly, so a daily
+  streak would punish the normal rhythm of the people it is for. Session
+  streaks only (E3).
+- Sound is synthesised via Web Audio and off by default (E2).
+
+### Course 2 — "Les mats élémentaires"
+
+Six lessons on the basic checkmates, both locales. Authored brief now lives in
+`docs/content-batches/`.
+
+#### Added
+
+- `/cours/les-mats-elementaires/` — back-rank, ladder, queen-and-king,
+  rook-and-king, smothered mate (Philidor's legacy) and Boden's mate
+- **Still diagrams** — a new `position` board kind, rendered as a move-less
+  replay. Batch 1 had to convert its two diagrams into short replays that
+  *reached* them; batch 2's are terminal states (a stalemate, a finished mate)
+  that no legal line arrives at, so they had to be shown as they are
+- `docs/content-batches/` — the authored briefs are the provenance of the
+  content and belong in the repo
+
+#### Fixed
+
+- ⚠️ **`parseReplay` discarded the `[FEN]` header when a PGN had no moves.**
+  `moves[0]?.before ?? new Chess().fen()` — with zero moves there is no
+  `moves[0]`, so every still diagram silently rendered the **standard opening
+  position**, 32 pieces in their starting squares. It looks like a chessboard,
+  so only a piece count catches it. Now falls back to `game.fen()`, which is the
+  SetUp position in both cases. A spec asserts a diagram has fewer than twelve
+  pieces.
+
+#### Notes — two errors in the brief, both corrected
+
+- **Lesson 5's PGN could not be played.** The start FEN already had the white
+  queen on b3, so `1. Qb3+` — the queen moving *to* b3 — was impossible and
+  chess.js rejected the whole line. The queen starts on **d1** instead, from
+  which the full nine-ply Philidor's legacy is legal and ends in checkmate.
+- **Lesson 4's diagram was an impossible position.** It showed a finished mate
+  with **White** to move, i.e. with Black in check on Black's opponent's turn —
+  unreachable in a real game, and chess.js accepts it silently. Flipped to Black
+  to move, it is a genuine checkmate, which is what the copy describes.
+  `check-content.mjs` now rejects any `position` board whose side-not-to-move is
+  in check; verified to fail on the original FEN.
+- All six `onlyMove: true` positions were checked for mate uniqueness and all
+  six are genuinely unique. **None had to be flipped.**
+- Both replayers were stepped through move by move: every comment lands on the
+  move it describes. The plies in the brief were already 0-indexed and correct —
+  batch 1's off-by-one did not recur.
+
+---
+
+### The board frame encloses the whole component again
+
+#### Fixed
+
+- **The gold frame was drawn on the playing surface, not on the component.** It
+  had always been on `.mcc-board-host`, which was correct until the coordinates
+  moved into gutters living in `.mcc-board`'s padding — outside the host. The
+  frame then enclosed the squares and excluded both gutters.
+
+  Measured rather than eyeballed: the frame was inset 18.4px on the left and
+  bottom, cut across the rank labels, left the file labels 19px below it, and
+  overhung the component's right edge by exactly **6px** — its own 2×3px border,
+  added outside a content box the left padding had already narrowed.
+
+  The frame now sits on `.mcc-board`, the box that contains everything the
+  component draws. Padding is uniform on all four sides plus the gutter on the
+  two sides that carry coordinates: without the uniform part the rank labels sat
+  flush against the frame while the opposite side had a full gutter of space —
+  enclosed, but visibly off-centre. Gaps now agree within ~1.4px, which is
+  sub-pixel rounding of an 8-square grid.
+
+#### Notes
+
+- The new spec asserts the surface **and** both coordinate tracks lie inside the
+  frame, and that the four gaps agree — in idle, refused and solved states, at
+  two sizes. It deliberately does **not** assert that a border exists, which
+  would have passed throughout the bug. **Verified to fail on the old geometry**
+  before being kept.
+- CSS only — `BoardSurface.tsx` untouched, so the full-matrix trigger did not
+  fire. Chromium (240 passed) plus iPhone 13 (239 passed) were run, one project
+  at a time.
+
+---
+
+### Telling a demonstration board from one you play on
+
+#### Added
+
+- **Every board now carries a tag**: *Démonstration — utilise les flèches* or
+  *À toi de jouer*. The exercise board takes the visual weight (accent border,
+  accent text, filled dot); the demonstration stays a quiet hairline. Real text
+  in both cases, so a screen reader can answer "may I move these pieces?" —
+  which is exactly the question the change exists to settle.
+- **A named launch control on the replayer** — *Lancer la démonstration*,
+  filled, ≥44px — shown until the first move, then it disappears. Four small
+  glyph buttons did not read as "press me": the site's own author reached for
+  the pieces instead.
+
+#### Fixed
+
+- ⚠️ **`--mcc-border` has never existed, and had silently removed twelve
+  borders.** The tokens are `--mcc-border-subtle` / `--mcc-border-strong`. An
+  unknown custom property invalidates the whole `border: 2px solid var(...)`
+  shorthand, so `border-style` falls back to `none` and the width computes to
+  0px — no error, no warning, no border. The home pillars, tutorial cards,
+  lesson cards, course cards and the login panel had all been rendering
+  borderless since the sessions that introduced them. Found because the new
+  demonstration border also failed to appear; all twelve now use
+  `--mcc-border-subtle`, and the spec asserts the border **rendered** rather
+  than that a rule exists.
+
+#### Notes
+
+- **Labels go on single-board pages too**, which departs from the brief's
+  suggestion. The confusion is not "which of these two?" but "may I touch
+  this?", and that question is just as live on a trap page whose only board is a
+  replayer — which is precisely the mistake that prompted the work.
+- **The compact controls are not hidden before launch.** Doing so broke eight
+  existing navigation specs and, more importantly, made "jump to the end"
+  unreachable as a first action. "Collapsing to the compact set" is achieved by
+  the launch button going away.
+- **The cursor was already correct and was not changed.** Chessground scopes
+  `cursor: pointer` to `.cg-wrap.manipulable`, which a `viewOnly` board never
+  gets: replay computes `auto`, exercise `pointer`. Verified, and now pinned by
+  a spec.
+
+---
+
+### Board coordinates outside the squares, and clickable course cards
+
+#### Fixed
+
+- **Course cards on `/cours/` were not clickable at all.** `CoursPage` built its
+  cards with no `href`, so `CardGrid` rendered a plain card and the title was not
+  a link — the only way into a course was to type the URL. My omission from the
+  course-1 session: the detail routes were added and the index was never linked
+  to them. A course with no lessons stays unlinked, since it has no page to
+  reach.
+
+#### Changed
+
+- **Coordinates moved OUT of the squares into a gutter** — ranks left, files
+  below. On-square text over a wood-toned square, next to the piece standing on
+  it, was hard to read on a phone. The two-ink rule is gone with the design that
+  needed it: one `--mcc-board-coord` per palette, checked against the page
+  surface in both (5.13:1 light, 7.79:1 dark). The old per-preset on-square
+  pairs were removed from the checker.
+
+#### Notes
+
+- ⚠️ **Task 3 — "course exercises are not playable with the mouse" — does NOT
+  reproduce.** Ten combinations were exercised by pointer (mouse *and* real
+  touch) across course lessons, the tutorial and `/exercices/`: every one selects
+  a piece, shows its legal destinations, and completes the move. What DID
+  reproduce was a false positive in the test harness: `scrollIntoViewIfNeeded()`
+  left the board half above the fold, so the destination tap landed off-screen
+  and was dropped. That is also a genuine hazard for a reader on a phone, and it
+  is now on the manual checklist. **Pointer specs were added regardless** — every
+  existing lesson-exercise spec solved by typing, which bypasses the board
+  entirely, so a real pointer regression could have shipped unseen.
+- **The gutter costs board width, not page width:** on a 390px phone the playing
+  surface goes 352px → 336px (~4.5%), a square from 44px to 42px — still well
+  above a 24px touch target, in exchange for legible coordinates.
+- Two CSS traps found by measurement and written down: padding must go on the
+  wrapper, never on the Chessground host (it inflates the surface *and*
+  double-counts every inset); and the `translateY(39%)` rank nudge must be reset
+  at Chessground's own specificity or the reset silently does nothing — that one
+  cost exactly 16.4px, being 39% of a 42px cell.
+- **WebKit skips links when tabbing** (Safari's "Tab highlights each item" is off
+  by default), so the menu spec asserts the links are focusable rather than
+  asserting Tab order — it failed in WebKit alone for a reason unrelated to the
+  menu.
+
+---
+
+### Navigation, board coordinates, and step-to-step links
+
+#### Fixed
+
+- **Board file coordinates were displaced by a constant 24px**, pushing "h" off
+  the board entirely. Cause found by measurement, not by eye: Chessground's
+  default `coords.files { left: 24px; width: 100% }` shifts the whole label row
+  right while keeping it a full board wide. Those numbers suit lichess's layout,
+  where coordinates live in an outer margin; we draw them on the squares, so the
+  offset has nothing to sit in. Each track is now pinned to the board box with
+  `inset` and divided by `flex: 1 1 0`, so a label's centre is its file's centre
+  at every size and in both orientations — measured 0px error at 544px and
+  352px, White and Black. A spec asserts it within a quarter-square tolerance.
+
+#### Added
+
+- **Grouped navigation** — Apprendre / S'entraîner / Le club, plus Accueil.
+  Click-based disclosures (never hover: the phone is the primary device), one
+  panel at a time, Escape closes and returns focus, current *section* marked
+  without opening anything, and **0px layout shift** because open panels are
+  absolutely positioned.
+- **Prev/next controls that name their destination** on every tutorial step and
+  lesson — "Suivant : Le fou", not "Suivant →" — plus a permanent link back to
+  the index. The last lesson of course 1 now offers the exercises and the traps
+  rather than stopping dead.
+
+#### Notes
+
+- **`role="menu"` was deliberately NOT used**, despite the brief asking for menu
+  semantics. That role describes an application menu: screen readers announce
+  "menu", expect arrow-key roving focus, and stop announcing the contents as
+  links. These are navigation links, so the WAI disclosure pattern is correct.
+- **The a1 shade is not a bug and was not "fixed".** On the tutorial steps that
+  solve with `a1a8` or `a1h1`, a1 is the origin square of the move just played
+  and correctly carries the `last-move` highlight. Verified against the DOM:
+  `la-tour` highlights a1+a8, `le-cavalier` highlights g1+f3 and leaves a1
+  alone. Clearing it would delete the feedback showing what the reader played.
+- The coordinate fix is **CSS-only** — `BoardSurface.tsx` is untouched, so the
+  full-matrix trigger did not fire and chromium was the correct scope.
+- `smoke.spec.ts` was updated rather than worked around: it asserted a nav link
+  was visible on load, and those now sit inside a collapsed panel. It opens the
+  group first, which checks the string table *and* that the menu reveals links.
+
+---
+
+### Course 1 — "Bien ouvrir une partie"
+
+Six lessons on the opening, both locales. Content batch; no architecture change.
+
+#### Added
+
+- **Per-locale Markdown lesson bodies** — deferred since Session 2, implemented
+  here. `src/content/lessons/<course>/<lesson>.<locale>.md`, a `lessons`
+  collection, and routes at `/cours/<course>/` and `/cours/<course>/<lesson>/`.
+- Course 1's six lessons: occupying the centre, developing, castling early,
+  keeping the queen home, three openings to start with, and a recap with three
+  exercises. Nine boards in total — five replayers and eight exercises across
+  the course.
+- `check-content.mjs` extended for the batch.
+
+#### Notes
+
+- ⚠️ **Every `moveComments` ply in the brief was off by one**, and this is the
+  finding that mattered most. The copy numbered plies from 1; the schema numbers
+  from 0 (`ply 0` is the first half-move). Two overflowed the PGN and would have
+  failed the build — the other **eleven would have attached silently to the
+  wrong move**, so "the knight comes out and attacks e5" would have appeared on
+  Black's `Nc6`. All thirteen were shifted by −1; the prose is untouched. The
+  checker now catches this class of error with a message that names the cause.
+- **The fr/en pair collided in the glob loader.** `.fr` / `.en` are treated as
+  part of the extension, so both files reduced to the same id and one language
+  silently overwrote the other — surfacing only as a build *warning*. A custom
+  `generateId` keeps the locale in the id; a spec asserts each locale renders
+  its own prose.
+- **Boards are placed inline** by splitting the rendered HTML on a
+  `<!--board-->` marker. MDX would be the "proper" answer and was NOT added —
+  it is an integration, and this batch was scoped to content.
+- The two authored **static positions became short replays** that reach them
+  (verified to land on the exact FENs). There is no static-FEN renderer, and
+  adding one would have meant changing the board components.
+- Lesson 5 mounts **three replayers on one page**. The "not N live boards" rule
+  targets index pages and diagram galleries; a long-form lesson needs a board
+  per idea, and each is `client:visible`.
+
+#### Fixed after review
+
+- **Lesson 6, Exercise C replaced.** Its task and its accepted answer
+  contradicted each other — titled "the move you must NOT play" while accepting
+  only the move you *should* play. It now asks for a developing move.
+- **`onlyMove` relaxed to `false` on every developing-move exercise.** After
+  1.e4 e5, `Nc3`, `Bc4` and `Bb5` are all perfectly good; telling a beginner
+  they are wrong is exactly what the exercise-validation rule exists to prevent,
+  and that rule outranks authored metadata. Only lesson 3 keeps
+  `onlyMove: true`, and correctly — castling really is the one move that puts
+  that king safe. Exactly one `true` in the course; the batch is now consistent.
+- The **ply-indexing convention** is now stated at the top of CLAUDE.md's
+  content model section, so a batch authored elsewhere cannot repeat the
+  off-by-one.
+
+⚠️ **Chess accuracy is Seàn's review.** The checker proves legality and ply
+bounds, nothing more — see the report and `docs/MANUAL-TESTS.md`. Lesson 5's
+**English prose was written by Claude** (the brief supplied an instruction
+rather than copy) and has had no human read.
+
+---
+
+### Beginner tutorial — `/apprendre-les-bases/`
+
+Thirteen guided steps for someone who has never played chess. Touches none of
+the v2 auth work.
+
+#### Added
+
+- **`/apprendre-les-bases/`** (both locales): an index of 13 steps, plus one
+  route per step — the board, the coordinates, each piece in turn, check/mate/
+  stalemate, castling, en passant, promotion, piece values, and reading notation
+- A `tutoriel` content collection under the existing CC BY-NC-ND licence
+- Entry points: a quiet line on the home page below the two CTAs, and a
+  prerequisite link at the top of `/cours/`
+- `BACKLOG.md` consolidated into the single list of everything not yet built;
+  CLAUDE.md's open-questions section now points at it instead of duplicating it
+
+#### Notes
+
+- **No new board, and no new mode — none was needed.** The brief asked whether to
+  add a lightweight "sandbox" sub-mode where tapping a piece shows its legal
+  destinations. Exercise mode already does precisely that: `destsOf()` builds
+  `dests` from *every* legal move in the position, so Chessground lights all of
+  them when a piece is picked up. The board that demonstrates a rule is the same
+  board that checks it, through the same `judgeMove` path, with the same keyboard
+  input and the same progress store. `BoardSurface.tsx` and `ChessBoard.tsx` are
+  untouched, so this merged on **chromium** rather than the full matrix.
+- **Progress is namespaced, not special-cased.** Steps record under
+  `tutorial:<slug>` in the same `mcc:progress:v1` store, so v2-S3's sync collects
+  them with no branching.
+- **The index mounts no board.** Thirteen live boards would be thirteen hydrated
+  islands on the page a beginner opens first, usually on a phone. A spec asserts
+  zero islands there.
+- **No nav slot, deliberately.** The nav is already seven items and tight on a
+  phone, and the tutorial is a journey you finish rather than a destination you
+  return to — a permanent slot would keep advertising it to people who completed
+  it. Home and `/cours/` reach the people who need it.
+- **`check-content.mjs` now validates the tutorial**: FEN parses with six fields,
+  the solution is legal, `onlyMove: true` on a mate-in-1 is genuinely unique, no
+  duplicate slugs, `order` is contiguous 1..N (a gap strands a reader, since
+  prev/next walks it), and neither language of any prose field is empty. All 13
+  positions verified.
+- One position was rewritten during authoring: step 1 originally ended in
+  **check**, putting a red check highlight on the tutorial's first board seven
+  steps before check is explained. The black king moved off the h-file.
+
+⚠️ **The FR pedagogy needs Seàn's review.** The chess is machine-verified; the
+teaching is not. `docs/MANUAL-TESTS.md` has the specific things to read for.
+
+---
+
+### v2-S1 — Supabase foundation and email magic-link auth
+
+v2 begins. **Nothing about v1 changes**: the site is still fully static, guests
+are still first-class, and every lesson, trap and exercise works with no account.
+Accounts add sync and teacher oversight; they gate nothing.
+
+#### Added
+
+**Plumbing**
+- `@supabase/supabase-js` behind `src/lib/supabase.ts` — a lazy singleton, and
+  the only file that imports the client
+- `src/lib/auth-flag.ts` — the "has this browser signed in?" hint, which knows
+  nothing about Supabase so the header can ask it for free
+- `supabase/` — `config.toml`, numbered migrations, and a test-only seed script
+- `.env.example`, `.env.test.example`; `.env.test` is gitignored (service-role key)
+
+**Schema and RLS (migration 0001)**
+- `profiles`, `exercise_progress`, `lesson_progress`, `sessions`, `attendance`
+- Published sessions readable by `anon`, so the agenda stays visible without an
+  account
+- `handle_new_user()` creates the profile, falls back to the email local part
+  for a display name, and **clamps the locale** (`en-GB` → `en`)
+- Deletion cascades `auth.users` → profile → progress → attendance
+
+**Auth UI**
+- `/connexion`, `/compte` (both locales) and `/auth/callback`
+- An auth-aware header account link that is **not** an island and costs a guest
+  nothing
+
+**Privacy**
+- `/politique-confidentialite` (both locales): what is stored, why, retention,
+  erasure, a minors paragraph, and Supabase named as processor with the EU
+  region stated. Linked from the footer and the legal notice
+
+**Test infrastructure**
+- `assertNotProduction()` at Playwright config load, purge-by-pattern before and
+  after the suite, and an auth spec covering the trigger, the header, sign-out,
+  guest zero-requests, and two RLS attacks
+- `docs/ADMIN.md` (role promotion SQL), `BACKLOG.md` (custom SMTP)
+
+#### Notes
+
+- **The magic-link flow is implicit, not PKCE, and that is what makes a static
+  host work.** Tokens come back in the URL fragment, which is never sent to the
+  origin — so `/auth/callback` is a plain static HTML file. PKCE would keep a
+  verifier in the requesting browser and break every link opened from a phone or
+  an in-app mail browser. Verified: the callback is emitted as a static file and
+  no adapter, Function or SSR is involved.
+- **`role` is not client-updatable, and RLS alone would not achieve that.**
+  Policies act on rows, and the row is the reader's own — so the owner-update
+  policy would permit it. Column-level `GRANT`s are the real mechanism, with a
+  trigger as the second line and no INSERT policy at all. A spec attempts the
+  escalation with a genuine anon-key client holding a real session.
+- **Migration ordering is load-bearing.** A `language sql` body has its
+  references resolved at `CREATE` time, so `is_staff()` cannot precede the
+  `profiles` table. Caught before first apply; the file is ordered tables →
+  functions → policies.
+- **The interlock fails closed** on equal refs, an undeclared production ref, an
+  absent service key, or an unparseable URL — verified against all four failure
+  modes plus both passing cases. The one exception is a completely absent
+  `.env.test`, where nothing is reachable and auth specs skip visibly rather
+  than bricking the ~750 unrelated specs.
+- **Email delivery is not covered by automation, and the suite says so.** Users
+  and links are minted through the admin API, so the tested flow starts at "the
+  link resolves". A real-inbox check is in `docs/MANUAL-TESTS.md`.
+- Fixed a real accessibility defect found by axe on the new privacy page: the
+  inline WhatsApp link was distinguished by colour alone (`link-in-text-block`).
+
+#### Fixed (carried over from Session 6)
+
+- **Scroll reveals were making index-page axe checks fail.** A `[data-reveal]`
+  card below the fold stays at `opacity: 0` until scrolled to, and axe measures
+  the contrast of text it can still find — `color-contrast (19×)` on
+  `/exercices/`. It had been presenting as intermittent flakiness on the phone
+  projects for two matrix runs, because it depends on viewport height and
+  transition timing; a serial Firefox run is what finally failed hard enough to
+  show the actual violation rather than a timeout.
+
+  `tests/e2e/helpers/reveal.ts` settles the reveals before any axe check on such
+  a page. Not a weakened assertion: a card nobody has scrolled to is a card
+  nobody is reading.
+
+---
+
 ## [0.2.0] — 2026-08-06
 
 Home **Play** CTA, animation pacing with a bot thinking floor, CSS ambient

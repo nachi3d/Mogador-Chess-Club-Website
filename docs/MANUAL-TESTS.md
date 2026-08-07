@@ -26,6 +26,55 @@ Legend: **FR** = French page, **EN** = English page. "Both" = do it in each.
 
 ---
 
+## 0b. Does it feel like a game? — ⚠️ THE TWO QUESTIONS, ON A REAL PHONE
+
+Everything else in this document asks *does it work*. This section asks *does it
+feel right*, and it is the only part a passing test suite cannot answer. Specs
+can prove a duration is 150ms; they cannot prove 150ms is the right number.
+
+Do this section **first**, before you have looked at anything else — the answers
+are about first impressions and you only get one.
+
+### Q1 — Does the site feel alive within five seconds of landing?
+
+- [ ] Open `/` on a phone and **do nothing** for five seconds. Is there any sense
+      of the page being alive, or does it read as a printed poster?
+- [ ] The drifting silhouettes behind the hero: can you *notice* them if you look,
+      and *forget* them while reading the heading? Both must be true.
+      *(They were 47–71s before E1 — imperceptible. They are 13–20s now. If they
+      have overshot into distracting, the number to change is the period, in
+      `HeroAmbient.astro`.)*
+- [ ] There are **two** layers of pieces now. Can you see depth — some drifting
+      further than others — or does it read as one flat field?
+- [ ] Do it again in **dark mode**. Light mode was the flatter of the two and got
+      the bigger share of the second layer; check that dark has not become busy.
+
+### Q2 — Does a correct move FEEL satisfying on a phone?
+
+Open `/exercices/mat-du-couloir/` on a real phone and solve it.
+
+- [ ] The moment the piece lands: does the square you moved to acknowledge it?
+      A brief brass ring, then gone.
+- [ ] Is the ring **brief enough**? It must not still be there when you look back.
+- [ ] The move counter hops as it advances. Small — a nod, not a jump.
+- [ ] The solve lands in **two beats**: the frame settles, *then* the badge
+      arrives. You should be able to feel the gap. If it reads as one event, the
+      delay is not working.
+- [ ] **Is it satisfying without being loud?** No confetti, nothing bounces, the
+      board itself does not shimmer. If any of it feels like a slot machine, say
+      so — that is the failure this section exists to catch.
+- [ ] Press any button and hold: it should move *down* and its shadow should
+      close up, like a key. A button that only changes colour is a failure.
+
+### And the one that overrides all of it
+
+- [ ] **Is the board still calm?** Look at a trap replayer and an exercise board
+      with fresh eyes. The rule is that motion lives *around* the board. If the
+      board itself has started to feel busy, that is a defect regardless of how
+      good anything else feels.
+
+---
+
 ## 1. Smoke and i18n
 
 - [ ] `/` loads. Heading is *Mogador Chess Club*, nav is in French
@@ -45,6 +94,117 @@ Legend: **FR** = French page, **EN** = English page. "Both" = do it in each.
 
 ---
 
+## 1b. Navigation menu and board coordinates
+
+### The menu — ⚠️ on a REAL phone, not a narrow desktop window
+
+- [ ] Three groups: **Apprendre**, **S'entraîner**, **Le club**, plus **Accueil**
+- [ ] Tapping a group opens it; tapping another closes the first
+- [ ] Opening a panel does **not** move the page underneath
+- [ ] Tapping outside closes it
+- [ ] The group you are inside is highlighted **without** opening anything
+      (visit /jouer/ — "S'entraîner" should stand out)
+- [ ] Panels are readable and tappable one-handed; nothing runs off the screen
+- [ ] Keyboard: Tab to a group, Enter opens, Tab walks the links, Escape closes
+      and puts focus back on the group button
+- [ ] English nav says Learn / Practise / The club
+- [ ] With JavaScript disabled, every nav link is visible and works
+
+### Board coordinates — ⚠️ check at BOTH sizes and BOTH orientations
+
+A constant offset can look plausible at one size and be obviously wrong at
+another, which is exactly how the last one survived.
+
+- [ ] Desktop, board at full width: each letter a–h sits centred under **its own**
+      file, and **h is fully on the board**
+- [ ] Phone, board full-width: same — the letters must not creep right
+- [ ] Rank numbers 1–8 line up with their rows
+- [ ] A board shown from Black's side (course 1, lesson 4, second board) is also
+      correct — the row reverses there
+- [ ] Dark mode: coordinates still readable on both square colours
+
+### Not a bug — do not fix this
+
+- [ ] On tutorial steps solved with a rook from a1 (Les cases, La tour), square
+      a1 is tinted gold afterwards. That is the **last-move highlight** marking
+      where the piece came from. Correct, and the same on any other move
+
+---
+## 1c. Boards: pointer play and coordinate legibility
+
+### ⚠️ Solve an exercise BY POINTER in every context — on a real phone
+
+Typing in the move field bypasses the board completely, so a broken board can
+look fine to the keyboard. Use fingers only.
+
+- [ ] Tutorial step: tap a piece, tap a square — the move registers
+- [ ] Course lesson (e.g. lesson 1): same
+- [ ] Course lesson with several boards (Récapitulatif): all three work
+- [ ] /exercices/[slug]: same
+- [ ] Tapping a piece lights up its legal squares
+- [ ] ⚠️ Scroll so the WHOLE board is on screen first. A tap aimed at a square
+      that is off-screen does nothing — if a board does not fit comfortably on
+      your phone, say so, that is a real problem
+
+### The frame
+
+- [ ] The gold frame goes all the way round the board AND its coordinates —
+      the rank numbers and file letters are INSIDE it, not cut by it
+- [ ] The gap between the frame and its contents looks even on all four sides
+- [ ] Still true after solving an exercise, and after a refused move
+- [ ] Still true on a phone and on a desktop
+### Coordinates in the gutter
+
+- [ ] Letters a–h sit BELOW the board, numbers 1–8 to its LEFT, outside the
+      playing squares
+- [ ] Each letter is centred under its file; each number beside its rank
+- [ ] The squares are still SQUARE, not rectangles
+- [ ] Legible in LIGHT mode and in DARK mode
+- [ ] Legible on all five board presets (/parametres/)
+- [ ] On a phone the board still feels big enough to tap accurately
+
+### Course index
+
+- [ ] /cours/ — clicking anywhere on the "Bien ouvrir une partie" card opens it
+- [ ] Tab reaches the card once, with a visible ring; Enter opens it
+- [ ] A course with no lessons yet is NOT clickable (it has no page)
+
+---
+## 1d. Which board do I play on?
+
+### ⚠️ The two-second test — on a real phone
+
+Open a lesson that has two boards (course 1, lesson 1) and DO NOT read carefully.
+
+- [ ] Within two seconds, is it obvious which board you are meant to play on?
+- [ ] The demonstration says *Démonstration — utilise les flèches* and looks quiet
+- [ ] The exercise says *À toi de jouer* and looks like the active one
+- [ ] If you hand the phone to someone who has never seen the site, do they
+      reach for the right board? That is the actual test
+
+### The demonstration
+
+- [ ] *Lancer la démonstration* is an obvious, full-size, filled button
+- [ ] Pressing it plays the first move and the button disappears
+- [ ] The small arrow controls remain usable throughout
+- [ ] Trying to drag a piece on the demonstration does nothing, and no squares
+      light up
+- [ ] The mouse cursor over the demonstration is a normal arrow, not a pointer
+- [ ] Arrow keys still step through it
+
+### The exercise
+
+- [ ] Tapping a piece lights its legal squares, and the move can be completed
+- [ ] Typing a move still works
+- [ ] Both labels are readable in LIGHT and DARK mode
+
+### Single-board pages
+
+- [ ] /pieges/[slug] shows the demonstration tag (deliberate — the same
+      "can I touch this?" question applies with only one board)
+- [ ] /exercices/[slug] shows the *À toi de jouer* tag
+
+---
 ## 2. Legal, licence and credits
 
 - [ ] `/mentions-legales/` and `/en/mentions-legales/` both load
@@ -96,6 +256,13 @@ Detail — `/exercices/mat-du-couloir/`:
 - [ ] The position renders and it is clear whose move it is
 - [ ] **Solve it by dragging** a piece — the board accepts the move
 - [ ] **Solve it by tapping** — tap the piece, then tap the destination square
+- [ ] Solving lands in **two beats** — the frame settles, then the badge arrives.
+      Watch for the gap; if it reads as one event the delay has been lost
+- [ ] The destination square carries a brief brass ring as the move lands, and it
+      is **gone** a moment later — it must not linger as a second highlight
+      competing with the last-move tint
+- [ ] The move counter **hops** as the step advances (two-step exercises:
+      `/exercices/opposition-et-mat/`)
 - [ ] Solving shows the success state, the checkmate note, and the replayable solution list
 - [ ] Clicking a move in that solution list shows the position at that move
 
@@ -103,6 +270,15 @@ Feedback:
 
 - [ ] **A wrong move** (e.g. Ra7 here) shakes the board, says *"Ce n'est pas le bon coup"*,
       **increments the attempt counter**, and puts the piece back
+- [ ] ⚠️ **It now also says WHY**: *"Ce coup est légal, mais il ne fait pas ce qu'on
+      cherche ici."* (EN: *"That move is legal, but it isn't what we're looking for
+      here."*) Failure must inform — a beginner who cannot tell "illegal" from
+      "not the point" learns the wrong lesson from the same red text
+- [ ] The attempt counter reads **1**, not 2. The reason is an extra sentence, not
+      a second kind of mistake — both verdicts count identically
+- [ ] The strict panel and the permissive panel are the **same shape**: one line of
+      explanation each. If one is visibly longer, the reader will read that as
+      "worse mistake"
 - [ ] **An illegal move** (drag the rook diagonally) is simply refused — the board does not
       accept it and **the attempt counter does not move**
 - [ ] On `/exercices/opposition-et-mat/`, play **Kf7** (a move that also mates):
@@ -228,7 +404,131 @@ On any exercise, and on `/jouer/` — **without touching the board at all**:
 
 ---
 
-## 7b. Pacing and ambient motion (Session 6)
+## 6b. Course 1 — `/cours/bien-ouvrir-une-partie/`
+
+### Structure
+
+- [ ] The course index lists **six** lessons, numbered, in order, with no board
+- [ ] `/en/cours/bien-ouvrir-une-partie/` shows the same six in English
+- [ ] Each lesson has prev/next; lesson 1 has no prev, lesson 6 no next
+- [ ] Boards appear **inside** the prose, after the paragraph they illustrate —
+      not all bunched at the end
+- [ ] Lesson 5 has three separate replayers, one per opening
+
+### ⚠️ The locale-pair check
+
+The `.fr.md` / `.en.md` files collide in the loader unless `generateId` keeps the
+locale. If that regresses, both URLs render the **same** language.
+
+- [ ] `/cours/bien-ouvrir-une-partie/roquer-tot/` is in French
+- [ ] `/en/cours/bien-ouvrir-une-partie/roquer-tot/` is in English
+- [ ] Spot-check one more pair — the bodies must genuinely differ
+
+### The boards
+
+- [ ] Every replayer steps through with the arrows/next button, and the
+      commentary changes with the move
+- [ ] **Each comment describes the move actually on the board.** This is the
+      one to read carefully: an off-by-one would put the right words on the
+      wrong move, and it would look completely normal
+- [ ] Lesson 6's three exercises each solve, and the ticks persist on reload
+- [ ] The keyboard field works on every exercise
+
+### ⚠️ Chess accuracy — Seàn's review
+
+The checker proves the moves are **legal** and the plies are **in range**. It
+cannot judge whether the teaching is correct.
+
+- [ ] Lesson 2: is `Nf3` genuinely the best knight move to recommend here?
+- [ ] Lesson 4: does the Qh5 line fairly represent why an early queen is bad?
+- [ ] Lesson 5: are the three openings the right three for a beginner, and are
+      the stated plans accurate?
+- [ ] ⚠️ **Lesson 5, ENGLISH — read this one properly.** The FR is Seàn's; the
+      **EN prose was written by Claude**, because the brief supplied an
+      instruction ("same three sections, translated natively") rather than copy.
+      It has had no human read at all. Check it says the same things as the FR,
+      and that it reads as English rather than as a translation.
+- [ ] Lesson 6 exercise C now asks for a developing move and accepts `Nf3`
+      permissively — confirm the task and the accepted answer agree
+- [ ] Only ONE exercise in the course is `onlyMove: true` (lesson 3, castling).
+      Play a different legal move in any other exercise: it must say "not the
+      line we had in mind", never that you are wrong
+- [ ] Cross-links land: lesson 4 → Légal's mate, lesson 6 → exercises and the
+      beginner tutorial
+
+---
+
+## 6c. Course 2 — Les mats élémentaires
+
+- [ ] /cours/les-mats-elementaires/ lists six lessons, both locales
+- [ ] Each of the six exercises mates in one, by pointer and by keyboard
+
+### Still diagrams — new in this batch
+
+- [ ] Lessons 1, 3, 4 and 6 show STILL boards (no play button, no arrows)
+- [ ] ⚠️ Each still board shows its OWN position — if you ever see a full
+      32-piece starting position where a diagram should be, the FEN was lost
+- [ ] Lessons 2 and 5 have real replayers WITH a play button
+
+### ⚠️ Chess accuracy — Seàn
+
+- [ ] Step through the ladder (lesson 2) and Philidor (lesson 5) move by move:
+      does each comment describe the move actually on the board?
+- [ ] Lesson 3: is the stalemate diagram genuinely stalemate, and is the
+      warning clear enough that a beginner will remember it?
+- [ ] Lesson 4: the diagram shows the finished mate — does it read as such?
+- [ ] Lesson 5 starts the queen on d1 (the brief had her on b3, which made the
+      first move impossible) — does the line still read as Philidor to you?
+
+---
+## 7a. The beginner tutorial — `/apprendre-les-bases/`
+
+Written for someone who has never played. The chess is machine-checked; **the
+teaching is not** — that judgement is the point of this section.
+
+### Structure
+
+- [ ] `/apprendre-les-bases/` lists **13 steps**, numbered, in order
+- [ ] `/en/apprendre-les-bases/` shows the same 13 in English
+- [ ] The index shows **no chessboard at all** (the boards live on the steps)
+- [ ] Each step has prev/next; step 1 has no prev, step 13 has no next
+- [ ] Step 13 offers a way onward — exercises, or play the computer
+
+### The board on each step
+
+- [ ] **Tap a piece: every square it can legally reach lights up.** This is the
+      whole teaching mechanism — if it stops working the tutorial is just prose
+- [ ] Complete the task → the step is marked solved
+- [ ] Play a *different* legal move → it says the move is not what was asked, and
+      does **not** call the reader wrong in a way that suggests the move is illegal
+- [ ] The keyboard field works on every step (type `Cf3`, `Nf3` or `g1f3`)
+- [ ] Reload a solved step: the board resets so it can be replayed, but the page
+      greets you as a returning solver
+- [ ] Go back to the index: the solved step carries a tick
+
+### Pedagogy — ⚠️ Seàn's review, and only Seàn's
+
+Read the **French** of all 13 steps as though you had never played chess.
+
+- [ ] No word is used before it is explained (check especially *échec*, *pièce*,
+      *capturer*, *diagonale*)
+- [ ] Sentences are short enough for a 12-year-old, without sounding babyish
+- [ ] Step 10 (*la prise en passant*) is genuinely understandable — it is the
+      rule that loses people
+- [ ] Step 8 makes the difference between **mat** and **pat** unmistakable
+- [ ] The English reads as though written in English, not translated from French
+- [ ] Nothing is factually wrong about the rules
+
+### Entry points
+
+- [ ] Home: *Nouveau aux échecs ? Commence ici* is visible, below the two main
+      buttons and clearly quieter than them
+- [ ] `/cours/`: the prerequisite line is at the **top** of the page
+- [ ] It is **not** in the nav — that is deliberate; see CLAUDE.md
+
+---
+
+## 7b. Pacing and ambient motion (Session 6, revised in E1)
 
 ### The home page
 
@@ -239,6 +539,12 @@ On any exercise, and on `/jouer/` — **without touching the board at all**:
       *(one link per card — if Tab stops twice on a card, the whole-card overlay has regressed)*
 - [ ] Chess-piece silhouettes drift slowly behind the hero. **They should be barely
       noticeable** — if you notice them before you notice the heading, they are too strong
+- [ ] ⚠️ **E1 sped them up from 47–71s to 13–20s.** They were previously invisible as
+      motion; they should now register if you look for them. The judgement call is
+      the balance between the two lines above — say if it has gone too far
+- [ ] ⚠️ **There are TWO layers now.** Three further pieces (queen, knight, a second
+      pawn) drift slower and travel less. Look for **depth**, not just more pieces —
+      if it reads as one flat field, the effect has not landed
 - [ ] Scrolling moves the silhouettes at a different rate from the text (parallax).
       *Chromium-only: Firefox/Safari without `animation-timeline` still drift, just without
       parallax. That is expected, not a bug.*
@@ -269,6 +575,22 @@ On any exercise, and on `/jouer/` — **without touching the board at all**:
       same as `/jouer/` — you should not be able to feel which one has a real engine
 - [ ] Stepping a replay (`/pieges/legal/`) feels **snappier** than a played move. Holding the
       arrow key still drops nothing
+      *(E1 moved this from 200ms to 180ms — 200 sat in the forbidden 180–250ms gap.
+      It should still feel like navigation rather than gameplay.)*
+
+### Buttons, cards and panels (E1)
+
+- [ ] **Press and hold any button.** It moves down and its shadow closes up, like a
+      key. Release and it comes back. A button that only changes colour is a failure
+- [ ] Every button is comfortable to hit with a thumb — nothing under ~44px tall
+      *(they were ~40px before E1, and nothing was measuring it)*
+- [ ] **Press and hold a card** on `/pieges/`, `/exercices/`, `/cours/` or a course's
+      lesson list: it settles flat, the way the button does
+- [ ] Opening a nav group **fades and drops in** rather than snapping; the chevron
+      turns faster than the panel opens
+- [ ] Revealing a hint on an exercise fades in rather than appearing between frames
+- [ ] Nothing anywhere feels like it is in an awkward middle speed. Everything should
+      read as either *"that answered me"* (fast) or *"watch this change"* (gentle)
 
 ### Reduced motion
 
@@ -277,11 +599,104 @@ Animation effects off; macOS: Accessibility → Display → Reduce motion; or De
 Rendering → Emulate `prefers-reduced-motion`).
 
 - [ ] Silhouettes are **still there** but completely still — the texture stays, the motion goes
+- [ ] ⚠️ **Check the FAR pieces too, not just the near ones.** They are a separate
+      layer with its own selector, and E1 shipped with them still drifting under
+      reduced motion until a spec caught it. If any piece is moving, that is the bug
+- [ ] Buttons still **answer** a press — the shadow still closes — they just do not travel
+- [ ] The correct-move ring still marks the destination square; it simply appears
+      and goes rather than fading. *Reduced motion removes movement, not feedback*
+- [ ] The solve arrives in **one** beat rather than two. That is deliberate: a reader
+      who asked for less motion did not ask to wait through a staged arrival
 - [ ] Section reveals do not animate; content is simply present
 - [ ] Board moves are **instant** — pieces appear on their new square with no slide
 - [ ] The opponent **still pauses briefly** before replying (~150ms). It should not fire back
       in the same instant. *This is deliberate: with a screen reader the two move
       announcements must not overlap*
+
+---
+
+## 7c. Accounts (v2-S1) — ⚠️ SWITCHED OFF IN PRODUCTION SINCE v0.3.0
+
+**Read this before running any of the section below.**
+
+`PUBLIC_AUTH_ENABLED` defaults to `false`, and OFF means **not built**: the
+account routes are not in `dist/` at all. On a normal `npm run demo` every check
+in this section is **not applicable** — skip to 7d.
+
+### 7c-0. What to check on the DEFAULT build (do this one every release)
+
+- [ ] `/connexion/`, `/compte/`, `/en/connexion/`, `/en/compte/` and
+      `/auth/callback/` all return **404**, not a redirect and not an empty page
+- [ ] The header carries **no** sign-in or account control, in either language
+- [ ] DevTools → Application → Local Storage: set `mcc:auth:v1` to `1` by hand,
+      reload. **Nothing appears.** The flag is a build switch, not a permission
+- [ ] Search the built output: `grep -r supabase.co dist/` → **no matches**
+      *(the e2e suite asserts this, but look once yourself before a release —
+      it is the guarantee the whole flag exists to provide)*
+- [ ] The footer still links the privacy policy, and it still loads. It
+      describes the site as a whole, not only accounts, so it is not gated
+
+### 7c-1. The rest of this section needs an ON build
+
+```sh
+PUBLIC_AUTH_ENABLED=true npm run demo
+```
+
+Also needs a configured Supabase project. If `PUBLIC_SUPABASE_URL` is unset the
+sign-in form says so plainly and everything else on the site still works — check
+that too.
+
+### ⚠️ The real magic link — the one thing automation does NOT cover
+
+The e2e suite mints links through the admin API and never sends an email. Delivery,
+the template and a link opened from a real inbox are only ever checked here.
+
+- [ ] `/connexion/` → enter a **real** address you can read → "Vérifiez votre boîte e-mail"
+- [ ] The email actually **arrives** (check spam — the built-in Supabase mailer is
+      not domain-aligned yet; see BACKLOG.md)
+- [ ] Open the link **on a different device** from the one that requested it. It must
+      still sign you in. *(This is the PKCE-vs-implicit decision being verified: with
+      PKCE this fails, which is exactly why the flow is implicit.)*
+- [ ] You land on `/compte/`, and the address bar has **no `#access_token=…`** left in it
+- [ ] Request a second link and click the **first** one again — it must be refused
+      cleanly with "Ce lien n'est plus valide", not a blank page
+
+### Signed-in state
+
+- [ ] Header shows **Mon compte** / **My account** instead of **Se connecter**
+- [ ] **Reload.** Still signed in, header unchanged
+- [ ] Close the tab, reopen the site. Still signed in
+- [ ] `/compte/` shows your email, your role, and your first name
+- [ ] Change the display name → **Enregistrer** → reload → the new name persisted
+- [ ] Switch the language on `/compte/` → reload → it stuck
+- [ ] Progress and Attendance sections are visible and marked **À venir** / **Coming soon**
+
+### Sign out
+
+- [ ] **Se déconnecter** returns you to the home page
+- [ ] Header is back to **Se connecter**
+- [ ] Reload — still signed out (no flicker of an account link on the way)
+- [ ] DevTools → Application → Local Storage: **`mcc:auth:v1` is gone**, and so are
+      the `sb-…-auth-token` entries
+
+### ⚠️ The guest zero-request check — do this in DevTools, every time
+
+The single easiest thing to break in v2. One stray static import and every reader
+downloads the auth client.
+
+- [ ] Open a **private window** (no prior sign-in, so no `mcc:auth:v1`)
+- [ ] DevTools → **Network**, filter `supabase`
+- [ ] Visit `/`, `/cours/`, `/pieges/legal/`, `/exercices/mat-du-couloir/`, `/jouer/`
+- [ ] **Zero requests.** Not one, to any `*.supabase.co` host
+- [ ] Clear the filter and confirm no ~200 KB auth chunk is fetched either
+- [ ] Now open `/connexion/` — still zero Supabase requests until you **submit** the form
+
+### Privacy policy
+
+- [ ] `/politique-confidentialite/` and `/en/politique-confidentialite/` both load
+- [ ] Linked from the **footer of every page**, and from `/mentions-legales/`
+- [ ] The minors paragraph is present in both languages
+- [ ] Links inside paragraphs are **underlined**, not colour-only
 
 ---
 

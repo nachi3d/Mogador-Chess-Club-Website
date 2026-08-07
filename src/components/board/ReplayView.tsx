@@ -60,6 +60,8 @@ export interface ReplayLabels {
   readonly checkmate: string;
   readonly startLabel: string;
   readonly intro: string;
+  /** Shown only before the demonstration has been started. */
+  readonly launch: string;
 }
 
 export interface ReplayViewProps {
@@ -221,7 +223,39 @@ export default function ReplayView(props: ReplayViewProps) {
           animationMs={REPLAY_ANIMATION_MS}
         />
 
-        <div class="mcc-controls" role="group" aria-label={labels.controls}>
+        {/*
+          ⚠️ THE FIRST CONTROL A READER SEES IS A NAMED BUTTON, NOT AN ICON.
+
+          Four small glyph buttons did not attract the eye at all: the site's
+          own author reached for the pieces instead of pressing play. Before
+          the demonstration has been started there is exactly ONE thing worth
+          doing, so it is offered as one filled, named, full-size control. Once
+          started it collapses to the compact set, which is the right shape for
+          stepping back and forth.
+
+          Keyboard behaviour is untouched: the arrow keys still drive the
+          replayer whether or not this button has been used.
+        */}
+        {plies.length > 0 && atStart ? (
+          <button
+            type="button"
+            class="mcc-replay-launch"
+            onClick={() => step((p) => p + 1, false)}
+            data-testid="replay-launch"
+          >
+            <span aria-hidden="true">▶</span>
+            {labels.launch}
+          </button>
+        ) : null}
+
+        {/* ⚠️ The compact set is NOT hidden before the first move.
+            "Collapsing to the compact controls" happens by the launch button
+            going away, not by taking the others out. Hiding them made "jump to
+            the end" unreachable as a first action, and broke eight existing
+            navigation specs that legitimately expect the controls to be there
+            on arrival. The launch button adds a prominent entry point; it does
+            not gate the rest. */}
+        <div class="mcc-controls" role="group" aria-label={labels.controls} hidden={plies.length === 0}>
           <button
             type="button"
             onClick={() => step(() => START, true)}
@@ -260,7 +294,7 @@ export default function ReplayView(props: ReplayViewProps) {
           </button>
         </div>
 
-        <p class="mcc-replayer-hint">{labels.intro}</p>
+        {plies.length > 0 && <p class="mcc-replayer-hint">{labels.intro}</p>}
       </div>
 
       <div class="mcc-replayer-side">

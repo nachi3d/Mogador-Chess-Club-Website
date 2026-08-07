@@ -21,6 +21,10 @@ const fr = {
   'nav.play': 'Jouer',
   'nav.agenda': 'Agenda',
   'nav.contact': 'Contact',
+  'nav.group.learn': 'Apprendre',
+  'nav.group.practise': "S'entraîner",
+  'nav.group.club': 'Le club',
+  'nav.basics': 'Les bases',
   'nav.label': 'Navigation principale',
   'nav.skipToContent': 'Aller au contenu principal',
 
@@ -30,6 +34,28 @@ const fr = {
   'home.title': 'Mogador Chess Club',
   'home.intro':
     "Le club d'échecs d'Essaouira. Des cours progressifs, une bibliothèque de pièges d'ouverture, et des exercices pour s'entraîner — en français comme en anglais.",
+  /* ── The beginner tutorial ───────────────────────────────────────── */
+  'tutorial.title': 'Apprendre les bases',
+  'tutorial.intro':
+    "Tu n'as jamais joué aux échecs ? Commence ici. Treize étapes courtes, un échiquier à chaque fois, et tu sauras jouer une partie complète.",
+  'tutorial.homeCta': 'Nouveau aux échecs ? Commence ici',
+  'tutorial.prerequisite': 'Jamais joué ? Commence par apprendre les bases.',
+  'tutorial.step': 'Étape',
+  'tutorial.of': 'sur',
+  'tutorial.prev': 'Précédent',
+  'tutorial.next': 'Suivant',
+  'tutorial.backToIndex': 'Toutes les étapes',
+  'nav.backToCourse': 'Toutes les leçons',
+  'nav.whatNext': 'Et maintenant ?',
+  'nav.toTraps': 'Les pièges d’ouverture',
+  'tutorial.yourTurn': 'Essaie toi-même',
+  'tutorial.done': 'Terminé',
+  'tutorial.finished.title': 'Tu connais les règles.',
+  'tutorial.finished.body':
+    'Tu peux maintenant jouer une partie complète. La suite : les exercices pour t’entraîner, ou une partie contre l’ordinateur.',
+  'tutorial.toExercises': "Passer aux exercices",
+  'tutorial.toPlay': "Jouer contre l'ordinateur",
+
   'home.cta.play': 'Jouer',
   'home.cta.traps': 'Découvrir les pièges',
 
@@ -66,6 +92,9 @@ const fr = {
   'replay.jumpTo': 'Aller au coup',
   'replay.commentary': 'Commentaire',
   'replay.intro': "Utilisez les flèches ← et → du clavier, ou cliquez un coup dans la liste.",
+  'replay.launch': 'Lancer la démonstration',
+  'board.tag.demo': 'Démonstration — utilise les flèches',
+  'board.tag.exercise': 'À toi de jouer',
   'replay.checkmate': 'Échec et mat',
   'replay.startLabel': 'Départ',
 
@@ -92,6 +121,11 @@ const fr = {
   'exercise.correct': 'Bien joué.',
   /* onlyMove: true — the stored line really is the only one that works. */
   'exercise.wrong': "Ce n'est pas le bon coup. Réessayez.",
+  /* WHY, not just THAT. The move reached the judge, so it was legal — the site
+     knows that and should say it, rather than leaving a beginner to wonder
+     whether they attempted something the rules forbid. */
+  'exercise.wrong.reason':
+    "Ce coup est légal, mais il ne fait pas ce qu'on cherche ici.",
   /* onlyMove: false — see the validation rule in CLAUDE.md. We do NOT say
      "faux": another move may well win, and we cannot yet prove otherwise. */
   'exercise.offLine': "Ce n'est pas la ligne que nous avions en tête. Réessayez.",
@@ -205,8 +239,93 @@ const fr = {
   'footer.association': 'En partenariat avec',
   'footer.legalHeading': 'Le site',
   'footer.legal': 'Mentions légales',
+  'footer.privacy': 'Confidentialité',
   'footer.source': 'Source (GPL)',
   'footer.pieces': 'Pièces : cburnett',
+
+  /* ── Auth (v2-S1). Accounts add sync; they gate nothing. ─────────────── */
+  'auth.signIn': 'Se connecter',
+  'auth.account': 'Mon compte',
+  'auth.signOut': 'Se déconnecter',
+  'login.title': 'Se connecter',
+  'login.intro':
+    "Recevez un lien par e-mail — pas de mot de passe. Un compte sert à retrouver votre progression sur tous vos appareils ; tout le site reste accessible sans compte.",
+  'login.emailLabel': 'Adresse e-mail',
+  'login.submit': 'Recevoir le lien',
+  'login.sending': 'Envoi…',
+  'login.sent.title': 'Vérifiez votre boîte e-mail',
+  'login.sent.body':
+    "Nous avons envoyé un lien de connexion. Ouvrez-le sur cet appareil ou sur un autre — il fonctionne partout.",
+  'login.error': "Le lien n'a pas pu être envoyé. Réessayez dans un instant.",
+  'login.invalidEmail': 'Cette adresse e-mail ne semble pas valide.',
+  'login.unconfigured': "La connexion n'est pas encore disponible sur cette version du site.",
+  'login.guestNote': 'Continuer sans compte',
+  'callback.title': 'Connexion…',
+  'callback.working': 'Connexion en cours…',
+  'callback.failed': "Ce lien n'est plus valide. Demandez-en un nouveau.",
+  'callback.retry': 'Retourner à la connexion',
+  'account.title': 'Mon compte',
+  'account.intro': 'Votre nom affiché et votre langue. Rien d’autre n’est stocké ici.',
+  'account.displayName': 'Prénom affiché',
+  'account.locale': 'Langue',
+  'account.save': 'Enregistrer',
+  'account.saved': 'Enregistré.',
+  'account.saveError': "Impossible d'enregistrer. Réessayez.",
+  'account.email': 'Adresse e-mail',
+  'account.role': 'Rôle',
+  'account.role.admin': 'Administrateur',
+  'account.role.prof': 'Professeur',
+  'account.role.eleve': 'Élève',
+  'account.progress.heading': 'Progression',
+  'account.progress.soon': 'À venir',
+  'account.progress.body':
+    'La synchronisation de votre progression entre appareils arrive prochainement.',
+  'account.attendance.heading': 'Présence',
+  'account.attendance.soon': 'À venir',
+  'account.attendance.body': 'Votre historique de présence aux séances arrivera avec l’agenda.',
+  'account.signedOut': 'Vous n’êtes pas connecté.',
+  'account.goSignIn': 'Se connecter',
+
+  /* ── Privacy (v2-S1) ─────────────────────────────────────────────────── */
+  'privacy.title': 'Politique de confidentialité',
+  'privacy.intro':
+    "Ce que le club conserve, pourquoi, et comment tout effacer. Le site s'utilise entièrement sans compte.",
+  'privacy.guest.heading': 'Sans compte, rien n’est conservé',
+  'privacy.guest.body':
+    "Vous pouvez lire les cours, les pièges et résoudre les exercices sans créer de compte. Votre progression est alors enregistrée uniquement dans votre navigateur (localStorage) : elle ne quitte jamais votre appareil et nous ne pouvons pas la consulter.",
+  'privacy.stored.heading': 'Avec un compte, ce que nous stockons',
+  'privacy.stored.name': 'Un prénom d’affichage — jamais le nom complet.',
+  'privacy.stored.email': "Votre adresse e-mail, qui sert uniquement à vous envoyer le lien de connexion.",
+  'privacy.stored.guardian':
+    "Éventuellement un numéro de téléphone de parent, à titre de contact du club. Il ne sert jamais à se connecter et ne reçoit aucun message automatique.",
+  'privacy.stored.progress': 'Votre progression : exercices résolus, tentatives, indices utilisés.',
+  'privacy.stored.attendance': 'Votre présence aux séances, saisie par un professeur.',
+  'privacy.why.heading': 'Pourquoi',
+  'privacy.why.body':
+    "Retrouver votre progression sur tous vos appareils, et permettre aux professeurs de suivre l’avancement du groupe et la présence. Rien n’est utilisé à d’autres fins : pas de publicité, pas de revente, pas de profilage.",
+  'privacy.no.heading': 'Ce que nous ne faisons jamais',
+  'privacy.no.photos': 'Aucune photo, jamais.',
+  'privacy.no.messaging':
+    "Aucune messagerie, aucun commentaire, aucun contenu publié par les utilisateurs. Personne ne peut contacter un enfant via ce site.",
+  'privacy.no.tracking':
+    "Aucun cookie publicitaire et aucun traceur tiers. La mesure d’audience, quand elle est activée, est anonyme et sans cookie.",
+  'privacy.no.passwords': 'Aucun mot de passe n’est créé ni stocké : la connexion se fait par lien e-mail.',
+  'privacy.minors.heading': 'Mineurs',
+  'privacy.minors.body':
+    "Le club enseigne à des enfants. Les données sont réduites au strict minimum : un prénom, une adresse e-mail, la progression. Pour un élève sans adresse personnelle, le compte est créé par un professeur avec l’adresse d’un parent, qui reste le point de contact. Aucune photo n’est publiée et aucun échange direct n’est possible sur le site.",
+  'privacy.retention.heading': 'Durée de conservation',
+  'privacy.retention.body':
+    "Les données sont conservées tant que le compte existe. Un compte inactif depuis deux ans est supprimé. La progression enregistrée localement dans votre navigateur reste sous votre contrôle et peut être effacée à tout moment en vidant les données du site.",
+  'privacy.erasure.heading': 'Effacement',
+  'privacy.erasure.body':
+    "Vous pouvez demander la suppression de votre compte à tout moment. La suppression est en cascade : le compte, le profil, la progression et les présences sont effacés ensemble — il ne reste rien à récupérer.",
+  'privacy.processor.heading': 'Hébergement des données',
+  'privacy.processor.body':
+    "Les comptes et la progression sont hébergés par Supabase, en tant que sous-traitant, sur une infrastructure située dans l’Union européenne. Le site lui-même est servi par Cloudflare. Aucune donnée n’est transmise à d’autres tiers.",
+  'privacy.contact.heading': 'Contact',
+  'privacy.contact.body':
+    'Pour toute question ou demande de suppression, écrivez au club via WhatsApp.',
+  'privacy.updated': 'Dernière mise à jour',
 
   'legal.title': 'Mentions légales',
   'legal.intro':
@@ -257,6 +376,10 @@ const en: Record<keyof typeof fr, string> = {
   'nav.play': 'Play',
   'nav.agenda': 'Schedule',
   'nav.contact': 'Contact',
+  'nav.group.learn': 'Learn',
+  'nav.group.practise': 'Practise',
+  'nav.group.club': 'The club',
+  'nav.basics': 'The basics',
   'nav.label': 'Main navigation',
   'nav.skipToContent': 'Skip to main content',
 
@@ -266,6 +389,27 @@ const en: Record<keyof typeof fr, string> = {
   'home.title': 'Mogador Chess Club',
   'home.intro':
     "Essaouira's chess club. Progressive courses, an opening-trap library, and exercises to practise on — in English as well as French.",
+  'tutorial.title': 'Learn the basics',
+  'tutorial.intro':
+    'Never played chess? Start here. Thirteen short steps, a board on every one, and you will know how to play a full game.',
+  'tutorial.homeCta': 'New to chess? Start here',
+  'tutorial.prerequisite': 'Never played? Start by learning the basics.',
+  'tutorial.step': 'Step',
+  'tutorial.of': 'of',
+  'tutorial.prev': 'Previous',
+  'tutorial.next': 'Next',
+  'tutorial.backToIndex': 'All steps',
+  'nav.backToCourse': 'All lessons',
+  'nav.whatNext': 'What next?',
+  'nav.toTraps': 'Opening traps',
+  'tutorial.yourTurn': 'Your turn',
+  'tutorial.done': 'Done',
+  'tutorial.finished.title': 'You know the rules.',
+  'tutorial.finished.body':
+    'You can now play a full game. Next: the exercises to practise on, or a game against the computer.',
+  'tutorial.toExercises': 'Go to the exercises',
+  'tutorial.toPlay': 'Play the computer',
+
   'home.cta.play': 'Play',
   'home.cta.traps': 'Explore traps',
 
@@ -297,6 +441,9 @@ const en: Record<keyof typeof fr, string> = {
   'replay.jumpTo': 'Go to move',
   'replay.commentary': 'Commentary',
   'replay.intro': 'Use the ← and → arrow keys, or click a move in the list.',
+  'replay.launch': 'Play the demonstration',
+  'board.tag.demo': 'Demonstration — use the arrows',
+  'board.tag.exercise': 'Your turn',
   'replay.checkmate': 'Checkmate',
   'replay.startLabel': 'Start',
 
@@ -322,6 +469,7 @@ const en: Record<keyof typeof fr, string> = {
   'exercise.hint.heading': 'Hint',
   'exercise.correct': 'Well played.',
   'exercise.wrong': 'That is not the right move. Try again.',
+  'exercise.wrong.reason': "That move is legal, but it isn't what we're looking for here.",
   'exercise.offLine': 'That is not the line we had in mind. Try again.',
   'exercise.offLine.note':
     'Other moves may well win too: the site cannot check them yet, so it will never count them as mistakes.',
@@ -429,8 +577,89 @@ const en: Record<keyof typeof fr, string> = {
   'footer.association': 'In partnership with',
   'footer.legalHeading': 'The site',
   'footer.legal': 'Legal notice',
+  'footer.privacy': 'Privacy',
   'footer.source': 'Source (GPL)',
   'footer.pieces': 'Pieces: cburnett',
+
+  'auth.signIn': 'Sign in',
+  'auth.account': 'My account',
+  'auth.signOut': 'Sign out',
+  'login.title': 'Sign in',
+  'login.intro':
+    'Get a link by email — no password. An account keeps your progress across your devices; the whole site stays available without one.',
+  'login.emailLabel': 'Email address',
+  'login.submit': 'Send the link',
+  'login.sending': 'Sending…',
+  'login.sent.title': 'Check your email',
+  'login.sent.body':
+    'We have sent a sign-in link. Open it on this device or another — it works anywhere.',
+  'login.error': 'The link could not be sent. Try again in a moment.',
+  'login.invalidEmail': 'That email address does not look valid.',
+  'login.unconfigured': 'Signing in is not available yet on this version of the site.',
+  'login.guestNote': 'Continue without an account',
+  'callback.title': 'Signing in…',
+  'callback.working': 'Signing you in…',
+  'callback.failed': 'This link is no longer valid. Request a new one.',
+  'callback.retry': 'Back to sign in',
+  'account.title': 'My account',
+  'account.intro': 'Your display name and language. Nothing else is stored here.',
+  'account.displayName': 'Display first name',
+  'account.locale': 'Language',
+  'account.save': 'Save',
+  'account.saved': 'Saved.',
+  'account.saveError': 'Could not save. Try again.',
+  'account.email': 'Email address',
+  'account.role': 'Role',
+  'account.role.admin': 'Administrator',
+  'account.role.prof': 'Teacher',
+  'account.role.eleve': 'Student',
+  'account.progress.heading': 'Progress',
+  'account.progress.soon': 'Coming soon',
+  'account.progress.body': 'Syncing your progress across devices is coming shortly.',
+  'account.attendance.heading': 'Attendance',
+  'account.attendance.soon': 'Coming soon',
+  'account.attendance.body': 'Your session attendance history will arrive with the schedule.',
+  'account.signedOut': 'You are not signed in.',
+  'account.goSignIn': 'Sign in',
+
+  'privacy.title': 'Privacy policy',
+  'privacy.intro':
+    'What the club keeps, why, and how to erase all of it. The site works entirely without an account.',
+  'privacy.guest.heading': 'Without an account, we keep nothing',
+  'privacy.guest.body':
+    'You can read the courses and traps and solve the exercises without creating an account. Your progress is then stored only in your browser (localStorage): it never leaves your device and we cannot see it.',
+  'privacy.stored.heading': 'With an account, what we store',
+  'privacy.stored.name': 'A display first name — never a full name.',
+  'privacy.stored.email': 'Your email address, used only to send you the sign-in link.',
+  'privacy.stored.guardian':
+    'Optionally a parent phone number, as a contact for the club. It is never used to sign in and receives no automated messages.',
+  'privacy.stored.progress': 'Your progress: exercises solved, attempts, hints used.',
+  'privacy.stored.attendance': 'Your attendance at sessions, recorded by a teacher.',
+  'privacy.why.heading': 'Why',
+  'privacy.why.body':
+    'To keep your progress across your devices, and to let teachers follow the group and attendance. Nothing is used for anything else: no advertising, no resale, no profiling.',
+  'privacy.no.heading': 'What we never do',
+  'privacy.no.photos': 'No photographs, ever.',
+  'privacy.no.messaging':
+    'No messaging, no comments, no user-submitted content of any kind. Nobody can contact a child through this site.',
+  'privacy.no.tracking':
+    'No advertising cookies and no third-party trackers. Audience measurement, when enabled, is anonymous and cookie-free.',
+  'privacy.no.passwords': 'No password is created or stored: signing in is by email link.',
+  'privacy.minors.heading': 'Minors',
+  'privacy.minors.body':
+    'The club teaches children. Data is kept to the strict minimum: a first name, an email address, progress. For a student without their own address, a teacher creates the account using a parent’s address, and that parent remains the point of contact. No photographs are published and no direct contact is possible on the site.',
+  'privacy.retention.heading': 'How long we keep it',
+  'privacy.retention.body':
+    'Data is kept for as long as the account exists. An account inactive for two years is deleted. Progress stored locally in your browser stays under your control and can be cleared at any time by clearing the site’s data.',
+  'privacy.erasure.heading': 'Erasure',
+  'privacy.erasure.body':
+    'You can ask for your account to be deleted at any time. Deletion cascades: the account, the profile, the progress and the attendance records are erased together — nothing is left behind to recover.',
+  'privacy.processor.heading': 'Where the data lives',
+  'privacy.processor.body':
+    'Accounts and progress are hosted by Supabase, acting as a processor, on infrastructure located in the European Union. The site itself is served by Cloudflare. No data is passed to any other third party.',
+  'privacy.contact.heading': 'Contact',
+  'privacy.contact.body': 'For any question or deletion request, message the club on WhatsApp.',
+  'privacy.updated': 'Last updated',
 
   'legal.title': 'Legal notice',
   'legal.intro':
@@ -484,16 +713,48 @@ export function useTranslations(locale: Locale): (key: UIKey) => string {
   return (key: UIKey) => table[key];
 }
 
-/** The nav, in render order. Route + its label key — one list, both locales. */
-export const NAV_ITEMS = [
-  { path: '/', key: 'nav.home' },
-  { path: '/cours/', key: 'nav.courses' },
-  { path: '/pieges/', key: 'nav.traps' },
-  { path: '/exercices/', key: 'nav.exercises' },
-  { path: '/jouer/', key: 'nav.play' },
-  { path: '/agenda/', key: 'nav.agenda' },
-  { path: '/contact/', key: 'nav.contact' },
-] as const satisfies readonly { path: string; key: UIKey }[];
+/**
+ * The nav, grouped.
+ *
+ * Seven flat items had outgrown a single row — especially on a phone, where
+ * they wrapped into an unreadable block. Three groups follow how the site is
+ * actually used: you learn something, you practise it, or you want the club
+ * itself.
+ *
+ *  stays a top-level link rather than joining a group: home is where the
+ * logo already goes, and burying it would be worse than the wrap.
+ */
+export const NAV_GROUPS = [
+  {
+    key: 'nav.group.learn',
+    id: 'learn',
+    items: [
+      { path: '/apprendre-les-bases/', key: 'nav.basics' },
+      { path: '/cours/', key: 'nav.courses' },
+      { path: '/pieges/', key: 'nav.traps' },
+    ],
+  },
+  {
+    key: 'nav.group.practise',
+    id: 'practise',
+    items: [
+      { path: '/exercices/', key: 'nav.exercises' },
+      { path: '/jouer/', key: 'nav.play' },
+    ],
+  },
+  {
+    key: 'nav.group.club',
+    id: 'club',
+    items: [
+      { path: '/agenda/', key: 'nav.agenda' },
+      { path: '/contact/', key: 'nav.contact' },
+    ],
+  },
+] as const satisfies readonly {
+  key: UIKey;
+  id: string;
+  items: readonly { path: string; key: UIKey }[];
+}[];
 
 /** Level → its label key. Keeps the badge component free of a switch statement. */
 export const LEVEL_KEYS = {
