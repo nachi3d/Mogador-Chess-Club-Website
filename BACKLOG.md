@@ -39,7 +39,11 @@ with itself.
 
 | Item | Status | Note |
 |---|---|---|
-| **Refonte esthétique majeure** — make it feel like a GAME | `backlog` **(high)** | See below. Blocked on nothing. |
+| **Refonte esthétique majeure** — make it feel like a GAME | `in progress` | Direction written and approved: `docs/direction/mcc-direction-esthetique.md`. Sequenced E1 → E4; see below. |
+| **E1 — motion vocabulary + action feedback** | **done** | Three families, the press, the correct-move pulse, the wrong-move reason, the two-beat solve, a second ambient layer. |
+| **E2 — sound** | `backlog` | Synthesised via Web Audio, **off by default**. No audio files, so no new licence and no new request. |
+| **E3 — progression** | `backlog` | Ranks Pion → Cavalier → Fou → Tour → Dame. **Session streaks only — never a daily streak**: the club meets weekly, so a daily streak would punish the normal rhythm of the people it is for. Wants v2-S3's synced progress to mean anything across devices. |
+| **E4 — vocabulary and atmosphere** | `backlog` | Evocative names on **page titles only**; nav labels stay functional (Cours, Exercices, Jouer). |
 
 ### Refonte esthétique majeure — a direction session, not a patch
 
@@ -59,10 +63,12 @@ What it must NOT cost:
   carried the ambient motion so far at ~1.3 KB; a new library must clear the
   same licence bar before it is even evaluated on merit.
 
-⚠️ **This wants a written direction and Seàn's sign-off before any
-implementation.** It is a look-and-feel decision about what the club *is*, not a
-list of effects — and it touches every page, so getting it wrong is expensive to
-unwind.
+~~⚠️ **This wants a written direction and Seàn's sign-off before any
+implementation.**~~ RESOLVED — the direction is written, approved, and lives at
+`docs/direction/mcc-direction-esthetique.md`. Its guiding line: *un site donne
+l'impression d'un jeu quand il **répond**, pas quand il est déguisé.* Order of
+work is **feel (E1) → sound (E2) → progression (E3) → dressing (E4)**, and the
+board stays sober throughout.
 
 ---
 

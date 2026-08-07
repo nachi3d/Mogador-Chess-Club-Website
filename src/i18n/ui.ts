@@ -121,6 +121,11 @@ const fr = {
   'exercise.correct': 'Bien joué.',
   /* onlyMove: true — the stored line really is the only one that works. */
   'exercise.wrong': "Ce n'est pas le bon coup. Réessayez.",
+  /* WHY, not just THAT. The move reached the judge, so it was legal — the site
+     knows that and should say it, rather than leaving a beginner to wonder
+     whether they attempted something the rules forbid. */
+  'exercise.wrong.reason':
+    "Ce coup est légal, mais il ne fait pas ce qu'on cherche ici.",
   /* onlyMove: false — see the validation rule in CLAUDE.md. We do NOT say
      "faux": another move may well win, and we cannot yet prove otherwise. */
   'exercise.offLine': "Ce n'est pas la ligne que nous avions en tête. Réessayez.",
@@ -464,6 +469,7 @@ const en: Record<keyof typeof fr, string> = {
   'exercise.hint.heading': 'Hint',
   'exercise.correct': 'Well played.',
   'exercise.wrong': 'That is not the right move. Try again.',
+  'exercise.wrong.reason': "That move is legal, but it isn't what we're looking for here.",
   'exercise.offLine': 'That is not the line we had in mind. Try again.',
   'exercise.offLine.note':
     'Other moves may well win too: the site cannot check them yet, so it will never count them as mistakes.',

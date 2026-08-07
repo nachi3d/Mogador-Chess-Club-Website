@@ -21,6 +21,9 @@
 /* Scroll reveals. Opt-in per page and fail-visible — see the file header. */
 @import './motion.css';
 
+/* Pressable controls. After motion.css: it is the Réponse family applied. */
+@import './controls.css';
+
 @layer base {
   html {
     background-color: var(--mcc-surface-page);

@@ -100,6 +100,43 @@ cg-board square.oc.move-dest {
   background: radial-gradient(transparent 0%, transparent 79%, var(--mcc-board-hint) 80%);
 }
 
+/* ---------- The correct-move pulse ----------
+   Fed by `pulseSquare` on BoardSurface, via Chessground's own
+   `highlight.custom`, so the square is located by the board rather than by
+   geometry we recompute.
+
+   ⚠️ THE BOARD STAYS SOBER (CLAUDE.md → E1 motion). This is the whole of it:
+   ONE Transition, no loop, no glow left behind, and only on a correct move in
+   an exercise. It is an inset ring rather than a fill because the destination
+   square is simultaneously `last-move` — a competing background would either
+   lose to it or replace it, and both read as the highlight glitching.
+
+   The ring is drawn inside the square's own box, so it cannot overhang onto a
+   neighbour and cannot move anything: `box-shadow: inset` participates in no
+   layout at all. */
+cg-board square.mcc-pulse {
+  animation: mcc-square-pulse var(--motion-transition) var(--ease-transition) 1;
+}
+
+@keyframes mcc-square-pulse {
+  from {
+    box-shadow: inset 0 0 0 0.28em var(--mcc-board-pulse);
+  }
+  to {
+    box-shadow: inset 0 0 0 0.28em rgb(0 0 0 / 0);
+  }
+}
+
+/* Reduced motion: the ring still appears — it is the answer to a move the
+   reader just made, and removing feedback is not what "reduced" means — but it
+   arrives and leaves without a curve to watch. */
+@media (prefers-reduced-motion: reduce) {
+  cg-board square.mcc-pulse {
+    animation: none;
+    box-shadow: inset 0 0 0 0.28em var(--mcc-board-pulse);
+  }
+}
+
 /* ---------- Coordinates ---------- */
 /* ============================================================
    COORDINATES LIVE IN AN OUTER GUTTER (reversal, this session)

@@ -71,6 +71,25 @@ export interface BoardProps {
   readonly animationMs?: number;
   /** Accessible name for the board region. */
   readonly label: string;
+  /**
+   * A square to mark with a brief accent pulse, or undefined for none.
+   *
+   * ⚠️ THE BOARD STAYS SOBER (CLAUDE.md → E1 motion). This is the ONLY motion
+   * this component adds on top of piece movement, it lasts one Transition, it
+   * fires only on a correct move in exercise mode, and it never loops. Play mode
+   * deliberately does not use it: there is no "correct" there, and a board that
+   * flashes on every engine reply is a board that is hard to read.
+   *
+   * Implemented with Chessground's own `highlight.custom` rather than an
+   * overlay of our own, because Chessground already knows where a square is —
+   * including after a flip. An overlay would need us to recompute file/rank
+   * geometry against the orientation, which is a second source of truth for
+   * something the board is authoritative about.
+   *
+   * It is purely decorative: the verdict is stated in words in the live region,
+   * so a reader who cannot see this loses nothing.
+   */
+  readonly pulseSquare?: string | undefined;
 
   /* ── Interaction. Replay leaves all of this unset and stays a viewer. ──── */
 
@@ -149,6 +168,24 @@ function toShapes(arrows: readonly BoardArrow[], circles: readonly string[]): Dr
   ];
 }
 
+/**
+ * The custom-highlight map Chessground wants for `pulseSquare`.
+ *
+ * ⚠️ ALWAYS returns a Map, never undefined — even when there is nothing to
+ * pulse. Chessground's config merge assigns non-plain-object values directly,
+ * so an explicit empty Map clears the previous pulse while `undefined` would
+ * rely on the same merge behaviour that `lastMove: undefined` already gets
+ * wrong elsewhere in this file. An empty Map is unambiguous in both directions.
+ */
+function toPulse(square: string | undefined): Map<Key, string> {
+  const out = new Map<Key, string>();
+  if (square) out.set(square as Key, PULSE_CLASS);
+  return out;
+}
+
+/** Styled in board.css. Chessground concatenates it onto the square's classes. */
+const PULSE_CLASS = 'mcc-pulse';
+
 /** Our readonly map → the mutable `Map<Key, Key[]>` Chessground mutates internally. */
 function toDests(dests: ReadonlyMap<string, readonly string[]> | undefined): Dests {
   const out: Dests = new Map();
@@ -192,7 +229,7 @@ export default function BoardSurface(props: BoardProps) {
         enabled: mountAnimationMs > 0,
         duration: mountAnimationMs,
       },
-      highlight: { lastMove: true, check: true },
+      highlight: { lastMove: true, check: true, custom: toPulse(props.pulseSquare) },
       movable: {
         // `free: false` is what makes `dests` binding rather than advisory.
         free: false,
@@ -248,6 +285,7 @@ export default function BoardSurface(props: BoardProps) {
       // Chessground — the config merge skips undefined keys. An empty array does.
       lastMove: props.lastMove ? ([...props.lastMove] as Key[]) : [],
       check: props.check ?? false,
+      highlight: { lastMove: true, check: true, custom: toPulse(props.pulseSquare) },
       animation: { enabled: !props.instant && animateMs > 0, duration: animateMs },
       movable: {
         free: false,
@@ -263,6 +301,7 @@ export default function BoardSurface(props: BoardProps) {
     props.coordinates,
     props.lastMove,
     props.check,
+    props.pulseSquare,
     props.instant,
     props.animationMs,
     props.arrows,

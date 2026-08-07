@@ -161,6 +161,9 @@ Every session that reaches a merge updates all three, in the same commit as the 
 12. **Code and content are licensed separately.** Substance vs structure — see "Licence".
 13. **Both palettes clear AA.** `check-contrast.mjs` runs light AND dark, plus every board preset, as the first step of the build.
 14. **No flash of the wrong theme.** The head script applies it before `<body>` exists; a spec proves it.
+15. **Every animation belongs to one of three motion families, and nothing sits between 180ms and 250ms.** `src/lib/motion.ts` is the single source; a spec sweeps every element for violations. See "Motion".
+16. **The board stays sober.** Motion lives around it. The one exception is the correct-move pulse — one Transition, one square, exercise mode only.
+17. **Reduced motion means OFF for decoration and INSTANT for feedback** — never "the same show, slower". Both halves are tested.
 
 ---
 
@@ -887,6 +890,83 @@ the feedback telling the reader which move they just made.
 
 ---
 
+## Motion — THE THREE FAMILIES (E1)
+
+`src/lib/motion.ts` is the single source for every duration on the site. It was already the home of the board and pacing numbers; E1 made it the whole vocabulary.
+
+Direction, approved by Seàn and recorded in `docs/direction/mcc-direction-esthetique.md`: **the site should feel like a game because it RESPONDS, not because it is dressed up.** An animation that is not the answer to something the reader did is decoration, and decoration goes last or not at all.
+
+| Family | Band | Curve | What belongs in it |
+|---|---|---|---|
+| **Réponse** | 120–180ms | `--ease-response`, fast-out | What follows a **click**. Button press, card grab, tab switch, replay step, the chevron on a nav group, the move counter's hop. |
+| **Transition** | 250–350ms | `--ease-transition`, gentle | A visible **state change** the reader should watch land. Hint reveal, panel open, verdict text, a piece moving, a scroll reveal, the solve's two beats, the correct-move pulse. |
+| **Ambiance** | 4–20s | linear, looping | Background drift **only**. Never tied to an action, never carrying information. |
+
+### ⚠️ NOTHING SITS BETWEEN 180ms AND 250ms
+
+The gap is the point. It is what keeps *"the site heard me"* and *"watch this change"* legible as two different things rather than one smear of vaguely-quick. A duration that wants to live in the gap is a **design question, not a tuning question**: decide which family it is and take that family's number.
+
+`tests/e2e/feel.spec.ts` sweeps **every element** on three routes and fails on any computed transition or animation duration inside the gap. It is a sweep rather than a list because the failure it guards against is a `220ms` appearing in a component nobody thought to add to a list.
+
+### What is NOT a family — and must not be forced into one
+
+Three things came out of the audit that legitimately fit no family. They are documented as exceptions rather than given a fourth band:
+
+- **Pacing.** `THINK_FLOOR_MIN_MS`/`MAX_MS` (500–800ms) and the scripted opponent's reply delay. Nothing *moves* for these — they are a wait before motion starts, they have no curve, so they have no family.
+- **Offsets.** `REVEAL_STEP_MS` (60ms stagger) and the ambient layer's negative `animation-delay`s. A delay is *when* a duration starts, not how long it runs; the family governs the duration it offsets.
+- **Composites.** A shake is four Réponse beats, not a 600ms animation. A solve is two Transitions with a gap. Both are spelled as **arithmetic on a family constant** (`SHAKE_MS = RESPONSE_MS * 4 + 20`, `calc(var(--motion-response) * 4)` in CSS) so they cannot drift into being a fourth family.
+
+### The CSS mirror, and how it is kept honest
+
+CSS cannot import TypeScript, so `tokens.css` restates the numbers as `--motion-response` / `--motion-transition` / `--motion-ambient-min|max`. That is a mirror, and mirrors drift — so **`feel.spec.ts` reads the custom properties off the live document and asserts they equal the imported constants.** Change a number in one place and the spec says so. Same trick as the `BRUSHES` mirror in `BoardSurface.tsx`, but checked rather than trusted.
+
+`--duration-fast` / `--duration-base` / `--duration-slow` and `--ease-soft` are **gone**. `--duration-slow` (600ms) fitted no family at all; the other two were renamed to say which family they are.
+
+### `src/styles/controls.css` — the press, in one place
+
+A button that only changes colour on `:active` reads as a link doing something, not as a control being pushed. The press is a **translate plus a shadow tightening**: the control moves toward the page and the gap beneath it closes. Both together.
+
+⚠️ **`.btn-primary` and `.btn-ghost` were defined seven times**, once per page component's scoped `<style>`, with drifts between them. Astro scoped styles carry an attribute selector, so they beat any global rule of the same class specificity — a press defined globally would have been **silently ignored** on whichever properties a scoped block happened to also set. So the *structure* moved to `controls.css` and the scoped blocks keep only colours and page-specific margins.
+
+That refactor also fixed a **pre-existing miss**: the old definitions came out at ~40px tall, under the 44px touch target, and nothing was measuring it. `min-height: 2.75rem` is now in one place and `feel.spec.ts` measures every button on three routes.
+
+Island CSS (`exercise.css`, `play.css`, `replayer.css`) spells the same declarations locally, because those are separate chunks whose cascade order against the global sheet is not guaranteed. One vocabulary, two places it is written, with a comment in each pointing at the other.
+
+### ⚠️ THE BOARD STAYS SOBER
+
+Motion lives **around** the board — buttons, cards, transitions, background. A shimmering board is a board that reads badly, and the audience does not yet know where f7 is.
+
+The single exception is the **correct-move pulse**: one Transition, one square, no loop, and only in exercise mode. It uses Chessground's own `highlight.custom` (a `Map<Key, string>` of extra square classes) rather than an overlay of our own, because Chessground already knows where a square is — including after a flip. `pulseSquare` on `BoardSurface` always passes a Map, never `undefined`: an empty Map is unambiguous in both directions, where `undefined` would depend on the same config-merge behaviour that `lastMove: undefined` already gets wrong.
+
+**Play mode deliberately does not use it.** There is no "correct" there, and a board that flashes on every engine reply is a board that is hard to read.
+
+### The ambient layer is TWO layers, and the ceiling is enforced by the group
+
+`HeroAmbient.astro` has a near layer (4 pieces) and a far layer (3). Depth comes from the **rate**, not the period: the far pieces travel about a third as far over a longer cycle, so they move roughly four times slower in px/s — which is what the eye reads as distance. A longer period alone would just have made them lazier.
+
+The drift periods were **47–71s before E1**, which is slow enough that a reader sees no motion at all in their first five seconds; the layer was paying its full cost and delivering nothing. They are now 13–20s, inside the Ambiance band and mutually non-multiple.
+
+⚠️ **The 0.075 opacity ceiling is enforced by the GROUP, not by each piece.** `.ambient` carries `--mcc-ambient-opacity`, and group opacity is applied to the *flattened* group — so two overlapping pieces composite to the group's alpha and **not** to the sum of their own. That is the only reason a second layer could be added without re-auditing the hero text against a new worst case. **Do not move the opacity down onto the pieces.** `--mcc-ambient-far` is the far layer's share of that already-capped budget, and light mode takes the larger share (0.7 vs 0.55) because it starts flatter.
+
+⚠️ **The reduced-motion off-switch needs BOTH selectors.** The `@supports (animation-timeline: scroll())` block sets `animation-name` via `.layer-far .piece` — two classes — so the single-class `.piece { animation: none }` lost the specificity fight and **the far layer kept drifting for a reader who had asked for stillness.** The near layer was unaffected, which is exactly why this needed a spec rather than an eyeball. Anything added to that `@supports` block needs a matching selector in the reduced-motion block.
+
+### Reduced motion: off for decoration, instant for feedback
+
+- **Ambiance is switched OFF**, not shortened. There is no version of decorative drift that a reader who asked for stillness wants at a different speed. It is the one family with no reduced-motion value at all.
+- **Réponse and Transition collapse to 1ms** (not 0 — a transition that can never complete is a trap to leave lying around).
+- **Feedback is never removed.** The press still reports itself through its shadow; the correct-move pulse still marks the square as a static ring; the verdict still changes the frame's colour. Only the travel goes.
+- **The solve's two beats collapse.** A reader who asked for reduced motion asked for the outcome, not a choreographed arrival of it — staging a delay they did not ask to wait through would be treating "reduced motion" as "the same show, slower".
+
+### Decisions taken in E1 (recorded, not re-litigated)
+
+- **Nav labels stay functional** — Cours, Exercices, Jouer. Evocative names go on **page titles only**, in E4.
+- **Ranks will be Pion → Cavalier → Fou → Tour → Dame.** E3, not built.
+- **NO daily or consecutive-day streak.** The club meets *weekly*, so a daily streak would punish the normal rhythm of the people it is for. Session streaks only, in E3.
+- **Sound is synthesised via Web Audio and off by default.** E2, not built.
+- **No confetti on a solve.** Precision is the reward, not visual noise.
+
+---
+
 ## Design tokens
 
 `src/styles/tokens.css` is the source of record. Direction: **"old chess club"** — a wood-panelled room with a green baize table, brass lamps and yellowing score sheets. Deliberately distinct from the other Labs projects.
@@ -1526,6 +1606,28 @@ absorbed. A run reporting `N passed, 1 flaky` on WebKit is green.
 Same shape, different browser, found in Session 3. Under the full fan-out the Windows Firefox build fills the log with `RenderCompositorSWGL failed mapping default framebuffer` and `VideoBridgeParent receives IPC close with reason=AbnormalShutdown`, and whatever test was in flight dies with a **`mouse.move` or `page.reload` timeout** — the browser has stopped answering, so it presents as a hang rather than a failed assertion.
 
 The tell is that it lands on a **different test each run**, including specs that predate whatever you are working on. Confirmed with `--workers=1`, where the same specs pass 21/21 in ~2.5 minutes. Firefox therefore carries one local retry, exactly as WebKit does. A genuine failure still fails the retry — **if a Firefox spec fails twice, believe it.**
+
+### `auth.spec.ts` hard-fails under the Firefox fan-out — and it is the NETWORK, not the browser
+
+Found in E1's full-matrix run. Six `auth.spec.ts` "signed in" tests failed on
+Firefox with **`createConfirmedUser: fetch failed`**, and every one of them
+passed on `--workers=1`.
+
+⚠️ **This is a different mechanism from the compositor flake above, and the tell
+is that the error comes from Node rather than from a page.** `createConfirmedUser`
+calls the Supabase **admin API over the network** from the test process. Under the
+full fan-out, six Firefox contexts each want a freshly-minted user at once, and the
+outbound requests contend hard enough that some simply fail to connect. Nothing in
+the browser is involved — which is why it presents as `fetch failed` rather than as
+a timeout or an assertion.
+
+**These do NOT get absorbed by the local retry**, because the retry runs while the
+crowd is still there. Unlike the compositor crashes, they surface as hard failures
+in the summary.
+
+If a full-matrix run reports failures confined to `auth.spec.ts` on one project,
+re-run that project with `--workers=1` before touching anything. As always: a
+genuine failure is deterministic and fails serially too.
 
 ### Driving Chessground's drag from a spec needs a real animation frame
 

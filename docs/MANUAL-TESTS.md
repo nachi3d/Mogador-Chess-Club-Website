@@ -26,6 +26,55 @@ Legend: **FR** = French page, **EN** = English page. "Both" = do it in each.
 
 ---
 
+## 0b. Does it feel like a game? — ⚠️ THE TWO QUESTIONS, ON A REAL PHONE
+
+Everything else in this document asks *does it work*. This section asks *does it
+feel right*, and it is the only part a passing test suite cannot answer. Specs
+can prove a duration is 150ms; they cannot prove 150ms is the right number.
+
+Do this section **first**, before you have looked at anything else — the answers
+are about first impressions and you only get one.
+
+### Q1 — Does the site feel alive within five seconds of landing?
+
+- [ ] Open `/` on a phone and **do nothing** for five seconds. Is there any sense
+      of the page being alive, or does it read as a printed poster?
+- [ ] The drifting silhouettes behind the hero: can you *notice* them if you look,
+      and *forget* them while reading the heading? Both must be true.
+      *(They were 47–71s before E1 — imperceptible. They are 13–20s now. If they
+      have overshot into distracting, the number to change is the period, in
+      `HeroAmbient.astro`.)*
+- [ ] There are **two** layers of pieces now. Can you see depth — some drifting
+      further than others — or does it read as one flat field?
+- [ ] Do it again in **dark mode**. Light mode was the flatter of the two and got
+      the bigger share of the second layer; check that dark has not become busy.
+
+### Q2 — Does a correct move FEEL satisfying on a phone?
+
+Open `/exercices/mat-du-couloir/` on a real phone and solve it.
+
+- [ ] The moment the piece lands: does the square you moved to acknowledge it?
+      A brief brass ring, then gone.
+- [ ] Is the ring **brief enough**? It must not still be there when you look back.
+- [ ] The move counter hops as it advances. Small — a nod, not a jump.
+- [ ] The solve lands in **two beats**: the frame settles, *then* the badge
+      arrives. You should be able to feel the gap. If it reads as one event, the
+      delay is not working.
+- [ ] **Is it satisfying without being loud?** No confetti, nothing bounces, the
+      board itself does not shimmer. If any of it feels like a slot machine, say
+      so — that is the failure this section exists to catch.
+- [ ] Press any button and hold: it should move *down* and its shadow should
+      close up, like a key. A button that only changes colour is a failure.
+
+### And the one that overrides all of it
+
+- [ ] **Is the board still calm?** Look at a trap replayer and an exercise board
+      with fresh eyes. The rule is that motion lives *around* the board. If the
+      board itself has started to feel busy, that is a defect regardless of how
+      good anything else feels.
+
+---
+
 ## 1. Smoke and i18n
 
 - [ ] `/` loads. Heading is *Mogador Chess Club*, nav is in French
@@ -207,6 +256,13 @@ Detail — `/exercices/mat-du-couloir/`:
 - [ ] The position renders and it is clear whose move it is
 - [ ] **Solve it by dragging** a piece — the board accepts the move
 - [ ] **Solve it by tapping** — tap the piece, then tap the destination square
+- [ ] Solving lands in **two beats** — the frame settles, then the badge arrives.
+      Watch for the gap; if it reads as one event the delay has been lost
+- [ ] The destination square carries a brief brass ring as the move lands, and it
+      is **gone** a moment later — it must not linger as a second highlight
+      competing with the last-move tint
+- [ ] The move counter **hops** as the step advances (two-step exercises:
+      `/exercices/opposition-et-mat/`)
 - [ ] Solving shows the success state, the checkmate note, and the replayable solution list
 - [ ] Clicking a move in that solution list shows the position at that move
 
@@ -214,6 +270,15 @@ Feedback:
 
 - [ ] **A wrong move** (e.g. Ra7 here) shakes the board, says *"Ce n'est pas le bon coup"*,
       **increments the attempt counter**, and puts the piece back
+- [ ] ⚠️ **It now also says WHY**: *"Ce coup est légal, mais il ne fait pas ce qu'on
+      cherche ici."* (EN: *"That move is legal, but it isn't what we're looking for
+      here."*) Failure must inform — a beginner who cannot tell "illegal" from
+      "not the point" learns the wrong lesson from the same red text
+- [ ] The attempt counter reads **1**, not 2. The reason is an extra sentence, not
+      a second kind of mistake — both verdicts count identically
+- [ ] The strict panel and the permissive panel are the **same shape**: one line of
+      explanation each. If one is visibly longer, the reader will read that as
+      "worse mistake"
 - [ ] **An illegal move** (drag the rook diagonally) is simply refused — the board does not
       accept it and **the attempt counter does not move**
 - [ ] On `/exercices/opposition-et-mat/`, play **Kf7** (a move that also mates):
@@ -463,7 +528,7 @@ Read the **French** of all 13 steps as though you had never played chess.
 
 ---
 
-## 7b. Pacing and ambient motion (Session 6)
+## 7b. Pacing and ambient motion (Session 6, revised in E1)
 
 ### The home page
 
@@ -474,6 +539,12 @@ Read the **French** of all 13 steps as though you had never played chess.
       *(one link per card — if Tab stops twice on a card, the whole-card overlay has regressed)*
 - [ ] Chess-piece silhouettes drift slowly behind the hero. **They should be barely
       noticeable** — if you notice them before you notice the heading, they are too strong
+- [ ] ⚠️ **E1 sped them up from 47–71s to 13–20s.** They were previously invisible as
+      motion; they should now register if you look for them. The judgement call is
+      the balance between the two lines above — say if it has gone too far
+- [ ] ⚠️ **There are TWO layers now.** Three further pieces (queen, knight, a second
+      pawn) drift slower and travel less. Look for **depth**, not just more pieces —
+      if it reads as one flat field, the effect has not landed
 - [ ] Scrolling moves the silhouettes at a different rate from the text (parallax).
       *Chromium-only: Firefox/Safari without `animation-timeline` still drift, just without
       parallax. That is expected, not a bug.*
@@ -504,6 +575,22 @@ Read the **French** of all 13 steps as though you had never played chess.
       same as `/jouer/` — you should not be able to feel which one has a real engine
 - [ ] Stepping a replay (`/pieges/legal/`) feels **snappier** than a played move. Holding the
       arrow key still drops nothing
+      *(E1 moved this from 200ms to 180ms — 200 sat in the forbidden 180–250ms gap.
+      It should still feel like navigation rather than gameplay.)*
+
+### Buttons, cards and panels (E1)
+
+- [ ] **Press and hold any button.** It moves down and its shadow closes up, like a
+      key. Release and it comes back. A button that only changes colour is a failure
+- [ ] Every button is comfortable to hit with a thumb — nothing under ~44px tall
+      *(they were ~40px before E1, and nothing was measuring it)*
+- [ ] **Press and hold a card** on `/pieges/`, `/exercices/`, `/cours/` or a course's
+      lesson list: it settles flat, the way the button does
+- [ ] Opening a nav group **fades and drops in** rather than snapping; the chevron
+      turns faster than the panel opens
+- [ ] Revealing a hint on an exercise fades in rather than appearing between frames
+- [ ] Nothing anywhere feels like it is in an awkward middle speed. Everything should
+      read as either *"that answered me"* (fast) or *"watch this change"* (gentle)
 
 ### Reduced motion
 
@@ -512,6 +599,14 @@ Animation effects off; macOS: Accessibility → Display → Reduce motion; or De
 Rendering → Emulate `prefers-reduced-motion`).
 
 - [ ] Silhouettes are **still there** but completely still — the texture stays, the motion goes
+- [ ] ⚠️ **Check the FAR pieces too, not just the near ones.** They are a separate
+      layer with its own selector, and E1 shipped with them still drifting under
+      reduced motion until a spec caught it. If any piece is moving, that is the bug
+- [ ] Buttons still **answer** a press — the shadow still closes — they just do not travel
+- [ ] The correct-move ring still marks the destination square; it simply appears
+      and goes rather than fading. *Reduced motion removes movement, not feedback*
+- [ ] The solve arrives in **one** beat rather than two. That is deliberate: a reader
+      who asked for less motion did not ask to wait through a staged arrival
 - [ ] Section reveals do not animate; content is simply present
 - [ ] Board moves are **instant** — pieces appear on their new square with no slide
 - [ ] The opponent **still pauses briefly** before replying (~150ms). It should not fire back
