@@ -593,6 +593,114 @@ Detail routes take their URL from the content's **`slug` field, not the filename
 
 ---
 
+## Navigation — grouped disclosures, not a dropdown
+
+Seven flat links had outgrown one row, badly on a phone. The nav is now three
+groups plus a home link:
+
+| Group | Contents |
+|---|---|
+| **Apprendre** | Les bases, Cours, Pièges |
+| **S'entraîner** | Exercices, Jouer |
+| **Le club** | Agenda, Contact |
+
+`/` stays a top-level link — home is where the logo already goes, and burying it
+would be worse than the wrap. The language switcher, account button and theme
+toggle are untouched.
+
+### ⚠️ Disclosure semantics, NOT `role="menu"`
+
+The brief asked for "menu semantics". It is deliberately **not** built that way.
+
+`role="menu"` / `menuitem` describes an APPLICATION menu: screen readers announce
+"menu", expect arrow-key roving focus with a single tab stop, and stop announcing
+the contents as links. These are site navigation links. The WAI **disclosure
+navigation** pattern is the correct semantics — a `<button>` with `aria-expanded`
+and `aria-controls` revealing a plain `<ul>` of links, walked with Tab, which is
+what every reader already expects of a website.
+
+### ⚠️ Click, never hover
+
+The phone is the primary device and hover does not exist there. The panels open
+on click at every viewport; there is no hover behaviour to be unreachable.
+
+### ⚠️ The `html.js` gate — no layout shift, and no no-JS trap
+
+Panels are hidden by CSS gated on `html.js`, exactly as the theme toggle and the
+scroll reveals are:
+
+```css
+:global(html.js) .nav-panel { display: none; }
+:global(html.js) .nav-group[data-open] .nav-panel { display: flex; position: absolute; }
+```
+
+Because the inline head script sets `js` before `<body>` exists, panels are
+closed from the FIRST paint — nothing flashes open and collapses. Without JS the
+rule never applies and every link renders, visible. Open panels are absolutely
+positioned, so opening one cannot move the page: **measured 0px shift of
+`<main>`**.
+
+Escape closes and **returns focus to the toggle** — without that a keyboard
+reader is dropped at the top of the document. Opening one group closes the
+others; two open panels overlap on a narrow screen.
+
+**Current section, not current page.** The toggle carries `is-current` when the
+reader is anywhere inside its group, so the section is visible without opening
+anything.
+
+---
+
+## ⚠️ Board coordinates: the track must BE the board box
+
+Fixed in `board.css`. Chessground's defaults are wrong for how we draw
+coordinates, and not subtly:
+
+```css
+coords.files { left: 24px; width: 100%; }   /* ← 24px right, still full width */
+coords.ranks { left: 4px; top: -20px; }
+```
+
+`left: 24px` with `width: 100%` shifts the whole row of eight labels 24px right
+while keeping it a board wide, so it overhangs the right edge and the **"h" falls
+off the board**. Measured: every label off by exactly **+24px**, identical at
+544px and at 352px — a CONSTANT, so on a phone it is more than half a square.
+
+Those numbers are tuned for lichess's layout, where the board sits inside a
+wrapper with a margin and the coordinates live in that margin. We draw
+coordinates ON the squares (which is why two inks exist), so the offsets have
+nothing to sit in and simply displace everything.
+
+**The fix is geometric, never a nudge:** pin each track to the board box with
+`inset`, and let the eight children divide it with `flex: 1 1 0`. One cell is then
+exactly one square, and a label's centre is its file's centre at every size and in
+both orientations.
+
+⚠️ **`flex: 1 1 0`, not Chessground's `flex: 1 1 auto`.** With an `auto` basis the
+cells are content-sized first, so a wide glyph steals space from its neighbours
+and the labels drift apart.
+
+⚠️ **Aesthetic insets go on the `coord` child, never on the track.** Padding on a
+child cannot move a label off its file; padding on the track moves all eight.
+
+`tests/e2e/nav-coords.spec.ts` measures label centres against file centres at two
+viewports and in both orientations, so a constant offset — invisible in a
+screenshot review, obvious in arithmetic — cannot come back.
+
+### a1 looking different is NOT a bug
+
+Investigated and closed. On the tutorial steps that solve with `a1a8` or `a1h1`,
+a1 is the **origin square of the move just played**, so it correctly carries
+Chessground's `last-move` highlight — brass at 55% opacity, which reads as gold.
+Verified: on `la-tour` the highlighted squares are `a1` and `a8`; on
+`le-cavalier` they are `g1` and `f3` and a1 is untouched. The element stacks over
+a1 and c1 are identical, and the checker is a deterministic conic gradient, so the
+two cannot differ in background.
+
+**Do not "clear board state on solve" to make it go away** — that highlight is
+the feedback telling the reader which move they just made.
+
+---
+
 ## Design tokens
 
 `src/styles/tokens.css` is the source of record. Direction: **"old chess club"** — a wood-panelled room with a green baize table, brass lamps and yellowing score sheets. Deliberately distinct from the other Labs projects.

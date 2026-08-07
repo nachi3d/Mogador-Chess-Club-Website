@@ -7,7 +7,7 @@
 import type { Locale } from '@config/site';
 import { site } from '@config/site';
 import { localizePath, stripLocale } from '@i18n/paths';
-import { NAV_ITEMS, useTranslations } from '@i18n/ui';
+import { NAV_GROUPS, useTranslations } from '@i18n/ui';
 import LangSwitcher from '@components/LangSwitcher.astro';
 import AccountButton from '@components/AccountButton.astro';
 import ThemeToggle from '@components/ThemeToggle.astro';
@@ -30,20 +30,64 @@ const current = stripLocale(pathname);
       <span class="brand-name">{site.name}</span>
     </a>
 
+    {/*
+      ⚠️ DISCLOSURE NAVIGATION, NOT `role="menu"`.
+
+      A `role="menu"` / `menuitem` tree is for APPLICATION menus. Screen readers
+      then announce "menu", expect arrow-key roving focus, and stop announcing
+      the links inside as links. These are site navigation links, so the WAI
+      disclosure pattern is the correct semantics: a button carrying
+      `aria-expanded` + `aria-controls` that reveals a plain list of links. Tab
+      walks them, which is what everyone already expects of a website.
+
+      ⚠️ CLICK, NEVER HOVER. The phone is the primary device and hover does not
+      exist there — a hover-only dropdown is simply unreachable.
+
+      ⚠️ NO LAYOUT SHIFT, AND NO NO-JS TRAP. Panels are hidden by CSS gated on
+      `html.js`, exactly as the theme toggle and the scroll reveals are. Without
+      JS every link renders, visible. With JS they are hidden from the FIRST
+      paint, so nothing flashes open and then collapses.
+    */}
     <nav class="site-nav" aria-label={t('nav.label')}>
-      <ul>
+      <ul class="nav-root">
+        <li>
+          <a
+            href={localizePath('/', locale)}
+            aria-current={current === '/' ? 'page' : undefined}
+            class:list={['nav-link', { 'is-current': current === '/' }]}
+          >
+            {t('nav.home')}
+          </a>
+        </li>
         {
-          NAV_ITEMS.map((item) => {
-            const isCurrent = current === item.path;
+          NAV_GROUPS.map((group) => {
+            const inSection = group.items.some((i) => current === i.path);
+            const panelId = `nav-group-${group.id}`;
             return (
-              <li>
-                <a
-                  href={localizePath(item.path, locale)}
-                  aria-current={isCurrent ? 'page' : undefined}
-                  class:list={['nav-link', { 'is-current': isCurrent }]}
+              <li class="nav-group" data-nav-group>
+                <button
+                  type="button"
+                  class:list={['nav-toggle', { 'is-current': inSection }]}
+                  aria-expanded="false"
+                  aria-controls={panelId}
+                  data-nav-toggle
                 >
-                  {t(item.key)}
-                </a>
+                  {t(group.key)}
+                  <span class="nav-chevron" aria-hidden="true" />
+                </button>
+                <ul class="nav-panel" id={panelId} data-nav-panel>
+                  {group.items.map((item) => (
+                    <li>
+                      <a
+                        href={localizePath(item.path, locale)}
+                        aria-current={current === item.path ? 'page' : undefined}
+                        class:list={['nav-link', { 'is-current': current === item.path }]}
+                      >
+                        {t(item.key)}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
               </li>
             );
           })
@@ -58,6 +102,77 @@ const current = stripLocale(pathname);
     </div>
   </div>
 </header>
+
+<script is:inline>
+  /**
+   * Disclosure navigation. ~40 lines, no framework — the board is still the
+   * only hydrated component on the site.
+   *
+   * `is:inline` so the header is interactive on the first paint rather than
+   * after a module round-trip.
+   */
+  (function () {
+    try {
+      var groups = [].slice.call(document.querySelectorAll('[data-nav-group]'));
+      if (!groups.length) return;
+
+      function close(group) {
+        group.removeAttribute('data-open');
+        var btn = group.querySelector('[data-nav-toggle]');
+        if (btn) btn.setAttribute('aria-expanded', 'false');
+      }
+      function closeAll(except) {
+        groups.forEach(function (g) {
+          if (g !== except) close(g);
+        });
+      }
+
+      groups.forEach(function (group) {
+        var btn = group.querySelector('[data-nav-toggle]');
+        if (!btn) return;
+        btn.addEventListener('click', function () {
+          var open = group.hasAttribute('data-open');
+          /* One panel at a time: two open panels overlap on a narrow screen. */
+          closeAll(group);
+          if (open) {
+            close(group);
+          } else {
+            group.setAttribute('data-open', '');
+            btn.setAttribute('aria-expanded', 'true');
+          }
+        });
+      });
+
+      /* Escape closes and RETURNS FOCUS to the button that opened the panel —
+         without that a keyboard reader is dropped at the top of the document. */
+      document.addEventListener('keydown', function (e) {
+        if (e.key !== 'Escape') return;
+        var open = document.querySelector('[data-nav-group][data-open]');
+        if (!open) return;
+        var btn = open.querySelector('[data-nav-toggle]');
+        close(open);
+        if (btn) btn.focus();
+      });
+
+      /* A click anywhere else closes. Uses the captured target rather than
+         relatedTarget so it works for touch as well as mouse. */
+      document.addEventListener('click', function (e) {
+        var inside = e.target && e.target.closest && e.target.closest('[data-nav-group]');
+        if (!inside) closeAll(null);
+      });
+
+      /* Tabbing out of a group closes it — otherwise a panel stays open behind
+         the reader as they move on through the page. */
+      document.addEventListener('focusin', function (e) {
+        var inside = e.target && e.target.closest && e.target.closest('[data-nav-group]');
+        if (!inside) closeAll(null);
+      });
+    } catch (e) {
+      /* A broken menu must never be a menu you cannot use: with no JS at all
+         the CSS gate below leaves every panel visible. */
+    }
+  })();
+</script>
 
 <style>
   .site-header {
@@ -98,13 +213,109 @@ const current = stripLocale(pathname);
     gap: 0.5rem;
   }
 
-  .site-nav ul {
+  /* ── Grouped navigation ─────────────────────────────────────────────
+     Seven flat links had outgrown one row, especially on a phone where they
+     wrapped into a block nobody could scan. Three disclosure groups. */
+
+  .nav-root {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.25rem 1.25rem;
+    align-items: center;
+    gap: 0.25rem 1rem;
     margin: 0;
     padding: 0;
     list-style: none;
+  }
+
+  .nav-group {
+    position: relative;
+  }
+
+  .nav-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0;
+    border: 0;
+    background: none;
+    color: var(--mcc-text-inverse);
+    font: inherit;
+    font-size: 0.9375rem;
+    cursor: pointer;
+  }
+
+  .nav-toggle:hover {
+    color: var(--mcc-accent-on-inverse);
+  }
+
+  .nav-toggle:focus-visible,
+  .nav-root a:focus-visible {
+    outline: 2px solid var(--mcc-focus-ring-inverse);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+
+  /* Current SECTION, not current page — the group whose contents you are in. */
+  .nav-toggle.is-current {
+    color: var(--mcc-accent-on-inverse);
+    font-weight: 600;
+  }
+
+  .nav-chevron {
+    width: 0.4em;
+    height: 0.4em;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    transform: translateY(-0.15em) rotate(45deg);
+  }
+
+  .nav-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  /* ⚠️ THE GATE. Panels are open by default so a reader without JavaScript
+     gets every link. `html.js` is set by the inline head script BEFORE
+     <body> exists, so with JS they are closed from the first paint and
+     nothing flashes open then collapses. Same mechanism as the theme
+     toggle and the scroll reveals. */
+  :global(html.js) .nav-panel {
+    display: none;
+  }
+
+  :global(html.js) .nav-group[data-open] .nav-panel {
+    display: flex;
+    /* Absolute so opening a panel cannot push the page around — the
+       no-layout-shift requirement. */
+    position: absolute;
+    z-index: 20;
+    top: calc(100% + 0.35rem);
+    left: 0;
+    min-width: max-content;
+    padding: 0.5rem;
+    border: 1px solid var(--mcc-border-on-inverse);
+    border-radius: var(--radius-card);
+    background-color: var(--mcc-surface-inverse);
+    box-shadow: 0 8px 24px rgb(0 0 0 / 25%);
+  }
+
+  :global(html.js) .nav-group[data-open] .nav-chevron {
+    transform: translateY(0.1em) rotate(-135deg);
+  }
+
+  .nav-panel a {
+    display: block;
+    padding: 0.4rem 0.6rem;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+
+  .nav-panel a:hover {
+    background-color: var(--mcc-border-on-inverse);
   }
 
   .nav-link {

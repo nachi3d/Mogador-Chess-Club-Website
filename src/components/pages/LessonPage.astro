@@ -126,35 +126,59 @@ const pairs = chunks.map((chunk, i) => ({ chunk, board: data.boards[i] }));
       }
     </div>
 
+    {/* The end of a course must lead somewhere. Without this, finishing lesson
+        six is a dead end — the reader has just been told to practise and has
+        nowhere to click. */}
+    {
+      !next && (
+        <section class="lesson-next-up">
+          <h2>{t('nav.whatNext')}</h2>
+          <p class="lesson-next-links">
+            <a class="btn-primary" href={localizePath('/exercices/', locale)}>
+              {t('tutorial.toExercises')}
+            </a>
+            <a class="btn-ghost" href={localizePath('/pieges/', locale)}>
+              {t('nav.toTraps')}
+            </a>
+          </p>
+        </section>
+      )
+    }
+
     <nav class="lesson-nav" aria-label={courseTitle}>
-      {
-        prev ? (
-          <a
-            class="lesson-nav-link"
-            href={localizePath(`/cours/${course.data.slug}/${prev.data.slug}/`, locale)}
-            rel="prev"
-            data-testid="lesson-prev"
-          >
-            ← {prev.data.title}
-          </a>
-        ) : (
-          <a class="lesson-nav-link" href={coursePath}>
-            ← {courseTitle}
-          </a>
-        )
-      }
-      {
-        next && (
-          <a
-            class="lesson-nav-link lesson-nav-next"
-            href={localizePath(`/cours/${course.data.slug}/${next.data.slug}/`, locale)}
-            rel="next"
-            data-testid="lesson-next"
-          >
-            {next.data.title} →
-          </a>
-        )
-      }
+      <div class="lesson-nav-row">
+        {
+          prev ? (
+            <a
+              class="lesson-nav-link"
+              href={localizePath(`/cours/${course.data.slug}/${prev.data.slug}/`, locale)}
+              rel="prev"
+              data-testid="lesson-prev"
+            >
+              <span class="lesson-nav-dir">← {t('tutorial.prev')}</span>
+              <span class="lesson-nav-title">{prev.data.title}</span>
+            </a>
+          ) : (
+            <span />
+          )
+        }
+        {
+          next && (
+            <a
+              class="lesson-nav-link lesson-nav-next"
+              href={localizePath(`/cours/${course.data.slug}/${next.data.slug}/`, locale)}
+              rel="next"
+              data-testid="lesson-next"
+            >
+              <span class="lesson-nav-dir">{t('tutorial.next')} →</span>
+              <span class="lesson-nav-title">{next.data.title}</span>
+            </a>
+          )
+        }
+      </div>
+      <p class="lesson-nav-index">
+        <a href={coursePath} data-testid="lesson-index">{t('nav.backToCourse')}</a>
+      </p>
     </nav>
   </article>
 </BaseLayout>
@@ -226,24 +250,107 @@ const pairs = chunks.map((chunk, i) => ({ chunk, board: data.boards[i] }));
     line-height: 1.55;
   }
 
-  .lesson-nav {
+  .lesson-next-up {
+    margin-top: 2.5rem;
+    padding: 1.25rem;
+    border: 1px solid var(--mcc-border);
+    border-radius: var(--radius-card);
+    background-color: var(--mcc-surface-raised);
+  }
+
+  .lesson-next-up h2 {
+    margin: 0 0 0.75rem;
+    font-size: 1.25rem;
+  }
+
+  .lesson-next-links {
     display: flex;
     flex-wrap: wrap;
-    justify-content: space-between;
     gap: 0.75rem;
+    margin: 0;
+  }
+
+  .btn-primary,
+  .btn-ghost {
+    display: inline-block;
+    padding: 0.6rem 1.2rem;
+    border-radius: var(--radius-card);
+    font-weight: 500;
+    text-decoration: none;
+  }
+
+  .btn-primary {
+    border: 1px solid var(--mcc-primary);
+    background-color: var(--mcc-primary);
+    color: var(--mcc-primary-contrast);
+  }
+
+  .btn-ghost {
+    border: 1px solid var(--mcc-border-strong);
+    color: var(--mcc-link);
+  }
+
+  .lesson-nav {
     margin-top: 2.5rem;
     padding-top: 1rem;
     border-top: 1px solid var(--mcc-border);
   }
 
+  .lesson-nav-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+  }
+
   .lesson-nav-link {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--mcc-border);
+    border-radius: var(--radius-card);
+    background-color: var(--mcc-surface-raised);
+    color: var(--mcc-link);
+    text-decoration: none;
+  }
+
+  .lesson-nav-link:hover {
+    border-color: var(--mcc-border-strong);
+  }
+
+  .lesson-nav-next {
+    text-align: right;
+  }
+
+  .lesson-nav-dir {
+    color: var(--mcc-text-secondary);
+    font-size: 0.8125rem;
+  }
+
+  .lesson-nav-title {
+    font-weight: 500;
+    text-decoration: underline;
+    text-underline-offset: 0.15em;
+  }
+
+  .lesson-nav-index {
+    margin: 1rem 0 0;
+    text-align: center;
+  }
+
+  .lesson-nav-index a {
     color: var(--mcc-link);
     text-decoration: underline;
     text-underline-offset: 0.15em;
   }
 
-  .lesson-nav-next {
-    margin-left: auto;
-    font-weight: 500;
+  @media (max-width: 30rem) {
+    .lesson-nav-row {
+      grid-template-columns: 1fr;
+    }
+
+    .lesson-nav-next {
+      text-align: left;
+    }
   }
 </style>

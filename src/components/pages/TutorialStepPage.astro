@@ -105,35 +105,48 @@ const indexPath = localizePath('/apprendre-les-bases/', locale);
       )
     }
 
+    {/* The destination is NAMED, not just "next". A reader deciding whether to
+        carry on wants to know what is coming — "Suivant : Le fou" answers that,
+        "Suivant →" makes them click to find out. The index link is always
+        present, not only on the first step. */}
     <nav class="step-nav" aria-label={t('tutorial.title')}>
-      {
-        prev ? (
-          <a
-            class="step-nav-link"
-            href={localizePath(`/apprendre-les-bases/${prev.data.slug}/`, locale)}
-            rel="prev"
-            data-testid="tutorial-prev"
-          >
-            ← {t('tutorial.prev')}
-          </a>
-        ) : (
-          <a class="step-nav-link" href={indexPath}>
-            ← {t('tutorial.backToIndex')}
-          </a>
-        )
-      }
-      {
-        next && (
-          <a
-            class="step-nav-link step-nav-next"
-            href={localizePath(`/apprendre-les-bases/${next.data.slug}/`, locale)}
-            rel="next"
-            data-testid="tutorial-next"
-          >
-            {t('tutorial.next')} →
-          </a>
-        )
-      }
+      <div class="step-nav-row">
+        {
+          prev ? (
+            <a
+              class="step-nav-link"
+              href={localizePath(`/apprendre-les-bases/${prev.data.slug}/`, locale)}
+              rel="prev"
+              data-testid="tutorial-prev"
+            >
+              <span class="step-nav-dir">← {t('tutorial.prev')}</span>
+              <span class="step-nav-title">
+                {locale === 'fr' ? prev.data.title_fr : prev.data.title_en}
+              </span>
+            </a>
+          ) : (
+            <span />
+          )
+        }
+        {
+          next && (
+            <a
+              class="step-nav-link step-nav-next"
+              href={localizePath(`/apprendre-les-bases/${next.data.slug}/`, locale)}
+              rel="next"
+              data-testid="tutorial-next"
+            >
+              <span class="step-nav-dir">{t('tutorial.next')} →</span>
+              <span class="step-nav-title">
+                {locale === 'fr' ? next.data.title_fr : next.data.title_en}
+              </span>
+            </a>
+          )
+        }
+      </div>
+      <p class="step-nav-index">
+        <a href={indexPath} data-testid="tutorial-index">{t('tutorial.backToIndex')}</a>
+      </p>
     </nav>
   </article>
 </BaseLayout>
@@ -236,23 +249,67 @@ const indexPath = localizePath('/apprendre-les-bases/', locale);
   }
 
   .step-nav {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: space-between;
-    gap: 0.75rem;
     margin-top: 2rem;
     padding-top: 1rem;
     border-top: 1px solid var(--mcc-border);
   }
 
+  .step-nav-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+  }
+
   .step-nav-link {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--mcc-border);
+    border-radius: var(--radius-card);
+    background-color: var(--mcc-surface-raised);
+    color: var(--mcc-link);
+    text-decoration: none;
+  }
+
+  .step-nav-link:hover {
+    border-color: var(--mcc-border-strong);
+  }
+
+  .step-nav-next {
+    text-align: right;
+  }
+
+  .step-nav-dir {
+    color: var(--mcc-text-secondary);
+    font-size: 0.8125rem;
+  }
+
+  .step-nav-title {
+    font-weight: 500;
+    text-decoration: underline;
+    text-underline-offset: 0.15em;
+  }
+
+  .step-nav-index {
+    margin: 1rem 0 0;
+    text-align: center;
+  }
+
+  .step-nav-index a {
     color: var(--mcc-link);
     text-decoration: underline;
     text-underline-offset: 0.15em;
   }
 
-  .step-nav-next {
-    margin-left: auto;
-    font-weight: 500;
+  /* A single column when there is not room for two side by side. */
+  @media (max-width: 30rem) {
+    .step-nav-row {
+      grid-template-columns: 1fr;
+    }
+
+    .step-nav-next {
+      text-align: left;
+    }
   }
 </style>

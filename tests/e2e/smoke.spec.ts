@@ -37,7 +37,12 @@ test.describe('home page renders in both locales', () => {
 
     await expect(page.locator('html')).toHaveAttribute('lang', 'fr');
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Mogador Chess Club');
-    // A French nav label proves the FR string table is the one in use.
+    /* A French nav label proves the FR string table is in use. Since the nav
+       became grouped disclosures, the section links live inside a collapsed
+       panel — so open it first. That checks the string table AND that the menu
+       actually reveals its links. */
+    await expect(page.getByRole('button', { name: 'Apprendre' })).toBeVisible();
+    await page.getByRole('button', { name: 'Apprendre' }).click();
     await expect(page.getByRole('link', { name: "Pièges d'ouverture" })).toBeVisible();
     // FR is the default locale and must NOT be served under a prefix.
     expect(new URL(page.url()).pathname).toBe('/');
@@ -48,6 +53,8 @@ test.describe('home page renders in both locales', () => {
 
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Mogador Chess Club');
+    await expect(page.getByRole('button', { name: 'Learn' })).toBeVisible();
+    await page.getByRole('button', { name: 'Learn' }).click();
     await expect(page.getByRole('link', { name: 'Opening traps' })).toBeVisible();
   });
 

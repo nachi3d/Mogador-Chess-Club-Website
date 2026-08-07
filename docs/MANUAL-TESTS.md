@@ -45,6 +45,42 @@ Legend: **FR** = French page, **EN** = English page. "Both" = do it in each.
 
 ---
 
+## 1b. Navigation menu and board coordinates
+
+### The menu — ⚠️ on a REAL phone, not a narrow desktop window
+
+- [ ] Three groups: **Apprendre**, **S'entraîner**, **Le club**, plus **Accueil**
+- [ ] Tapping a group opens it; tapping another closes the first
+- [ ] Opening a panel does **not** move the page underneath
+- [ ] Tapping outside closes it
+- [ ] The group you are inside is highlighted **without** opening anything
+      (visit /jouer/ — "S'entraîner" should stand out)
+- [ ] Panels are readable and tappable one-handed; nothing runs off the screen
+- [ ] Keyboard: Tab to a group, Enter opens, Tab walks the links, Escape closes
+      and puts focus back on the group button
+- [ ] English nav says Learn / Practise / The club
+- [ ] With JavaScript disabled, every nav link is visible and works
+
+### Board coordinates — ⚠️ check at BOTH sizes and BOTH orientations
+
+A constant offset can look plausible at one size and be obviously wrong at
+another, which is exactly how the last one survived.
+
+- [ ] Desktop, board at full width: each letter a–h sits centred under **its own**
+      file, and **h is fully on the board**
+- [ ] Phone, board full-width: same — the letters must not creep right
+- [ ] Rank numbers 1–8 line up with their rows
+- [ ] A board shown from Black's side (course 1, lesson 4, second board) is also
+      correct — the row reverses there
+- [ ] Dark mode: coordinates still readable on both square colours
+
+### Not a bug — do not fix this
+
+- [ ] On tutorial steps solved with a rook from a1 (Les cases, La tour), square
+      a1 is tinted gold afterwards. That is the **last-move highlight** marking
+      where the piece came from. Correct, and the same on any other move
+
+---
 ## 2. Legal, licence and credits
 
 - [ ] `/mentions-legales/` and `/en/mentions-legales/` both load

@@ -87,6 +87,68 @@ cg-board square.oc.move-dest {
   font-weight: 600;
 }
 
+/* ============================================================
+   COORDINATE GEOMETRY — the track must BE the board box.
+
+   ⚠️ Chessground's defaults are wrong for us, and not by a little:
+
+     coords.files { left: 24px; width: 100%; bottom: -4px; }
+     coords.ranks { left: 4px;  top: -20px; height: 100%; }
+
+   `left: 24px` WITH `width: 100%` shifts the whole row of eight labels
+   24px right while keeping it a full board wide, so it overhangs the
+   right edge by 24px and the "h" falls off the board entirely. Measured:
+   every label off by exactly +24px, identical at 544px and at 352px —
+   a CONSTANT, so on a phone it is more than half a square.
+
+   Those numbers are not arbitrary: they are tuned for lichess's layout,
+   where the board sits inside a wrapper with a margin and the
+   coordinates live in that margin. We draw coordinates ON the squares
+   (which is why two inks exist — see the contrast note above), so the
+   offsets have nothing to sit in and simply displace everything.
+
+   The fix is geometric, not a nudge: pin each coordinate track to the
+   board box with `inset`, and let the eight children divide it. Then one
+   cell is exactly one square, and a label's centre is its file's centre
+   at every board size and in both orientations — which is what
+   `tests/e2e/coords.spec.ts` measures.
+
+   ⚠️ Use `flex: 1 1 0`, not Chessground's `flex: 1 1 auto`. With an
+   `auto` basis the cells are sized by their content first, so a wide
+   glyph steals space from its neighbours and the labels drift apart.
+   A zero basis makes eight exactly equal cells.
+   ============================================================ */
+.cg-wrap coords.files {
+  inset: auto 0 0 0;
+  width: auto;
+  height: auto;
+}
+
+.cg-wrap coords.files coord {
+  flex: 1 1 0;
+  text-align: center;
+  /* Aesthetic breathing room goes on the CHILD, never on the track —
+     padding here cannot move a label off its file. */
+  padding-bottom: 0.15em;
+}
+
+.cg-wrap coords.ranks {
+  inset: 0 auto 0 0;
+  width: auto;
+  height: auto;
+}
+
+.cg-wrap coords.ranks coord {
+  flex: 1 1 0;
+  display: flex;
+  align-items: center;
+  /* Chessground nudges ranks with `translateY(39%)` to compensate for its
+     own offset track. With the track pinned correctly, centring each
+     label in its own cell is both simpler and exact. */
+  transform: none;
+  padding-left: 0.3em;
+}
+
 .orientation-white .ranks :nth-child(odd),
 .orientation-white .files :nth-child(even),
 .orientation-black .ranks :nth-child(even),
