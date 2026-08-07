@@ -73,98 +73,106 @@ cg-board square.oc.move-dest {
 }
 
 /* ---------- Coordinates ---------- */
-/*
-  AA, per CLAUDE.md: coordinates are real text sitting ON a square, so each
-  square colour needs the ink that clears 4.5:1 against IT. Chessground
-  alternates coordinate colour by square parity; we feed both inks in.
-    ink-950  on --mcc-board-light ... 13.7:1
-    cream-50 on --mcc-board-dark  ...  5.5:1
-  One ink for both would fail on one of them. That is why two tokens exist.
-*/
-.cg-wrap coords {
-  font-family: var(--font-notation);
-  font-size: 0.6875em;
-  font-weight: 600;
-}
-
 /* ============================================================
-   COORDINATE GEOMETRY — the track must BE the board box.
+   COORDINATES LIVE IN AN OUTER GUTTER (reversal, this session)
 
-   ⚠️ Chessground's defaults are wrong for us, and not by a little:
+   They used to be drawn ON the squares. Readable enough on a
+   desktop, poor on a phone: small text over a wood-toned square,
+   competing with the piece standing on it.
 
-     coords.files { left: 24px; width: 100%; bottom: -4px; }
-     coords.ranks { left: 4px;  top: -20px; height: 100%; }
+   They now sit OUTSIDE the playing surface — ranks in a left
+   gutter, files in a bottom gutter. This is the layout Chessground
+   was built for, which is also why its defaults carried
+   `left: 24px` and `top: -20px`: those offsets were reserving
+   exactly this gutter. We now provide it, so the offsets are
+   replaced by a track pinned to the gutter instead.
 
-   `left: 24px` WITH `width: 100%` shifts the whole row of eight labels
-   24px right while keeping it a full board wide, so it overhangs the
-   right edge by 24px and the "h" falls off the board entirely. Measured:
-   every label off by exactly +24px, identical at 544px and at 352px —
-   a CONSTANT, so on a phone it is more than half a square.
+   ⚠️ THE PLAYING SURFACE STAYS SQUARE. The gutter is padding on
+   the OUTER element; `cg-container` keeps its 1:1 aspect. Get this
+   wrong and the squares turn into rectangles, which is far worse
+   than unreadable coordinates.
 
-   Those numbers are not arbitrary: they are tuned for lichess's layout,
-   where the board sits inside a wrapper with a margin and the
-   coordinates live in that margin. We draw coordinates ON the squares
-   (which is why two inks exist — see the contrast note above), so the
-   offsets have nothing to sit in and simply displace everything.
-
-   The fix is geometric, not a nudge: pin each coordinate track to the
-   board box with `inset`, and let the eight children divide it. Then one
-   cell is exactly one square, and a label's centre is its file's centre
-   at every board size and in both orientations — which is what
-   `tests/e2e/coords.spec.ts` measures.
-
-   ⚠️ Use `flex: 1 1 0`, not Chessground's `flex: 1 1 auto`. With an
-   `auto` basis the cells are sized by their content first, so a wide
-   glyph steals space from its neighbours and the labels drift apart.
-   A zero basis makes eight exactly equal cells.
+   ⚠️ COORDINATES ARE NOW ON THE PAGE BACKGROUND, NOT ON A SQUARE.
+   The two-ink rule is therefore GONE: there is no light/dark
+   square parity to satisfy, so there is exactly one colour per
+   palette, `--mcc-board-coord`, checked against the page surface
+   in `check-contrast.mjs` for BOTH palettes.
    ============================================================ */
-.cg-wrap coords.files {
-  inset: auto 0 0 0;
-  width: auto;
-  height: auto;
+
+/* ⚠️ THE GUTTER GOES ON THE OUTER WRAPPER, NEVER ON THE CHESSGROUND HOST.
+   Chessground sizes cg-container from the host element, and absolutely
+   positioned children resolve their insets against the host's PADDING box —
+   so padding on the host both inflates the playing surface and double-counts
+   into every coordinate inset. Measured when it was tried: labels 12-26px out
+   and the board overflowing a phone viewport.
+   Padding the wrapper shrinks the host instead, and the coordinates are then
+   projected into that reserved space with negative insets. */
+.mcc-board {
+  --mcc-coord-gutter: 1.15rem;
+
+  padding-left: var(--mcc-coord-gutter);
+  padding-bottom: var(--mcc-coord-gutter);
 }
 
-.cg-wrap coords.files coord {
-  flex: 1 1 0;
-  text-align: center;
-  /* Aesthetic breathing room goes on the CHILD, never on the track —
-     padding here cannot move a label off its file. */
-  padding-bottom: 0.15em;
-}
-
-.cg-wrap coords.ranks {
-  inset: 0 auto 0 0;
-  width: auto;
-  height: auto;
-}
-
-.cg-wrap coords.ranks coord {
-  flex: 1 1 0;
+.cg-wrap coords {
+  position: absolute;
   display: flex;
+  color: var(--mcc-board-coord);
+  font-family: var(--font-notation);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  /* Chessground dims its own coordinates because they sat on a
+     square. On the page background that only makes them harder to
+     read, which is the defect being fixed. */
+  opacity: 1;
+  pointer-events: none;
+}
+
+/* Files: the bottom gutter, spanning exactly the playing surface. */
+.cg-wrap coords.files {
+  inset: auto 0 calc(-1 * var(--mcc-coord-gutter)) 0;
+  width: auto;
+  height: var(--mcc-coord-gutter);
+  flex-flow: row;
   align-items: center;
-  /* Chessground nudges ranks with `translateY(39%)` to compensate for its
-     own offset track. With the track pinned correctly, centring each
-     label in its own cell is both simpler and exact. */
+  text-transform: none;
+}
+
+.cg-wrap coords.files.black {
+  flex-flow: row-reverse;
+}
+
+/* Ranks: the left gutter, spanning exactly the playing surface. */
+.cg-wrap coords.ranks {
+  inset: 0 auto 0 calc(-1 * var(--mcc-coord-gutter));
+  width: var(--mcc-coord-gutter);
+  height: auto;
+  flex-flow: column-reverse;
+  align-items: center;
+}
+
+.cg-wrap coords.ranks.black {
+  flex-flow: column;
+}
+
+/* ⚠️ `flex: 1 1 0`, never Chessground's `1 1 auto`. With an `auto`
+   basis the cells are content-sized first, so a wide glyph steals
+   space from its neighbours and the labels drift off their files. */
+.cg-wrap coords coord {
+  display: flex;
+  flex: 1 1 0;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ⚠️ SPECIFICITY, NOT JUST THE DECLARATION.
+   Chessground nudges ranks with `.cg-wrap coords.ranks coord { transform:
+   translateY(39%) }` to compensate for its own offset track. Resetting that
+   from `.cg-wrap coords coord` LOSES — one class fewer — and the reset
+   silently does nothing. Measured when it did: every rank label sat 16.4px
+   low, which is exactly 39% of a 42px cell. The selector must match theirs. */
+.cg-wrap coords.ranks coord {
   transform: none;
-  padding-left: 0.3em;
-}
-
-.orientation-white .ranks :nth-child(odd),
-.orientation-white .files :nth-child(even),
-.orientation-black .ranks :nth-child(even),
-.orientation-black .files :nth-child(odd),
-coords.squares:nth-of-type(odd) :nth-child(even),
-coords.squares:nth-of-type(even) :nth-child(odd) {
-  color: var(--mcc-board-dark-ink);
-}
-
-.orientation-white .ranks :nth-child(even),
-.orientation-white .files :nth-child(odd),
-.orientation-black .ranks :nth-child(odd),
-.orientation-black .files :nth-child(even),
-coords.squares:nth-of-type(odd) :nth-child(odd),
-coords.squares:nth-of-type(even) :nth-child(even) {
-  color: var(--mcc-board-light-ink);
 }
 
 /* Motion accessibility: the piece slide is decorative. Chessground's animation

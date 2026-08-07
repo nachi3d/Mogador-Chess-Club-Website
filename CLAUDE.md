@@ -593,6 +593,87 @@ Detail routes take their URL from the content's **`slug` field, not the filename
 
 ---
 
+## Board coordinates live in an OUTER GUTTER (reversal)
+
+They used to be drawn on the squares. Readable on a desktop, poor on a phone:
+small text over a wood-toned square, competing with the piece standing on it.
+
+They now sit outside the playing surface — ranks in a left gutter, files in a
+bottom gutter. This is the layout Chessground was built for, which is why its
+defaults carried `left: 24px` / `top: -20px`: those offsets were reserving
+exactly this gutter. We now provide it.
+
+### ⚠️ The gutter goes on the WRAPPER, never on the Chessground host
+
+Chessground sizes `cg-container` from the host element, and absolutely
+positioned children resolve insets against the host's **padding box**. Padding
+on the host therefore does two wrong things at once: it inflates the playing
+surface and double-counts into every coordinate inset. Measured when it was
+tried: labels 12–26px out, and the board overflowing a 390px viewport.
+
+`.mcc-board` (the wrapper) carries the padding; the coordinates are projected
+into that reserved space with negative insets. The playing surface stays
+**exactly square** — verified Δ0.0px at every size.
+
+### ⚠️ Specificity, not just the declaration
+
+Chessground nudges ranks with `.cg-wrap coords.ranks coord { transform:
+translateY(39%) }`. Resetting that from `.cg-wrap coords coord` **loses** — one
+class fewer — and the reset silently does nothing. Measured when it did: every
+rank label 16.4px low, which is exactly 39% of a 42px cell. Match their selector.
+
+### One coordinate colour per palette
+
+Coordinates are on the page background now, so there is no light/dark square
+parity to satisfy. The two-ink rule is **gone**: `--mcc-board-coord`, one per
+palette, checked against `--mcc-surface-page` in `check-contrast.mjs` for both.
+The old per-preset on-square pairs were removed — they audited a relationship
+the site no longer has. Measured 5.13:1 light, 7.79:1 dark.
+
+### The mobile cost, and why it was accepted
+
+The gutter comes out of the board, not out of the page: on a 390px phone the
+playing surface goes **352px → 336px**, about 4.5%. A square drops from 44px to
+42px. That was judged worth it — a 42px square is still comfortably above the
+24px minimum touch target, and the coordinates went from barely legible to
+plainly legible, which is the entire point of the change.
+
+---
+
+## ⚠️ Pointer play must be tested BY POINTER
+
+Every exercise spec that solved a position on a course lesson did it by typing
+into `MoveInput`. That path bypasses Chessground entirely and calls `onMove`
+directly, so it stays green even if the board refuses every tap. A pointer-only
+regression could therefore ship completely unnoticed.
+
+`tests/e2e/board-pointer.spec.ts` solves a position with taps/clicks in all four
+contexts a judged board appears in: course lesson, a lesson with several boards,
+tutorial step, and `/exercices/[slug]`.
+
+### ⚠️ Scroll the board FULLY into view, not merely "if needed"
+
+`scrollIntoViewIfNeeded()` guarantees only that the element is PARTLY visible. On
+a phone viewport a 336px board can end up with its top half above the fold, and a
+tap aimed at an off-screen square is silently dropped — the board looks dead.
+
+This produced a completely convincing false positive during this session: an
+apparent reproduction of "course exercises are not playable", which was the test
+harness scrolling the board half off-screen. Use
+`el.scrollIntoView({ block: 'center' })`.
+
+It is also a real hazard for a reader: a board embedded mid-way through a long
+lesson may not fit on a phone screen with room to spare.
+
+### ⚠️ WebKit skips links when tabbing — do not assert Tab order into a menu
+
+Safari ships with "Press Tab to highlight each item on a webpage" OFF, so Tab
+moves between form controls and **skips links**, across the whole web. A test
+asserting that Tab from a menu button lands on the first link passes in Chromium
+and Firefox and fails in WebKit for a reason unrelated to the menu. Assert that
+the links are present and focusable instead.
+---
+
 ## Navigation — grouped disclosures, not a dropdown
 
 Seven flat links had outgrown one row, badly on a phone. The nav is now three
@@ -650,7 +731,7 @@ anything.
 
 ---
 
-## ⚠️ Board coordinates: the track must BE the board box
+## ⚠️ Board coordinates: the track must BE the board box (SUPERSEDED — see the gutter section above; the alignment principle still holds, the on-square placement does not)
 
 Fixed in `board.css`. Chessground's defaults are wrong for how we draw
 coordinates, and not subtly:

@@ -11,6 +11,53 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### Board coordinates outside the squares, and clickable course cards
+
+#### Fixed
+
+- **Course cards on `/cours/` were not clickable at all.** `CoursPage` built its
+  cards with no `href`, so `CardGrid` rendered a plain card and the title was not
+  a link — the only way into a course was to type the URL. My omission from the
+  course-1 session: the detail routes were added and the index was never linked
+  to them. A course with no lessons stays unlinked, since it has no page to
+  reach.
+
+#### Changed
+
+- **Coordinates moved OUT of the squares into a gutter** — ranks left, files
+  below. On-square text over a wood-toned square, next to the piece standing on
+  it, was hard to read on a phone. The two-ink rule is gone with the design that
+  needed it: one `--mcc-board-coord` per palette, checked against the page
+  surface in both (5.13:1 light, 7.79:1 dark). The old per-preset on-square
+  pairs were removed from the checker.
+
+#### Notes
+
+- ⚠️ **Task 3 — "course exercises are not playable with the mouse" — does NOT
+  reproduce.** Ten combinations were exercised by pointer (mouse *and* real
+  touch) across course lessons, the tutorial and `/exercices/`: every one selects
+  a piece, shows its legal destinations, and completes the move. What DID
+  reproduce was a false positive in the test harness: `scrollIntoViewIfNeeded()`
+  left the board half above the fold, so the destination tap landed off-screen
+  and was dropped. That is also a genuine hazard for a reader on a phone, and it
+  is now on the manual checklist. **Pointer specs were added regardless** — every
+  existing lesson-exercise spec solved by typing, which bypasses the board
+  entirely, so a real pointer regression could have shipped unseen.
+- **The gutter costs board width, not page width:** on a 390px phone the playing
+  surface goes 352px → 336px (~4.5%), a square from 44px to 42px — still well
+  above a 24px touch target, in exchange for legible coordinates.
+- Two CSS traps found by measurement and written down: padding must go on the
+  wrapper, never on the Chessground host (it inflates the surface *and*
+  double-counts every inset); and the `translateY(39%)` rank nudge must be reset
+  at Chessground's own specificity or the reset silently does nothing — that one
+  cost exactly 16.4px, being 39% of a 42px cell.
+- **WebKit skips links when tabbing** (Safari's "Tab highlights each item" is off
+  by default), so the menu spec asserts the links are focusable rather than
+  asserting Tab order — it failed in WebKit alone for a reason unrelated to the
+  menu.
+
+---
+
 ### Navigation, board coordinates, and step-to-step links
 
 #### Fixed

@@ -159,6 +159,11 @@ const MUST_PASS = [
   ['--mcc-text-on-inverse-muted', '--mcc-surface-inverse', TEXT, 'muted text on header / footer'],
   ['--mcc-accent-on-inverse', '--mcc-surface-inverse', TEXT, 'accent text on header / footer'],
 
+  /* Coordinates now sit in a gutter on the PAGE, not on a square, so this is
+     the pair that matters — one colour per palette, checked in both. The old
+     per-preset on-square pairs are gone with the design that needed them. */
+  ['--mcc-board-coord', '--mcc-surface-page', TEXT, 'board coordinate in its gutter'],
+
   ['--mcc-focus-ring', '--mcc-surface-page', UI, 'focus ring on page (non-text ⇒ 3:1)'],
   ['--mcc-focus-ring-inverse', '--mcc-surface-inverse', UI, 'focus ring on header (non-text)'],
 
@@ -269,15 +274,19 @@ for (const mode of ['light', 'dark']) {
 
 console.log(`\n${'='.repeat(58)}\n  BOARD PRESETS — coordinates and square separation\n`);
 for (const preset of PRESETS) {
-  if (!preset.light || !preset.dark || !preset.lightInk || !preset.darkInk) {
+  if (!preset.light || !preset.dark) {
     failures++;
-    console.log(`  FAIL  .board-${preset.id} is missing one of the four board properties`);
+    console.log(`  FAIL  .board-${preset.id} is missing its light or dark square colour`);
     continue;
   }
 
   const checks = [
-    [contrast(preset.lightInk, preset.light), TEXT, 'coordinate on the LIGHT square'],
-    [contrast(preset.darkInk, preset.dark), TEXT, 'coordinate on the DARK square'],
+    /* ⚠️ The two on-square coordinate checks are GONE, deliberately.
+       Coordinates moved out of the squares into a gutter on the page
+       background, so square parity no longer decides their colour — there is
+       one `--mcc-board-coord` per palette, checked against the page surface
+       below rather than per preset. Leaving the old pairs here would audit a
+       relationship the site no longer has. */
     [contrast(preset.light, preset.dark), UI, 'light vs dark square separation'],
     // The board sits on the page in BOTH palettes; its edge must read in each.
     [contrast(preset.dark, PALETTES.light['--mcc-surface-page']), UI, 'board edge on the LIGHT page'],
