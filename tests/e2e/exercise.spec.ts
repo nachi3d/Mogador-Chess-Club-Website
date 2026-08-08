@@ -447,6 +447,34 @@ test.describe('exercise — architecture', () => {
   });
 });
 
+/**
+ * Wait for the solve's TWO BEATS to finish before measuring anything.
+ *
+ * ⚠️ `data-state="solved"` FLIPS AT THE START OF THE ANIMATION, NOT THE END.
+ * The frame settles, then the badge arrives one Transition later — and
+ * Playwright's `toBeVisible()` does not help, because an element at
+ * `opacity: 0` still counts as visible (it has a box and is not
+ * `visibility: hidden`). So axe could sample a badge mid-fade and report
+ * `color-contrast` against a half-transparent colour.
+ *
+ * It produced a genuinely flaky WebKit failure: 1 violation, roughly one run
+ * in four, on a page whose colours are proved by `check-contrast.mjs`. Exactly
+ * the class of thing the `settleReveals` note warns about — a transparent
+ * element axe can still find — reached through a different door.
+ */
+async function settleSolve(page: Page) {
+  const badge = page.getByTestId('exercise-solved');
+  await badge.waitFor({ timeout: 10_000 });
+  await page.waitForFunction(
+    () => {
+      const el = document.querySelector('[data-testid="exercise-solved"]');
+      return !!el && Number(getComputedStyle(el).opacity) >= 1;
+    },
+    undefined,
+    { timeout: 5_000 },
+  );
+}
+
 async function expectNoAxeViolations(page: Page) {
   /* Reveal pages hide below-fold content at opacity 0 until scrolled to; axe
      would otherwise measure the contrast of text no reader is looking at.
@@ -487,6 +515,7 @@ test.describe('exercise — accessibility', () => {
       await expect(page.getByTestId('exercise')).toHaveAttribute('data-state', 'solved', {
         timeout: 10_000,
       });
+      await settleSolve(page);
       await expectNoAxeViolations(page);
     });
   }
