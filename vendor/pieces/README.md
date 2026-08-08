@@ -36,10 +36,10 @@ Source for all four: the [lila](https://github.com/lichess-org/lila) repository,
 
 | Set | Author | Licence (verbatim from lila `COPYING.md`) | Used by theme |
 |---|---|---|---|
-| `cburnett` | Colin M.L. Burnett | `GPLv2+` | Marbre |
+| `cburnett` | Colin M.L. Burnett | `GPLv2+` | Terminal |
 | `merida` | Armando Hernandez Marroquin | `GPLv2+` | Bois |
 | `chessnut` | Alexis Luengas | `Apache 2.0` | Souiri |
-| `kiwen-suwi` | neverRare | `CC BY 4.0` | Terminal |
+| `kiwen-suwi` | neverRare | `CC BY 4.0` | Marbre |
 
 All four are compatible with GPL-3.0-or-later distribution:
 

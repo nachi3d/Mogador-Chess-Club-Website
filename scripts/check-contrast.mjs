@@ -498,6 +498,108 @@ for (const preset of PRESETS) {
   }
 }
 
+/* ── Pieces on squares ────────────────────────────────────────────────────
+ *
+ * ⚠️ THE CHECK THAT WOULD HAVE CAUGHT AN INVISIBLE BOARD.
+ *
+ * Every pair above is about colours the site DECLARES. A piece is artwork: it
+ * has its own inks, and it stands on a square this file already audits — but
+ * nothing related the two, so the first draft of the Terminal theme shipped a
+ * MONOCHROME piece set on a near-black board. Both sides of the position
+ * measured 1.03:1 against the dark square. Nothing errored, no ratio moved,
+ * and it was found by looking at a screenshot.
+ *
+ * ⚠️ THE RULE IS "AT LEAST ONE INK", NOT "THE PIECE CONTRASTS".
+ *
+ * A white piece on a light square is ALWAYS low contrast — that is true of
+ * every chess set ever made, and it is the OUTLINE that separates it. So for
+ * each square, a piece passes if either its body or its outline clears 3:1.
+ * A monochrome set has one ink and no second chance, which is exactly the
+ * property that makes it unsafe on a dark board.
+ *
+ * The inks are declared in `src/config/piece-sets.ts`, read off the vendored
+ * SVGs by hand. That is a copy, and a deliberate one: parsing arbitrary SVG
+ * fills would be fragile in a way that fails OPEN — an auditor that quietly
+ * finds no colours reports success. Declared values fail closed.
+ */
+const themeConfig = readFileSync(join(ROOT, 'src/config/site-themes.ts'), 'utf8');
+const pieceConfig = readFileSync(join(ROOT, 'src/config/piece-sets.ts'), 'utf8');
+
+/** `id → { defaultBoard, pieceSet }`, parsed from the theme config. */
+function themeAssignments() {
+  const out = [];
+  const source = decomment(themeConfig);
+  const pattern =
+    /id:\s*'([\w-]+)'[\s\S]*?defaultBoard:\s*'([\w-]+)'[\s\S]*?pieceSet:\s*'([\w-]+)'/g;
+  for (const [, id, board, pieces] of source.matchAll(pattern)) {
+    out.push({ id, board, pieces });
+  }
+  return out;
+}
+
+/** `setId → { white: {body, outline}, black: {…} }`, parsed from the piece config. */
+function pieceInks() {
+  const out = {};
+  const source = decomment(pieceConfig);
+  const pattern =
+    /id:\s*'([\w-]+)',[\s\S]*?white:\s*\{\s*body:\s*'(#[0-9a-f]{6})',\s*outline:\s*(null|'#[0-9a-f]{6}')\s*\}[\s\S]*?black:\s*\{\s*body:\s*'(#[0-9a-f]{6})',\s*outline:\s*(null|'#[0-9a-f]{6}')\s*\}/gi;
+  for (const [, id, wBody, wOutline, bBody, bOutline] of source.matchAll(pattern)) {
+    const ink = (value) => (value === 'null' ? null : value.replace(/'/g, '').toLowerCase());
+    out[id] = {
+      white: { body: wBody.toLowerCase(), outline: ink(wOutline) },
+      black: { body: bBody.toLowerCase(), outline: ink(bOutline) },
+    };
+  }
+  return out;
+}
+
+const ASSIGNMENTS = themeAssignments();
+const INKS = pieceInks();
+const PRESET_BY_ID = Object.fromEntries(PRESETS.map((p) => [p.id, p]));
+
+if (ASSIGNMENTS.length === 0 || Object.keys(INKS).length === 0) {
+  console.error('\ncheck-contrast: could not read the theme→piece assignments — did the config move?\n');
+  process.exit(1);
+}
+
+console.log(`\n${'='.repeat(58)}\n  PIECES ON SQUARES — each theme's set on the board it uses\n`);
+for (const { id, board, pieces } of ASSIGNMENTS) {
+  const preset = PRESET_BY_ID[board];
+  const ink = INKS[pieces];
+  if (!preset || !ink) {
+    failures++;
+    console.log(`  FAIL  theme ${id}: unknown board "${board}" or piece set "${pieces}"`);
+    continue;
+  }
+
+  let worst = { ratio: Infinity, label: '' };
+  let bad = 0;
+  for (const side of ['white', 'black']) {
+    for (const [squareName, square] of [
+      ['light square', preset.light],
+      ['dark square', preset.dark],
+    ]) {
+      assertions++;
+      const candidates = [ink[side].body, ink[side].outline].filter(Boolean);
+      const best = Math.max(...candidates.map((c) => contrast(c, square)));
+      if (best < UI) {
+        failures++;
+        bad++;
+        console.log(
+          `        FAIL  ${best.toFixed(2)} : ${UI}  ${pieces} ${side} piece on ${board}'s ` +
+            `${squareName} (${square})` +
+            (ink[side].outline === null ? ' — MONOCHROME set, no outline to fall back on' : ''),
+        );
+      }
+      if (best < worst.ratio) worst = { ratio: best, label: `${side} on ${squareName}` };
+    }
+  }
+  console.log(
+    `  ${bad === 0 ? 'ok  ' : 'FAIL'}  ${id.padEnd(9)} ${pieces.padEnd(11)} on .board-${board.padEnd(11)}` +
+      ` tightest ${worst.ratio.toFixed(2)} (${worst.label})`,
+  );
+}
+
 /*
  * A reader's OWN colours are not checked here — they do not exist at build
  * time. `bestInkFor()` derives the better ink for whatever they pick, and the

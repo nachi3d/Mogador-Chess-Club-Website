@@ -86,7 +86,11 @@ export const SITE_THEMES = [
     labelKey: 'theme.marbre',
     hintKey: 'theme.marbre.hint',
     defaultBoard: 'glace',
-    pieceSet: 'cburnett',
+    /* ⚠️ kiwen-suwi, NOT cburnett — swapped after looking at a screenshot.
+       It is monochrome (one flat `#262626`, no outline), which is exquisite on
+       the palest board the site has and invisible on a dark one. `glace` is
+       that palest board. See the ink audit in check-contrast.mjs. */
+    pieceSet: 'kiwen-suwi',
     fontKey: 'playfair',
     fontFile: '/fonts/playfair-latin-wght-normal.woff2',
   },
@@ -112,7 +116,13 @@ export const SITE_THEMES = [
     labelKey: 'theme.terminal',
     hintKey: 'theme.terminal.hint',
     defaultBoard: 'phosphore',
-    pieceSet: 'kiwen-suwi',
+    /* ⚠️ cburnett is the ONLY shipped set that survives here, and this is
+       measured rather than judged: on phosphore's `#082a16` dark square a
+       solid black piece reads 1.35:1 and a monochrome one 1.03:1 — both
+       invisible. cburnett's black pieces carry an `#ececec` outline, which
+       reads 13.14:1. The first draft of this theme shipped kiwen-suwi and
+       lost half the position. */
+    pieceSet: 'cburnett',
     fontKey: 'jetbrains',
     fontFile: '/fonts/jetbrains-latin-wght-normal.woff2',
   },

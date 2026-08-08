@@ -30,12 +30,15 @@ const SETTINGS_EN = '/en/parametres/';
 /** Every theme, with what it is contractually supposed to bring with it. */
 const THEMES = [
   { id: 'bois', board: 'bois', pieces: 'merida', font: 'fraunces', family: /Fraunces/ },
-  { id: 'marbre', board: 'glace', pieces: 'cburnett', font: 'playfair', family: /Playfair/ },
+  { id: 'marbre', board: 'glace', pieces: 'kiwen-suwi', font: 'playfair', family: /Playfair/ },
   { id: 'souiri', board: 'bleu', pieces: 'chessnut', font: 'outfit', family: /Outfit/ },
   {
     id: 'terminal',
     board: 'phosphore',
-    pieces: 'kiwen-suwi',
+    /* ⚠️ cburnett, and it is not interchangeable: its black pieces carry a
+       light outline, and it is the only shipped set that stays visible on
+       phosphore's near-black dark square. See piece-sets.ts. */
+    pieces: 'cburnett',
     font: 'jetbrains',
     family: /JetBrains/,
   },
@@ -147,7 +150,7 @@ test.describe('themes — the board pin', () => {
     // The theme changed. The board did not.
     await expect(page.locator('html')).toHaveClass(/board-bleu/);
     // The pieces DO follow — they are not a level-2 choice.
-    await expect(page.locator('html')).toHaveClass(/pieces-kiwen-suwi/);
+    await expect(page.locator('html')).toHaveClass(/pieces-cburnett/);
 
     await page.reload();
     await expect(page.locator('html')).toHaveClass(/board-bleu/);
@@ -233,7 +236,7 @@ test.describe('themes — persistence and no-flash', () => {
     );
     expect(atBody).not.toBe('body-never-appeared');
     expect(atBody).toContain('theme-terminal');
-    expect(atBody).toContain('pieces-kiwen-suwi');
+    expect(atBody).toContain('pieces-cburnett');
     expect(atBody).toContain('board-phosphore');
   });
 });

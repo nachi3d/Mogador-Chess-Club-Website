@@ -37,9 +37,16 @@ the surfaces, the heading typeface, the default board preset and the piece set
   `:is(:root, .theme-preview)` — so a tile shows the real tokens. There is no
   second copy of any colour, and a preview that looks wrong means the *theme*
   is wrong. Same trick the preset swatches already used.
-- **Four piece sets**, one per theme: merida (Bois), cburnett (Marbre),
-  chessnut (Souiri), kiwen-suwi (Terminal). Vendored under `vendor/pieces/`
+- **Four piece sets**, one per theme: merida (Bois), kiwen-suwi (Marbre),
+  chessnut (Souiri), cburnett (Terminal). Vendored under `vendor/pieces/`
   with provenance and licences recorded, and credited on `/mentions-legales/`.
+- **`check-contrast.mjs` audits each theme's piece set against the board that
+  theme uses.** The first draft of Terminal paired a monochrome set with the
+  near-black phosphor board and **lost half the position** — 1.03:1, no error,
+  every existing assertion green, found by looking at a screenshot. The rule is
+  "at least one of the piece's two inks clears 3:1", because a white piece on a
+  light square is always low-contrast and it is the outline that separates it.
+  Verified to fail on the old pairing.
 - **A sixth board preset, `phosphore`** — phosphor green on black. Terminal had
   no honest default among the five, and a cream board inside a terminal is the
   single thing that would have made that theme read as a background swap.

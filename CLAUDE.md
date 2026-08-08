@@ -1269,12 +1269,12 @@ Chessground's business and became the theme's.
 The repo is **GPL-3.0-or-later**, which forbids added restrictions. Verified
 against `lila/COPYING.md` and, where linked, the upstream licence:
 
-| Shipped | Author | Licence |
-|---|---|---|
-| `cburnett` | Colin M.L. Burnett | GPLv2+ (also CC BY-SA 3.0 on Wikimedia) |
-| `merida` | Armando Hernandez Marroquin | GPLv2+ |
-| `chessnut` | Alexis Luengas | Apache-2.0 |
-| `kiwen-suwi` | neverRare | CC BY 4.0 |
+| Shipped | Theme | Author | Licence |
+|---|---|---|---|
+| `merida` | Bois | Armando Hernandez Marroquin | GPLv2+ |
+| `kiwen-suwi` | Marbre | neverRare | CC BY 4.0 |
+| `chessnut` | Souiri | Alexis Luengas | Apache-2.0 |
+| `cburnett` | Terminal | Colin M.L. Burnett | GPLv2+ (also CC BY-SA 3.0 on Wikimedia) |
 
 **Rejected:** every `CC BY-NC-SA` set (the majority), "freeware" (`chess7`,
 `companion`, `leipzig`), unlicensed (`reillycraig`, `riohacha`), no-derivatives
@@ -1292,6 +1292,31 @@ being GPL-3.0-**or-later** matters here rather than being a formality.
 
 Every set needs its own entry in `site.legal.attributions`. For three of the
 four, attribution is a **condition of use**, not a courtesy.
+
+### ⚠️ A PIECE SET IS ONLY LEGIBLE ON SOME BOARDS — and it is now audited
+
+The first draft of Terminal shipped `kiwen-suwi` on `phosphore` and **lost half
+the position**. That set is MONOCHROME — both sides are one flat `#262626`,
+distinguished by shape — so against phosphore's `#082a16` dark square it
+measures **1.03:1**. Nothing errored, no declared colour was wrong, and every
+contrast assertion passed. It was found by looking at a screenshot.
+
+`check-contrast.mjs` now audits **each theme's piece set against the board that
+theme uses**. The inks are declared in `src/config/piece-sets.ts` (`body` +
+`outline`, read off the SVGs by hand) — a copy, deliberately, because parsing
+arbitrary SVG fills fails OPEN: an auditor that quietly finds no colours reports
+success.
+
+⚠️ **The rule is "at least one ink clears 3:1", not "the piece contrasts".** A
+white piece on a light square is always low-contrast — that is true of every
+chess set ever made — and it is the OUTLINE that separates it. A monochrome set
+has one ink and no second chance, which is precisely what makes it unsafe on a
+dark board and fine on a pale one.
+
+Consequence: **`cburnett` is not interchangeable on Terminal.** It is the only
+shipped set whose black pieces carry a light outline (`#ececec`, 13.14:1 on that
+square). Verified to fail with the message *"MONOCHROME set, no outline to fall
+back on"* if the old assignment is restored.
 
 ### The sixth board preset
 

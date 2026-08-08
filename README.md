@@ -92,10 +92,10 @@ and each used unmodified:
 
 | Set | Author | Licence |
 |---|---|---|
-| **cburnett** | Colin M. L. Burnett | [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/) (GPLv2+ via lila) |
-| **merida** | Armando Hernandez Marroquin | [GPL-2.0-or-later](https://www.gnu.org/licenses/gpl-2.0.txt) |
-| **chessnut** | Alexis Luengas | [Apache-2.0](https://github.com/LexLuengas/chessnut-pieces/blob/master/LICENSE.txt) |
-| **kiwen-suwi** | neverRare | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
+| **merida** (Bois) | Armando Hernandez Marroquin | [GPL-2.0-or-later](https://www.gnu.org/licenses/gpl-2.0.txt) |
+| **kiwen-suwi** (Marbre) | neverRare | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
+| **chessnut** (Souiri) | Alexis Luengas | [Apache-2.0](https://github.com/LexLuengas/chessnut-pieces/blob/master/LICENSE.txt) |
+| **cburnett** (Terminal) | Colin M. L. Burnett | [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/) (GPLv2+ via lila) |
 
 For three of the four, attribution is a condition of use rather than a courtesy.
 `vendor/pieces/README.md` records where each came from and why most of Lichess's

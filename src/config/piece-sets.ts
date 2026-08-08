@@ -17,10 +17,39 @@
  * ─────────────────────────────────────────────────────────────────────────
  */
 
+/**
+ * The two inks a piece is drawn with: the body fill and the outline that
+ * delineates it. Read off the vendored SVGs by hand.
+ *
+ * ⚠️ THIS IS WHAT MAKES A PIECE LEGIBLE ON A SQUARE, AND IT IS AUDITED.
+ *
+ * A white piece on a light square is always low-contrast — it is the OUTLINE
+ * that separates it, not the fill. So the rule is not "the piece contrasts
+ * with the square" but "for each square, AT LEAST ONE of the piece's two inks
+ * clears 3:1". `scripts/check-contrast.mjs` asserts exactly that, for both
+ * pieces against both squares of the board each theme uses.
+ *
+ * `outline: null` means the set is MONOCHROME — one ink, no second chance.
+ * Those sets are only safe on light boards, which is not a stylistic
+ * observation: kiwen-suwi's single `#262626` measures **1.03:1** against the
+ * phosphore board's dark square. Both sides of the position vanish, and
+ * nothing errors. That shipped in this session's first draft and was caught by
+ * looking at a screenshot, which is why the check now exists.
+ */
+export interface PieceInk {
+  readonly body: string;
+  readonly outline: string | null;
+}
+
 export interface PieceSet {
   readonly id: string;
   /** Key into the UI string tables — `pieces.merida`, etc. */
   readonly labelKey: `pieces.${string}`;
+  /** How the white and black pieces are drawn. See `PieceInk`. */
+  readonly ink: {
+    readonly white: PieceInk;
+    readonly black: PieceInk;
+  };
   /** Rendered on `/mentions-legales/`. Author and licence, quoted from source. */
   readonly attribution: {
     readonly author: string;
@@ -33,11 +62,19 @@ export interface PieceSet {
 export const PIECE_SETS = [
   /**
    * The set the site shipped with, via `chessground.cburnett.css`. Crisp
-   * outlines, maximum silhouette clarity — which is why it carries Marbre.
+   * outlines and maximum silhouette clarity — and, uniquely here, a LIGHT
+   * outline on the black pieces, which is what lets it carry Terminal's
+   * near-black phosphor board when every other set dissolves into it.
    */
   {
     id: 'cburnett',
     labelKey: 'pieces.cburnett',
+    /* The only shipped set whose BLACK pieces carry a light outline, which is
+       what makes it the one that survives on a near-black board. */
+    ink: {
+      white: { body: '#ffffff', outline: '#000000' },
+      black: { body: '#000000', outline: '#ececec' },
+    },
     attribution: {
       author: 'Colin M.L. Burnett',
       licence: 'CC BY-SA 3.0',
@@ -49,6 +86,10 @@ export const PIECE_SETS = [
   {
     id: 'merida',
     labelKey: 'pieces.merida',
+    ink: {
+      white: { body: '#ffffff', outline: '#1f1a17' },
+      black: { body: '#1f1a17', outline: '#ffffff' },
+    },
     attribution: {
       author: 'Armando Hernandez Marroquin',
       licence: 'GPL-2.0-or-later',
@@ -60,6 +101,10 @@ export const PIECE_SETS = [
   {
     id: 'chessnut',
     labelKey: 'pieces.chessnut',
+    ink: {
+      white: { body: '#ffffff', outline: '#000000' },
+      black: { body: '#000000', outline: '#f2f2f2' },
+    },
     attribution: {
       author: 'Alexis Luengas',
       licence: 'Apache-2.0',
@@ -67,10 +112,18 @@ export const PIECE_SETS = [
       sourceUrl: 'https://github.com/LexLuengas/chessnut-pieces',
     },
   },
-  /** Minimal, geometric, no shading at all. Schematic — Terminal. */
+  /** Minimal, geometric, no shading at all. Schematic — Marbre. */
   {
     id: 'kiwen-suwi',
     labelKey: 'pieces.kiwen-suwi',
+    /* ⚠️ MONOCHROME — both sides are one flat `#262626`, distinguished by
+       SHAPE rather than by colour, and there is no outline to fall back on.
+       Beautiful on a pale board, invisible on a dark one. Marbre's `glace`
+       is the palest preset the site has, which is why it lives there. */
+    ink: {
+      white: { body: '#262626', outline: null },
+      black: { body: '#262626', outline: null },
+    },
     attribution: {
       author: 'neverRare',
       licence: 'CC BY 4.0',

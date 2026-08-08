@@ -100,12 +100,24 @@ const record = siteTheme(theme);
     aspect-ratio: 1 / 1;
     border: 1px solid var(--mcc-board-border);
     border-radius: 1px;
-    /* The same checker as cg-board and MiniBoard. Two flat token colours. */
+    /* The same checker as cg-board and MiniBoard. Two flat token colours.
+       ⚠️ The texture is a separate layer below — see the note in board.css.
+       Stacking it here made `background-size` cycle and Souiri's preview
+       rendered a 2×2 board. */
     background-color: var(--mcc-board-light);
-    background-image: var(--mcc-board-texture),
-      repeating-conic-gradient(var(--mcc-board-dark) 0% 25%, var(--mcc-board-light) 0% 50%);
-    background-size: auto, 25% 25%;
+    background-image: repeating-conic-gradient(
+      var(--mcc-board-dark) 0% 25%,
+      var(--mcc-board-light) 0% 50%
+    );
+    background-size: 25% 25%;
     background-position: top left;
+  }
+
+  .theme-preview-board::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: var(--mcc-board-texture);
   }
 
   /* One knight, from /pieces/preview.css. Sized and placed to sit on the
