@@ -2089,6 +2089,31 @@ The checklist it points at is **`docs/MANUAL-TESTS.md`**, and that file is a liv
 
 If a test fails in a way that contradicts the source, **kill stray preview servers and re-run** before touching code (`npm run demo` does it for you). Confirm the fix is actually in `dist/_astro/*.js` — `grep` the built bundle.
 
+#### ⚠️ A STALE `dist/` IS THE SAME TRAP WITHOUT A STALE SERVER
+
+Reverting source is not reverting the build. Anything that ran `npm run build`
+while a file was temporarily modified — an experiment, a "does this test have
+teeth?" check, a `npm run quick` dry run — leaves `dist/` holding the modified
+output, and `git checkout` of the source does **not** undo that.
+
+It has already cost a full matrix run: a one-word i18n change made to prove the
+quick-change script accepted it was reverted in source but not rebuilt, and the
+next matrix reported the **WhatsApp share link missing on all five projects**.
+Five projects failing identically looks exactly like a real regression in a
+Critical Feature — which is what makes this expensive rather than merely
+annoying.
+
+**The tell is a failure that is identical on every project, including
+chromium.** The documented Firefox/WebKit flakes are per-project and move
+between runs; a deterministic five-project failure is either a real defect or a
+stale artefact, and the artefact is cheaper to rule out first:
+
+```sh
+grep -o "the string you expect" dist/<page>/index.html
+```
+
+Rebuild before any matrix run that follows an experiment.
+
 #### Finding the stale server on Windows: `netstat -ano`, never `-p tcp`
 
 On Windows `-p tcp` means **IPv4 TCP only**. Node — and therefore `astro preview` — binds `[::1]`, which is `tcpv6`, so `netstat -ano -p tcp` shows **nothing at all** for a running preview server.
