@@ -237,7 +237,6 @@ const FOLLOW = 'follow';
 <script>
   import {
     AA_TEXT,
-    activeBoard,
     applyTheme,
     bestInkFor,
     clearCustomBoard,
@@ -440,11 +439,6 @@ const FOLLOW = 'follow';
   } catch {
     /* the previews are simply not live on that browser; everything else works */
   }
-
-  /* Exposed for the spec: asserting the resolved board is otherwise a
-     reimplementation of the pin rules inside the test, which would then agree
-     with its own bugs. Reading it here keeps one definition. */
-  document.documentElement.dataset['activeBoard'] = activeBoard(initial);
 </script>
 
 <style>
