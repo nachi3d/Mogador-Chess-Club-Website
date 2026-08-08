@@ -11,6 +11,58 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### Touch focus, and a quick-change path
+
+#### Fixed
+
+- **Playing by tapping was unusable on a phone.** After every move focus
+  returned to the move-entry field, which opens the virtual keyboard, which
+  shrinks the visual viewport, which scrolls the board out of view. Found by
+  Seàn on a real phone; the automated suite could not have found it, because a
+  headless browser has no soft keyboard.
+
+  The a11y session specified "after the opponent reply, focus returns to the
+  input" — correct for a keyboard user. The brief was incomplete, not the
+  implementation.
+
+  **Focus now follows the modality of the MOVE, not the device**
+  (`src/components/board/useMoveSource.ts`). Deliberately not a user-agent
+  sniff or a `pointer: coarse` query, both of which get it backwards: a phone
+  user with a Bluetooth keyboard who *types* still gets the field back, and a
+  desktop user who *drags* does not. Applies everywhere `MoveInput` appears —
+  tutorial steps, course lessons, `/exercices/`, `/jouer/`.
+
+  Two related cases fixed with it: tapping **"Commencer"** on `/jouer/` used to
+  focus the field before the reader had seen the position (game start is not a
+  move, so the modality of the *activation* decides), and `focus()` now passes
+  `preventScroll` as a second line of defence.
+
+  The field is never hidden or disabled on touch — some students will prefer
+  typing, and it is the accessible path. It just stops grabbing focus unasked.
+
+#### Added
+
+- **A quick-change path** — `npm run quick`, and a section in CLAUDE.md. A typo
+  used to cost the full release gate: five browser projects, half an hour. That
+  is a tax that discourages fixing small things, and unfixed small things are
+  what a visitor sees.
+
+  ⚠️ It shortens **verification only**. `dev` → `main` still needs Seàn.
+
+  `scripts/quick.mjs` **refuses rather than advises**: it diffs the branch
+  against `dev` and exits non-zero naming any file that is out of bounds, with
+  the reason. Enforcing the exclusion list in code rather than in a document is
+  the only version that survives a Friday afternoon. It then runs the content
+  check, the build (which carries `check-contrast` as its own first step), and
+  **only the chromium specs covering what changed**.
+
+- `tests/e2e/touch-focus.spec.ts` — the tapped-move rule on desktop and both
+  mobile projects, including the scroll assertion, which is the closest a
+  headless run gets to the symptom. It states which of its tests actually fail
+  on the old code, verified by rebuilding without the fix rather than assumed.
+- `docs/MANUAL-TESTS.md` gains "play a whole exercise on a phone by tapping
+  only" and an "after a quick change lands on `main`" list.
+
 ### E6 + E7 — four complete themes, and typography that follows them
 
 Direction: `docs/direction/mcc-direction-esthetique-addendum.md` §§ E6, E7.
