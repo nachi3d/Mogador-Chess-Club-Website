@@ -87,6 +87,17 @@ does not allow, ask; for a school or a community club the answer is very likely 
 
 ### Third-party credits
 
-The pieces are the **cburnett** set by **Colin M. L. Burnett**, used unmodified
-under [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/). Full credits
-live on `/mentions-legales/`.
+Four piece sets ship, one per theme, each a separate work under its own licence
+and each used unmodified:
+
+| Set | Author | Licence |
+|---|---|---|
+| **cburnett** | Colin M. L. Burnett | [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/) (GPLv2+ via lila) |
+| **merida** | Armando Hernandez Marroquin | [GPL-2.0-or-later](https://www.gnu.org/licenses/gpl-2.0.txt) |
+| **chessnut** | Alexis Luengas | [Apache-2.0](https://github.com/LexLuengas/chessnut-pieces/blob/master/LICENSE.txt) |
+| **kiwen-suwi** | neverRare | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
+
+For three of the four, attribution is a condition of use rather than a courtesy.
+`vendor/pieces/README.md` records where each came from and why most of Lichess's
+other sets — non-commercial, "freeware" or unlicensed — could not be used in a
+GPL project. Full credits live on `/mentions-legales/`.

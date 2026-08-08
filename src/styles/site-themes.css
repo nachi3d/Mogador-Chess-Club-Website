@@ -46,11 +46,26 @@
    element at all: `:root[data-theme='dark']` cannot match a div,
    so the only thing a preview overrides is inheritance.
 
-   ⚠️ EACH THEME'S DARK BLOCK MUST RESTATE EVERY TOKEN THE BASE
-   DARK BLOCK SETS. Anything omitted falls through to Bois's dark
-   value — a brass accent on a phosphor terminal, and no error.
-   The auditor is what catches this: it resolves each theme in each
-   mode exactly the way the cascade above does.
+   ⚠️ A THEME MUST RESTATE EVERY TOKEN WHOSE BASE VALUE WOULD BE
+   WRONG FOR IT. Anything omitted falls through to Bois — a brass
+   accent on a phosphor terminal, and no error anywhere. In
+   practice that is all 34 of the surface, text, border, primary,
+   accent, link, focus, level, selection, ambient and press tokens,
+   and each theme's dark block restates all 34.
+
+   FOUR ARE DELIBERATELY LEFT INHERITED, in every theme:
+   `--mcc-board-last-move`, `-selected`, `-check` and `-hint`.
+   They are alpha washes over a square rather than colours, chosen
+   to read against ANY preset — which is a property of the overlay,
+   not of the theme. Overriding them per theme would be four more
+   values to prove for six presets each.
+
+   The square colours themselves are absent for the same reason
+   from the other direction: they belong to the `.board-<id>`
+   preset, which is level 2 and outranks the theme.
+
+   The auditor is what catches an accidental omission: it resolves
+   each theme in each mode exactly the way the cascade above does.
 
    ── WHAT A THEME MAY AND MAY NOT DO ─────────────────────────────
 
