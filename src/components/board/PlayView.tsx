@@ -26,6 +26,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import BoardSurface from './BoardSurface';
+import { useMoveSource } from './useMoveSource';
 import MoveInput, { type MoveInputLabels } from './MoveInput';
 import { delay, remainingFloorMs, thinkingFloorMs } from '@lib/motion';
 import type { MoveProvider } from '@lib/chess/opponent';
@@ -103,6 +104,22 @@ export default function PlayView(props: PlayViewProps) {
   const [result, setResult] = useState<string | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [focusSignal, setFocusSignal] = useState(0);
+  /* Which door the last move came through. See useMoveSource.ts. */
+  const moveSource = useMoveSource();
+  /**
+   * Whether the game was STARTED by a pointer.
+   *
+   * Game start is not a move, so `moveSource` has nothing to say about it — but
+   * it has the same symptom: tapping "Commencer" used to focus the move field,
+   * open the keyboard and scroll the board away before the reader had seen it.
+   *
+   * A keyboard player genuinely needs focus placed somewhere, because the whole
+   * setup form (and the button they were on) is replaced by the board — leaving
+   * focus on the document body. So the modality of the ACTIVATION decides, on
+   * the same principle as the modality of a move: `pointerdown` fires before
+   * submit for a tap or click and never for Enter or Space on the button.
+   */
+  const startedByPointer = useRef(false);
 
   /* chess.js and the engine arrive lazily and live in refs: they are mutable
      objects, not render state. The view re-renders off `snapshot` instead. */
@@ -227,8 +244,9 @@ export default function PlayView(props: PlayViewProps) {
       setPhase('over');
       return;
     }
-    // Back to the reader — pull focus to the field for a keyboard player.
-    setFocusSignal((prev) => prev + 1);
+    /* Back to the reader. Focus returns to the field only if they TYPED the
+       move that provoked this reply — see useMoveSource.ts. */
+    if (moveSource.lastWasText()) setFocusSignal((prev) => prev + 1);
   }, [describeEnd, snapshotOf]);
 
   /**
@@ -296,7 +314,8 @@ export default function PlayView(props: PlayViewProps) {
 
       // Playing black means the engine opens.
       if (colour === 'black') void opponentMove();
-      else setFocusSignal((prev) => prev + 1);
+      else if (!startedByPointer.current) setFocusSignal((prev) => prev + 1);
+      startedByPointer.current = false;
     } catch {
       if (mine !== generation.current) return;
       setLoadError(true);
@@ -382,7 +401,17 @@ export default function PlayView(props: PlayViewProps) {
             </div>
           </fieldset>
 
-          <button type="submit" class="mcc-play-start" disabled={busy} data-testid="play-start">
+          <button
+            type="submit"
+            class="mcc-play-start"
+            disabled={busy}
+            /* Tap or click sets this; Enter/Space on the button never fires
+               pointerdown, so a keyboard player still gets focus placed. */
+            onPointerDown={() => {
+              startedByPointer.current = true;
+            }}
+            data-testid="play-start"
+          >
             {busy ? labels.loading : labels.start}
           </button>
           {/* Said before the click, not after: a reader on metered data is
@@ -430,7 +459,7 @@ export default function PlayView(props: PlayViewProps) {
           {...(snapshot?.lastMove ? { lastMove: snapshot.lastMove } : {})}
           {...(snapshot?.inCheck ? { check: snapshot.turn } : {})}
           {...(myTurn && snapshot
-            ? { movableColor: colour, dests: snapshot.dests, onMove: playMove }
+            ? { movableColor: colour, dests: snapshot.dests, onMove: moveSource.viaPointer(playMove) }
             : { dests: NO_DESTS })}
         />
 
@@ -465,7 +494,7 @@ export default function PlayView(props: PlayViewProps) {
             id="play-move"
             labels={labels.move}
             resolve={resolveText}
-            onMove={playMove}
+            onMove={moveSource.viaText(playMove)}
             disabled={!myTurn}
             focusSignal={focusSignal}
           />

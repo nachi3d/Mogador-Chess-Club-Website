@@ -43,6 +43,12 @@ export interface MoveInputProps {
    * Bump to pull focus back into the field — after the opponent has replied,
    * so a keyboard player is never left with focus on a dead control and no
    * idea that it is their move again.
+   *
+   * ⚠️ THE CALLER DECIDES WHETHER TO BUMP IT, AND THE ANSWER IS "ONLY IF THE
+   * READER TYPED THE MOVE". Bumping it after a tapped move opens the virtual
+   * keyboard and scrolls the board off screen — see `useMoveSource.ts`, which
+   * holds the whole rule. This component honours the signal; it does not judge
+   * it, because it cannot see how the move arrived.
    */
   readonly focusSignal: number;
 }
@@ -80,7 +86,14 @@ export default function MoveInput(props: MoveInputProps) {
       firstRender.current = false;
       return;
     }
-    if (!disabled) inputRef.current?.focus();
+    /* `preventScroll` because focusing an element scrolls it into view by
+       default, and this fires while the reader is looking at the BOARD. The
+       field is already on screen whenever this legitimately runs (the reader
+       just typed into it), so there is nothing to scroll to — and if that ever
+       stops being true, doing nothing is the better failure than yanking the
+       page. The modality gate in the callers is the primary fix; this is the
+       second line, and it is the one that would have limited the damage. */
+    if (!disabled) inputRef.current?.focus({ preventScroll: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusSignal]);
 
