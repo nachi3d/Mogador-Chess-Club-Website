@@ -266,14 +266,55 @@ test.describe('action feedback — a correct move', () => {
     await page.evaluate(() => {
       const w = window as unknown as { __pulses: string[]; __stop?: boolean };
       w.__pulses = [];
+      const note = (el: Element) => {
+        if (!el.classList?.contains('mcc-pulse')) return;
+        const key = (el as HTMLElement).style.transform || 'unpositioned';
+        if (!w.__pulses.includes(key)) w.__pulses.push(key);
+      };
+
+      /* Sampler 1 — a rAF loop, ~18 looks inside one 300ms Transition. */
       const tick = () => {
         for (const sq of Array.from(document.querySelectorAll('cg-board square.mcc-pulse'))) {
-          const key = (sq as HTMLElement).style.transform || 'unpositioned';
-          if (!w.__pulses.includes(key)) w.__pulses.push(key);
+          note(sq);
         }
         if (!w.__stop) requestAnimationFrame(tick);
       };
       requestAnimationFrame(tick);
+
+      /*
+       * Sampler 2 — a MutationObserver that reads its RECORDS.
+       *
+       * ⚠️ NOT a contradiction of "never assert a short-lived class with a
+       * MutationObserver". That rule is about a callback that RE-QUERIES THE
+       * LIVE DOM: it can be batched past the 300ms window, find nothing, and
+       * report that the pulse never happened. Reading `record.addedNodes` and
+       * `record.target` cannot — the records describe the DOM as it was when
+       * the mutation occurred, however late the callback runs.
+       *
+       * It is here because the rAF loop has its own blind spot in the other
+       * direction: WebKit starves rAF under load, and this test has been
+       * intermittently failing on WebKit in full-matrix runs for that reason.
+       * The two samplers fail in different conditions, so together they cover
+       * the window that either alone leaves open.
+       */
+      const board = document.querySelector('cg-board');
+      if (board) {
+        new MutationObserver((records) => {
+          for (const record of records) {
+            for (const added of Array.from(record.addedNodes)) {
+              if (added.nodeType === 1) note(added as Element);
+            }
+            if (record.type === 'attributes' && record.target.nodeType === 1) {
+              note(record.target as Element);
+            }
+          }
+        }).observe(board, {
+          childList: true,
+          subtree: true,
+          attributes: true,
+          attributeFilter: ['class'],
+        });
+      }
     });
 
     await playMove(page, 'a1', 'a8');
