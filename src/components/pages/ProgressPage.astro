@@ -1,0 +1,317 @@
+---
+/**
+ * `/progres/` — the local progress view (M1).
+ *
+ * ─────────────────────────────────────────────────────────────────────────
+ * ⚠️ WHY THIS PAGE EXISTS AT ALL. The bottom bar's fourth entry is "Progrès",
+ * and the direction doc points it at `/compte/` *or a local view while
+ * accounts are switched off*. Accounts ARE switched off (v0.3.0), and
+ * `/compte/` is not even emitted — so a bar entry pointing there would 404 on
+ * the one navigation element that appears on every mobile screen.
+ *
+ * When accounts land (v2-S3), this page is where the synced view goes. It is
+ * deliberately the same shape: sections, counts, a way back in.
+ *
+ * ⚠️ EVERYTHING HERE IS READ IN THE BROWSER. Progress lives in the reader's
+ * own `localStorage`; the server knows the JOURNEY (which is content) and
+ * nothing about who has done what. So this renders the full structure with
+ * zeroes and a script fills it in — rather than rendering nothing and building
+ * the page in JS, which would flash an empty screen and leave a no-JS reader
+ * with a blank page instead of an explanation.
+ *
+ * ⚠️ IT NEVER CLAIMS MORE THAN IT KNOWS. A reader whose storage is
+ * unavailable, or who has cleared it, sees the empty state and a way to start
+ * — not an error. The line about clearing browser data is there because this
+ * is the one page where a reader might reasonably expect their progress to be
+ * kept somewhere safe, and it is not: it is on this device only.
+ * ─────────────────────────────────────────────────────────────────────────
+ */
+import type { Locale } from '@config/site';
+import { getCollection } from 'astro:content';
+import { localizePath } from '@i18n/paths';
+import { useTranslations } from '@i18n/ui';
+import BaseLayout from '@layouts/BaseLayout.astro';
+import PageIntro from '@components/PageIntro.astro';
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const t = useTranslations(locale);
+
+/* ── The three groups, built exactly the way HomePage builds its journey ──
+   Same key scheme (`tutorial:<slug>`, `lesson:<course>:<lesson>:<index>`, and
+   the bare exercise slug), because there is one progress store and it would be
+   worse than useless if two pages disagreed about how to read it. */
+const basics = (await getCollection('tutoriel'))
+  .filter((entry) => !entry.data.draft)
+  .sort((a, b) => a.data.order - b.data.order)
+  .map((entry) => ({
+    u: localizePath(`/apprendre-les-bases/${entry.data.slug}/`, locale),
+    t: locale === 'fr' ? entry.data.title_fr : entry.data.title_en,
+    k: [`tutorial:${entry.data.slug}`],
+  }));
+
+const courses = (await getCollection('cours'))
+  .filter((entry) => !entry.data.draft)
+  .sort((a, b) => a.data.order - b.data.order);
+
+const allLessons = (await getCollection('lessons')).filter(
+  (entry) => !entry.data.draft && entry.data.lang === locale,
+);
+
+const lessons = courses.flatMap((course) =>
+  allLessons
+    .filter((lesson) => lesson.data.course === course.data.slug)
+    .sort((a, b) => a.data.order - b.data.order)
+    .map((lesson) => ({
+      u: localizePath(`/cours/${course.data.slug}/${lesson.data.slug}/`, locale),
+      t: lesson.data.title,
+      k: lesson.data.boards
+        .map((board, index) => ({ board, index }))
+        .filter(({ board }) => board.kind === 'exercise')
+        .map(({ index }) => `lesson:${course.data.slug}:${lesson.data.slug}:${index}`),
+    }))
+    .filter((step) => step.k.length > 0),
+);
+
+const exercises = (await getCollection('exercices'))
+  .filter((entry) => !entry.data.draft)
+  .map((entry) => ({
+    u: localizePath(`/exercices/${entry.data.slug}/`, locale),
+    t: locale === 'fr' ? entry.data.title_fr : entry.data.title_en,
+    k: [entry.data.slug],
+  }));
+
+const groups = [
+  { id: 'basics', label: t('progress.basics'), steps: basics },
+  { id: 'courses', label: t('progress.courses'), steps: lessons },
+  { id: 'exercises', label: t('progress.exercises'), steps: exercises },
+];
+
+const dataJson = JSON.stringify(
+  Object.fromEntries(groups.map((group) => [group.id, group.steps])),
+);
+---
+
+<BaseLayout locale={locale} title={t('progress.title')} description={t('progress.intro')}>
+  <PageIntro title={t('progress.title')} intro={t('progress.intro')} />
+
+  <noscript>
+    <p class="progress-note">{t('progress.noJs')}</p>
+  </noscript>
+
+  <div class="progress" data-progress-view>
+    {
+      groups.map((group) => (
+        <section class="progress-group" data-group={group.id}>
+          <h2 class="progress-heading">
+            {group.label}
+            <span class="progress-count">
+              <b data-group-done>0</b> {t('progress.of')} {group.steps.length}
+            </span>
+          </h2>
+          <span class="progress-track" aria-hidden="true">
+            <span class="progress-fill" data-group-fill />
+          </span>
+        </section>
+      ))
+    }
+
+    {/* Shown only when there is genuinely nothing — see the script. Always in
+        the DOM so revealing it moves nothing. */}
+    <p class="progress-empty" data-progress-empty hidden>
+      {t('progress.empty')}
+      <a class="btn btn-primary" href={localizePath('/apprendre-les-bases/', locale)}>
+        {t('progress.emptyCta')}
+      </a>
+    </p>
+
+    {/* The way back in — the same resolved step the home dashboard offers. */}
+    <p class="progress-continue" data-progress-continue hidden>
+      <a class="btn btn-primary" href="#" data-progress-continue-link>
+        {t('progress.continue')}
+      </a>
+    </p>
+
+    <p class="progress-note">{t('progress.cleared')}</p>
+  </div>
+
+  <script type="application/json" data-progress-data set:html={dataJson}></script>
+</BaseLayout>
+
+{/*
+  ⚠️ `is:inline`, and it duplicates `mcc:progress:v1` — the FOURTH such copy,
+  after the theme head script, AccountButton and the home resolver. Same trade
+  for the same reason: an inline script cannot import a bare specifier, and
+  importing would reintroduce the round trip. The general rule in CLAUDE.md
+  still stands — nothing else may touch `localStorage`. The spec seeds the key
+  directly, so a divergence from `src/lib/progress.ts` fails there.
+
+  It only READS, and it fails silent: an unreadable store leaves every bar at
+  zero and shows the empty state, which is a usable page rather than a broken
+  one.
+*/}
+<script is:inline>
+  (function () {
+    try {
+      var view = document.querySelector('[data-progress-view]');
+      var data = document.querySelector('[data-progress-data]');
+      if (!view || !data) return;
+
+      var groups = JSON.parse(data.textContent || '{}');
+      var raw = window.localStorage.getItem('mcc:progress:v1');
+      var records = {};
+      if (raw) {
+        var store = JSON.parse(raw);
+        records = (store && store.exercises) || {};
+      }
+
+      function complete(step) {
+        return step.k.every(function (key) {
+          var r = records[key];
+          return !!r && typeof r === 'object' && r.solved === true;
+        });
+      }
+
+      function touched(step) {
+        return step.k.some(function (key) {
+          var r = records[key];
+          return !!r && typeof r === 'object' && (r.solved === true || r.attempts > 0 || r.hintUsed === true);
+        });
+      }
+
+      var anything = false;
+      var firstIncomplete = null;
+
+      Object.keys(groups).forEach(function (id) {
+        var steps = groups[id] || [];
+        var section = view.querySelector('[data-group="' + id + '"]');
+        if (!section) return;
+
+        var done = 0;
+        for (var i = 0; i < steps.length; i++) {
+          if (touched(steps[i])) anything = true;
+          if (complete(steps[i])) done++;
+          else if (!firstIncomplete && touched(steps[i])) firstIncomplete = steps[i];
+        }
+
+        var label = section.querySelector('[data-group-done]');
+        if (label) label.textContent = String(done);
+        var fill = section.querySelector('[data-group-fill]');
+        if (fill) fill.style.inlineSize = steps.length ? Math.round((done / steps.length) * 100) + '%' : '0%';
+      });
+
+      var empty = view.querySelector('[data-progress-empty]');
+      var cont = view.querySelector('[data-progress-continue]');
+
+      if (!anything) {
+        if (empty) empty.removeAttribute('hidden');
+      } else if (firstIncomplete && cont) {
+        var link = cont.querySelector('[data-progress-continue-link]');
+        if (link) {
+          link.setAttribute('href', firstIncomplete.u);
+          link.setAttribute('title', firstIncomplete.t);
+        }
+        cont.removeAttribute('hidden');
+      }
+      view.setAttribute('data-resolved', 'true');
+    } catch (e) {
+      /* Storage unavailable or hand-edited. Zeroes and the empty state. */
+    }
+  })();
+</script>
+
+<style>
+  .progress {
+    display: grid;
+    gap: 1.5rem;
+    max-width: 44rem;
+  }
+
+  .progress-group {
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  .progress-heading {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    margin: 0;
+    font-size: 1.0625rem;
+  }
+
+  .progress-count {
+    color: var(--mcc-text-secondary);
+    font-family: var(--font-body);
+    font-size: 0.875rem;
+    font-weight: 400;
+  }
+
+  .progress-count b {
+    color: var(--mcc-text-primary);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .progress-track {
+    display: block;
+    block-size: 0.5rem;
+    border-radius: 999px;
+    background-color: var(--mcc-surface-sunken);
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    display: block;
+    block-size: 100%;
+    inline-size: 0%;
+    border-radius: inherit;
+    background-color: var(--mcc-primary);
+    /* A Transition (E1) — a state change worth watching land. */
+    transition: inline-size var(--motion-transition) var(--ease-transition);
+  }
+
+  .progress-empty,
+  .progress-continue {
+    display: grid;
+    justify-items: start;
+    gap: 0.75rem;
+    margin: 0;
+  }
+
+  .progress-note {
+    margin: 0;
+    color: var(--mcc-text-secondary);
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.75rem;
+    padding: 0.7rem 1.4rem;
+    border-radius: var(--radius-card);
+    text-decoration: none;
+  }
+
+  .btn-primary {
+    background-color: var(--mcc-primary);
+    color: var(--mcc-primary-contrast);
+    border: 1px solid var(--mcc-primary);
+  }
+
+  .btn-primary:hover {
+    background-color: var(--mcc-primary-hover);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .progress-fill {
+      transition: none;
+    }
+  }
+</style>

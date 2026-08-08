@@ -1,0 +1,458 @@
+---
+/**
+ * The mobile home page — a DASHBOARD, not a menu (M2).
+ *
+ * Direction: `docs/direction/mcc-direction-mobile-app.md` § 2 and § 3.
+ *
+ * ─────────────────────────────────────────────────────────────────────────
+ * ⚠️ MOBILE ONLY. Below 768px this replaces the E5 retro menu; at and above
+ * it, this is `display: none` and the menu is untouched. The two are siblings
+ * in the DOM and mutually exclusive on screen. See CLAUDE.md → the 768px rule.
+ *
+ * ⚠️ THE DOMINANT CARD IS THE SCREEN. It occupies the top third, it is the
+ * only coloured thing that size, and there is exactly ONE of it. Two primary
+ * actions means neither is primary — which is precisely what the five
+ * identically-weighted menu entries were doing on a phone.
+ *
+ * ⚠️ IT ADAPTS, AND THE SERVER RENDERS THE "NOTHING YET" BRANCH.
+ *
+ *   no progress  → "Jouer une partie" dominant, "Apprendre les bases" beside
+ *   progress     → "Reprendre — <step>" dominant with a bar, "Jouer" beside
+ *
+ * The server cannot know which: progress lives in the reader's own
+ * `localStorage`. So it renders the first branch — the one that is true for a
+ * first-time visitor and still works with no JavaScript at all — and the
+ * resolver in HomePage.astro rewrites it in place when there IS something to
+ * resume. That resolver is the E5 one, unchanged in how it picks the step.
+ *
+ * ⚠️ THE PROGRESS BAR'S HEIGHT IS RESERVED WHETHER OR NOT IT SHOWS. Revealing
+ * it must not move the cards underneath — the same reason `.card-status`
+ * reserves its height on the exercise index. This is the site's most-visited
+ * page and the one least able to afford a layout shift.
+ * ─────────────────────────────────────────────────────────────────────────
+ *
+ * Card craft (§ 3): full width, generous radius, real shadow, and text aligned
+ * LEFT. Centred multi-line text is tiring to read on a phone, and every card
+ * here carries a title plus a line of explanation.
+ */
+import type { Locale } from '@config/site';
+import { site } from '@config/site';
+import { getCollection } from 'astro:content';
+import { localizePath } from '@i18n/paths';
+import { useTranslations } from '@i18n/ui';
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const t = useTranslations(locale);
+
+/* ── Prochaine séance ─────────────────────────────────────────────────────
+   The one thing parents and club students come here for. Server-rendered:
+   it is content, not state.
+
+   ⚠️ The venue comes from `site.venue` with a per-session override, never
+   from a literal — the portability rule (CLAUDE.md). It renders nothing at
+   all when there is no venue to publish rather than an empty line. */
+const now = new Date();
+const nextSession = (await getCollection('agenda', ({ data }) => !data.draft))
+  .sort((a, b) => a.data.date.getTime() - b.data.date.getTime())
+  .find(({ data }) => data.date.getTime() >= now.setHours(0, 0, 0, 0));
+
+const sessionDate = nextSession
+  ? new Intl.DateTimeFormat(locale === 'fr' ? 'fr-FR' : 'en-GB', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+    }).format(nextSession.data.date)
+  : null;
+const sessionVenue = nextSession ? (nextSession.data.venue ?? site.venue.name) : null;
+---
+
+{/* Every user-facing string the resolver needs, handed over as data — the
+    script itself contains no FR/EN, same rule as everywhere else. */}
+<section
+  class="dash"
+  aria-labelledby="dash-title"
+  data-dashboard
+  data-label-resume={t('home.dash.resume.title')}
+  data-label-progress={t('home.dash.resume.progress')}
+  data-label-play-title={t('home.dash.playShort.title')}
+  data-label-play-text={t('home.dash.playShort.text')}
+  data-href-play={localizePath('/jouer/', locale)}
+>
+  {/* Visually hidden: the club name is already in the header on this
+      breakpoint, and the direction is explicit that the dominant card is the
+      first thing on screen. The heading still exists for the a11y tree. */}
+  <h2 id="dash-title" class="sr-only">{t('home.title')}</h2>
+
+  {/* ── 1. The dominant card ──────────────────────────────────────────── */}
+  <a
+    class="dash-card dash-primary"
+    href={localizePath('/jouer/', locale)}
+    data-dash-primary
+    data-testid="dash-primary"
+  >
+    <span class="dash-primary-body">
+      <span class="dash-eyebrow" data-dash-primary-eyebrow hidden></span>
+      <span class="dash-primary-title" data-dash-primary-title>{t('home.dash.play.title')}</span>
+      <span class="dash-primary-text" data-dash-primary-text>{t('home.dash.play.text')}</span>
+    </span>
+
+    {/* Reserved height, always. See the note above. */}
+    <span class="dash-progress" data-dash-progress hidden aria-hidden="true">
+      <span class="dash-progress-track">
+        <span class="dash-progress-fill" data-dash-progress-fill></span>
+      </span>
+      <span class="dash-progress-label" data-dash-progress-label></span>
+    </span>
+
+    <span class="dash-arrow" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M5 12h13" />
+        <path d="m12.5 6 6 6-6 6" />
+      </svg>
+    </span>
+  </a>
+
+  {/* ── 2. Two side by side ───────────────────────────────────────────── */}
+  <div class="dash-pair">
+    <a
+      class="dash-card dash-tile"
+      href={localizePath('/apprendre-les-bases/', locale)}
+      data-dash-secondary
+      data-testid="dash-secondary"
+    >
+      <span class="dash-tile-motif" aria-hidden="true"></span>
+      <span class="dash-tile-title" data-dash-secondary-title>{t('home.dash.basics.title')}</span>
+      <span class="dash-tile-text" data-dash-secondary-text>{t('home.dash.basics.text')}</span>
+    </a>
+
+    <a
+      class="dash-card dash-tile"
+      href={localizePath('/exercices/', locale)}
+      data-testid="dash-practise"
+    >
+      <span class="dash-tile-motif" aria-hidden="true"></span>
+      <span class="dash-tile-title">{t('home.dash.practise.title')}</span>
+      <span class="dash-tile-text">{t('home.dash.practise.text')}</span>
+    </a>
+  </div>
+
+  {/* ── 3. One stats line ─────────────────────────────────────────────── */}
+  <p class="dash-stats" data-dash-stats>
+    <span class="dash-stat">
+      <b data-dash-solved>0</b> {t('home.dash.stats.solved')}
+    </span>
+    <span class="dash-stat">
+      <b data-dash-lessons>0</b> {t('home.dash.stats.lessons')}
+    </span>
+    {/* ⚠️ A PLACEHOLDER, AND LABELLED AS ONE. Ranks are E3 and nothing
+        computes one yet. Printing an invented rank would be the site telling
+        a student something it does not know — the same class of lie the
+        `onlyMove` rule exists to prevent. It says "soon" instead. */}
+    <span class="dash-stat dash-stat-soon">
+      {t('home.dash.stats.rank')} · {t('home.dash.stats.soon')}
+    </span>
+  </p>
+
+  {/* ── 4. Prochaine séance ───────────────────────────────────────────── */}
+  {
+    sessionDate && (
+      <a class="dash-next" href={localizePath('/agenda/', locale)} data-testid="dash-next">
+        <span class="dash-next-label">{t('home.dash.next.title')}</span>
+        <span class="dash-next-value">
+          <time datetime={nextSession!.data.date.toISOString().slice(0, 10)}>{sessionDate}</time>
+          <span aria-hidden="true"> · </span>
+          {nextSession!.data.time}
+          {sessionVenue && <span class="dash-next-venue"> · {sessionVenue}</span>}
+        </span>
+      </a>
+    )
+  }
+</section>
+
+<style>
+  /* ══ MOBILE ONLY ═══════════════════════════════════════════════════════ */
+  .dash {
+    display: grid;
+    gap: 0.75rem;
+    /* Density is assumed (§ 3): generous whitespace reads as "unfinished" at
+       390px. Tight gaps, more useful content on the first screen. */
+    padding-block-start: 0.25rem;
+  }
+
+  @media (min-width: 768px) {
+    .dash {
+      display: none;
+    }
+  }
+
+  /* ── Card craft, shared ─────────────────────────────────────────────── */
+  .dash-card {
+    position: relative;
+    display: block;
+    /* LEFT-aligned, always. Centred multi-line text is tiring on a phone. */
+    text-align: start;
+    text-decoration: none;
+    border-radius: var(--mcc-radius-app);
+    /* A real shadow, not a hairline — these are objects you press. */
+    box-shadow: var(--shadow-lift);
+    transition:
+      transform var(--motion-response) var(--ease-response),
+      box-shadow var(--motion-response) var(--ease-response);
+  }
+
+  /* E1's press, applied to CARDS and not only to buttons (§ 3). The control
+     moves toward the page and the gap beneath it closes — both together. */
+  .dash-card:active {
+    transform: translateY(var(--motion-press-y));
+    box-shadow: 0 1px 2px var(--mcc-press-shadow);
+  }
+
+  .dash-card:focus-visible {
+    outline: 2px solid var(--mcc-focus-ring);
+    outline-offset: 3px;
+  }
+
+  /* ── 1. The dominant card ───────────────────────────────────────────── */
+  .dash-primary {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 0.5rem 1rem;
+    /* ⚠️ HIERARCHY BY SIZE. This is roughly twice the height of a tile below
+       it, and it is the only coloured surface on the screen. If a second
+       element ever grows to this size, neither is primary any more. */
+    min-block-size: 9.75rem;
+    padding: 1.15rem 1.15rem 1.15rem 1.25rem;
+    background-color: var(--mcc-primary);
+    color: var(--mcc-primary-contrast);
+  }
+
+  .dash-primary-body {
+    /* ⚠️ EXPLICIT PLACEMENT, because the progress bar spans both columns.
+       With auto-placement the bar takes row 2 and the arrow falls to row 3,
+       centred under it — which is what it did until this was pinned. */
+    grid-column: 1;
+    grid-row: 1;
+    display: grid;
+    gap: 0.2rem;
+  }
+
+  .dash-eyebrow {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    opacity: 0.85;
+  }
+
+  .dash-primary-title {
+    font-family: var(--mcc-font-display);
+    font-size: 1.5rem;
+    font-weight: 600;
+    line-height: 1.15;
+    text-wrap: balance;
+  }
+
+  .dash-primary-text {
+    font-size: 0.875rem;
+    line-height: 1.45;
+    opacity: 0.9;
+  }
+
+  .dash-arrow {
+    grid-column: 2;
+    grid-row: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.9;
+  }
+
+  /* The bar. `visibility` rather than `display`, so the row keeps its height
+     and revealing it shifts nothing. */
+  .dash-progress {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    display: grid;
+    gap: 0.3rem;
+  }
+
+  .dash-progress[hidden] {
+    display: grid;
+    visibility: hidden;
+  }
+
+  .dash-progress-track {
+    display: block;
+    block-size: 0.375rem;
+    border-radius: 999px;
+    /* On the primary fill, so it is drawn from the label colour rather than
+       from a page token that would vanish here. */
+    background-color: rgb(255 255 255 / 0.25);
+    overflow: hidden;
+  }
+
+  .dash-progress-fill {
+    display: block;
+    block-size: 100%;
+    inline-size: 0%;
+    border-radius: inherit;
+    background-color: var(--mcc-primary-contrast);
+    /* A Transition (E1): a state change the reader should watch land. */
+    transition: inline-size var(--motion-transition) var(--ease-transition);
+  }
+
+  .dash-progress-label {
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+    opacity: 0.85;
+  }
+
+  /* ── 2. The two tiles ───────────────────────────────────────────────── */
+  .dash-pair {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+  }
+
+  .dash-tile {
+    display: grid;
+    align-content: start;
+    gap: 0.15rem;
+    /* Square-ish and tactile, per the direction doc. */
+    min-block-size: 6.25rem;
+    padding: 0.85rem 0.9rem;
+    background-color: var(--mcc-surface-raised);
+    border: 1px solid var(--mcc-border-subtle);
+    color: var(--mcc-text-primary);
+    overflow: hidden;
+  }
+
+  /* The board motif — a corner of a chessboard, drawn with the same
+     `repeating-conic-gradient` the real board uses, from the reader's own
+     board tokens. It follows their theme AND their board preset for free. */
+  /* ⚠️ BOTTOM-RIGHT AND FADED, NOT TOP-RIGHT AND SOLID.
+     The first version sat behind the title: a hard-edged checker block with
+     "Apprendre les bases" running across it, which is unreadable and looks
+     like a rendering fault. It now sits in the corner the text does not
+     reach, at half the opacity, with a mask so it dissolves into the card
+     instead of ending on a line.
+
+     It is drawn from `--mcc-board-*`, so it follows the reader's THEME and
+     their board preset for free — the motif on a Souiri card is the blue
+     board, on Terminal the phosphor one. */
+  .dash-tile-motif {
+    position: absolute;
+    inset-block-end: -0.5rem;
+    inset-inline-end: -0.5rem;
+    inline-size: 3.75rem;
+    block-size: 3.75rem;
+    opacity: 0.5;
+    background-image: repeating-conic-gradient(
+      var(--mcc-board-dark) 0% 25%,
+      var(--mcc-board-light) 0% 50%
+    );
+    background-size: 33.34% 33.34%;
+    -webkit-mask-image: radial-gradient(circle at 100% 100%, #000 35%, transparent 72%);
+    mask-image: radial-gradient(circle at 100% 100%, #000 35%, transparent 72%);
+    pointer-events: none;
+  }
+
+  .dash-tile-title {
+    position: relative;
+    font-family: var(--mcc-font-display);
+    font-size: 1.0625rem;
+    font-weight: 600;
+    line-height: 1.2;
+    color: var(--mcc-text-heading);
+  }
+
+  .dash-tile-text {
+    position: relative;
+    /* Keeps the sentence clear of the motif's corner even at the longest
+       translation. The motif is decoration; the words are the card. */
+    padding-inline-end: 1.75rem;
+    font-size: 0.8125rem;
+    line-height: 1.35;
+    color: var(--mcc-text-secondary);
+  }
+
+  /* ── 3. Stats ───────────────────────────────────────────────────────── */
+  .dash-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 1rem;
+    margin: 0.15rem 0 0;
+    color: var(--mcc-text-secondary);
+    font-size: 0.8125rem;
+  }
+
+  .dash-stat b {
+    color: var(--mcc-text-primary);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .dash-stat-soon {
+    opacity: 0.75;
+  }
+
+  /* ── 4. Next session ────────────────────────────────────────────────── */
+  .dash-next {
+    display: grid;
+    gap: 0.1rem;
+    padding: 0.7rem 0.85rem;
+    background-color: var(--mcc-surface-sunken);
+    border-radius: var(--mcc-radius-app);
+    color: var(--mcc-text-primary);
+    text-decoration: none;
+    font-size: 0.875rem;
+  }
+
+  .dash-next-label {
+    color: var(--mcc-text-secondary);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .dash-next-value {
+    line-height: 1.4;
+  }
+
+  .dash-next-venue {
+    color: var(--mcc-text-secondary);
+  }
+
+  .dash-next:focus-visible {
+    outline: 2px solid var(--mcc-focus-ring);
+    outline-offset: 3px;
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .dash-card,
+    .dash-progress-fill {
+      transition: none;
+    }
+
+    .dash-card:active {
+      transform: none;
+    }
+  }
+</style>

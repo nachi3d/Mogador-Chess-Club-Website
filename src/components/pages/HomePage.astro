@@ -35,6 +35,7 @@ import { localizePath } from '@i18n/paths';
 import { useTranslations } from '@i18n/ui';
 import BaseLayout from '@layouts/BaseLayout.astro';
 import HeroAmbient from '@components/motion/HeroAmbient.astro';
+import Dashboard from '@components/home/Dashboard.astro';
 
 interface Props {
   locale: Locale;
@@ -124,6 +125,18 @@ const journeyJson = JSON.stringify(journey);
   description={t('home.about.lede')}
   reveals
 >
+  {/* ⚠️ THE DASHBOARD COMES FIRST IN THE DOM, AND THAT IS DELIBERATE (M2).
+
+      Below 768px the menu screen hides everything of its own except the
+      tagline, so the reading order on a phone is: dashboard, then that same
+      sentence, then the about section. ONE tagline element, shared — the
+      alternative was a second copy of it in this file, and a sentence that
+      exists twice is a sentence that will disagree with itself.
+
+      Above 768px this is `display: none` and the menu below is EXACTLY as E5
+      left it. That is a regression guard, not a preference. */}
+  <Dashboard locale={locale} />
+
   <section class="menu-screen">
     <HeroAmbient />
 
@@ -335,6 +348,77 @@ const journeyJson = JSON.stringify(journey);
       }
       mount.removeAttribute('hidden');
       mount.setAttribute('data-resolved', 'true');
+
+      /* ── The mobile dashboard's dominant card (M2) ──────────────────────
+         Same resolved step, a second surface. The server rendered the
+         "nothing yet" branch — "Jouer une partie" — because that is what is
+         true for a first-time visitor and it works with no JavaScript at all.
+         Having found something to resume, swap it in place:
+
+           title  ← the step's own name
+           card   → that step
+           beside → "Jouer", since Play is no longer the primary thing to do
+
+         Nothing is created or removed, so nothing moves: the progress bar's
+         height was reserved by CSS from the first paint. */
+      var dash = document.querySelector('[data-dashboard]');
+      if (!dash) return;
+
+      var done = 0;
+      for (var c = 0; c < journey.length; c++) if (complete(journey[c])) done++;
+
+      function fill(selector, text) {
+        var el = dash.querySelector(selector);
+        if (el) el.textContent = text;
+      }
+
+      var primary = dash.querySelector('[data-dash-primary]');
+      if (primary) primary.setAttribute('href', step.u);
+
+      var eyebrow = dash.querySelector('[data-dash-primary-eyebrow]');
+      if (eyebrow) {
+        eyebrow.textContent = dash.getAttribute('data-label-resume') || '';
+        eyebrow.removeAttribute('hidden');
+      }
+      fill('[data-dash-primary-title]', step.t);
+      /* The explanatory line is redundant once the card names a specific
+         lesson — the bar underneath says everything else worth saying. */
+      var text = dash.querySelector('[data-dash-primary-text]');
+      if (text) text.remove();
+
+      var bar = dash.querySelector('[data-dash-progress]');
+      if (bar) {
+        var pattern = dash.getAttribute('data-label-progress') || '%s / %s';
+        fill(
+          '[data-dash-progress-label]',
+          pattern.replace('%s', String(done)).replace('%s', String(journey.length)),
+        );
+        var f = dash.querySelector('[data-dash-progress-fill]');
+        if (f) f.style.inlineSize = Math.round((done / journey.length) * 100) + '%';
+        bar.removeAttribute('hidden');
+      }
+
+      /* The secondary tile becomes Play — the action a returning student
+         wants second, once resuming is the first. */
+      var secondary = dash.querySelector('[data-dash-secondary]');
+      if (secondary) {
+        secondary.setAttribute('href', dash.getAttribute('data-href-play') || '/jouer/');
+        fill('[data-dash-secondary-title]', dash.getAttribute('data-label-play-title') || '');
+        fill('[data-dash-secondary-text]', dash.getAttribute('data-label-play-text') || '');
+      }
+
+      /* The stats line. Solved exercises is a straight count of the store;
+         lessons is how far along the journey they are. Both are real. */
+      var solved = 0;
+      for (var key in records) {
+        if (Object.prototype.hasOwnProperty.call(records, key)) {
+          var r = record(key);
+          if (r && r.solved === true) solved++;
+        }
+      }
+      fill('[data-dash-solved]', String(solved));
+      fill('[data-dash-lessons]', String(done));
+      dash.setAttribute('data-resolved', 'true');
     } catch (e) {
       /* Storage unavailable, or a hand-edited value. Five entries, no error.
          The same silent-failure contract as src/lib/progress.ts. */
@@ -571,6 +655,63 @@ const journeyJson = JSON.stringify(journey);
     color: var(--mcc-accent-text);
     text-decoration: underline;
     text-underline-offset: 0.2em;
+  }
+
+  /* ══ BELOW 768px: THE MENU IS SUPERSEDED (M1/M2) ══════════════════════
+     Direction: mcc-direction-mobile-app.md. The retro menu was designed for a
+     large screen; at 390px it is a list of links on a dark background, sitting
+     under a header that already repeats every one of them.
+
+     ⚠️ THE SECTION IS NOT HIDDEN — ITS CONTENTS ARE, EXCEPT THE TAGLINE.
+     That one sentence is shared with the dashboard, which renders above this
+     in the DOM, so the phone reading order is: dominant card, tiles, stats,
+     next session, THEN the sentence an adult reads. Hiding the whole section
+     would have meant a second copy of that sentence in this file, and a
+     sentence that exists twice is one that will disagree with itself.
+
+     ⚠️ THE `<h1>` GOES SR-ONLY, NOT `display: none`. The club name is already
+     visible in the reduced header on this breakpoint, so showing it again
+     would be the redundancy M1 exists to remove — but `display: none` would
+     take the page's only `<h1>` out of the accessibility tree and leave the
+     document with no top-level heading at all.
+
+     Everything above 768px is untouched. */
+  @media (max-width: 767.98px) {
+    .menu-screen {
+      display: block;
+      min-block-size: 0;
+      padding-block: 0;
+      text-align: start;
+    }
+
+    .menu-content {
+      max-inline-size: none;
+    }
+
+    .menu-screen :global(.ambient),
+    .eyebrow,
+    .main-menu,
+    .menu-more {
+      display: none;
+    }
+
+    .menu-screen h1 {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    .menu-tagline {
+      margin: 1rem 0 0;
+      max-inline-size: none;
+      font-size: 0.9375rem;
+    }
   }
 
   /* ── Below the fold ───────────────────────────────────────────────── */

@@ -121,6 +121,15 @@
 
   /* ---------- Radii & elevation ---------- */
   --radius-card: 3px; /* club stationery, not a SaaS dashboard */
+  /* ---------- The mobile app surfaces (M2) ----------
+     A 3px radius is right for a printed club card and wrong for a tap target
+     that fills the width of a phone — the direction doc asks for generous
+     corners and a real shadow, and 3px reads as a rectangle with a chipped
+     edge. This is a SEPARATE token rather than a change to the one above,
+     because the desktop stationery look is deliberate and unchanged.
+     Themed: Terminal squares it off, because rounded corners on a phosphor
+     terminal are the one place they would look wrong. */
+  --radius-app: 14px;
   --radius-pill: 999px;
 
   --shadow-lift: 0 1px 2px rgb(20 18 14 / 0.06), 0 10px 28px -12px rgb(20 18 14 / 0.18);
@@ -256,6 +265,21 @@
   --mcc-section-gap: 4rem;
   /* The board is the one element that must never be cramped or overscaled. */
   --mcc-board-max: 34rem;
+
+  /* ---------- The mobile bottom bar (M1) ----------
+     Its row height. Declared here because TWO places need to agree on it: the
+     bar itself, and the bottom padding every page reserves so the bar does not
+     cover its last line. A literal in both is a literal that drifts.
+
+     ⚠️ The iOS safe-area inset is NOT baked in — it is added at each use with
+     `env(safe-area-inset-bottom)`, because `env()` inside a custom property
+     resolves at declaration time and would be 0 everywhere else. */
+  --mcc-bottom-nav: 3.25rem;
+
+  /* The app-card radius, as a themed alias. Themes override it; components
+     read this rather than `--radius-app` directly, for the same reason every
+     other themed value goes through an `--mcc-*`. */
+  --mcc-radius-app: var(--radius-app);
 }
 
 /* ============================================================

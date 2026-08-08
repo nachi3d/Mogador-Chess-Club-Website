@@ -102,8 +102,24 @@ test.describe('the main menu', () => {
     });
   }
 
-  test('the whole menu fits one screen on a phone, with 44px targets', async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
+  /**
+   * ⚠️ 900×840, NOT 390×844 — CHANGED BY M1/M2, AND ON PURPOSE.
+   *
+   * This test was written for a phone, because that is where the E5 menu had
+   * to fit one screen. Below 768px the menu no longer renders at all: the
+   * dashboard replaces it (mcc-direction-mobile-app.md, which supersedes E5 on
+   * mobile only). Asserting the menu's phone layout now would be asserting
+   * something the site deliberately does not do.
+   *
+   * The RULE it protects is still live, so it is checked at the narrowest
+   * viewport the menu actually appears at — one screen, no scrolling, 44px
+   * targets. Its mobile counterpart moved to `mobile-app.spec.ts`, where the
+   * dashboard's primary action is asserted to be above the fold at 390px.
+   */
+  test('the whole menu fits one screen at its narrowest viewport, with 44px targets', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 900, height: 840 });
     // Seeded so the SIXTH entry is present — the tightest case, and the one a
     // returning reader actually sees.
     await page.goto('/');
@@ -329,8 +345,21 @@ test.describe('the page below the menu', () => {
     }
   });
 
-  test('the tagline an adult reads is above the fold', async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
+  /**
+   * ⚠️ THE VIEWPORT CHANGED, AND SO DID WHAT "ABOVE THE FOLD" MEANS HERE.
+   *
+   * E5 put this sentence under the menu and above the fold at 390px, so an
+   * adult would not have to scroll for it. M2 moves it BELOW the dominant card
+   * on mobile — deliberately: "a first-time visitor finds it in one scroll; a
+   * returning student doesn't reread it every time"
+   * (mcc-direction-mobile-app.md § 2).
+   *
+   * So on a phone the guarantee is now "one scroll", asserted in
+   * `mobile-app.spec.ts`. Here it keeps its original meaning at the viewport
+   * where the menu still lives.
+   */
+  test('the tagline an adult reads is above the fold, where the menu renders', async ({ page }) => {
+    await page.setViewportSize({ width: 900, height: 840 });
     await page.goto('/');
 
     const tagline = page.locator('.menu-tagline');
@@ -339,7 +368,7 @@ test.describe('the page below the menu', () => {
     expect(
       box.y + box.height,
       'the descriptive sentence is below the fold — an adult must not have to scroll for it',
-    ).toBeLessThanOrEqual(844);
+    ).toBeLessThanOrEqual(840);
   });
 });
 
