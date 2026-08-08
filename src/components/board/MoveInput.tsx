@@ -56,14 +56,33 @@ export default function MoveInput(props: MoveInputProps) {
   const firstRender = useRef(true);
 
   /* Focus follows the turn — but never on mount. Stealing focus on page load
-     would drag a reader past the board and the hint they had not read yet. */
+     would drag a reader past the board and the hint they had not read yet.
+
+     ⚠️ `focusSignal` IS THE ONLY DEPENDENCY, AND `disabled` MUST NOT BE ONE.
+
+     It used to be, and that quietly defeated the whole "never on mount" rule.
+     `disabled` starts true — the exercise board is view-only until its
+     lazily-imported chess.js chunk lands — and flips to false when the chunk
+     arrives, a few hundred milliseconds after load. That flip re-ran this
+     effect with `firstRender` already spent, so the field grabbed focus on
+     its own, scrolled the reader down to it, and (on a lesson page, where a
+     replayer sits above the exercise) swallowed the replayer's arrow keys,
+     because ReplayView's document handler ignores keys aimed at an INPUT.
+
+     It presented as a flaky spec rather than as a bug: whether the chunk won
+     the race against the reader's first keypress depended on machine load,
+     so it failed in full-suite runs and passed every time in isolation.
+
+     `disabled` is still READ here — a signal arriving while the field is
+     disabled must not focus it — it simply must not TRIGGER this. */
   useEffect(() => {
     if (firstRender.current) {
       firstRender.current = false;
       return;
     }
     if (!disabled) inputRef.current?.focus();
-  }, [focusSignal, disabled]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusSignal]);
 
   const submit = (event: Event) => {
     event.preventDefault();

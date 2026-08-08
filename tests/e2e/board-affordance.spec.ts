@@ -123,6 +123,26 @@ test.describe('the demonstration is easy to start', () => {
   /** The keyboard path must be unchanged by the new button. */
   test('the arrow keys still drive the replayer', async ({ page }) => {
     await readyBoards(page, TWO_BOARDS);
+    /* Wait for the HANDLER, not for the board. `<cg-board>` is created by
+       BoardSurface, a CHILD of ReplayView, so its mount effect runs first and
+       proves nothing about the document key listener. `data-keys` is set in
+       the same effect that binds it. */
+    await page.locator('[data-testid="replayer"][data-keys="bound"]').first().waitFor();
+
+    /* ⚠️ AND WAIT FOR THE EXERCISE BELOW TO SETTLE, which is the part that
+       actually made this fail. This lesson carries a replayer AND an exercise;
+       the exercise's move-input used to steal focus the moment its lazy chess.js
+       chunk landed, and a key aimed at an INPUT is ignored by the replayer's
+       handler by design. That was a real bug (fixed in MoveInput.tsx), and it
+       surfaced here as a spec that failed only under full-suite load.
+
+       Waiting on `data-ready` keeps the test honest about ordering rather than
+       relying on the exercise being slow. */
+    await expect(page.locator('.mcc-exercise').first()).toHaveAttribute('data-ready', 'true', {
+      timeout: 20_000,
+    });
+    await expect(page.locator('input:focus')).toHaveCount(0);
+
     /* No click first: the replayer's key handler is bound to the document, and
        clicking into the page can put focus somewhere that swallows the key. */
     await page.keyboard.press('ArrowRight');

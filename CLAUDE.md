@@ -168,6 +168,10 @@ Every session that reaches a merge updates all three, in the same commit as the 
 19. **`import.meta.env.NAME`, never `import.meta.env['NAME']`.** Bracket access ships the whole env object, anon key included.
 20. **The home menu's labels ARE the nav's labels**, from the same `nav.*` keys. Never a second string for the same destination.
 21. **The home menu works with no JavaScript**, and fits one screen on a phone. Both are tested.
+22. **Every theme clears AA in BOTH its modes, against every board preset.** 275 assertions, and a failing combination is fixed or dropped — never shipped with an exception.
+23. **The body typeface never changes with the theme.** Headings do; body does not. Tested by comparing the computed family across all four.
+24. **A theme loads only its own heading font and its own piece set.** Asserted against the network log, not against appearance.
+25. **Every piece set is licence-checked individually and credited on `/mentions-legales/`.** For three of the four it is a condition of use, not a courtesy.
 
 ---
 
@@ -1139,17 +1143,335 @@ Level badges follow the same logic: the three level colours are mid-tones, used 
 
 ---
 
-## Theming — three tiers, one source of truth each
+## Themes — FOUR of them, and light/dark lives INSIDE each one (E6+E7)
+
+Direction: `docs/direction/mcc-direction-esthetique-addendum.md` §§ E6, E7.
+**Bois, Marbre, Souiri, Terminal.** A theme sets the surfaces, the heading
+typeface, the default board preset and the piece set.
+
+### The hierarchy, and why flattening it is the mistake
+
+| Level | Control | Where |
+|---|---|---|
+| 1 | **Thème** — four moods, four live previews | top of `/parametres/` |
+| 2 | **Plateau** — the six presets | inside "Personnaliser" |
+| 3 | **Couleurs libres** — the reader's own two squares | same disclosure |
+
+⚠️ **Never present 4 themes × 6 presets as twenty-four equivalent choices.**
+Each theme names its own board; a reader who wants a different one asks for it.
+Levels 2 and 3 share **one** disclosure — two collapsed panels side by side is
+two decisions again, which is the thing the hierarchy exists to prevent.
+
+**Light/dark is not a fourth axis.** Every theme declares both palettes ("Bois
+de jour", "Bois de nuit") and the existing toggle now switches within the
+active theme. Eight combinations ship; all eight are audited.
+
+### ⚠️ BOIS IS THE BASE, AND ITS VALUES STAY IN `tokens.css`
+
+The palette this site has always had *is* Bois. It did not move into
+`site-themes.css` with the other three, for two reasons about failure modes:
+
+- a reader with no stored preference, **or with no JavaScript**, gets a
+  complete theme from the base tokens alone — no class, no cascade, no gap;
+- the other three override it, so anything a theme forgets to restate falls
+  back to something coherent rather than to nothing.
+
+Consequence: **a token added to `:root` is a token every other theme may need
+to override.** The auditor catches the omission; nothing else will.
+
+In practice each theme restates all 34 surface/text/border/accent/level/
+selection/ambient tokens, in both modes. Four are deliberately left inherited
+everywhere — `--mcc-board-last-move`, `-selected`, `-check`, `-hint` — because
+they are alpha washes chosen to read over **any** preset's squares, which is a
+property of the overlay rather than of the theme. The square colours themselves
+are absent for the opposite reason: they belong to the `.board-<id>` preset,
+which is level 2 and outranks the theme.
+
+### ⚠️ The cascade is `:is(:root, .theme-preview)`, and the `:not()` is load-bearing
+
+Writing S for `:is(:root, .theme-preview)`:
+
+```css
+S.theme-X:not([data-theme='dark'])   /* X, light  (0,3,0) */
+S.theme-X[data-theme='dark']         /* X, dark   (0,3,0) */
+S.theme-X                            /* X, either (0,2,0) */
+```
+
+`site-themes.css` is imported **after** `tokens.css`, so a bare
+`:root.theme-marbre` (0,2,0) would tie with `:root[data-theme='dark']` (0,2,0)
+and win on source order — painting Marbre's **light** values over Bois's dark
+ones. A dark-mode reader on Marbre would get white text on a white page. The
+`:not()` lifts both mode blocks to (0,3,0) and makes them mutually exclusive,
+so neither can be decided by source order.
+
+`:is(:root, .theme-preview)` rather than `:root` alone is what lets
+`/parametres/` paint a theme it is not wearing: a tile is
+`<div class="theme-preview theme-souiri">` and gets the real tokens. `:is()`
+takes the specificity of its most specific argument, and both arguments are
+(0,1,0), so the arithmetic above is unchanged — which is why it is `:is()` and
+not a selector list. The base dark block never competes on a preview element at
+all, because `:root[data-theme='dark']` cannot match a div.
+
+### ⚠️ `boardTheme` IS OPTIONAL, AND ABSENCE IS A REAL STATE
+
+Absent ⇒ **follow the theme**. Present ⇒ the reader **pinned** a preset.
+
+**A pin survives a theme change.** Decided this session, and it is the answer
+to "does deviating to another preset survive?" — yes. Level 2 exists for a
+player with a board preference *independent of the site's mood*; resetting it
+whenever they try a theme would destroy the only preference that level is for,
+silently. `followThemeBoard()` and the "Suivre le thème" option are the escape
+hatch, named and offered first in the list.
+
+A non-optional field plus a `pinned` boolean would let the two contradict each
+other. Absence carries the meaning instead.
+
+**The v1 migration is a no-op by construction.** The key stays `mcc:theme:v1`
+because the *shape* is unchanged — a field was added, a field became optional —
+so nothing stored under v1 is reinterpreted. Every pre-E6 record has a
+`boardTheme`, so every returning reader is pinned to exactly the board they
+last saw, on Bois, which is the palette that record was written under.
+
+⚠️ That pins readers who never actively chose a preset (everyone who touched
+the page at all had `classique` persisted by the old non-optional default).
+Accepted deliberately: the alternative is changing what a returning reader sees
+without being asked, and "no loss" beats "probably what they'd have wanted".
+
+### Piece sets — one stylesheet each, fetched on board pages only
+
+`vendor/pieces/<set>/*.svg` → `scripts/build-pieces.mjs` → `public/pieces/<set>.css`.
+
+⚠️ **`chessground.cburnett.css` is no longer imported by `BoardSurface.tsx`.**
+Four sets in the island chunk measured ~110 KB raw / ~32 KB brotli, of which a
+reader uses one. Split, they cost 2.3–12 KB brotli each. `BoardSurface` is
+still the only file importing Chessground; the pieces simply stopped being
+Chessground's business and became the theme's.
+
+- The head script injects `<link rel="stylesheet" href="/pieces/<set>.css">`
+  **only when `<html data-board>` is present**, which BaseLayout's `board` prop
+  sets. Appended during head parsing, so it blocks render exactly as a static
+  stylesheet does and the pieces paint *with* the board. Injecting from the
+  island's mount effect would show empty squares first — worse than a theme
+  flash, because it reads as the position having failed to load.
+- ⚠️ **A board page that forgets `board` renders squares with no pieces, and
+  nothing errors.** `themes.spec.ts` walks every board route and asserts it.
+  `LessonPage` computes it (`pairs.some(p => p.board)`) because a lesson may be
+  pure prose.
+- ⚠️ **Percent-encoded data URIs, not base64.** Base64 inflates by a third AND
+  destroys the repetition brotli feeds on, since twelve pieces share most of
+  their markup. Measured on merida: 46.0 KB raw / 13.6 KB brotli base64 against
+  36.7 KB / 6.7 KB percent-encoded.
+- `/pieces/preview.css` is four knights, for the settings tiles. Loading four
+  full sets there would be ~32 KB brotli to draw four glyphs.
+
+### ⚠️ MOST LICHESS PIECE SETS ARE UNUSABLE HERE — check before adding one
+
+The repo is **GPL-3.0-or-later**, which forbids added restrictions. Verified
+against `lila/COPYING.md` and, where linked, the upstream licence:
+
+| Shipped | Theme | Author | Licence |
+|---|---|---|---|
+| `merida` | Bois | Armando Hernandez Marroquin | GPLv2+ |
+| `kiwen-suwi` | Marbre | neverRare | CC BY 4.0 |
+| `chessnut` | Souiri | Alexis Luengas | Apache-2.0 |
+| `cburnett` | Terminal | Colin M.L. Burnett | GPLv2+ (also CC BY-SA 3.0 on Wikimedia) |
+
+**Rejected:** every `CC BY-NC-SA` set (the majority), "freeware" (`chess7`,
+`companion`, `leipzig`), unlicensed (`reillycraig`, `riohacha`), no-derivatives
+(`shahi-ivory-brown`), and **`alpha`** — named in the E6 brief, but "free for
+personal non commercial use". Also declined: the **AGPLv3+** sets (`letter`,
+`pirouetti`, `pixel`). Not a conflict, but §13 adds an obligation the repo does
+not carry, and accepting it is a project-level decision. `pixel` would have
+suited Terminal; it is left on the table rather than quietly adopted.
+
+Apache-2.0 is compatible with GPLv3 but **not** GPLv2 — which is why the repo
+being GPL-3.0-**or-later** matters here rather than being a formality.
+
+⚠️ `mono` ships **six** SVGs (one shape per role, coloured in CSS), not twelve.
+`build-pieces.mjs` fails loudly on that shape rather than emitting half a set.
+
+Every set needs its own entry in `site.legal.attributions`. For three of the
+four, attribution is a **condition of use**, not a courtesy.
+
+### ⚠️ A PIECE SET IS ONLY LEGIBLE ON SOME BOARDS — and it is now audited
+
+The first draft of Terminal shipped `kiwen-suwi` on `phosphore` and **lost half
+the position**. That set is MONOCHROME — both sides are one flat `#262626`,
+distinguished by shape — so against phosphore's `#082a16` dark square it
+measures **1.03:1**. Nothing errored, no declared colour was wrong, and every
+contrast assertion passed. It was found by looking at a screenshot.
+
+`check-contrast.mjs` now audits **each theme's piece set against the board that
+theme uses**. The inks are declared in `src/config/piece-sets.ts` (`body` +
+`outline`, read off the SVGs by hand) — a copy, deliberately, because parsing
+arbitrary SVG fills fails OPEN: an auditor that quietly finds no colours reports
+success.
+
+⚠️ **The rule is "at least one ink clears 3:1", not "the piece contrasts".** A
+white piece on a light square is always low-contrast — that is true of every
+chess set ever made — and it is the OUTLINE that separates it. A monochrome set
+has one ink and no second chance, which is precisely what makes it unsafe on a
+dark board and fine on a pale one.
+
+Consequence: **`cburnett` is not interchangeable on Terminal.** It is the only
+shipped set whose black pieces carry a light outline (`#ececec`, 13.14:1 on that
+square). Verified to fail with the message *"MONOCHROME set, no outline to fall
+back on"* if the old assignment is restored.
+
+### ⚠️ `background-size` CYCLES — it broke Souiri's board into a 2×2 checker
+
+The theme texture was stacked as a second `background-image` layer on
+`cg-board`, with `background-size: auto, 25% 25%`. That is correct for a
+one-gradient texture and silently wrong for a two-gradient one: with three
+layers and two sizes the list cycles, the checker lands on `auto`, and the
+board renders as **one giant 2×2 checker** instead of 8×8.
+
+Souiri's texture is two gradients. The real board was broken, not only the
+preview — and it survived a screenshot review, because a giant checker still
+reads as "a chessboard" until you count the squares.
+
+The texture is now a `cg-board::before` layer. That decouples it from the
+checker entirely (a theme may use as many gradients as it likes) and paints
+below the squares and pieces, so the wash never tints a piece.
+
+**The general lesson: never rely on positional `background-*` lists when one of
+the layers comes from a variable a theme controls.** The count is not yours.
+
+### The sixth board preset
+
+`phosphore` — phosphor green on black — exists because Terminal had no honest
+default among the five. Both squares are dark, so it carries the tightest
+separation on the site (3.81:1 against a 3.0 floor). **Do not darken the light
+square to make it "more terminal".**
+
+### ⚠️ The contrast matrix is now 275 assertions, and that growth is the point
+
+4 themes × 2 modes × 27 pairs, plus 6 presets × (separation + 8 theme pages).
+Up from 67. Seven of the eight theme/mode combinations are ones nobody on this
+project uses day to day, and an eyeball does not scale to that.
+
+- The auditor **discovers themes by parsing the CSS**, so adding one audits it.
+- It resolves each theme through the **same merge order as the cascade**
+  (`:root` → base dark → theme common → theme mode). Getting that order wrong
+  would prove a palette the site never paints, which is worse than not auditing.
+- The board-edge check runs each preset against **all eight pages**: a preset is
+  independent of the theme, so a pinned `glace` must still read on Terminal.
+- Default output is one line per combination; `--verbose` prints the table.
+- **A failing combination is fixed or dropped, never excepted.** Terminal's
+  light page moved from `#e8eee8` to `#f1f6f1` because `glace` measured a 3.08
+  edge against it — passing, and the tightest ratio on the site. The fix was to
+  remove the outlier, not to grant it one.
+
+### `.text-brass` now resolves `--mcc-accent-text`
+
+It used to name `brass-700`, with a second rule flipping to `brass-300` in
+dark. Two hardcoded steps become **eight** with four themes, and seven would be
+wrong the day a page colour moved. `--mcc-accent-text` already means "the
+accent, at whichever step clears AA against *this* surface", every theme
+declares it, and MUST_PASS proves it in all eight. The unlayered-beats-layered
+mechanism is unchanged and still the point.
+
+`::selection` and the level fills became themed tokens for the same reason — a
+brass selection was a visible foreign object on a phosphor page.
+
+---
+
+## Typography follows the theme — HEADINGS ONLY (E7)
+
+| Theme | Heading face |
+|---|---|
+| Bois | Fraunces (warm old-style serif) |
+| Marbre | Playfair Display (high-contrast classical) |
+| Souiri | Outfit (open, geometric — echoes zellige construction) |
+| Terminal | JetBrains Mono (readable, not a pixel face) |
+
+⚠️ **THE BODY FACE NEVER CHANGES.** That is the E7 safety rule and it is
+tested: a spec collects the computed body family in all four themes and asserts
+there is exactly one. Rhythm may vary; family may not. A beginner learning the
+en-passant rule must not have to fight the page.
+
+### ⚠️ A theme loads only its own heading font — and the preload is the trap
+
+Declaring four `@font-face` families costs nothing: a browser fetches a font
+file only when something rendered actually uses that family, and each theme
+sets `--mcc-font-display` to one.
+
+**A `<link rel="preload">` fetches unconditionally** — that is what preload
+means. So the heading preload is **injected by the head script for the active
+theme**. The static Fraunces preload that used to sit in `BaseLayout` would now
+make three themes out of four download two faces and use one. Inter stays a
+static preload: every theme uses it.
+
+⚠️ `--mcc-font-display`, never `--font-display`. The raw `--font-*` entries are
+the palette of faces and do not follow the theme — same trap as a component
+reading `--color-wood-600` and staying light-mode-only.
+
+Upstream fontsource filenames are the **package** name
+(`playfair-display-latin-…`); we serve short names (`/fonts/playfair-latin-…`).
+`build-fonts.mjs` derives the source stem from `pkg` so a rename fails loudly at
+generation time instead of leaving a stale literal.
+
+### Reading craft — `src/styles/typography.css`
+
+65ch measure, 1.7 leading, subheads with more space above than below, a drop cap
+on the **first** prose chunk only, small caps for mentions, French guillemets
+with U+202F, and notation set as a badge.
+
+- The drop cap is `::first-letter` on real text — a screen reader reads the word
+  normally. **Never split the letter into its own element**: that turns "Une
+  pièce" into "U" + "ne pièce" for anyone listening. It disappears below 26rem,
+  where it would sit beside two words.
+- `.prose` rules moved **out of `LessonPage`'s scoped `<style>`**. Astro scoped
+  rules carry `[data-astro-cid-…]` and beat any global rule of the same class
+  specificity, so shared styles could only lose to them. `.prose` is used by the
+  privacy notice too; there is one definition now.
+- ⚠️ **Old-style figures are declared and currently INERT.** Inter ships no
+  `onum`. Kept because it is harmless, correct the moment a face that has them
+  is used, and documents intent. A spec **reports** whether it took effect
+  (rather than asserting) so this note cannot quietly become false.
+
+### ⚠️ `--font-mono` HAS NEVER EXISTED — and it silently killed lesson notation
+
+`LessonPage`'s `<code>` rule read `var(--font-mono)`. An unknown custom property
+invalidates the whole `font-family` declaration at computed-value time, so
+**every inline notation in every lesson rendered in Inter**, from the commit
+that introduced lessons until this session. No warning, no error.
+
+Third occurrence of this exact class (`--mcc-border`, `--font-mono`). The token
+is `--font-notation`. The spec asserts the **resolved** family, never that a
+rule exists — asserting the rule would have passed throughout the bug.
+
+---
+
+## ⚠️ An `is:inline` script ships VERBATIM, comments and all
+
+Astro does not process `is:inline` — that is the whole point of it. Written the
+way the rest of this codebase is commented, the theme head script measured
+**8.4 KB per page across 84 documents**, before the first paint it is blocking.
+
+The rationale now lives in **BaseLayout's frontmatter**, which is compiled away;
+the script keeps short pointers back to it. 8.4 KB → 5.7 KB, and 251 KiB off the
+precache. Anything added to that script follows the same rule.
+
+The *data* it needs is not duplicated at all: `MCC_THEMES` is serialised in from
+`@config/site-themes` by `define:vars`, so which board and which pieces each
+theme defaults to cannot drift even in principle. **Only the logic is
+duplicated, and only because it must be.**
+
+---
+
+## Theming — the layers, one source of truth each
 
 `/parametres/` (+ `/en/parametres/`). Everything is device-local, in `localStorage`, under the same rules as progress.
 
-| Tier | What | Where the values live |
+| Layer | What | Where the values live |
 |---|---|---|
-| 1 | Light / dark / system | `:root[data-theme='dark']` in `tokens.css` |
-| 2 | Five board presets | `.board-<id>` in `board-themes.css` |
+| 0 | **Four site themes** (E6) | `.theme-<id>` in `site-themes.css`; Bois is the base in `tokens.css` |
+| 1 | Light / dark / system, **within** the active theme | `[data-theme='dark']` blocks in `tokens.css` and `site-themes.css` |
+| 2 | Six board presets | `.board-<id>` in `board-themes.css` |
 | 3 | The reader's own two square colours | inline properties on `<html>` |
 
-Each layer overrides the one above it by ordinary cascade — class beats `:root`, inline beats class. There is no specificity fight and no `!important`.
+Each layer overrides the one above it by ordinary cascade — theme class beats `:root`, board class beats the theme's board defaults, inline beats class. There is no `!important` anywhere, but layer 0 **does** need the specificity arithmetic set out in the E6 section above; it is the one place where a tie would be decided by source order.
 
 ### `src/lib/theme.ts` is the single migration point
 
@@ -1644,6 +1966,7 @@ Several scripts produce committed artefacts. **None of them run as part of `npm 
 |---|---|---|
 | `scripts/build-icons.mjs` | `public/icons/*` | the brand mark changes |
 | `scripts/build-fonts.mjs` | `public/fonts/*`, `src/styles/fonts.css` | the families or subset list change |
+| `scripts/build-pieces.mjs` | `public/pieces/*.css` | a piece set is added or re-vendored |
 | `scripts/build-engine.mjs` | `public/engine/*` (3.6 MB) | the Stockfish version changes |
 | `scripts/build-sw.mjs` | `dist/sw.js` | **automatic** — part of `npm run build` |
 
@@ -1835,6 +2158,30 @@ If a full-matrix run reports failures confined to `auth.spec.ts` on one project,
 re-run that project with `--workers=1` before touching anything. As always: a
 genuine failure is deterministic and fails serially too.
 
+### ⚠️ A `disabled` flag in an effect's deps can defeat a "never on mount" rule
+
+`MoveInput` focuses the field when the turn comes back to the reader, and
+**deliberately never on mount** — grabbing focus on load drags a reader past
+the board and the hint they had not read yet.
+
+`disabled` was in that effect's dependency array. It starts `true` (the
+exercise board is view-only until its lazily-imported chess.js chunk lands) and
+flips to `false` a few hundred milliseconds later, which re-ran the effect with
+the `firstRender` guard already spent. The field focused itself anyway.
+
+On a lesson page with a replayer above an exercise it also killed the
+replayer's arrow keys, because `ReplayView`'s document handler ignores keys
+aimed at an `INPUT`.
+
+**The general shape: a guard that fires once is defeated by any dependency that
+changes later.** If an effect must run only in response to X, X must be its
+only dependency — other values may be *read*, they must not *trigger*.
+
+It presented as a flaky spec for months rather than as a bug, because whether
+the chunk won the race against the reader's first keypress depended on machine
+load. **A spec that fails only in full-suite runs is not automatically the
+documented browser flake** — this one was the application.
+
 ### ⚠️ Never assert a short-lived class with a MutationObserver — use rAF
 
 The correct-move pulse lasts one Transition (300ms) and is then removed, so a
@@ -1850,6 +2197,14 @@ and was not: it was a racy test.
 
 Sample from a `requestAnimationFrame` loop started before the action instead.
 That is ~18 looks inside one Transition and cannot be batched past the window.
+
+⚠️ **rAF alone is not enough on WebKit under load**, where it is starved and the
+loop simply does not run often enough. The pulse spec now runs the rAF loop AND
+a `MutationObserver` that reads its **records** — `record.addedNodes` and
+`record.target` describe the DOM as it was when the mutation happened, however
+late the callback fires. That is the distinction the rule above is really about:
+re-querying the live DOM is what fails, not the observer itself. The two
+samplers have opposite blind spots, so together they close the window.
 The tell that you have this bug rather than a browser one: the failure is
 `length` being 0 on a collection that should be non-empty, and it moves between
 projects rather than being deterministic on one.
@@ -1911,6 +2266,14 @@ Every play-mode test was written with `typeMove` because typing is simpler than 
 - **Opening `/jouer/` fetches neither `stockfish.js` nor `stockfish.wasm`**; pressing start fetches both — asserted against the network log
 - The precache manifest contains no engine, and a runtime rule caches it instead
 - The engine actually answers: a game as black at Débutant gets an opening move, and resigning ends it
+- **Every theme brings its whole kit** — palette, board preset, piece set and heading face — and the **body face is identical in all four**
+- **A pinned board preset survives a theme change**; "Suivre le thème" un-pins it. Both branches have a spec
+- **A pre-E6 stored record leaves the reader on exactly the board they had**
+- A board page fetches **one** piece stylesheet, its own theme's; a boardless page fetches **none** — asserted against the network log
+- **Exactly one heading font is preloaded**, and it is the active theme's
+- The theme class is on `<html>` **before `<body>` exists**, alongside `data-theme`
+- axe on `/parametres/` in **all four themes × both modes**
+- Lesson notation resolves to a **monospace** family — asserting the rule rather than the resolved value would have passed throughout the `--font-mono` bug
 
 ### Driving the board from a spec
 
@@ -1966,8 +2329,14 @@ It is a **living document**: keep it in step with the site, in the same commit a
 - **The engine-backed validator that finally lets `onlyMove: false` accept a winning alternative.** The engine is now here; this is the remaining half of the exercise-validation rule.
 
 **Theming** (Session 5)
-- ✅ Dark mode, five board presets, custom board colours, `/parametres/`
+- ✅ Dark mode, board presets, custom board colours, `/parametres/`
 - ✅ The contrast audit parses the real CSS and covers both palettes
+
+**Themes and typography** (E6 + E7)
+- ✅ Four site themes (Bois, Marbre, Souiri, Terminal), each with a full light and dark palette
+- ✅ Four licence-checked piece sets, fetched per theme on board pages only
+- ✅ Heading typeface per theme; the body face never changes
+- ✅ The contrast audit covers 4 themes × 2 modes × 6 presets — 275 assertions
 
 ### Phase 3 — Growth
 - Online play via room codes + Durable Objects (v2)

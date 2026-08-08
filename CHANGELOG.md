@@ -11,6 +11,145 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### E6 + E7 — four complete themes, and typography that follows them
+
+Direction: `docs/direction/mcc-direction-esthetique-addendum.md` §§ E6, E7.
+Combined into one session deliberately: both touch the same tokens, and split
+they would have done the same work twice.
+
+**Bois**, **Marbre**, **Souiri** and **Terminal**. A theme sets the background,
+the surfaces, the heading typeface, the default board preset and the piece set
+— one decision, four coherent moods.
+
+#### Added
+
+- **Four site themes**, each with a full light AND dark palette. Light/dark
+  lives *inside* a theme ("Bois de jour", "Bois de nuit") rather than as a
+  second axis, so the existing toggle now switches within the active theme.
+  All eight combinations ship and all eight are audited.
+- **`/parametres/` restructured into three levels** of decreasing prominence:
+  Thème (four live previews) → Apparence (light/dark) → **Personnaliser**, one
+  collapsed disclosure holding the board presets *and* the reader's own
+  colours. Twenty-four equivalent swatches is not more choice; it is the same
+  choice made unusable.
+- **Theme previews painted by the themes' own rules.** Each tile is
+  `.theme-preview .theme-<id>`, and `site-themes.css` scopes every block to
+  `:is(:root, .theme-preview)` — so a tile shows the real tokens. There is no
+  second copy of any colour, and a preview that looks wrong means the *theme*
+  is wrong. Same trick the preset swatches already used.
+- **Four piece sets**, one per theme: merida (Bois), kiwen-suwi (Marbre),
+  chessnut (Souiri), cburnett (Terminal). Vendored under `vendor/pieces/`
+  with provenance and licences recorded, and credited on `/mentions-legales/`.
+- **`check-contrast.mjs` audits each theme's piece set against the board that
+  theme uses.** The first draft of Terminal paired a monochrome set with the
+  near-black phosphor board and **lost half the position** — 1.03:1, no error,
+  every existing assertion green, found by looking at a screenshot. The rule is
+  "at least one of the piece's two inks clears 3:1", because a white piece on a
+  light square is always low-contrast and it is the outline that separates it.
+  Verified to fail on the old pairing.
+- **A sixth board preset, `phosphore`** — phosphor green on black. Terminal had
+  no honest default among the five, and a cream board inside a terminal is the
+  single thing that would have made that theme read as a background swap.
+- **Three heading typefaces** (Playfair Display, Outfit, JetBrains Mono)
+  alongside Fraunces, self-hosted and subset by the existing script. **A theme
+  loads only its own.**
+- **Reading craft**: a 65-character measure, generous leading, subheads that
+  breathe, a drop cap on the first paragraph of a lesson, small caps for
+  mentions, French guillemets with the narrow no-break space, and chess
+  notation set as a small badge — fixed pitch, light ground, a hairline.
+- **CSS-generated textures** per theme: wood grain, marble veining, a zellige
+  lattice, terminal scanlines. Gradients, never images — no request, nothing to
+  precache, and they scale to any viewport for free.
+- `tests/e2e/themes.spec.ts` — 51 specs covering the themes, the pin rule, the
+  migration, the no-flash path, what is actually fetched, and the E7 craft.
+
+#### Changed
+
+- **`boardTheme` is now optional, and absence is a real state.** Absent means
+  "follow the theme"; present means the reader **pinned** a preset — and a pin
+  **survives a theme change**. Level 2 exists precisely for a player with a
+  board preference independent of the site's mood, so a theme change silently
+  destroying it would destroy the only preference that level is for. "Suivre le
+  thème" is the escape hatch, named and offered first.
+- **The v1 migration is lossless by construction.** The key is unchanged
+  (`mcc:theme:v1`) because the shape is unchanged: a field was added and a
+  field became optional. Every pre-E6 record carries a `boardTheme`, so every
+  returning reader is pinned to exactly the board they last saw, on the Bois
+  palette that record was written under.
+- **`check-contrast.mjs` audits the whole matrix**: 4 themes × 2 modes × 6
+  presets, **275 assertions, up from 67**. It resolves each theme through the
+  same cascade the browser does. Default output is now one line per
+  combination; `--verbose` prints the full table.
+- **`.text-brass` resolves `--mcc-accent-text`** instead of naming a scale step.
+  Two hardcoded steps became eight the moment there were four themes; the
+  semantic token already means "the accent, at whichever step clears AA against
+  *this* surface", so the rule is one line and follows themes not yet written.
+- `::selection` and the level-badge fills are themed tokens rather than raw
+  scale steps — a brass selection was a visible foreign object on a phosphor
+  page.
+- **Piece artwork is one stylesheet per set**, fetched only on pages that
+  declare a board and only for the active theme. Measured: bundling all four
+  into the island chunk cost ~32 KB brotli on every board page to use ~9 KB.
+  Percent-encoded rather than base64 — half the transfer for the same pixels.
+- **The heading font is preloaded by the head script**, for the active theme
+  only. A preload fetches unconditionally, so the previous static Fraunces
+  preload would now make three themes out of four download two faces and use
+  one. Inter stays static: every theme uses it.
+- The service worker precaches **only the default theme's** piece set and
+  heading face; the rest are runtime-cached, the same argument as the engine.
+- The inline theme script was trimmed from 8.4 KB to 5.7 KB per page. An
+  `is:inline` script ships verbatim, comments and all, in all 84 documents —
+  the rationale moved to BaseLayout's frontmatter, which is compiled away.
+- `.prose` typography moved out of `LessonPage`'s scoped `<style>` into
+  `src/styles/typography.css`. Scoped rules carry an attribute selector and
+  beat any global rule of the same class specificity, so the shared craft
+  styles could not have extended them.
+
+#### Fixed
+
+- **Lesson `<code>` has been rendering in Inter, not monospace, since lessons
+  landed.** The rule read `var(--font-mono)` — a token this project has never
+  had. An unknown custom property invalidates the whole declaration silently,
+  so every inline notation in every lesson quietly lost its face. Exactly the
+  `--mcc-border` failure again. The token is `--font-notation`.
+- **The exercise's move input stole focus a moment after page load.**
+  `MoveInput` deliberately never focuses on mount — "stealing focus on page load
+  would drag a reader past the board and the hint they had not read yet" — but
+  `disabled` was in the effect's dependency array, and it flips from true to
+  false when the lazily-imported chess.js chunk lands. So the effect re-ran with
+  `firstRender` already spent and the field focused itself anyway, scrolling the
+  reader down to it. On a lesson page with a replayer above the exercise it also
+  swallowed the replayer's arrow keys, because `ReplayView`'s document handler
+  ignores keys aimed at an `INPUT` by design.
+
+  Found by chasing a "flaky" spec: whether the chunk won the race against the
+  first keypress depended on machine load, so it failed in full-suite runs and
+  passed every time in isolation. Not an E6 regression — it has been there since
+  the lazy chunk was introduced.
+- `ReplayView` now sets `data-keys="bound"` in the same effect that binds its
+  document key listener, so a spec can wait on the handler rather than on
+  `<cg-board>` — which belongs to a child component and proves nothing about it.
+- The correct-move pulse spec gained a second sampler that reads a
+  `MutationObserver`'s **records** alongside the rAF loop. rAF is starved under
+  load on WebKit, which had been producing intermittent "the pulse never
+  happened" failures in full-matrix runs. Reading records is not the pattern the
+  existing rule warns against — that one re-queries the live DOM.
+
+#### Deliberately not done
+
+- **Most of Lichess's piece sets could not be used.** The majority are
+  `CC BY-NC-SA`, "freeware", or unlicensed; the GPL forbids the added
+  restrictions, so they are undistributable here regardless of quality. `alpha`
+  — named in the brief — is "free for personal non commercial use" and was
+  **dropped**. The AGPL sets (`letter`, `pirouetti`, `pixel`) were also
+  declined: not a conflict, but §13 adds an obligation the repo does not carry,
+  and taking it on is a project-level decision. `pixel` would have suited
+  Terminal; it is left on the table rather than quietly adopted.
+- **Old-style figures are declared but inert on body text.** Inter ships no
+  `onum`. The declaration is harmless, correct the moment a face that has them
+  is used, and a spec *reports* whether it took effect so the comment saying so
+  can never quietly become false.
+
 ### E5 — the home page becomes a main menu
 
 Direction: `docs/direction/mcc-direction-esthetique-addendum.md` § E5. A 1990s

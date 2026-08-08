@@ -70,3 +70,25 @@
   --mcc-board-dark-ink: #14120e; /*  5.16 */
   --mcc-board-border: #4c687c;
 }
+
+/* ── The sixth preset, added with the themes (E6) ─────────────────────────
+   Phosphor green on black — the board that goes with the Terminal theme.
+
+   ⚠️ IT EXISTS BECAUSE TERMINAL HAD NO HONEST DEFAULT AMONG THE FIVE. Every
+   other preset is a real material (cream, wood, baize, slate, ice); a phosphor
+   monitor is not, and putting a cream board inside a terminal is the single
+   thing that would have made that theme read as a background swap rather than
+   a theme. It is a preset like any other, available to anyone, and audited by
+   the same parser — the level-2 list is now six, not five.
+
+   Both squares are dark, which is the point, so the pair below is the tightest
+   separation on the site (3.80:1 against a 3.0 floor). Do not darken the light
+   square to make it "more terminal": that check is what stops the board
+   becoming an unreadable black rectangle. */
+.board-phosphore {
+  --mcc-board-light: #2a8f52;
+  --mcc-board-dark: #082a16;
+  --mcc-board-light-ink: #14120e; /*  4.59 */
+  --mcc-board-dark-ink: #fffdf7; /* 15.30 */
+  --mcc-board-border: #2f7a4c;
+}
