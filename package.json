@@ -18,7 +18,8 @@
     "astro": "astro",
     "check": "astro check",
     "test:e2e": "playwright test",
-    "test:e2e:chromium": "playwright test --project=chromium"
+    "test:e2e:chromium": "playwright test --project=chromium",
+    "quick": "node scripts/quick.mjs"
   },
   "engines": {
     "node": ">=22.12.0"

@@ -2089,6 +2089,31 @@ The checklist it points at is **`docs/MANUAL-TESTS.md`**, and that file is a liv
 
 If a test fails in a way that contradicts the source, **kill stray preview servers and re-run** before touching code (`npm run demo` does it for you). Confirm the fix is actually in `dist/_astro/*.js` — `grep` the built bundle.
 
+#### ⚠️ A STALE `dist/` IS THE SAME TRAP WITHOUT A STALE SERVER
+
+Reverting source is not reverting the build. Anything that ran `npm run build`
+while a file was temporarily modified — an experiment, a "does this test have
+teeth?" check, a `npm run quick` dry run — leaves `dist/` holding the modified
+output, and `git checkout` of the source does **not** undo that.
+
+It has already cost a full matrix run: a one-word i18n change made to prove the
+quick-change script accepted it was reverted in source but not rebuilt, and the
+next matrix reported the **WhatsApp share link missing on all five projects**.
+Five projects failing identically looks exactly like a real regression in a
+Critical Feature — which is what makes this expensive rather than merely
+annoying.
+
+**The tell is a failure that is identical on every project, including
+chromium.** The documented Firefox/WebKit flakes are per-project and move
+between runs; a deterministic five-project failure is either a real defect or a
+stale artefact, and the artefact is cheaper to rule out first:
+
+```sh
+grep -o "the string you expect" dist/<page>/index.html
+```
+
+Rebuild before any matrix run that follows an experiment.
+
 #### Finding the stale server on Windows: `netstat -ano`, never `-p tcp`
 
 On Windows `-p tcp` means **IPv4 TCP only**. Node — and therefore `astro preview` — binds `[::1]`, which is `tcpv6`, so `netstat -ano -p tcp` shows **nothing at all** for a running preview server.
@@ -2157,6 +2182,54 @@ in the summary.
 If a full-matrix run reports failures confined to `auth.spec.ts` on one project,
 re-run that project with `--workers=1` before touching anything. As always: a
 genuine failure is deterministic and fails serially too.
+
+### ⚠️ FOCUS FOLLOWS THE MODALITY OF THE MOVE, NOT THE DEVICE
+
+`MoveInput` pulls focus back to the field when it becomes the reader's turn
+again, so a keyboard player is never left on a dead control with no sign that
+the opponent has replied. Specified for a keyboard user in the a11y session,
+and right for one.
+
+On a phone it was **actively harmful**: every tapped move re-focused a text
+field, which opens the virtual keyboard, which shrinks the visual viewport,
+which scrolls the board out of sight. Playing by tapping became unusable.
+Found by Seàn on a real phone — the brief was incomplete, not the
+implementation.
+
+`src/components/board/useMoveSource.ts` holds the rule. The board and the field
+still converge on the same `onMove`; the tracker records **how it arrived**
+without branching the game logic, and only the focus decision reads it.
+
+⚠️ **NOT a device test.** Not user-agent, not `pointer: coarse`, not a
+touch-capability check. A device test gets both of these backwards:
+
+- a phone user with a Bluetooth keyboard who **types** still gets the field
+  back, because they are in the typing flow;
+- a desktop user with a mouse who **drags** does not, because they never asked.
+
+**What the reader just did is the only honest evidence of what they want next.**
+
+Two corollaries that are easy to miss:
+
+- **Game start is not a move**, so `moveSource` says nothing about it — but it
+  had the same symptom on `/jouer/`. The whole setup form is replaced by the
+  board, so a keyboard player genuinely needs focus placed somewhere. The
+  modality of the **activation** decides: `pointerdown` fires before submit for
+  a tap or click and never for Enter/Space on the button.
+- `focus()` **scrolls its target into view** by default. `preventScroll: true`
+  is the second line of defence — the modality gate is the fix, but this is
+  what would have limited the damage.
+
+The field is never hidden or disabled on touch. Some students will prefer
+typing, and it is the accessible path. It just stops grabbing focus unasked.
+
+⚠️ **The suite could not have found this on its own: a headless browser has no
+soft keyboard.** `tests/e2e/touch-focus.spec.ts` tests the *cause* (focus
+landing in the field) and the *other half* of the symptom (the page scrolling),
+and it names which of its tests actually fail on the old code — because a file
+claiming every test has teeth when two do not is worse than one that admits it.
+The engine cases live in `play.spec.ts`, which is already serialised for engine
+contention.
 
 ### ⚠️ A `disabled` flag in an effect's deps can defeat a "never on mount" rule
 
@@ -2237,6 +2310,72 @@ Raising the timeouts only changes which assertion gives up first; it was tried, 
 ### Test the pointer path even when the keyboard path is easier to write
 
 Every play-mode test was written with `typeMove` because typing is simpler than computing board geometry. That left dragging on `/jouer/` completely uncovered — a break would have surfaced only when a human tried it. The two `dragMove` tests exist for that reason, and one of them plays from the **black** side, because the geometry flips with the orientation and nothing else would catch it.
+
+## Quick change — a SHORTER GATE, NOT A SHORTER RULE
+
+```sh
+npm run quick
+```
+
+Fixing a typo used to cost the full release gate: five browser projects, half
+an hour. That is not caution, it is a tax that discourages fixing small
+things — and unfixed small things are what a visitor actually sees.
+
+⚠️ **It shortens VERIFICATION ONLY.** `dev` → `main` still needs Seàn's
+explicit approval, exactly as before. Nothing about the fast path touches the
+promotion rule.
+
+### What qualifies — EXHAUSTIVE. Anything not on this list takes the normal path.
+
+- A typo or wording fix in existing content or UI strings, **both locales**
+- A value change with no structural effect: a duration, a colour **already in
+  the token set**, a link URL, a contact detail
+- **ONE** entry added to an **existing** collection using an **existing** shape
+  (one trap, one exercise, one agenda entry)
+- Reverting a single previous commit
+
+### What NEVER qualifies
+
+- The board components, the exercise validator, auth, i18n routing, the service
+  worker, or the build
+- New routes, new schema, new dependencies
+- Anything a **Critical Feature** above covers
+- ⚠️ **Anything where "I'll just check quickly" is the reason it seems small.**
+  That sentence is the tell, not the reassurance.
+
+### The path
+
+1. Branch `quick/<what>` off `dev`
+2. Make the change
+3. **`npm run quick`** — content check, then the build (which runs
+   `check-contrast` as its own first step, then types, then the service
+   worker), then **only the chromium specs covering what changed**. Not the
+   whole suite. Not the matrix.
+4. Merge to `dev` with `--no-ff`, plus a CHANGELOG entry under Unreleased
+5. Promotion to `main` still requires Seàn
+6. Patch bump (`0.x.Y`) on release, **batched** — several quick changes can
+   share one patch release
+
+### ⚠️ THE RULE THAT KEEPS IT HONEST
+
+**If a quick change breaks anything in `npm run quick`, it stops being a quick
+change.** Revert, open a normal branch, run the full gate. **No fixing forward
+on the fast path** — a change that needed debugging was never a quick change,
+and the second attempt is exactly where a fast path starts hiding real
+breakage.
+
+### ⚠️ The script REFUSES, it does not advise
+
+`scripts/quick.mjs` diffs the branch against `dev` and **exits non-zero naming
+any file that is out of bounds**, with the reason. The exclusion list is
+enforced in code rather than written in a document nobody re-reads under time
+pressure — which is the only version of this that survives a Friday afternoon.
+
+It also picks the specs from what changed (a trap → `replayer.spec.ts`, a UI
+string → smoke + nav + main menu, and `smoke.spec.ts` always). `QUICK_BASE`
+overrides the comparison branch; it exists for testing the script itself.
+
+---
 
 ### Verification policy
 

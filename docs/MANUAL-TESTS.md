@@ -348,6 +348,45 @@ Progress:
 
 ---
 
+## 4b. ⚠️ PLAY A WHOLE EXERCISE ON A PHONE, BY TAPPING ONLY
+
+**On a real phone, not a narrow desktop window** — a desktop browser has no
+virtual keyboard, which is the entire point of this section.
+
+This is the check that would have caught the defect Seàn hit: every tapped move
+used to re-focus the move-entry field, which opens the keyboard, which shrinks
+the viewport, which scrolls the board out of view. The automated suite cannot
+see it, because a headless browser has no soft keyboard.
+
+Use a **two-step** exercise (`/exercices/opposition-et-mat/`) — a one-move
+exercise never reaches the code path.
+
+- [ ] Tap a piece, tap its destination. **The keyboard must never open**
+- [ ] **The board must never scroll out of view** — not after your move, not
+      after the opponent replies, not after a refused move
+- [ ] Play the exercise to the end by tapping only. It should feel like a board,
+      not like a form
+- [ ] Do the same on a **course lesson** (the exercise sits far down the page,
+      so a stray focus has a long way to scroll), a **tutorial step**, and
+      **`/jouer/`**
+- [ ] On `/jouer/`, **tapping "Commencer" must not open the keyboard either** —
+      the setup form is replaced by the board, and focus used to land in the field
+- [ ] Play several moves against the engine by tapping. The board stays put
+      through every engine reply
+
+### The other half — the field must still be there, and still work
+
+- [ ] The move field is **visible and enabled** on the phone. It is never hidden
+      or disabled on touch: some students prefer typing, and it is the
+      accessible path
+- [ ] **Tap into the field yourself and type a move.** It works, the keyboard
+      opens (because you asked for it), and after the opponent replies **focus
+      returns to the field** so you can keep typing
+- [ ] Now tap a piece on the board instead. Focus **leaves** the field and the
+      keyboard closes — the modality of the last move decides, not the device
+
+---
+
 ## 5. Keyboard move entry
 
 On any exercise, and on `/jouer/` — **without touching the board at all**:
@@ -917,3 +956,28 @@ axe covers a lot of this automatically; these are the parts it cannot judge.
 - [ ] `npx playwright test` — full matrix (see CLAUDE.md for the known environmental flakes)
 - [ ] This checklist, worked through on desktop **and** a real phone
 - [ ] Lighthouse ≥ 90 on Performance, Accessibility and SEO
+
+---
+
+## After a QUICK CHANGE lands on `main`
+
+A quick change (see CLAUDE.md → Quick change) is verified by `npm run quick` —
+chromium only, and only the specs covering what moved. That is deliberate, and
+it means **the deployed result is checked by a person instead**. It takes a
+minute and it is the whole safety margin the fast path trades away.
+
+**On the deployed URL, not localhost:**
+
+- [ ] The Cloudflare deploy for that commit went **green** — check the dashboard
+      rather than assuming; a build that fails at deploy time fails after every
+      local gate has already passed
+- [ ] Open the **changed page in FR**, and confirm the change is actually there
+- [ ] Open the **same page in EN**. A wording fix applied to one locale and not
+      the other is the single most likely quick-change mistake
+- [ ] The page still renders normally around the change — nothing shifted,
+      nothing lost its styling
+- [ ] If the change was a **new collection entry**: it appears on its index page
+      in both locales, and its detail page opens in both
+
+If any of these is wrong, revert the commit rather than fixing forward — the
+same rule as the fast path itself.

@@ -27,6 +27,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import BoardSurface from './BoardSurface';
+import { useMoveSource } from './useMoveSource';
 import MoveInput, { type MoveInputLabels } from './MoveInput';
 import { PULSE_MS, SHAKE_MS, thinkingFloorMs } from '@lib/motion';
 import type { ExerciseDefinition, ExerciseMove, ResolvedExercise } from '@lib/chess/exercise';
@@ -153,6 +154,19 @@ export default function ExerciseView(props: ExerciseViewProps) {
   const resolveRef = useRef<typeof import('@lib/chess/notation').resolveMoveText | null>(null);
   /** Bumped whenever it becomes the reader's turn again — pulls focus back. */
   const [focusSignal, setFocusSignal] = useState(0);
+  /* Which door the last move came through. See useMoveSource.ts — focus
+     follows the modality of the MOVE, never the device. */
+  const moveSource = useMoveSource();
+  /**
+   * Pull focus back to the field, but ONLY if the reader typed the last move.
+   *
+   * After a tapped move this must do nothing: focusing a text field opens the
+   * virtual keyboard, which shrinks the viewport and scrolls the board away.
+   * Every `setFocusSignal` in this component goes through here.
+   */
+  const refocusIfTyped = useCallback(() => {
+    if (moveSource.lastWasText()) setFocusSignal((prev) => prev + 1);
+  }, [moveSource]);
 
   const [stepIndex, setStepIndex] = useState(0);
   const [feedback, setFeedback] = useState<Feedback>('idle');
@@ -254,7 +268,7 @@ export default function ExerciseView(props: ExerciseViewProps) {
           // Chessground has already slid the piece; `fen` is unchanged, so only
           // a revision bump puts it back. See BoardSurface's `revision` prop.
           setRevision((prev) => prev + 1);
-          setFocusSignal((prev) => prev + 1);
+          refocusIfTyped();
         });
         return;
       }
@@ -277,9 +291,11 @@ export default function ExerciseView(props: ExerciseViewProps) {
         setShown(null);
         if (!isLastStep) {
           setStepIndex((prev) => prev + 1);
-          // It is the reader's turn again. A keyboard player must not be left
-          // with focus on a control that was disabled while the opponent moved.
-          setFocusSignal((prev) => prev + 1);
+          /* It is the reader's turn again. A player who TYPED must not be left
+             with focus on a control that was disabled while the opponent
+             moved; a player who TAPPED must not have a keyboard thrown over
+             the board they are looking at. */
+          refocusIfTyped();
           return;
         }
         setSolved(true);
@@ -410,7 +426,7 @@ export default function ExerciseView(props: ExerciseViewProps) {
             {...(displayed ? { lastMove: [displayed.from, displayed.to] as const } : {})}
             {...(displayed?.isCheck ? { check: turnColor } : {})}
             {...(interactive && step
-              ? { movableColor: step.turn, dests: step.dests, onMove }
+              ? { movableColor: step.turn, dests: step.dests, onMove: moveSource.viaPointer(onMove) }
               : { dests: NO_DESTS })}
           />
         </div>
@@ -497,7 +513,7 @@ export default function ExerciseView(props: ExerciseViewProps) {
             id={`move-${slug}`}
             labels={labels.move}
             resolve={resolveText}
-            onMove={onMove}
+            onMove={moveSource.viaText(onMove)}
             disabled={!interactive}
             focusSignal={focusSignal}
           />

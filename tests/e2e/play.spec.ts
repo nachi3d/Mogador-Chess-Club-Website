@@ -88,6 +88,76 @@ async function startGame(page: Page, opts: { colour?: 'white' | 'black'; level?:
 /** Type a move — the engine can be slow, so the field wait is generous here. */
 const typeMove = (page: Page, text: string) => typeMoveHelper(page, text, ENGINE_TIMEOUT);
 
+/**
+ * FOCUS FOLLOWS THE MODALITY OF THE MOVE, NOT THE DEVICE.
+ *
+ * ⚠️ THESE LIVE HERE, NOT IN `touch-focus.spec.ts`, BECAUSE THEY BOOT AN
+ * ENGINE. This file runs its tests one at a time for that reason (see the note
+ * above); the same test in a parallel file timed out at 60s waiting for the
+ * handshake, which is the contention this file's configuration exists to
+ * avoid rather than a failure of the thing under test.
+ *
+ * The rest of the rule is covered in `touch-focus.spec.ts`. See
+ * `src/components/board/useMoveSource.ts`.
+ */
+test.describe('play — focus follows the modality of the move', () => {
+  /** Is focus currently inside a text field? */
+  const focusIsInInput = (page: Page) =>
+    page.evaluate(() => {
+      const el = document.activeElement as HTMLElement | null;
+      return el?.tagName === 'INPUT' || el?.tagName === 'TEXTAREA';
+    });
+
+  test('starting the game by pointer does not focus the move field', async ({ page }) => {
+    await page.goto(FR);
+    await startGame(page);
+    /* The setup form — and the button the reader just pressed — is replaced by
+       the board, so SOMETHING has to happen to focus for a keyboard player.
+       Doing it unconditionally opened the phone keyboard before the reader had
+       even seen the position. */
+    expect(
+      await focusIsInInput(page),
+      'starting by tap/click focused the move field',
+    ).toBe(false);
+  });
+
+  test('a tapped move does not focus the field, even after the engine replies', async ({
+    page,
+  }) => {
+    await page.goto(FR);
+    await startGame(page);
+
+    await page
+      .locator('[data-testid="chessboard"]')
+      .first()
+      .evaluate((el) => el.scrollIntoView({ block: 'center' }));
+    const scrollBefore = await page.evaluate(() => window.scrollY);
+
+    await movePiece(page, 'e2', 'e4');
+    // The engine's reply is what used to pull focus back.
+    await expect(page.getByTestId('play-move-list').locator('li')).not.toHaveCount(0, {
+      timeout: ENGINE_TIMEOUT,
+    });
+    await expect(page.getByTestId('play')).toHaveAttribute('data-thinking', 'false', {
+      timeout: ENGINE_TIMEOUT,
+    });
+
+    expect(await focusIsInInput(page), 'the engine reply pulled focus into the field').toBe(false);
+    const scrollAfter = await page.evaluate(() => window.scrollY);
+    expect(
+      Math.abs(scrollAfter - scrollBefore),
+      'the page scrolled after a tapped move',
+    ).toBeLessThanOrEqual(2);
+  });
+
+  test('a TYPED move still brings focus back after the reply', async ({ page }) => {
+    await page.goto(FR);
+    await startGame(page);
+    await typeMove(page, 'e4');
+    await expect(page.getByTestId('move-input-field')).toBeFocused({ timeout: ENGINE_TIMEOUT });
+  });
+});
+
 test.describe('play — the engine is not fetched without a click', () => {
   /**
    * ⚠️ THE RULE THIS PAGE MOST EASILY BREAKS (CLAUDE.md → "No third-party
