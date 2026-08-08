@@ -407,6 +407,28 @@ test.describe('desktop is untouched', () => {
 /* ═══ Accessibility ═════════════════════════════════════════════════════ */
 
 test.describe('accessibility', () => {
+  /**
+   * ⚠️ BOTH BRANCHES, AND THE FRESH ONE IS NOT OPTIONAL.
+   *
+   * Every axe test here originally SEEDED progress — and the resolver removes
+   * the dominant card's explanatory line when it resolves, so that element was
+   * never audited by any of them. It was carrying `opacity: 0.9` over the
+   * primary fill, which drops an audited token pair to 4.42:1, and Lighthouse
+   * found it (a11y 100 → 96) after the whole suite was green.
+   *
+   * `seeded` is the parameter that would have caught it. A state that only
+   * exists before the reader has done anything is still a state a reader sees.
+   */
+  for (const seeded of [false, true]) {
+    test(`the fresh dashboard (seeded: ${seeded}) has no axe violations`, async ({ page }) => {
+      await page.setViewportSize(PHONE);
+      if (seeded) await seedProgress(page, SEEDED);
+      await page.goto('/');
+      await expect(page.locator('[data-dashboard]')).toBeVisible();
+      await expectNoAxeViolations(page);
+    });
+  }
+
   for (const theme of ['bois', 'marbre', 'souiri', 'terminal'] as const) {
     for (const [locale, path] of [
       ['fr', '/'],
@@ -431,6 +453,23 @@ test.describe('accessibility', () => {
       });
     }
   }
+
+  /* Dark mode moves `--mcc-primary` to a lighter green, which is where the
+     opacity bug actually failed — the light-mode fill had enough headroom to
+     absorb it. */
+  test('the fresh dashboard in DARK mode has no axe violations', async ({ page }) => {
+    await page.setViewportSize(PHONE);
+    await page.addInitScript(() => {
+      try {
+        window.localStorage.setItem('mcc:theme:v1', JSON.stringify({ mode: 'dark', theme: 'bois' }));
+      } catch {
+        /* ignore */
+      }
+    });
+    await page.goto('/');
+    await expect(page.locator('[data-dashboard]')).toBeVisible();
+    await expectNoAxeViolations(page);
+  });
 
   for (const path of ['/progres/', '/en/progres/']) {
     test(`${path} has no axe violations`, async ({ page }) => {

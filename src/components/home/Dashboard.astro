@@ -241,12 +241,23 @@ const sessionVenue = nextSession ? (nextSession.data.venue ?? site.venue.name) :
     gap: 0.2rem;
   }
 
+  /* ⚠️ NO `opacity` ON ANY TEXT IN THIS CARD. IT COST A LIGHTHOUSE A11Y
+     REGRESSION (100 → 96) AND check-contrast COULD NOT HAVE CAUGHT IT.
+
+     The auditor proves the TOKEN PAIR — `--mcc-primary-contrast` on
+     `--mcc-primary` — and that pair passes everywhere. Then CSS put the text
+     at `opacity: 0.9`, which blends it toward the fill and drops the real
+     ratio to 4.42:1. The tokens were still correct; the rendering was not.
+
+     Same lesson as the ambient-layer ceiling: an alpha applied on top of an
+     audited pair is invisible to the audit. Differentiate by SIZE, WEIGHT and
+     LETTER-SPACING here — which is the M2 hierarchy rule anyway — never by
+     transparency. */
   .dash-eyebrow {
     font-size: 0.6875rem;
     font-weight: 700;
     letter-spacing: 0.12em;
     text-transform: uppercase;
-    opacity: 0.85;
   }
 
   .dash-primary-title {
@@ -260,7 +271,6 @@ const sessionVenue = nextSession ? (nextSession.data.venue ?? site.venue.name) :
   .dash-primary-text {
     font-size: 0.875rem;
     line-height: 1.45;
-    opacity: 0.9;
   }
 
   .dash-arrow {
@@ -269,7 +279,6 @@ const sessionVenue = nextSession ? (nextSession.data.venue ?? site.venue.name) :
     display: flex;
     align-items: center;
     justify-content: center;
-    opacity: 0.9;
   }
 
   /* The bar. `visibility` rather than `display`, so the row keeps its height
@@ -309,7 +318,6 @@ const sessionVenue = nextSession ? (nextSession.data.venue ?? site.venue.name) :
   .dash-progress-label {
     font-size: 0.75rem;
     font-variant-numeric: tabular-nums;
-    opacity: 0.85;
   }
 
   /* ── 2. The two tiles ───────────────────────────────────────────────── */
@@ -396,8 +404,11 @@ const sessionVenue = nextSession ? (nextSession.data.venue ?? site.venue.name) :
     font-variant-numeric: tabular-nums;
   }
 
+  /* No opacity here either, for the same reason — `--mcc-text-secondary` on
+     the page surface sits AT the 4.5 floor in some themes, so any alpha on top
+     of it fails. The word "bientôt" is what marks this as a placeholder. */
   .dash-stat-soon {
-    opacity: 0.75;
+    font-style: italic;
   }
 
   /* ── 4. Next session ────────────────────────────────────────────────── */
