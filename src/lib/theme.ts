@@ -17,7 +17,16 @@
  * ─────────────────────────────────────────────────────────────────────────
  */
 
-import { BOARD_THEMES, DEFAULT_BOARD_THEME, type BoardThemeId } from '@config/board-themes';
+import { BOARD_THEMES, type BoardThemeId } from '@config/board-themes';
+import { PIECE_SETS } from '@config/piece-sets';
+import {
+  DEFAULT_SITE_THEME,
+  SITE_THEMES,
+  isSiteThemeId,
+  resolveBoard,
+  resolvePieces,
+  type SiteThemeId,
+} from '@config/site-themes';
 
 const STORAGE_KEY = 'mcc:theme:v1';
 
@@ -34,14 +43,34 @@ export interface CustomBoard {
 
 export interface ThemeState {
   readonly mode: ThemeMode;
-  readonly boardTheme: BoardThemeId;
+  /**
+   * The site theme — level 1 of the hierarchy. Sets surfaces, heading face,
+   * default board preset and piece set. See `src/config/site-themes.ts`.
+   */
+  readonly theme: SiteThemeId;
+  /**
+   * The reader's PINNED board preset — level 2 — or absent to follow the
+   * theme's own default.
+   *
+   * ⚠️ ABSENT IS A REAL STATE, NOT A MISSING VALUE, AND THAT IS THE WHOLE
+   * DESIGN. "Follow the theme" and "I want Bleu whatever the theme" are
+   * genuinely different intentions, and a non-optional field with a default
+   * cannot tell them apart — it would have to carry a second `pinned` boolean
+   * that could disagree with it. Absence carries the meaning instead, so the
+   * two can never contradict each other.
+   *
+   * It is also what makes the v1 migration lossless: every record written
+   * before E6 has a `boardTheme`, so every returning reader is pinned to
+   * exactly the board they last saw. See `normaliseTheme`.
+   */
+  readonly boardTheme?: BoardThemeId | undefined;
   /** Present only while the reader is using custom squares. */
   readonly custom?: CustomBoard | undefined;
 }
 
 export const DEFAULT_THEME: ThemeState = {
   mode: 'system',
-  boardTheme: DEFAULT_BOARD_THEME,
+  theme: DEFAULT_SITE_THEME,
 };
 
 /* ── Colour maths ─────────────────────────────────────────────────────────
@@ -128,7 +157,30 @@ export function normaliseTheme(value: unknown): ThemeState {
   const raw = value as Record<string, unknown>;
 
   const mode = isMode(raw['mode']) ? raw['mode'] : DEFAULT_THEME.mode;
-  const boardTheme = isBoardTheme(raw['boardTheme']) ? raw['boardTheme'] : DEFAULT_THEME.boardTheme;
+  const theme = isSiteThemeId(raw['theme']) ? raw['theme'] : DEFAULT_THEME.theme;
+
+  /*
+   * ── THE v1 → E6 MIGRATION, AND WHY IT IS A NO-OP BY CONSTRUCTION ───────
+   *
+   * The key is unchanged (`mcc:theme:v1`) because the SHAPE is unchanged: a
+   * field was added and a field became optional. Nothing stored under v1 is
+   * reinterpreted, so there is nothing that could be half-migrated — which is
+   * the whole reason the version sits in the key in the first place.
+   *
+   * A pre-E6 record has `{mode, boardTheme}` and no `theme`:
+   *   • `theme` falls back to Bois, which IS the palette that record was
+   *     written under. The reader sees the site they left.
+   *   • `boardTheme` survives verbatim and is therefore PINNED, so their board
+   *     is the board they last chose, on whatever theme they later pick.
+   *
+   * ⚠️ That pins readers who never actively chose a preset — everyone who
+   * touched this page at all had `classique` persisted as a side effect of the
+   * old non-optional default. Accepted deliberately: the alternative is
+   * changing what a returning reader sees without being asked, and "no loss"
+   * has to beat "probably what they'd have wanted". Un-pinning is one click,
+   * and the settings page names the option.
+   */
+  const boardTheme = isBoardTheme(raw['boardTheme']) ? raw['boardTheme'] : undefined;
 
   const customRaw = raw['custom'];
   let custom: CustomBoard | undefined;
@@ -140,7 +192,8 @@ export function normaliseTheme(value: unknown): ThemeState {
     if (light && dark) custom = { light, dark };
   }
 
-  return custom ? { mode, boardTheme, custom } : { mode, boardTheme };
+  const base: ThemeState = boardTheme ? { mode, theme, boardTheme } : { mode, theme };
+  return custom ? { ...base, custom } : base;
 }
 
 /** The stored theme, defaulted. Never throws, never returns undefined. */
@@ -179,10 +232,41 @@ export function writeTheme(patch: Partial<ThemeState>): ThemeState {
   return next;
 }
 
-/** Drop the custom board and go back to the chosen preset. */
+/**
+ * Drop the custom board and go back to whichever preset applies.
+ *
+ * ⚠️ It does NOT go back to a *named* preset — it drops the custom colours and
+ * leaves the pin exactly as it was. A reader who was following their theme
+ * still follows it; a reader who had pinned Bleu gets Bleu back. Writing a
+ * concrete preset here would silently pin everyone who ever tried a custom
+ * pair, which is the kind of state change nobody can see happening.
+ */
 export function clearCustomBoard(): ThemeState {
   const current = readTheme();
-  const next: ThemeState = { mode: current.mode, boardTheme: current.boardTheme };
+  const next: ThemeState = current.boardTheme
+    ? { mode: current.mode, theme: current.theme, boardTheme: current.boardTheme }
+    : { mode: current.mode, theme: current.theme };
+  const store = storage();
+  if (store) {
+    try {
+      store.setItem(STORAGE_KEY, JSON.stringify(next));
+    } catch {
+      /* see writeTheme */
+    }
+  }
+  return next;
+}
+
+/**
+ * Un-pin the board so it follows the active theme again.
+ *
+ * The escape hatch for the "a pinned preset survives a theme change" rule —
+ * see `resolveBoard` in `src/config/site-themes.ts`. Custom colours are
+ * dropped with it: they are a pin too, just a hand-mixed one.
+ */
+export function followThemeBoard(): ThemeState {
+  const current = readTheme();
+  const next: ThemeState = { mode: current.mode, theme: current.theme };
   const store = storage();
   if (store) {
     try {
@@ -206,8 +290,15 @@ export function resolveMode(mode: ThemeMode): ResolvedMode {
   }
 }
 
-/** Every board-theme class, so applying one can remove the rest. */
+/** Every class the theme owns, so applying one can remove the rest. */
 const BOARD_CLASSES = BOARD_THEMES.map((theme) => `board-${theme.id}`);
+const THEME_CLASSES = SITE_THEMES.map((theme) => `theme-${theme.id}`);
+const PIECE_CLASSES = PIECE_SETS.map((set) => `pieces-${set.id}`);
+
+/** The board preset in force: the pin if there is one, else the theme's own. */
+export function activeBoard(state: ThemeState): BoardThemeId {
+  return resolveBoard(state.theme, state.boardTheme);
+}
 
 /**
  * Put a theme on the document.
@@ -225,8 +316,18 @@ export function applyTheme(state: ThemeState, root: HTMLElement): void {
   // and the colour picker on the settings page itself.
   root.style.colorScheme = resolved;
 
+  root.classList.remove(...THEME_CLASSES);
+  root.classList.add(`theme-${state.theme}`);
+
   root.classList.remove(...BOARD_CLASSES);
-  root.classList.add(`board-${state.boardTheme}`);
+  root.classList.add(`board-${activeBoard(state)}`);
+
+  /* The piece set follows the theme and is never chosen separately — four
+     coherent moods, not four themes times four sets. The class is what
+     `public/pieces/<id>.css` is scoped by; the stylesheet itself is fetched by
+     the head script, and only on pages that carry a board. */
+  root.classList.remove(...PIECE_CLASSES);
+  root.classList.add(`pieces-${resolvePieces(state.theme)}`);
 
   if (state.custom) {
     // Inline properties beat the class, which is what makes "custom overrides

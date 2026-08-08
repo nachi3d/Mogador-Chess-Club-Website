@@ -44,7 +44,7 @@ const shareText = `${title} — ${site.name}\n${shareUrl}`;
 const whatsappShare = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
 ---
 
-<BaseLayout locale={locale} title={title} description={description}>
+<BaseLayout locale={locale} title={title} description={description} board>
   <article class="exercise-page">
     <nav class="exercise-back" aria-label={t('exercises.backToIndex')}>
       <a href={exercisesPath(locale)}>← {t('exercises.backToIndex')}</a>

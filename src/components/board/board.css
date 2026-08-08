@@ -63,12 +63,19 @@
 cg-board {
   background-color: var(--mcc-board-light);
   /* 8×8 checker from two flat token colours. `repeating-conic-gradient` tiles
-     a 2×2 square block, which is exactly a chessboard. */
-  background-image: repeating-conic-gradient(
-    var(--mcc-board-dark) 0% 25%,
-    var(--mcc-board-light) 0% 50%
-  );
-  background-size: 25% 25%;
+     a 2×2 square block, which is exactly a chessboard.
+     ⚠️ The theme's texture is a SEPARATE LAYER ON TOP, never mixed into the
+     checker: the checker's stops must stay the two exact token colours, or the
+     preset the contrast auditor proved is not the preset that gets painted.
+     The texture is a wash over the result, and every shipped one DARKENS —
+     so a piece silhouette gains contrast against its square rather than
+     losing it. THE BOARD STAYS SOBER: the ceiling is 0.05 alpha, except the
+     Terminal scanline whose arithmetic is written out beside it. */
+  background-image: var(--mcc-board-texture),
+    repeating-conic-gradient(var(--mcc-board-dark) 0% 25%, var(--mcc-board-light) 0% 50%);
+  /* The texture layer sizes itself (repeating gradients carry their own
+     period); only the checker needs pinning to a quarter of the board. */
+  background-size: auto, 25% 25%;
   background-position: top left;
 }
 

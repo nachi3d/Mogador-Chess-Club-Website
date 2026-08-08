@@ -31,8 +31,24 @@ import type { DrawShape } from 'chessground/draw';
 import type { Dests, Key } from 'chessground/types';
 
 import 'chessground/assets/chessground.base.css';
-import 'chessground/assets/chessground.cburnett.css';
 import './board.css';
+/*
+ * ⚠️ `chessground.cburnett.css` IS NO LONGER IMPORTED HERE (E6).
+ *
+ * It was the piece artwork, and there are four sets now — one per theme. Left
+ * as a static import, all four would land in this island's chunk and every
+ * board page would download ~32 KB brotli of pieces to use ~9 KB of them.
+ *
+ * They are `public/pieces/<set>.css` instead, and the anti-FOUC head script in
+ * BaseLayout fetches exactly one, on pages that declare `board` (which sets
+ * `<html data-board>`). Same origin, render-blocking, so the pieces still
+ * paint with the board rather than a frame after it.
+ *
+ * The containment rule is unchanged: this is still the only file that imports
+ * Chessground, and swapping the board out is still a rewrite of this file
+ * alone. The pieces simply stopped being Chessground's business and became
+ * the theme's — which is what `.pieces-<id>` on <html> says.
+ */
 
 export interface BoardArrow {
   readonly from: string;

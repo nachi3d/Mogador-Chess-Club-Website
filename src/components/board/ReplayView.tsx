@@ -93,6 +93,8 @@ export default function ReplayView(props: ReplayViewProps) {
   // animates into nonsense (nine pieces sliding at once), so it renders instantly.
   const [instant, setInstant] = useState(true);
   const listRef = useRef<HTMLOListElement | null>(null);
+  /** Carries `data-keys="bound"` once the document key handler is attached. */
+  const rootRef = useRef<HTMLDivElement | null>(null);
 
   const last = plies.length - 1;
   const atStart = cursor <= START;
@@ -153,7 +155,28 @@ export default function ReplayView(props: ReplayViewProps) {
     };
 
     document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
+    /*
+     * ⚠️ THE ONLY HONEST SIGNAL THAT THE ARROW KEYS ARE LIVE.
+     *
+     * `<cg-board>` existing proves the BOARD hydrated, and a spec waiting on it
+     * to then press ArrowRight is testing a different thing than it thinks:
+     * BoardSurface is a CHILD of this component, so its mount effect runs
+     * BEFORE this one. There is a real window in which the board is fully
+     * rendered and this listener is not yet attached, and a key pressed in that
+     * window is silently dropped.
+     *
+     * It is narrow enough to never appear in isolation and wide enough to
+     * appear under a loaded machine — which is exactly the shape of a "flaky"
+     * test that is actually a racy one. Set here, in the same effect that binds
+     * the listener, so it cannot claim to be bound when it is not.
+     *
+     * Same pattern as `data-ready` / `data-busy` on the exercise board.
+     */
+    rootRef.current?.setAttribute('data-keys', 'bound');
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      rootRef.current?.removeAttribute('data-keys');
+    };
   }, [plies.length, step]);
 
   /* Keep the highlighted move visible in a scrolling move list. */
@@ -207,7 +230,7 @@ export default function ReplayView(props: ReplayViewProps) {
   };
 
   return (
-    <div class="mcc-replayer" data-testid="replayer">
+    <div class="mcc-replayer" data-testid="replayer" ref={rootRef}>
       <div class="mcc-replayer-board">
         <BoardSurface
           fen={fen}

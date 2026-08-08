@@ -93,7 +93,16 @@ function positionPgn(fen: string): string {
 const pairs = chunks.map((chunk, i) => ({ chunk, board: data.boards[i] }));
 ---
 
-<BaseLayout locale={locale} title={data.title} description={data.summary}>
+{/* ⚠️ COMPUTED, not hardcoded `board`. A lesson may be pure prose — several
+    are — and marking it as a board page would make it fetch a piece
+    stylesheet it never draws with. The other four board routes always have
+    one, so they say so literally. */}
+<BaseLayout
+  locale={locale}
+  title={data.title}
+  description={data.summary}
+  board={pairs.some((pair) => pair.board)}
+>
   <article class="lesson">
     <header class="lesson-head">
       <p class="lesson-counter">
@@ -107,9 +116,13 @@ const pairs = chunks.map((chunk, i) => ({ chunk, board: data.boards[i] }));
 
     <div class="lesson-body">
       {
-        pairs.map(({ chunk, board }) => (
+        pairs.map(({ chunk, board }, i) => (
           <>
-            <div class="prose" set:html={chunk} />
+            {/* The drop cap marks where the teaching starts, so it belongs to
+                the FIRST prose chunk and nowhere else — a lesson with four
+                boards has five prose chunks, and five drop caps would mark
+                nothing at all. Styled in typography.css. */}
+            <div class="prose" data-dropcap={i === 0 ? '' : undefined} set:html={chunk} />
             {board && (
               <figure class="lesson-board">
                 {(board.kind === 'replay' || board.kind === 'position') && (
@@ -231,30 +244,19 @@ const pairs = chunks.map((chunk, i) => ({ chunk, board: data.boards[i] }));
     line-height: 1.6;
   }
 
-  .prose :global(p),
-  .prose :global(li) {
-    line-height: 1.7;
-    text-wrap: pretty;
-  }
+  /* ⚠️ THE `.prose` RULES MOVED TO src/styles/typography.css (E7).
+     They were scoped here, which meant they carried an
+     `[data-astro-cid-…]` attribute and beat any global rule of the same
+     class specificity — so the shared reading-craft styles could not
+     extend them, only lose to them. `.prose` is used by the privacy
+     notice too; there is now one definition for both.
 
-  .prose :global(h2) {
-    margin: 2rem 0 0.75rem;
-    font-size: 1.375rem;
-  }
-
-  .prose :global(a) {
-    color: var(--mcc-link);
-    text-decoration: underline;
-    text-underline-offset: 0.15em;
-  }
-
-  .prose :global(code) {
-    padding: 0.1em 0.35em;
-    border-radius: 4px;
-    background-color: var(--mcc-surface-sunken);
-    font-family: var(--font-mono);
-    font-size: 0.9em;
-  }
+     The move also fixed a bug that had been shipping since lessons
+     landed: the `<code>` rule here read `var(--font-mono)`, which is not
+     a token this project has ever had. An unknown custom property
+     invalidates the whole declaration, so every inline notation in every
+     lesson rendered in Inter rather than monospace — no warning, no error.
+     The token is `--font-notation`. */
 
   .lesson-board {
     margin: 2rem 0;

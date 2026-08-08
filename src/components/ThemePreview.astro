@@ -1,0 +1,124 @@
+---
+/**
+ * A theme, previewed — page colour, texture, heading face, board and a piece.
+ *
+ * ── IT IS PAINTED BY THE THEME'S OWN RULES ─────────────────────────────────
+ * The wrapper carries `.theme-preview .theme-<id>`, and `site-themes.css`
+ * scopes every theme block to `:is(:root, .theme-preview)`. So this element
+ * gets the real `--mcc-*` values, from the one file the contrast auditor
+ * checks. There is no second copy of any colour here, and a preview that looks
+ * wrong means the THEME is wrong — which is the point of previewing at all.
+ * Same trick the preset swatches already use with `.board-<id>`.
+ *
+ * ── NOT AN ISLAND, AND NOT A CHESSGROUND ──────────────────────────────────
+ * Four themes are shown at once. Four boards would be four hydrated islands on
+ * a settings page, which breaks the one-board-island rule and would be absurd
+ * besides. This is a `<span>` with a conic-gradient checker and one piece drawn
+ * from `/pieces/preview.css` — the four knights, ~3 KB, loaded only here.
+ *
+ * ── data-theme IS SET BY THE SCRIPT, NOT HERE ─────────────────────────────
+ * The preview must show the theme in the reader's CURRENT light/dark mode. The
+ * mode is only known in the browser, so the settings script stamps `data-theme`
+ * on each preview when it applies a setting. Server-rendered it has none, which
+ * the `:not([data-theme='dark'])` selectors read as light — and light is
+ * exactly the no-JS state, so the un-scripted page is still self-consistent.
+ *
+ * Decorative throughout: `aria-hidden`, because the accessible name lives on
+ * the radio that wraps it.
+ */
+import type { SiteThemeId } from '@config/site-themes';
+import { siteTheme, siteThemeClass } from '@config/site-themes';
+import { boardThemeClass } from '@config/board-themes';
+
+interface Props {
+  theme: SiteThemeId;
+  /** The letter set in the theme's heading face. The theme's initial. */
+  glyph: string;
+}
+
+const { theme, glyph } = Astro.props;
+const record = siteTheme(theme);
+---
+
+<span
+  class:list={['theme-preview', siteThemeClass(theme), boardThemeClass(record.defaultBoard)]}
+  data-theme-preview={theme}
+  aria-hidden="true"
+>
+  {/* The page surface, with the theme's own texture over it. */}
+  <span class="theme-preview-page">
+    {/* The heading face, at a size where its character is actually visible.
+        One letter is enough: a reader recognises a serif from a monospace
+        instantly, and a whole word would crowd a 5rem tile. */}
+    <span class="theme-preview-glyph">{glyph}</span>
+
+    <span class="theme-preview-board">
+      {/* The knight, from the theme's piece set. Positioned on a dark square
+          so the white piece reads against it in every theme. */}
+      <span class="mcc-piece-sample" data-set={record.pieceSet}></span>
+    </span>
+  </span>
+</span>
+
+<style>
+  .theme-preview {
+    display: block;
+    overflow: hidden;
+    border: 1px solid var(--mcc-border-subtle);
+    border-radius: var(--radius-card);
+  }
+
+  /* ⚠️ `--mcc-surface-page` and `--mcc-page-texture` resolve to the PREVIEWED
+     theme's values, not the page's, because the theme block above sets them on
+     this very element. That is the whole mechanism. */
+  .theme-preview-page {
+    position: relative;
+    display: block;
+    aspect-ratio: 16 / 10;
+    padding: 0.5rem;
+    background-color: var(--mcc-surface-page);
+    background-image: var(--mcc-page-texture);
+  }
+
+  .theme-preview-glyph {
+    display: block;
+    color: var(--mcc-text-heading);
+    font-family: var(--mcc-font-display);
+    font-size: 1.75rem;
+    font-weight: 600;
+    line-height: 1;
+  }
+
+  /* The board sits in the corner, overlapping the lower edge slightly — it
+     reads as a board on a table rather than a swatch in a grid. */
+  .theme-preview-board {
+    position: absolute;
+    right: 0.45rem;
+    bottom: 0.45rem;
+    display: block;
+    width: 58%;
+    aspect-ratio: 1 / 1;
+    border: 1px solid var(--mcc-board-border);
+    border-radius: 1px;
+    /* The same checker as cg-board and MiniBoard. Two flat token colours. */
+    background-color: var(--mcc-board-light);
+    background-image: var(--mcc-board-texture),
+      repeating-conic-gradient(var(--mcc-board-dark) 0% 25%, var(--mcc-board-light) 0% 50%);
+    background-size: auto, 25% 25%;
+    background-position: top left;
+  }
+
+  /* One knight, from /pieces/preview.css. Sized and placed to sit on the
+     second dark square from the left on the bottom rank. */
+  .theme-preview-board .mcc-piece-sample {
+    position: absolute;
+    left: 25%;
+    bottom: 0;
+    display: block;
+    width: 25%;
+    aspect-ratio: 1 / 1;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: contain;
+  }
+</style>

@@ -123,6 +123,15 @@ test.describe('the demonstration is easy to start', () => {
   /** The keyboard path must be unchanged by the new button. */
   test('the arrow keys still drive the replayer', async ({ page }) => {
     await readyBoards(page, TWO_BOARDS);
+    /* ⚠️ WAIT FOR THE HANDLER, NOT FOR THE BOARD. `<cg-board>` is created by
+       BoardSurface, a CHILD of ReplayView, so its mount effect runs FIRST —
+       there is a real window where the board is drawn and the document key
+       listener is not yet attached, and a key pressed in it is dropped. This
+       test failed twice in full-suite runs and passed every time in isolation,
+       which is what that race looks like from the outside. `data-keys` is set
+       in the same effect that binds the listener. */
+    await page.locator('[data-testid="replayer"][data-keys="bound"]').first().waitFor();
+
     /* No click first: the replayer's key handler is bound to the document, and
        clicking into the page can put focus somewhere that swallows the key. */
     await page.keyboard.press('ArrowRight');

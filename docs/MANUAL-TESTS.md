@@ -416,9 +416,107 @@ On any exercise, and on `/jouer/` — **without touching the board at all**:
 - [ ] Choose light or dark explicitly: the site now ignores the OS setting
 - [ ] The choice survives a reload, and applies on every page
 
+### 7a. The four themes — ⚠️ THE JUDGEMENT CALLS, ON A REAL PHONE, DAY AND NIGHT
+
+Everything measurable about the themes is already proved: 275 contrast assertions in
+`check-contrast.mjs` and 51 specs in `themes.spec.ts`. **What no machine can answer is
+whether they are any good**, and those questions are the whole reason E6 was a session
+of its own. Do these outdoors in daylight and again in a dark room.
+
+- [ ] `/parametres/` shows **four themes first**, each with a live preview: the page
+      colour, its texture, a board, a knight, and the theme's own heading letter
+- [ ] The previews **look like the themes they promise**. A preview that lies is worse
+      than no preview
+- [ ] Pick each theme in turn. Every one changes the background, the surfaces, the
+      headings, the board **and the pieces** together — not just the background
+- [ ] The board and pieces change on a real board too (`/pieges/legal/`), not only on
+      the settings page
+
+#### ⚠️ Q3 — Does **Souiri** feel like Essaouira?
+
+This is the identity theme and the one no other chess site will have. It is either the
+best thing in this session or it is decoration.
+
+- [ ] The blue reads as **the blue of the doors and the boats**, not as a generic
+      "brand blue"
+- [ ] The background is recognisably **zellige** — a tiling, with structure — and not
+      just a texture. Look at it at arm's length on a phone, which is how it will be seen
+- [ ] The lime white feels like **a whitewashed wall**, warm, not like a grey UI surface
+- [ ] The saffron accent belongs with the other two. If it reads as an error colour,
+      that is a bug
+- [ ] Show it to someone from Essaouira if you can. **Their reaction is the test.**
+
+#### ⚠️ Q4 — Is **Terminal** readable, or just a gimmick?
+
+- [ ] Read a **whole lesson** in Terminal dark, on a phone, without stopping. If your
+      eyes hurt or you switch away before the end, it is a gimmick and it must be
+      softened or dropped
+- [ ] The phosphor green does not **vibrate** against the black. (It is deliberately
+      stepped back from the saturated `#00ff41` cliché for exactly this reason)
+- [ ] Amber for links and focus, green for everything read — is that distinction
+      **learnable in one page**, or does it just look like two random colours?
+- [ ] The scanlines are visible enough to be intentional and faint enough to read
+      through. On a low-brightness phone screen especially
+- [ ] **Terminal light** ("the printout") is coherent rather than a joke — a reader
+      whose OS is in light mode gets this, and it has to stand on its own
+- [ ] The monospace headings do not look cramped or broken at the largest heading size
+
+#### Bois and Marbre
+
+- [ ] **Bois** is unchanged from the site you already know. If anything looks different
+      from before this session, that is a regression, not a theme
+- [ ] The wood grain on the page and on the board squares is **just barely** perceptible.
+      If you can see it without looking for it, it is too strong
+- [ ] **Marbre** feels cold and sober — the room with the wood taken out. The veining
+      does not repeat visibly
+- [ ] The gold vein accent reads as stone, not as brass borrowed from Bois
+
+#### Light and dark inside every theme
+
+- [ ] Every theme has a **day and a night**, and both are usable. Switch mode while on
+      each theme in turn — eight combinations, and all eight are shipped
+- [ ] **No white flash** on navigation in any theme's dark mode, including a hard reload
+- [ ] The theme previews on `/parametres/` **follow the mode you are in** — in dark
+      mode all four tiles show their dark palettes
+
+#### The pieces
+
+- [ ] Each theme's pieces suit it: warm Staunton in Bois, crisp outlines in Marbre,
+      flat graphic in Souiri, minimal geometric in Terminal
+- [ ] ⚠️ **A knight is recognisable at a glance in every set**, at phone size. This is
+      the reason textured/raster pieces were rejected; if a set fails it here it must go
+- [ ] White and black pieces are clearly distinguishable **on both square colours** of
+      that theme's board
+- [ ] No piece is missing or shows as an empty square. (A missing piece set is the
+      failure mode of forgetting `board` on a page — check a lesson, a tutorial step, a
+      trap, an exercise and `/jouer/`)
+
+#### Typography (E7)
+
+- [ ] The **heading face changes with the theme** and the **body face never does**.
+      Compare a lesson in all four themes: the prose is the same face every time
+- [ ] A lesson's first paragraph has a **drop cap**, and only the first
+- [ ] On a narrow phone the drop cap **disappears** rather than sitting next to two words
+- [ ] Inline notation (`Cf3`, `Fc4`) reads as a **small badge** — fixed pitch, light
+      ground, a hairline. ⚠️ It rendered in the body font until this session; if it looks
+      like ordinary text again, that bug is back
+- [ ] French quotation marks are `« comme ceci »` with a narrow space inside them
+- [ ] Lesson lines are comfortable to read — roughly 60–70 characters on a desktop
+
 ### Board themes
 
-- [ ] All five presets are offered with a mini preview each, and the previews look like
+- [ ] The presets and custom colours are behind **"Personnaliser"**, closed by default.
+      That is the hierarchy, not a bug: the theme has already chosen a board
+- [ ] **"Suivre le thème"** is the first option and is selected when you have never
+      pinned a board
+- [ ] ⚠️ **Pin a preset, then change theme: the board stays.** This is the decision this
+      session made — a board preference is independent of the site's mood. A note appears
+      saying so
+- [ ] Choose "Suivre le thème" again: the board goes back to following, and now changes
+      with each theme you pick
+- [ ] If you had chosen a board **before this session**, it is still your board after it.
+      Nothing about your setup changed without being asked
+- [ ] All six presets are offered with a mini preview each, and the previews look like
       the boards they promise
 - [ ] Pick each one and check a real board (`/pieges/legal/`): squares change, and the
       **coordinates stay readable on both square colours** — this is the one to actually
