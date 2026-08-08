@@ -478,5 +478,27 @@ const pageDescription = description ?? site.description[locale];
     :global(.site-footer) {
       padding-block-end: calc(var(--mcc-bottom-nav) + env(safe-area-inset-bottom, 0px) + 1rem);
     }
+
+    /* ⚠️ `scroll-padding-bottom` IS NOT OPTIONAL WITH A FIXED BOTTOM BAR.
+       The padding above stops the bar covering the END of the document; this
+       stops it covering whatever anything SCROLLS INTO VIEW. Without it the
+       browser is free to park an element flush against the bottom edge — which
+       is underneath the bar — so:
+
+         • an `#anchor` link lands on a heading hidden behind it;
+         • Tab-ing to a control near the bottom scrolls it under the bar;
+         • `scrollIntoView` on a form control leaves it untappable.
+
+       Found by two settings-page specs that passed on a phone before the bar
+       existed and failed after: a theme radio was scrolled to the bottom edge,
+       and the tap landed on the bar instead of the control. That was the test
+       reproducing a real interaction, not a test artefact.
+
+       It belongs on the scroll container, which is the root element. */
+    :global(html) {
+      scroll-padding-block-end: calc(
+        var(--mcc-bottom-nav) + env(safe-area-inset-bottom, 0px) + 0.75rem
+      );
+    }
   }
 </style>

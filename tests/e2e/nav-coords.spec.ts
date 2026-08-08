@@ -95,7 +95,23 @@ test.describe('board coordinates align with their files and ranks', () => {
   });
 });
 
+/**
+ * ⚠️ DESKTOP VIEWPORT, BECAUSE THIS TESTS DESKTOP CHROME (M1).
+ *
+ * Below 768px the grouped header and the retro menu do not render at all —
+ * navigation moved to the bottom bar and the home page became a dashboard
+ * (docs/direction/mcc-direction-mobile-app.md). The phone projects run every
+ * spec, so anything asserting the grouped nav or the menu has to say which
+ * side of the breakpoint it means. The mobile side is covered in
+ * tests/e2e/mobile-app.spec.ts.
+ */
+const DESKTOP = { width: 1280, height: 900 };
+
 test.describe('grouped navigation', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.setViewportSize(DESKTOP);
+  });
+
   test('groups are closed on load and open on click, with no layout shift', async ({ page }) => {
     await page.goto('/cours/');
     const toggle = page.getByRole('button', { name: /Apprendre/ });

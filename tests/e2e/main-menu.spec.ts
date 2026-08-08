@@ -47,6 +47,19 @@ function keysOf(steps: Step[], record: typeof solved | typeof attempted) {
   return out as Record<string, Partial<Record<string, unknown>>>;
 }
 
+/**
+ * ⚠️ THE MENU IS DESKTOP-ONLY SINCE M1/M2, so this whole file runs at a desktop
+ * viewport. Below 768px the retro menu does not render — the dashboard replaces
+ * it (docs/direction/mcc-direction-mobile-app.md), and that side is covered by
+ * tests/e2e/mobile-app.spec.ts. The phone projects run this file too, which is
+ * why the viewport has to be stated rather than inherited.
+ *
+ * Individual tests that set their own viewport still override this.
+ */
+test.beforeEach(async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+});
+
 test.describe('the main menu', () => {
   for (const [locale, path, expected] of [
     ['fr', '/', ['Jouer', 'Apprendre', "S'entraîner", "Pièges d'ouverture", 'Le club']],
