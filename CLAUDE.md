@@ -2114,6 +2114,30 @@ If a full-matrix run reports failures confined to `auth.spec.ts` on one project,
 re-run that project with `--workers=1` before touching anything. As always: a
 genuine failure is deterministic and fails serially too.
 
+### ⚠️ A `disabled` flag in an effect's deps can defeat a "never on mount" rule
+
+`MoveInput` focuses the field when the turn comes back to the reader, and
+**deliberately never on mount** — grabbing focus on load drags a reader past
+the board and the hint they had not read yet.
+
+`disabled` was in that effect's dependency array. It starts `true` (the
+exercise board is view-only until its lazily-imported chess.js chunk lands) and
+flips to `false` a few hundred milliseconds later, which re-ran the effect with
+the `firstRender` guard already spent. The field focused itself anyway.
+
+On a lesson page with a replayer above an exercise it also killed the
+replayer's arrow keys, because `ReplayView`'s document handler ignores keys
+aimed at an `INPUT`.
+
+**The general shape: a guard that fires once is defeated by any dependency that
+changes later.** If an effect must run only in response to X, X must be its
+only dependency — other values may be *read*, they must not *trigger*.
+
+It presented as a flaky spec for months rather than as a bug, because whether
+the chunk won the race against the reader's first keypress depended on machine
+load. **A spec that fails only in full-suite runs is not automatically the
+documented browser flake** — this one was the application.
+
 ### ⚠️ Never assert a short-lived class with a MutationObserver — use rAF
 
 The correct-move pulse lasts one Transition (300ms) and is then removed, so a
@@ -2129,6 +2153,14 @@ and was not: it was a racy test.
 
 Sample from a `requestAnimationFrame` loop started before the action instead.
 That is ~18 looks inside one Transition and cannot be batched past the window.
+
+⚠️ **rAF alone is not enough on WebKit under load**, where it is starved and the
+loop simply does not run often enough. The pulse spec now runs the rAF loop AND
+a `MutationObserver` that reads its **records** — `record.addedNodes` and
+`record.target` describe the DOM as it was when the mutation happened, however
+late the callback fires. That is the distinction the rule above is really about:
+re-querying the live DOM is what fails, not the observer itself. The two
+samplers have opposite blind spots, so together they close the window.
 The tell that you have this bug rather than a browser one: the failure is
 `length` being 0 on a collection that should be non-empty, and it moves between
 projects rather than being deterministic on one.

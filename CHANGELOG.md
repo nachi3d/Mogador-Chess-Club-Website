@@ -105,11 +105,28 @@ the surfaces, the heading typeface, the default board preset and the piece set
   had. An unknown custom property invalidates the whole declaration silently,
   so every inline notation in every lesson quietly lost its face. Exactly the
   `--mcc-border` failure again. The token is `--font-notation`.
-- `board-affordance.spec.ts` waited on `<cg-board>` before pressing an arrow
-  key, but the replayer's key handler binds in `ReplayView`'s effect, which
-  runs **after** its child board's. There was a real window where the board was
-  drawn and the keys were dead. `ReplayView` now sets `data-keys="bound"` in
-  the same effect that binds the listener.
+- **The exercise's move input stole focus a moment after page load.**
+  `MoveInput` deliberately never focuses on mount — "stealing focus on page load
+  would drag a reader past the board and the hint they had not read yet" — but
+  `disabled` was in the effect's dependency array, and it flips from true to
+  false when the lazily-imported chess.js chunk lands. So the effect re-ran with
+  `firstRender` already spent and the field focused itself anyway, scrolling the
+  reader down to it. On a lesson page with a replayer above the exercise it also
+  swallowed the replayer's arrow keys, because `ReplayView`'s document handler
+  ignores keys aimed at an `INPUT` by design.
+
+  Found by chasing a "flaky" spec: whether the chunk won the race against the
+  first keypress depended on machine load, so it failed in full-suite runs and
+  passed every time in isolation. Not an E6 regression — it has been there since
+  the lazy chunk was introduced.
+- `ReplayView` now sets `data-keys="bound"` in the same effect that binds its
+  document key listener, so a spec can wait on the handler rather than on
+  `<cg-board>` — which belongs to a child component and proves nothing about it.
+- The correct-move pulse spec gained a second sampler that reads a
+  `MutationObserver`'s **records** alongside the rAF loop. rAF is starved under
+  load on WebKit, which had been producing intermittent "the pulse never
+  happened" failures in full-matrix runs. Reading records is not the pattern the
+  existing rule warns against — that one re-queries the live DOM.
 
 #### Deliberately not done
 
