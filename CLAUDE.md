@@ -1318,6 +1318,25 @@ shipped set whose black pieces carry a light outline (`#ececec`, 13.14:1 on that
 square). Verified to fail with the message *"MONOCHROME set, no outline to fall
 back on"* if the old assignment is restored.
 
+### ⚠️ `background-size` CYCLES — it broke Souiri's board into a 2×2 checker
+
+The theme texture was stacked as a second `background-image` layer on
+`cg-board`, with `background-size: auto, 25% 25%`. That is correct for a
+one-gradient texture and silently wrong for a two-gradient one: with three
+layers and two sizes the list cycles, the checker lands on `auto`, and the
+board renders as **one giant 2×2 checker** instead of 8×8.
+
+Souiri's texture is two gradients. The real board was broken, not only the
+preview — and it survived a screenshot review, because a giant checker still
+reads as "a chessboard" until you count the squares.
+
+The texture is now a `cg-board::before` layer. That decouples it from the
+checker entirely (a theme may use as many gradients as it likes) and paints
+below the squares and pieces, so the wash never tints a piece.
+
+**The general lesson: never rely on positional `background-*` lists when one of
+the layers comes from a variable a theme controls.** The count is not yours.
+
 ### The sixth board preset
 
 `phosphore` — phosphor green on black — exists because Terminal had no honest

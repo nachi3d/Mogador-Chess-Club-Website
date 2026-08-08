@@ -490,6 +490,11 @@ best thing in this session or it is decoration.
 - [ ] No piece is missing or shows as an empty square. (A missing piece set is the
       failure mode of forgetting `board` on a page — check a lesson, a tutorial step, a
       trap, an exercise and `/jouer/`)
+- [ ] ⚠️ **COUNT THE SQUARES: eight across, eight down, in every theme.** Both defects
+      this session shipped in a first draft and survived a screenshot review looked
+      *plausible* rather than broken — a 2×2 checker still reads as "a chessboard" at a
+      glance, and a board with the black pieces missing still reads as "a position".
+      Count, and look for both colours of piece, rather than glancing
 
 #### Typography (E7)
 
