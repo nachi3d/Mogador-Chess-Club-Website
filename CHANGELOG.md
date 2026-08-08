@@ -56,6 +56,22 @@ background.
 - Two `main-menu.spec.ts` tests that asserted the menu's behaviour **at 390px**
   now run at 900px, because below 768px the menu deliberately no longer renders.
   Their mobile counterparts moved to the new spec.
+- **Specs that assert desktop chrome now say which viewport they mean.** The
+  phone projects run every spec, so `nav-coords`' grouped-navigation block,
+  `motion`'s home-CTA block, `smoke`'s home-renders block and all of
+  `main-menu` set a desktop viewport. Running only chromium hid this: it
+  surfaced as 37 failures the first time the phone projects ran.
+- `scroll-padding-block-end` on the root below 768px. The footer padding stops
+  the fixed bar covering the **end of the document**; this stops it covering
+  whatever anything **scrolls into view** — an `#anchor` link, Tab-ing to a
+  control near the bottom, `scrollIntoView` on a form field. Found by two
+  settings specs that passed on a phone before the bar existed: a theme radio
+  was scrolled flush to the bottom edge and the tap landed on the bar.
+- The lazy-hydration spec now **asserts its own premise**. It put the board
+  below the fold at 380×620; M1 cut the mobile header from three rows to one,
+  the board moved up into view, and the test failed for the right reason about
+  the wrong thing. A test whose setup has stopped creating the condition it
+  tests is worse than a failing one — it goes green while checking nothing.
 
 #### Fixed
 
