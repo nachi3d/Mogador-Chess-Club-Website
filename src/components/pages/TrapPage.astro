@@ -37,7 +37,7 @@ const shareText = `${title} — ${site.name}\n${shareUrl}`;
 const whatsappShare = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
 ---
 
-<BaseLayout locale={locale} title={title} description={summary}>
+<BaseLayout locale={locale} title={title} description={summary} board>
   <article class="trap">
     <nav class="trap-back" aria-label={t('traps.backToIndex')}>
       <a href={trapsPath(locale)}>← {t('traps.backToIndex')}</a>

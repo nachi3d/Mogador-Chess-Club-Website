@@ -44,7 +44,11 @@ with itself.
 | **E1 — motion vocabulary + action feedback** | **done** | Three families, the press, the correct-move pulse, the wrong-move reason, the two-beat solve, a second ambient layer. |
 | **E2 — sound** | `backlog` | Synthesised via Web Audio, **off by default**. No audio files, so no new licence and no new request. |
 | **E3 — progression** | `backlog` | Ranks Pion → Cavalier → Fou → Tour → Dame. **Session streaks only — never a daily streak**: the club meets weekly, so a daily streak would punish the normal rhythm of the people it is for. Wants v2-S3's synced progress to mean anything across devices. |
-| **E4 — vocabulary and atmosphere** | `backlog` | Evocative names on **page titles only**; nav labels stay functional (Cours, Exercices, Jouer). |
+| **E5 — retro main menu on the home page** | **done** | Six entries, roving tabindex, "Reprendre" resolving to the furthest incomplete step. |
+| **E6 — complete themes** (background + board + pieces) | `backlog` | Heavy — a dedicated session. Extra piece sets each need their own licence attribution on `/mentions-legales/`, verified set by set. Texture in CSS only, never images, so the zero-request rule and the precache budget hold. Every theme must clear `check-contrast.mjs` on all its pairs in both palettes **at design time**, not at the end. |
+| **E7 — thematic typography** | `backlog` | Depends on E6 (both touch the tokens). Headings follow the theme; **the body family never changes**. One theme loads one display font, never four. |
+| **E8 — the shop** | `blocked` | Catalogue display needs nothing; **the points exchange cannot open before v2-S3**. Points live in `localStorage` while accounts are off, so changing phone loses them — and that is a lost *reward*, not lost progress. Once accounts exist the balance must be computed in the database from exercises actually solved, never accepted from the client. **Points are never sold.** |
+| **E4 — vocabulary and atmosphere** | `backlog` | Evocative names on **page titles only**; nav labels stay functional (Cours, Exercices, Jouer). ⚠️ Now constrained by E5 as well: the home menu takes its labels from the same `nav.*` keys, so renaming a nav label renames a menu entry too. May be absorbed by E5 + E7 — see the addendum. |
 
 ### Refonte esthétique majeure — a direction session, not a patch
 
@@ -91,7 +95,9 @@ board stays sober throughout.
 |---|---|---|
 | **Promotion picker on the pointer path** | `backlog` | Currently backwards: the typed path honours `e8=D`, the pointer path auto-queens. A keyboard user therefore has strictly *more* control than a mouse user, which is the wrong way round. No shipped exercise promotes, and a queen is right ~99% of the time against the engine — so it is real but not urgent. |
 | **Pass-and-play** (two players, one device) | `backlog` | Not free from `PlayView`: no engine, no thinking state, a board that flips or does not, and a second result vocabulary ("White wins" rather than "you win"). A small separate mode, not a flag. |
-| **"Nocturne" board preset** | `conditional` | Only if Seàn judges Classique too bright in a dark room on a real phone. The board deliberately does not follow light/dark, and a sixth preset is the cheap answer if it turns out to need one. |
+| **"Nocturne" board preset** | `resolved` | Superseded by E6. `phosphore` is the sixth preset, and every theme now names its own board — so "too bright in a dark room" is answered by choosing Terminal or Marbre rather than by another preset. Reopen only if a reader wants a dark board *inside* a light theme. |
+| **AGPL piece sets** (`pixel`, `letter`, `pirouetti`) | `conditional` | Free software, and NOT a licence conflict — but AGPLv3 §13 adds a network-use obligation the repo does not currently carry, so adopting one changes the licence statement on `/mentions-legales/`. `pixel` would suit Terminal well. Needs Seàn's decision, not a session's. |
+| **Old-style figures in body text** | `blocked` | Declared in `typography.css` and inert: Inter ships no `onum`. Only unblocked by changing the body face, which the E7 safety rule forbids doing per-theme. A spec reports whether it ever starts working. |
 
 ## Beyond v2
 
@@ -111,3 +117,5 @@ board stays sober throughout.
 | **Dar Souiri street line** | `seàn` | Which exact address may be published. |
 | **Arabic / Darija locale** | `seàn` | A real question in Essaouira. The i18n layer supports a third locale structurally; RTL would need design work. |
 | **FR pedagogy review of the tutorial** | `seàn` | Written this session — see the note in CHANGELOG. The chess is machine-verified; the *teaching* is not. |
+| **Does Souiri feel like Essaouira?** | `seàn` | The identity theme, and the only part of E6 no machine can judge. `docs/MANUAL-TESTS.md` § Q3 has the questions; the last one is "show it to someone from Essaouira". |
+| **Is Terminal readable or a gimmick?** | `seàn` | § Q4. The test is reading a whole lesson in it, on a phone, without switching away. If it fails, it is softened or dropped — it is the one theme that exists for fun rather than for legibility. |

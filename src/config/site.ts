@@ -231,6 +231,43 @@ export const site = {
         licenceUrl: 'https://creativecommons.org/licenses/by-sa/3.0/',
         shareAlike: true,
       },
+      /* ── The other three piece sets (E6) ──────────────────────────────
+         Each theme ships its own artwork, and each set is a separate work by
+         a separate author under a separate licence. Attribution is a CONDITION
+         of use for all three, not a courtesy — `merida` under GPLv2+,
+         `chessnut` under Apache 2.0 (§4(c), notices preserved) and
+         `kiwen-suwi` under CC BY 4.0, whose entire obligation is this line.
+
+         ⚠️ Adding a set to `src/config/piece-sets.ts` and forgetting to add it
+         here is a licence breach, not an oversight. `vendor/pieces/README.md`
+         records why most of Lichess's sets could not be used at all. */
+      {
+        id: 'merida',
+        work: 'merida (pièces)',
+        author: 'Armando Hernandez Marroquin',
+        licence: 'GPL-2.0-or-later',
+        workUrl: 'https://github.com/lichess-org/lila/tree/master/public/piece/merida',
+        licenceUrl: 'https://www.gnu.org/licenses/gpl-2.0.txt',
+        shareAlike: true,
+      },
+      {
+        id: 'chessnut',
+        work: 'chessnut (pièces)',
+        author: 'Alexis Luengas',
+        licence: 'Apache-2.0',
+        workUrl: 'https://github.com/LexLuengas/chessnut-pieces',
+        licenceUrl: 'https://github.com/LexLuengas/chessnut-pieces/blob/master/LICENSE.txt',
+        shareAlike: false,
+      },
+      {
+        id: 'kiwen-suwi',
+        work: 'kiwen-suwi (pièces)',
+        author: 'neverRare',
+        licence: 'CC BY 4.0',
+        workUrl: 'https://github.com/lichess-org/lila/tree/master/public/piece/kiwen-suwi',
+        licenceUrl: 'https://creativecommons.org/licenses/by/4.0/',
+        shareAlike: false,
+      },
       {
         id: 'stockfish',
         work: 'Stockfish 11 (stockfish.js)',
@@ -258,12 +295,17 @@ export const site = {
         licenceUrl: 'https://opensource.org/license/mit',
         shareAlike: false,
       },
+      /* One entry for all five faces: they share a licence, and five rows
+         saying "SIL OFL 1.1" would bury the three rows above that carry a real
+         and differing obligation. E7 added the three heading faces — one per
+         theme beyond Bois. */
       {
         id: 'fonts',
-        work: 'Fraunces, Inter',
-        author: 'Undercase Type, Rasmus Andersson',
+        work: 'Inter, Fraunces, Playfair Display, Outfit, JetBrains Mono',
+        author:
+          'Rasmus Andersson, Undercase Type, Claus Eggers Sørensen, Smartsheet, JetBrains',
         licence: 'SIL OFL 1.1',
-        workUrl: 'https://fonts.google.com/specimen/Fraunces',
+        workUrl: 'https://openfontlicense.org/',
         licenceUrl: 'https://openfontlicense.org/',
         shareAlike: false,
       },

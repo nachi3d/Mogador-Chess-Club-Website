@@ -63,13 +63,41 @@
 cg-board {
   background-color: var(--mcc-board-light);
   /* 8×8 checker from two flat token colours. `repeating-conic-gradient` tiles
-     a 2×2 square block, which is exactly a chessboard. */
+     a 2×2 square block, which is exactly a chessboard.
+     ⚠️ The theme's texture is a SEPARATE LAYER ON TOP, never mixed into the
+     checker: the checker's stops must stay the two exact token colours, or the
+     preset the contrast auditor proved is not the preset that gets painted.
+     The texture is a wash over the result, and every shipped one DARKENS —
+     so a piece silhouette gains contrast against its square rather than
+     losing it. THE BOARD STAYS SOBER: the ceiling is 0.05 alpha, except the
+     Terminal scanline whose arithmetic is written out beside it. */
   background-image: repeating-conic-gradient(
     var(--mcc-board-dark) 0% 25%,
     var(--mcc-board-light) 0% 50%
   );
   background-size: 25% 25%;
   background-position: top left;
+}
+
+/* ⚠️ THE TEXTURE IS ITS OWN LAYER, NOT AN EXTRA `background-image` ENTRY.
+   `background-size` is POSITIONAL and CYCLES when it has fewer values than
+   there are layers. With the texture stacked onto the checker, a theme whose
+   texture is a single gradient worked (`auto, 25% 25%`) and a theme whose
+   texture is TWO gradients silently shifted the checker onto `auto` — Souiri
+   rendered a 2×2 board instead of 8×8, on the real board as well as in the
+   settings preview. No error, and it survived a screenshot review because a
+   giant checker still looks like a chessboard until you count the squares.
+
+   A pseudo-element decouples the two entirely, so a theme may use as many
+   gradient layers as it likes. It sits BELOW the squares and pieces: `::before`
+   precedes them in paint order among positioned descendants, so the wash never
+   tints a piece. */
+cg-board::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: var(--mcc-board-texture);
+  pointer-events: none;
 }
 
 /* ---------- Move / analysis overlays ---------- */

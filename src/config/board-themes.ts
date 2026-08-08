@@ -37,6 +37,12 @@ export const BOARD_THEMES = [
   { id: 'bleu', labelKey: 'board.bleu' },
   /** Pale, high-key, for bright rooms and low-vision comfort. */
   { id: 'glace', labelKey: 'board.glace' },
+  /**
+   * Phosphor green on black. Added with the themes (E6) because the Terminal
+   * theme had no honest default among the other five — see the block comment
+   * in board-themes.css.
+   */
+  { id: 'phosphore', labelKey: 'board.phosphore' },
 ] as const satisfies readonly BoardTheme[];
 
 export type BoardThemeId = (typeof BOARD_THEMES)[number]['id'];

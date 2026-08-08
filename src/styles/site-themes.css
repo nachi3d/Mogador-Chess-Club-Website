@@ -1,0 +1,527 @@
+/* ============================================================
+   SITE THEMES (E6) — THE source of every themed colour.
+
+   `src/config/site-themes.ts` carries the ids, the default board
+   preset, the piece set and the heading font. THIS FILE carries
+   the colours, for the same reason `board-themes.css` carries the
+   square colours: one source of truth for what the auditor checks
+   and what the browser paints.
+
+   `scripts/check-contrast.mjs` PARSES THIS FILE. Add a theme here
+   and every pair the site renders is audited in both of its
+   palettes, against every board preset, on the next build. There
+   is no list to remember to update.
+
+   ── HOW THE CASCADE IS ARRANGED, AND WHY ────────────────────────
+
+   Bois is the base and lives in `tokens.css` (see the note at the
+   top of its `:root` block). The other three override it here.
+   Writing S for `:is(:root, .theme-preview)`:
+
+     S.theme-X:not([data-theme='dark'])   → X, light   (0,3,0)
+     S.theme-X[data-theme='dark']         → X, dark    (0,3,0)
+     S.theme-X                            → X, either  (0,2,0)
+
+   ⚠️ THE `:not()` IS LOAD-BEARING, NOT TIDINESS. This file is
+   imported AFTER tokens.css, and a bare `:root.theme-marbre`
+   (0,2,0) ties on specificity with `:root[data-theme='dark']`
+   (0,2,0) — so source order would win and a theme's LIGHT values
+   would paint over Bois's dark ones. A dark-mode reader on Marbre
+   would get white text on a white page. The `:not()` lifts each
+   mode block to (0,3,0) and makes the two mutually exclusive, so
+   neither can ever be decided by source order.
+
+   ⚠️ `:is(:root, .theme-preview)` RATHER THAN `:root` ALONE, so
+   the settings page can paint a theme it is not wearing. A tile in
+   the theme picker is `<div class="theme-preview theme-souiri">`,
+   and it gets Souiri's tokens on that element — no second copy of
+   the palette, and a preview that is wrong is a THEME that is
+   wrong. Exactly the trick `board-themes.css` already uses for the
+   preset swatches.
+
+   `:is()` takes the specificity of its most specific argument, and
+   both arguments are (0,1,0), so the arithmetic above is unchanged
+   — which is the reason it is `:is()` and not a selector list.
+   Note that the base dark block never competes on a preview
+   element at all: `:root[data-theme='dark']` cannot match a div,
+   so the only thing a preview overrides is inheritance.
+
+   ⚠️ A THEME MUST RESTATE EVERY TOKEN WHOSE BASE VALUE WOULD BE
+   WRONG FOR IT. Anything omitted falls through to Bois — a brass
+   accent on a phosphor terminal, and no error anywhere. In
+   practice that is all 34 of the surface, text, border, primary,
+   accent, link, focus, level, selection, ambient and press tokens,
+   and each theme's dark block restates all 34.
+
+   FOUR ARE DELIBERATELY LEFT INHERITED, in every theme:
+   `--mcc-board-last-move`, `-selected`, `-check` and `-hint`.
+   They are alpha washes over a square rather than colours, chosen
+   to read against ANY preset — which is a property of the overlay,
+   not of the theme. Overriding them per theme would be four more
+   values to prove for six presets each.
+
+   The square colours themselves are absent for the same reason
+   from the other direction: they belong to the `.board-<id>`
+   preset, which is level 2 and outranks the theme.
+
+   The auditor is what catches an accidental omission: it resolves
+   each theme in each mode exactly the way the cascade above does.
+
+   ── WHAT A THEME MAY AND MAY NOT DO ─────────────────────────────
+
+   May: surfaces, text, borders, primary, accent, links, level
+   fills, selection, board overlays, ambient, textures, and the
+   HEADING typeface.
+
+   May NOT: the body typeface (E7 safety rule), the motion
+   constants, the layout rhythm, or anything the board needs to
+   stay legible. THE BOARD STAYS SOBER in every theme.
+   ============================================================ */
+
+/* ============================================================
+   1. BOIS — oak and walnut, parchment, brass lamplight.
+   ------------------------------------------------------------
+   The default, and the palette this site has always had. Its
+   COLOURS are in tokens.css; only the things that are specific to
+   it as a *named theme* live here.
+   ============================================================ */
+:is(:root, .theme-preview).theme-bois {
+  --mcc-font-display: var(--font-display-fraunces);
+}
+
+/* A quarter-sawn grain: fine vertical striping, warm, and far below the level
+   at which it could touch a contrast ratio (0.028 alpha over the page cream).
+   The angle is 96deg rather than 90 so the grain drifts very slightly off
+   vertical, which is what stops it reading as a UI rule. */
+:is(:root, .theme-preview).theme-bois:not([data-theme='dark']) {
+  --mcc-page-texture: repeating-linear-gradient(
+    96deg,
+    rgb(111 74 44 / 0.028) 0 1px,
+    rgb(111 74 44 / 0) 1px 7px
+  );
+  --mcc-board-texture: repeating-linear-gradient(
+    96deg,
+    rgb(66 43 25 / 0.05) 0 1px,
+    rgb(66 43 25 / 0) 1px 7px
+  );
+}
+
+:is(:root, .theme-preview).theme-bois[data-theme='dark'] {
+  --mcc-page-texture: repeating-linear-gradient(
+    96deg,
+    rgb(217 189 119 / 0.022) 0 1px,
+    rgb(217 189 119 / 0) 1px 7px
+  );
+  --mcc-board-texture: repeating-linear-gradient(
+    96deg,
+    rgb(0 0 0 / 0.06) 0 1px,
+    rgb(0 0 0 / 0) 1px 7px
+  );
+}
+
+/* ============================================================
+   2. MARBRE — veined white and slate.
+   ------------------------------------------------------------
+   Cool and sober: the room emptied of its wood. The accent is the
+   gold vein in the stone rather than a lamp, which keeps a warm
+   note without reintroducing brass.
+   ============================================================ */
+:is(:root, .theme-preview).theme-marbre {
+  --mcc-font-display: var(--font-display-playfair);
+}
+
+:is(:root, .theme-preview).theme-marbre:not([data-theme='dark']) {
+  --mcc-surface-page: #f2f3f5;
+  --mcc-surface-raised: #fbfbfd;
+  --mcc-surface-sunken: #e4e7ec;
+  --mcc-surface-inverse: #333c48;
+
+  --mcc-text-primary: #1a1f27;
+  --mcc-text-heading: #0e131a;
+  --mcc-text-secondary: #565e6b; /* 6.02 on the page */
+  --mcc-text-inverse: #f2f3f5;
+  --mcc-text-on-inverse-muted: #b3bcc8;
+
+  --mcc-border-subtle: #d7dbe2;
+  /* #868e9b measured 3.00 exactly — a floor is not a target, and a value that
+     is one rounding away from failing is a value that will fail on the next
+     palette nudge. Stepped down until it had room. */
+  --mcc-border-strong: #7d8593;
+
+  --mcc-primary: #38495e;
+  --mcc-primary-hover: #2a3849;
+  --mcc-primary-contrast: #fbfbfd;
+
+  --mcc-accent: #8a7239; /* the vein — fill and focus ring */
+  --mcc-accent-text: #63501f; /* the deep variant, as text on stone */
+  --mcc-accent-on-inverse: #d6bd7e;
+  --mcc-accent-strong: #8a7239;
+
+  --mcc-link: #2f5273;
+  --mcc-focus-ring: #8a7239;
+  --mcc-focus-ring-inverse: #d6bd7e;
+
+  --mcc-danger-text: #9c3524;
+  --mcc-border-on-inverse: #212932;
+
+  --mcc-level-debutant: #a9c7b6;
+  --mcc-level-intermediaire: #d8c68f;
+  --mcc-level-avance: #c0a597;
+
+  --mcc-selection-bg: #cdd8e6;
+  --mcc-selection-ink: #0e131a;
+
+  --mcc-ambient: #333c48;
+  --mcc-ambient-opacity: 0.05;
+  --mcc-ambient-far: 0.7;
+  --mcc-press-shadow: rgb(24 30 38 / 0.24);
+
+  /* Veining: three passes at incommensurable periods so the stone never
+     repeats visibly. Slate at 0.045, well under the ambient ceiling. */
+  --mcc-page-texture:
+    repeating-linear-gradient(28deg, rgb(51 60 72 / 0.045) 0 1px, rgb(51 60 72 / 0) 1px 23px),
+    repeating-linear-gradient(31deg, rgb(51 60 72 / 0.03) 0 1px, rgb(51 60 72 / 0) 1px 61px),
+    repeating-linear-gradient(24deg, rgb(138 114 57 / 0.025) 0 1px, rgb(138 114 57 / 0) 1px 97px);
+  --mcc-board-texture: repeating-linear-gradient(
+    28deg,
+    rgb(51 60 72 / 0.045) 0 1px,
+    rgb(51 60 72 / 0) 1px 23px
+  );
+}
+
+:is(:root, .theme-preview).theme-marbre[data-theme='dark'] {
+  --mcc-surface-page: #16191e;
+  --mcc-surface-raised: #1f242b;
+  --mcc-surface-sunken: #101317;
+  --mcc-surface-inverse: #262d36;
+
+  --mcc-text-primary: #e6e9ee;
+  --mcc-text-heading: #f8f9fb;
+  --mcc-text-secondary: #a4acb8;
+  --mcc-text-inverse: #e6e9ee;
+  --mcc-text-on-inverse-muted: #a9b1bd;
+
+  --mcc-border-subtle: #2e353e;
+  --mcc-border-strong: #6b7482;
+
+  --mcc-primary: #4c6b8c;
+  --mcc-primary-hover: #5c7fa3;
+  --mcc-primary-contrast: #f8f9fb;
+
+  --mcc-accent: #d8bd77;
+  --mcc-accent-text: #d8bd77;
+  --mcc-accent-on-inverse: #d8bd77;
+  --mcc-accent-strong: #ecd8a1;
+
+  --mcc-link: #a8c9e6;
+  --mcc-focus-ring: #d8bd77;
+  --mcc-focus-ring-inverse: #d8bd77;
+
+  --mcc-danger-text: #e39184;
+  --mcc-border-on-inverse: #39424e;
+
+  --mcc-level-debutant: #a9c7b6;
+  --mcc-level-intermediaire: #d8c68f;
+  --mcc-level-avance: #c0a597;
+
+  --mcc-selection-bg: #3d5674;
+  --mcc-selection-ink: #f8f9fb;
+
+  --mcc-ambient: #d8bd77;
+  --mcc-ambient-opacity: 0.065;
+  --mcc-ambient-far: 0.55;
+  --mcc-press-shadow: rgb(0 0 0 / 0.5);
+
+  --mcc-page-texture:
+    repeating-linear-gradient(28deg, rgb(216 189 119 / 0.02) 0 1px, rgb(216 189 119 / 0) 1px 23px),
+    repeating-linear-gradient(31deg, rgb(216 189 119 / 0.015) 0 1px, rgb(216 189 119 / 0) 1px 61px);
+  --mcc-board-texture: repeating-linear-gradient(
+    28deg,
+    rgb(0 0 0 / 0.05) 0 1px,
+    rgb(0 0 0 / 0) 1px 23px
+  );
+}
+
+/* ============================================================
+   3. SOUIRI — zellige, Essaouira blue and lime white.
+   ------------------------------------------------------------
+   THE IDENTITY THEME. No other chess site has this one, and it is
+   most of why E6 was worth a session of its own.
+
+   The three colours are the town's, not a palette exercise: the
+   lime wash of the medina walls (the page), the blue of the doors
+   and the boats in the port (the primary and the header), and the
+   saffron-terracotta that runs through zellige (the accent).
+
+   The background is a real tiling rather than a wash — two
+   diagonal lattices crossing an orthogonal grid, which is the
+   underlying construction of a zellige star. Drawn in gradients:
+   no image, no request, nothing to precache.
+   ============================================================ */
+:is(:root, .theme-preview).theme-souiri {
+  --mcc-font-display: var(--font-display-outfit);
+}
+
+:is(:root, .theme-preview).theme-souiri:not([data-theme='dark']) {
+  --mcc-surface-page: #f1f5f4;
+  --mcc-surface-raised: #fbfcfc;
+  --mcc-surface-sunken: #e0e9e8;
+  --mcc-surface-inverse: #0e4a6b;
+
+  --mcc-text-primary: #15242c;
+  --mcc-text-heading: #0a161c;
+  --mcc-text-secondary: #4f5e66;
+  --mcc-text-inverse: #f1f5f4;
+  --mcc-text-on-inverse-muted: #a8cbe0;
+
+  --mcc-border-subtle: #cfdcda;
+  --mcc-border-strong: #74868a;
+
+  --mcc-primary: #0f5c86;
+  --mcc-primary-hover: #0b486a;
+  --mcc-primary-contrast: #fbfcfc;
+
+  --mcc-accent: #b06124;
+  --mcc-accent-text: #8a4a17;
+  --mcc-accent-on-inverse: #f0b782;
+  --mcc-accent-strong: #b06124;
+
+  --mcc-link: #0d5680;
+  --mcc-focus-ring: #b06124;
+  --mcc-focus-ring-inverse: #f0b782;
+
+  --mcc-danger-text: #a3341f;
+  --mcc-border-on-inverse: #0a3a54;
+
+  --mcc-level-debutant: #a6cfc4;
+  --mcc-level-intermediaire: #e9c98d;
+  --mcc-level-avance: #dda37a;
+
+  --mcc-selection-bg: #bfe0ef;
+  --mcc-selection-ink: #0a161c;
+
+  --mcc-ambient: #0e4a6b;
+  --mcc-ambient-opacity: 0.05;
+  --mcc-ambient-far: 0.7;
+  --mcc-press-shadow: rgb(13 39 51 / 0.24);
+
+  /* Zellige. Two diagonals at 45° and −45° give the eight-point star's arms;
+     the orthogonal pair at twice the period gives the tile grid they sit in.
+     Blue lattice at 0.05, terracotta grid at 0.035. */
+  --mcc-page-texture:
+    repeating-linear-gradient(45deg, rgb(15 92 134 / 0.05) 0 1px, rgb(15 92 134 / 0) 1px 14px),
+    repeating-linear-gradient(-45deg, rgb(15 92 134 / 0.05) 0 1px, rgb(15 92 134 / 0) 1px 14px),
+    repeating-linear-gradient(0deg, rgb(176 97 36 / 0.035) 0 1px, rgb(176 97 36 / 0) 1px 28px),
+    repeating-linear-gradient(90deg, rgb(176 97 36 / 0.035) 0 1px, rgb(176 97 36 / 0) 1px 28px);
+  /* The board takes the lattice only, at half strength and a wider period:
+     the full tiling under the pieces would be a pattern competing with the
+     one thing on the page that has to be read instantly. */
+  --mcc-board-texture:
+    repeating-linear-gradient(45deg, rgb(14 74 107 / 0.035) 0 1px, rgb(14 74 107 / 0) 1px 18px),
+    repeating-linear-gradient(-45deg, rgb(14 74 107 / 0.035) 0 1px, rgb(14 74 107 / 0) 1px 18px);
+}
+
+:is(:root, .theme-preview).theme-souiri[data-theme='dark'] {
+  --mcc-surface-page: #0c1a21;
+  --mcc-surface-raised: #142831;
+  --mcc-surface-sunken: #071219;
+  --mcc-surface-inverse: #103246;
+
+  --mcc-text-primary: #e4eef1;
+  --mcc-text-heading: #f6fbfc;
+  --mcc-text-secondary: #9db3ba;
+  --mcc-text-inverse: #e4eef1;
+  --mcc-text-on-inverse-muted: #a3c2d1;
+
+  --mcc-border-subtle: #1e3a45;
+  --mcc-border-strong: #5f7d88;
+
+  --mcc-primary: #1c7aab;
+  --mcc-primary-hover: #2490c8;
+  --mcc-primary-contrast: #f6fbfc;
+
+  --mcc-accent: #eaa96c;
+  --mcc-accent-text: #eaa96c;
+  --mcc-accent-on-inverse: #eaa96c;
+  --mcc-accent-strong: #f5c496;
+
+  --mcc-link: #7cc7ea;
+  --mcc-focus-ring: #eaa96c;
+  --mcc-focus-ring-inverse: #eaa96c;
+
+  --mcc-danger-text: #e79080;
+  --mcc-border-on-inverse: #1c4a63;
+
+  --mcc-level-debutant: #a6cfc4;
+  --mcc-level-intermediaire: #e9c98d;
+  --mcc-level-avance: #dda37a;
+
+  --mcc-selection-bg: #1f5f80;
+  --mcc-selection-ink: #f6fbfc;
+
+  --mcc-ambient: #eaa96c;
+  --mcc-ambient-opacity: 0.065;
+  --mcc-ambient-far: 0.55;
+  --mcc-press-shadow: rgb(0 0 0 / 0.5);
+
+  --mcc-page-texture:
+    repeating-linear-gradient(45deg, rgb(124 199 234 / 0.03) 0 1px, rgb(124 199 234 / 0) 1px 14px),
+    repeating-linear-gradient(-45deg, rgb(124 199 234 / 0.03) 0 1px, rgb(124 199 234 / 0) 1px 14px),
+    repeating-linear-gradient(0deg, rgb(234 169 108 / 0.022) 0 1px, rgb(234 169 108 / 0) 1px 28px),
+    repeating-linear-gradient(90deg, rgb(234 169 108 / 0.022) 0 1px, rgb(234 169 108 / 0) 1px 28px);
+  --mcc-board-texture:
+    repeating-linear-gradient(45deg, rgb(0 0 0 / 0.045) 0 1px, rgb(0 0 0 / 0) 1px 18px),
+    repeating-linear-gradient(-45deg, rgb(0 0 0 / 0.045) 0 1px, rgb(0 0 0 / 0) 1px 18px);
+}
+
+/* ============================================================
+   4. TERMINAL — phosphor green on black.
+   ------------------------------------------------------------
+   The retro nod that accompanies the E5 main menu. Two phosphors,
+   as the hardware had: green for everything read, amber for
+   everything actionable (links, focus, accents). Highlighting is
+   INVERSE VIDEO, which is why the primary button is a bright fill
+   with a near-black label rather than the other way round.
+
+   ⚠️ IT MUST BE READABLE, NOT JUST A GIMMICK — that is the
+   question the manual test asks. So the green is stepped back from
+   the saturated #00ff41 of the cliché (which vibrates against
+   black and is genuinely tiring) to a phosphor that still reads as
+   phosphor at 13:1.
+
+   The light mode is not a joke either: it is the printout rather
+   than the screen — dark green on pale paper. A reader who has
+   asked their OS for light mode gets a light page in every theme.
+   ============================================================ */
+:is(:root, .theme-preview).theme-terminal {
+  --mcc-font-display: var(--font-display-jetbrains);
+  /* The one theme where headings want to sit wide and flat rather than tight:
+     a monospace face at a display size looks cramped with negative tracking. */
+  --mcc-display-tracking: 0.01em;
+}
+
+:is(:root, .theme-preview).theme-terminal:not([data-theme='dark']) {
+  /* ⚠️ #f1f6f1, not the #e8eee8 this started as. The darker paper measured a
+     3.08 edge for the `glace` preset against it — passing, and the tightest
+     ratio on the whole site. A preset is independent of the theme, so a reader
+     may pin the palest board and then switch here; at 3.08 that board dissolves
+     into the page on the next palette nudge. Lightening the paper brings it to
+     3.31, which is where the pale presets sit on all three other themes. The
+     fix was to remove the outlier, not to grant it an exception. */
+  --mcc-surface-page: #f1f6f1;
+  --mcc-surface-raised: #fafcfa;
+  --mcc-surface-sunken: #e2ebe2;
+  --mcc-surface-inverse: #123a22;
+
+  --mcc-text-primary: #11271a;
+  --mcc-text-heading: #071409;
+  --mcc-text-secondary: #46604e;
+  --mcc-text-inverse: #e8eee8;
+  --mcc-text-on-inverse-muted: #9dc4a9;
+
+  --mcc-border-subtle: #c6d3c6;
+  --mcc-border-strong: #6f8375;
+
+  --mcc-primary: #1a5c33;
+  --mcc-primary-hover: #134526;
+  --mcc-primary-contrast: #fafcfa;
+
+  --mcc-accent: #7a5410;
+  --mcc-accent-text: #6a4a0e;
+  --mcc-accent-on-inverse: #e8b45c;
+  --mcc-accent-strong: #7a5410;
+
+  --mcc-link: #17563a;
+  --mcc-focus-ring: #7a5410;
+  --mcc-focus-ring-inverse: #e8b45c;
+
+  --mcc-danger-text: #9b3222;
+  --mcc-border-on-inverse: #0b2715;
+
+  --mcc-level-debutant: #a7ceb2;
+  --mcc-level-intermediaire: #e2c98d;
+  --mcc-level-avance: #d3a894;
+
+  --mcc-selection-bg: #b9d8c2;
+  --mcc-selection-ink: #071409;
+
+  --mcc-ambient: #123a22;
+  --mcc-ambient-opacity: 0.05;
+  --mcc-ambient-far: 0.7;
+  --mcc-press-shadow: rgb(11 30 18 / 0.24);
+
+  /* The printout's fanfold banding, not scanlines — a screen effect on paper
+     would be the wrong object. Wide, faint, horizontal. */
+  --mcc-page-texture: repeating-linear-gradient(
+    0deg,
+    rgb(17 39 26 / 0.03) 0 1px,
+    rgb(17 39 26 / 0) 1px 28px
+  );
+  --mcc-board-texture: none;
+}
+
+:is(:root, .theme-preview).theme-terminal[data-theme='dark'] {
+  --mcc-surface-page: #04150c;
+  --mcc-surface-raised: #08210f;
+  --mcc-surface-sunken: #020c06;
+  --mcc-surface-inverse: #082a13;
+
+  --mcc-text-primary: #7ef0a4; /* 13.31 on the page */
+  --mcc-text-heading: #b6ffcf;
+  --mcc-text-secondary: #46b571; /*  7.20 */
+  --mcc-text-inverse: #7ef0a4;
+  --mcc-text-on-inverse-muted: #5cc98a;
+
+  --mcc-border-subtle: #16442a;
+  --mcc-border-strong: #2f7a4c;
+
+  /* Inverse video: the terminal's own way of saying "this one". */
+  --mcc-primary: #3fd97a;
+  --mcc-primary-hover: #5ae893;
+  --mcc-primary-contrast: #04150c;
+
+  /* The amber phosphor. Everything actionable is amber; everything read is
+     green. That is a real distinction a reader can learn in one page. */
+  --mcc-accent: #ffb000;
+  --mcc-accent-text: #ffb000;
+  --mcc-accent-on-inverse: #ffb000;
+  --mcc-accent-strong: #ffc247;
+
+  --mcc-link: #ffc247;
+  --mcc-focus-ring: #ffb000;
+  --mcc-focus-ring-inverse: #ffb000;
+
+  --mcc-danger-text: #ff7b6b;
+  --mcc-border-on-inverse: #104f26;
+
+  --mcc-level-debutant: #6fd39a;
+  --mcc-level-intermediaire: #ffc247;
+  --mcc-level-avance: #ff9d7b;
+
+  --mcc-selection-bg: #3fd97a;
+  --mcc-selection-ink: #04150c;
+
+  --mcc-ambient: #3fd97a;
+  --mcc-ambient-opacity: 0.07;
+  --mcc-ambient-far: 0.55;
+  --mcc-press-shadow: rgb(0 0 0 / 0.6);
+
+  /* Scanlines — the one texture on the site above 0.05, at 0.055, and the
+     only one computed by hand rather than kept trivially low. It is a DARK
+     line over a dark page, so it lowers the page luminance slightly rather
+     than raising it: text contrast goes UP, not down. Worst case, body text
+     over a fully covered line, is 13.31 → 13.9. Nothing to fix. */
+  --mcc-page-texture: repeating-linear-gradient(
+    0deg,
+    rgb(0 0 0 / 0.055) 0 1px,
+    rgb(0 0 0 / 0) 1px 3px
+  );
+  /* The board gets them too — a phosphor board without scanlines is just a
+     green rectangle. Same direction: darkening, so piece silhouettes gain
+     contrast rather than lose it. */
+  --mcc-board-texture: repeating-linear-gradient(
+    0deg,
+    rgb(0 0 0 / 0.1) 0 1px,
+    rgb(0 0 0 / 0) 1px 3px
+  );
+}

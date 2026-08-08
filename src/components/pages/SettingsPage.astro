@@ -2,28 +2,45 @@
 /**
  * `/parametres/` — appearance settings, in both locales.
  *
+ * ── THE THREE LEVELS (E6) ──────────────────────────────────────────────────
+ * Decreasing prominence, and the ordering IS the design:
+ *
+ *   1. Thème         four coherent moods. One decision, taken by almost
+ *                    everyone who ever opens this page.
+ *   2. Apparence     clair / sombre / système — WITHIN the active theme.
+ *                    "Bois de jour" and "Bois de nuit", not a second axis.
+ *   3. Personnaliser a single collapsed disclosure holding the board presets
+ *                    and the reader's own two colours.
+ *
+ * ⚠️ NEVER FLATTEN THIS INTO 4 THEMES × 6 PRESETS. Twenty-four equivalent
+ * swatches is not more choice, it is the same choice made unusable. Each theme
+ * names its own board, and a reader who wants a different one has to ask.
+ *
+ * ⚠️ LEVELS 2 AND 3 SHARE ONE DISCLOSURE, not two side by side. The hierarchy
+ * is about how many decisions are visible at once; two collapsed panels is two
+ * decisions again.
+ *
  * ── NOT AN ISLAND, on purpose ──────────────────────────────────────────────
  * CLAUDE.md: the board is the only hydrated component on the site. This page
- * is native form controls — radios and two `<input type="color">` — wired up by
- * a plain `<script>`, exactly as the solved-ticks on `/exercices/` are. A
- * Preact island here would buy nothing: there is no shared state, no rendering
- * loop, and the browser already implements every control.
- *
- * Everything is server-rendered and labelled before the script runs, so the
- * page is readable (if inert) without JS. The `noscript` note says so.
+ * is native form controls — radios, a `<details>` and two `<input type=color>`
+ * — wired up by a plain `<script>`, exactly as the solved-ticks on
+ * `/exercices/` are. Everything is server-rendered and labelled before the
+ * script runs, so the page is readable (if inert) without JS.
  *
  * ── The previews are the real thing ────────────────────────────────────────
- * Each preset tile carries the SAME `.board-<id>` class that the theme script
- * puts on `<html>`, so the swatch is painted by the rule that will paint the
- * board. No second copy of the colours, and a preset that looks wrong here
- * looks wrong there too.
+ * Each theme tile carries `.theme-preview .theme-<id>` and each preset tile
+ * carries `.board-<id>` — the SAME classes the theme script puts on `<html>`.
+ * The swatch a reader picks from is painted by the rule that will paint their
+ * site. No second copy of any colour, anywhere.
  */
 import type { Locale } from '@config/site';
 import { BOARD_THEMES, boardThemeClass } from '@config/board-themes';
+import { SITE_THEMES } from '@config/site-themes';
 import { useTranslations } from '@i18n/ui';
 import BaseLayout from '@layouts/BaseLayout.astro';
 import PageIntro from '@components/PageIntro.astro';
 import MiniBoard from '@components/MiniBoard.astro';
+import ThemePreview from '@components/ThemePreview.astro';
 
 interface Props {
   locale: Locale;
@@ -37,9 +54,25 @@ const MODES = [
   { id: 'dark', label: t('settings.mode.dark') },
   { id: 'system', label: t('settings.mode.system') },
 ] as const;
+
+/** The theme's initial, set in its own heading face. See ThemePreview. */
+const GLYPHS: Record<string, string> = {
+  bois: 'B',
+  marbre: 'M',
+  souiri: 'S',
+  terminal: 'T',
+};
+
+/** The sentinel for "no pin" in the preset radio group. Not a preset id. */
+const FOLLOW = 'follow';
 ---
 
-<BaseLayout locale={locale} title={t('settings.title')} description={t('settings.intro')}>
+<BaseLayout
+  locale={locale}
+  title={t('settings.title')}
+  description={t('settings.intro')}
+  piecePreviews
+>
   <PageIntro title={t('settings.title')} intro={t('settings.intro')} />
 
   <noscript>
@@ -47,7 +80,29 @@ const MODES = [
   </noscript>
 
   <div class="settings">
-    {/* ── Mode ─────────────────────────────────────────────────────────── */}
+    {/* ── LEVEL 1 — Thème ──────────────────────────────────────────────── */}
+    <section>
+      <fieldset class="settings-fieldset">
+        <legend>{t('theme.heading')}</legend>
+        <p class="settings-hint">{t('theme.hint')}</p>
+        <div class="settings-themes">
+          {
+            SITE_THEMES.map((theme) => (
+              <label class="settings-theme">
+                <input type="radio" name="mcc-theme" value={theme.id} data-theme-input />
+                <span class="settings-theme-inner">
+                  <ThemePreview theme={theme.id} glyph={GLYPHS[theme.id] ?? '?'} />
+                  <span class="settings-theme-name">{t(theme.labelKey)}</span>
+                  <span class="settings-theme-hint">{t(theme.hintKey)}</span>
+                </span>
+              </label>
+            ))
+          }
+        </div>
+      </fieldset>
+    </section>
+
+    {/* ── LEVEL 2 — light / dark, INSIDE the theme ─────────────────────── */}
     <section>
       <fieldset class="settings-fieldset">
         <legend>{t('settings.mode.heading')}</legend>
@@ -65,76 +120,104 @@ const MODES = [
       </fieldset>
     </section>
 
-    {/* ── Board presets ────────────────────────────────────────────────── */}
-    <section>
-      <fieldset class="settings-fieldset">
-        <legend>{t('settings.board.heading')}</legend>
-        <p class="settings-hint">{t('settings.board.hint')}</p>
-        <div class="settings-boards">
-          {
-            BOARD_THEMES.map((theme) => (
-              <label class="settings-board" data-board-label={theme.id}>
-                <input type="radio" name="mcc-board" value={theme.id} data-board-input />
-                <span class="settings-board-inner">
-                  {/* The preset's own class — the swatch IS the board. */}
-                  <MiniBoard class={boardThemeClass(theme.id)} />
-                  <span class="settings-board-name">{t(theme.labelKey)}</span>
-                </span>
-              </label>
-            ))
-          }
-        </div>
-      </fieldset>
-    </section>
+    {/* ── LEVEL 3 — one disclosure, two sections ──────────────────────────
+        `<details>` rather than a scripted panel: it discloses without JS, it
+        is keyboard-operable and correctly announced by every screen reader
+        with no ARIA at all, and it cannot get out of step with its own
+        state. The script only ever OPENS it — when the reader already has a
+        pinned board or custom colours, so a setting they are using is never
+        hidden behind a closed summary. */}
+    <details class="settings-advanced" data-advanced>
+      <summary>
+        <span class="settings-advanced-title">{t('settings.advanced.heading')}</span>
+        <span class="settings-advanced-hint">{t('settings.advanced.hint')}</span>
+      </summary>
 
-    {/* ── Custom colours ───────────────────────────────────────────────── */}
-    <section>
-      <fieldset class="settings-fieldset">
-        <legend>{t('settings.custom.heading')}</legend>
-        <p class="settings-hint">{t('settings.custom.hint')}</p>
+      <div class="settings-advanced-body">
+        {/* Board presets */}
+        <fieldset class="settings-fieldset">
+          <legend>{t('settings.board.heading')}</legend>
+          <p class="settings-hint">{t('settings.board.hint')}</p>
 
-        <div class="settings-custom">
-          <div class="settings-pickers">
-            <label class="settings-picker">
-              <span>{t('settings.custom.light')}</span>
-              <input type="color" value="#e8dcbe" data-custom-light />
-            </label>
-            <label class="settings-picker">
-              <span>{t('settings.custom.dark')}</span>
-              <input type="color" value="#4f7053" data-custom-dark />
-            </label>
+          {/* The un-pin option, FIRST and named, because following the theme
+              is the default state and has to be reachable, not just losable. */}
+          <label class="settings-option settings-follow">
+            <input type="radio" name="mcc-board" value={FOLLOW} data-board-input />
+            <span>
+              <span class="settings-follow-name">{t('settings.board.follow')}</span>
+              <span class="settings-hint settings-follow-hint">{t('settings.board.followHint')}</span>
+            </span>
+          </label>
+
+          <div class="settings-boards">
+            {
+              BOARD_THEMES.map((theme) => (
+                <label class="settings-board" data-board-label={theme.id}>
+                  <input type="radio" name="mcc-board" value={theme.id} data-board-input />
+                  <span class="settings-board-inner">
+                    {/* The preset's own class — the swatch IS the board. */}
+                    <MiniBoard class={boardThemeClass(theme.id)} />
+                    <span class="settings-board-name">{t(theme.labelKey)}</span>
+                  </span>
+                </label>
+              ))
+            }
           </div>
 
-          {/* Live preview of the reader's own pair, painted from inline
-              properties the script sets — the same mechanism as the real board. */}
-          <MiniBoard class="settings-custom-preview" testid="custom-preview" />
-        </div>
+          {/* Shown only while a preset is pinned: it explains the one thing
+              about this control that is not obvious — that it now outranks
+              the theme. Reserved in the DOM so revealing it shifts nothing. */}
+          <p class="settings-pinned" data-board-pinned hidden>{t('settings.board.pinned')}</p>
+        </fieldset>
 
-        {/* Live contrast readout. Numbers, not just a verdict: someone nudging
-            a colour can see which direction helps. */}
-        <p class="settings-contrast" data-contrast-readout>
-          <span>{t('settings.custom.contrast')}</span>
-          <span class="settings-ratio" data-ratio-light>—</span>
-          <span class="settings-ratio" data-ratio-dark>—</span>
-        </p>
+        {/* Custom colours */}
+        <fieldset class="settings-fieldset">
+          <legend>{t('settings.custom.heading')}</legend>
+          <p class="settings-hint">{t('settings.custom.hint')}</p>
 
-        {/* Always in the DOM, empty when fine: an inserted `role="alert"`
-            announces unreliably, and a reserved line stops the buttons jumping. */}
-        <div class="settings-warning" role="alert" data-contrast-warning hidden>
-          <strong>{t('settings.warning.low')}</strong>
-          <span>{t('settings.warning.detail')}</span>
-        </div>
+          <div class="settings-custom">
+            <div class="settings-pickers">
+              <label class="settings-picker">
+                <span>{t('settings.custom.light')}</span>
+                <input type="color" value="#e8dcbe" data-custom-light />
+              </label>
+              <label class="settings-picker">
+                <span>{t('settings.custom.dark')}</span>
+                <input type="color" value="#4f7053" data-custom-dark />
+              </label>
+            </div>
 
-        <div class="settings-actions">
-          <button type="button" class="settings-button is-primary" data-custom-apply>
-            {t('settings.custom.apply')}
-          </button>
-          <button type="button" class="settings-button" data-custom-reset>
-            {t('settings.custom.reset')}
-          </button>
-        </div>
-      </fieldset>
-    </section>
+            {/* Live preview of the reader's own pair, painted from inline
+                properties the script sets — the same mechanism as the real board. */}
+            <MiniBoard class="settings-custom-preview" testid="custom-preview" />
+          </div>
+
+          {/* Live contrast readout. Numbers, not just a verdict: someone nudging
+              a colour can see which direction helps. */}
+          <p class="settings-contrast" data-contrast-readout>
+            <span>{t('settings.custom.contrast')}</span>
+            <span class="settings-ratio" data-ratio-light>—</span>
+            <span class="settings-ratio" data-ratio-dark>—</span>
+          </p>
+
+          {/* Always in the DOM, empty when fine: an inserted `role="alert"`
+              announces unreliably, and a reserved line stops the buttons jumping. */}
+          <div class="settings-warning" role="alert" data-contrast-warning hidden>
+            <strong>{t('settings.warning.low')}</strong>
+            <span>{t('settings.warning.detail')}</span>
+          </div>
+
+          <div class="settings-actions">
+            <button type="button" class="settings-button is-primary" data-custom-apply>
+              {t('settings.custom.apply')}
+            </button>
+            <button type="button" class="settings-button" data-custom-reset>
+              {t('settings.custom.reset')}
+            </button>
+          </div>
+        </fieldset>
+      </div>
+    </details>
   </div>
 
   {/* Polite: a setting applying is a confirmation, not an interruption.
@@ -157,25 +240,34 @@ const MODES = [
     applyTheme,
     bestInkFor,
     clearCustomBoard,
+    followThemeBoard,
     normaliseHex,
     readTheme,
+    resolveMode,
     writeTheme,
     type ThemeMode,
   } from '@lib/theme';
   import { isBoardThemeId } from '@config/board-themes';
+  import { isSiteThemeId } from '@config/site-themes';
 
   const root = document.documentElement;
   const status = document.querySelector<HTMLElement>('[data-settings-status]');
   /** Supplied by the server so no user-facing string is written in JS. */
   const SAVED = status?.dataset['saved'] ?? '';
+  /** Matches the FOLLOW sentinel in the markup above. Not a preset id. */
+  const FOLLOW = 'follow';
 
   /** Announce politely. The visual change is its own feedback for most readers. */
   const announce = () => {
     if (status) status.textContent = SAVED;
   };
 
+  const themeInputs = [...document.querySelectorAll<HTMLInputElement>('[data-theme-input]')];
   const modeInputs = [...document.querySelectorAll<HTMLInputElement>('[data-mode-input]')];
   const boardInputs = [...document.querySelectorAll<HTMLInputElement>('[data-board-input]')];
+  const previews = [...document.querySelectorAll<HTMLElement>('[data-theme-preview]')];
+  const advanced = document.querySelector<HTMLDetailsElement>('[data-advanced]');
+  const pinnedNote = document.querySelector<HTMLElement>('[data-board-pinned]');
   const lightPicker = document.querySelector<HTMLInputElement>('[data-custom-light]');
   const darkPicker = document.querySelector<HTMLInputElement>('[data-custom-dark]');
   const preview = document.querySelector<HTMLElement>('[data-testid="custom-preview"]');
@@ -184,6 +276,32 @@ const MODES = [
   const warning = document.querySelector<HTMLElement>('[data-contrast-warning]');
   const applyButton = document.querySelector<HTMLButtonElement>('[data-custom-apply]');
   const resetButton = document.querySelector<HTMLButtonElement>('[data-custom-reset]');
+
+  /**
+   * Show every theme tile in the reader's CURRENT light/dark mode.
+   *
+   * The tiles are painted by `site-themes.css`, whose mode blocks key on
+   * `[data-theme]` — an attribute that only exists on `<html>` until we put it
+   * here. Without this, all four tiles would render light while the site is
+   * dark, and the picker would be advertising something it will not deliver.
+   */
+  function syncPreviewMode(mode: 'light' | 'dark') {
+    for (const tile of previews) tile.dataset['theme'] = mode;
+  }
+
+  /** Reflect a stored state into every control on the page. */
+  function syncControls(state: ReturnType<typeof readTheme>) {
+    for (const input of themeInputs) input.checked = input.value === state.theme;
+    for (const input of modeInputs) input.checked = input.value === state.mode;
+
+    /* Absent `boardTheme` means "follow the theme" — a real state, not a
+       missing value. See src/lib/theme.ts. */
+    const selected = state.boardTheme ?? FOLLOW;
+    for (const input of boardInputs) input.checked = input.value === selected;
+    if (pinnedNote) pinnedNote.hidden = !state.boardTheme;
+
+    syncPreviewMode(resolveMode(state.mode));
+  }
 
   /** Paint the reader's candidate pair onto the little preview board. */
   function paintPreview(light: string, dark: string) {
@@ -198,8 +316,8 @@ const MODES = [
    * Show the ratio for each square, and warn below AA.
    *
    * The reader is NOT blocked — it is their board. The warning simply stays
-   * while the colours are in use, here and as a badge in the header of this
-   * section, so an unreadable board is a choice rather than an accident.
+   * while the colours are in use, so an unreadable board is a choice rather
+   * than an accident.
    */
   function updateContrast(light: string, dark: string) {
     const lightInk = bestInkFor(light);
@@ -228,32 +346,65 @@ const MODES = [
 
   /* ── Initial state, read once ─────────────────────────────────────────── */
   const initial = readTheme();
+  syncControls(initial);
 
-  for (const input of modeInputs) input.checked = input.value === initial.mode;
-  for (const input of boardInputs) input.checked = input.value === initial.boardTheme;
   if (initial.custom) {
     if (lightPicker) lightPicker.value = initial.custom.light;
     if (darkPicker) darkPicker.value = initial.custom.dark;
   }
+  /* Open the disclosure when there is something inside it in force. A setting
+     the reader is actively using must not be hidden behind a closed summary —
+     they would have no way to discover why their board ignores the theme. */
+  if (advanced && (initial.boardTheme || initial.custom)) advanced.open = true;
+
   refreshPickers();
 
   /* ── Wiring ───────────────────────────────────────────────────────────── */
+  for (const input of themeInputs) {
+    input.addEventListener('change', () => {
+      if (!input.checked || !isSiteThemeId(input.value)) return;
+      /* The theme changes the board and the pieces too — unless the reader has
+         pinned a preset, which survives deliberately. `applyTheme` resolves
+         all of that; nothing here needs to know the rules. */
+      const next = writeTheme({ theme: input.value });
+      applyTheme(next, root);
+      syncControls(next);
+      announce();
+    });
+  }
+
   for (const input of modeInputs) {
     input.addEventListener('change', () => {
       if (!input.checked) return;
-      applyTheme(writeTheme({ mode: input.value as ThemeMode }), root);
+      const next = writeTheme({ mode: input.value as ThemeMode });
+      applyTheme(next, root);
+      /* The tiles must follow the mode they are previewing in. */
+      syncPreviewMode(resolveMode(next.mode));
       announce();
     });
   }
 
   for (const input of boardInputs) {
     input.addEventListener('change', () => {
-      if (!input.checked || !isBoardThemeId(input.value)) return;
-      /* Choosing a preset DROPS the custom colours. The two cannot both be
-         "the board", and quietly leaving custom on top would make every tile
-         in this grid look broken while appearing to be selected. */
+      if (!input.checked) return;
+
+      if (input.value === FOLLOW) {
+        /* Un-pin. Custom colours go with it: they are a pin too, just a
+           hand-mixed one, and leaving them on top of "follow the theme" would
+           make every tile in this grid look broken while appearing correct. */
+        const next = followThemeBoard();
+        applyTheme(next, root);
+        syncControls(next);
+        announce();
+        return;
+      }
+
+      if (!isBoardThemeId(input.value)) return;
+      /* Choosing a preset DROPS the custom colours, for the same reason. */
       writeTheme({ boardTheme: input.value });
-      applyTheme(clearCustomBoard(), root);
+      const next = clearCustomBoard();
+      applyTheme(next, root);
+      syncControls(next);
       announce();
     });
   }
@@ -270,10 +421,24 @@ const MODES = [
   });
 
   resetButton?.addEventListener('click', () => {
-    applyTheme(clearCustomBoard(), root);
+    const next = clearCustomBoard();
+    applyTheme(next, root);
+    syncControls(next);
     refreshPickers();
     announce();
   });
+
+  /* `system` follows the OS live. The tiles have to follow it too, or a reader
+     whose phone flips to dark at sunset is left with four light previews on a
+     dark page. Guarded: older Safari has no addEventListener here. */
+  try {
+    globalThis.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+      const state = readTheme();
+      if (state.mode === 'system') syncPreviewMode(resolveMode(state.mode));
+    });
+  } catch {
+    /* the previews are simply not live on that browser; everything else works */
+  }
 </script>
 
 <style>
@@ -341,6 +506,129 @@ const MODES = [
     cursor: pointer;
   }
 
+  /* ---------- Level 1: the theme grid ---------- */
+  .settings-themes {
+    display: grid;
+    gap: 0.75rem;
+    grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  }
+
+  .settings-theme {
+    cursor: pointer;
+  }
+
+  .settings-theme-inner {
+    display: grid;
+    gap: 0.35rem;
+    padding: 0.55rem;
+    border: 1px solid var(--mcc-border-subtle);
+    border-radius: var(--radius-card);
+  }
+
+  /* Not colour alone — the chosen tile also gains a ring, so the selection is
+     visible to someone who cannot distinguish the accent from the border. */
+  .settings-theme input:checked + .settings-theme-inner {
+    border-color: var(--mcc-accent);
+    box-shadow: 0 0 0 2px var(--mcc-accent);
+  }
+
+  .settings-theme input,
+  .settings-board input {
+    /* Visually hidden but focusable, so the tile is the target and the ring
+       below shows where focus is. */
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .settings-theme input:focus-visible + .settings-theme-inner,
+  .settings-board input:focus-visible + .settings-board-inner {
+    outline: 2px solid var(--mcc-focus-ring);
+    outline-offset: 3px;
+  }
+
+  .settings-theme-name {
+    font-size: 0.9375rem;
+    font-weight: 600;
+  }
+
+  .settings-theme-hint {
+    color: var(--mcc-text-secondary);
+    font-size: 0.8125rem;
+    line-height: 1.45;
+  }
+
+  /* ---------- Level 3: the disclosure ---------- */
+  .settings-advanced {
+    background-color: var(--mcc-surface-raised);
+    border: 1px solid var(--mcc-border-subtle);
+    border-radius: var(--radius-card);
+  }
+
+  .settings-advanced summary {
+    display: grid;
+    gap: 0.2rem;
+    padding: 0.9rem 1.1rem;
+    min-height: 2.75rem;
+    cursor: pointer;
+  }
+
+  .settings-advanced summary:focus-visible {
+    outline: 2px solid var(--mcc-focus-ring);
+    outline-offset: -2px;
+  }
+
+  .settings-advanced-title {
+    font-weight: 600;
+  }
+
+  .settings-advanced-hint {
+    color: var(--mcc-text-secondary);
+    font-size: 0.875rem;
+    line-height: 1.45;
+  }
+
+  .settings-advanced-body {
+    display: grid;
+    gap: 1.25rem;
+    padding: 0 1.1rem 1.1rem;
+  }
+
+  /* The nested fieldsets sit on the disclosure's own surface, so they drop the
+     second background and keep only the rule that separates them. */
+  .settings-advanced-body .settings-fieldset {
+    background-color: transparent;
+  }
+
+  .settings-follow {
+    align-items: flex-start;
+    margin-bottom: 0.9rem;
+  }
+
+  .settings-follow > span {
+    display: grid;
+    gap: 0.15rem;
+  }
+
+  .settings-follow-name {
+    font-weight: 600;
+  }
+
+  .settings-follow-hint {
+    margin: 0;
+  }
+
+  .settings-follow input {
+    margin-top: 0.15rem;
+  }
+
+  .settings-pinned {
+    margin: 0.9rem 0 0;
+    color: var(--mcc-accent-text);
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+
   /* ---------- Preset grid ---------- */
   .settings-boards {
     display: grid;
@@ -363,21 +651,7 @@ const MODES = [
 
   .settings-board input:checked + .settings-board-inner {
     border-color: var(--mcc-accent);
-    /* Not colour alone — the selected tile also gains a ring. */
     box-shadow: 0 0 0 2px var(--mcc-accent);
-  }
-
-  .settings-board input {
-    /* Visually hidden but focusable, so the tile is the target and the ring
-       below shows where focus is. */
-    position: absolute;
-    opacity: 0;
-    pointer-events: none;
-  }
-
-  .settings-board input:focus-visible + .settings-board-inner {
-    outline: 2px solid var(--mcc-focus-ring);
-    outline-offset: 3px;
   }
 
   .settings-board-name {

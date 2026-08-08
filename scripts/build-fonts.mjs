@@ -46,9 +46,68 @@ const CSS_OUT = fileURLToPath(new URL('../src/styles/fonts.css', import.meta.url
  */
 const SUBSETS = ['latin', 'latin-ext'];
 
+/**
+ * ⚠️ FOUR HEADING FACES SHIP, AND A READER DOWNLOADS EXACTLY ONE.
+ *
+ * E7 gives each theme its own heading typeface. That does NOT mean four font
+ * files on every page — the mechanism that prevents it is the browser's own:
+ * a `@font-face` file is fetched only when something actually rendered uses
+ * that family. Each theme sets `--mcc-font-display` to one family, so the
+ * other three rules are declared and never resolve to a request.
+ *
+ * So the cost of declaring all four is the ~1 KB of CSS below, and nothing
+ * else. The one thing that WOULD break it is a `<link rel="preload">` for a
+ * font the active theme does not use — a preload fetches unconditionally, by
+ * definition. That is why the heading preload in BaseLayout is injected by the
+ * theme script for the ACTIVE theme rather than written statically in the
+ * markup, and why only Inter (which every theme uses) is preloaded there.
+ *
+ * `role` is what each family is FOR, and it is the E7 safety rule in one
+ * column: exactly one family is `body`, and it is the same one in every theme.
+ * A reader learning the en-passant rule must never have to fight the page.
+ */
 const FAMILIES = [
-  { pkg: '@fontsource-variable/fraunces', family: 'Fraunces Variable', file: 'fraunces' },
-  { pkg: '@fontsource-variable/inter', family: 'Inter Variable', file: 'inter' },
+  // The body face. Never varies by theme — see above.
+  { pkg: '@fontsource-variable/inter', family: 'Inter Variable', file: 'inter', role: 'body' },
+
+  // Bois — an old-style serif with real stroke contrast and a hand-cut warmth.
+  {
+    pkg: '@fontsource-variable/fraunces',
+    family: 'Fraunces Variable',
+    file: 'fraunces',
+    role: 'display',
+    key: 'fraunces',
+    stack: "Georgia, 'Times New Roman', serif",
+  },
+  // Marbre — a high-contrast classical serif. Didone stress, cut stone.
+  {
+    pkg: '@fontsource-variable/playfair-display',
+    family: 'Playfair Display Variable',
+    file: 'playfair',
+    role: 'display',
+    key: 'playfair',
+    stack: "Georgia, 'Times New Roman', serif",
+  },
+  // Souiri — open and rounded. Geometric bowls that echo zellige construction
+  // without pastiching it.
+  {
+    pkg: '@fontsource-variable/outfit',
+    family: 'Outfit Variable',
+    file: 'outfit',
+    role: 'display',
+    key: 'outfit',
+    stack: "system-ui, -apple-system, 'Segoe UI', sans-serif",
+  },
+  // Terminal — monospace, and a genuinely readable one. A pixel face would
+  // have been more "authentic" and the theme has to survive a whole lesson.
+  {
+    pkg: '@fontsource-variable/jetbrains-mono',
+    family: 'JetBrains Mono Variable',
+    file: 'jetbrains',
+    role: 'display',
+    key: 'jetbrains',
+    stack: "ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace",
+  },
 ];
 
 mkdirSync(OUT_DIR, { recursive: true });
@@ -71,8 +130,17 @@ for (const { pkg, family, file } of FAMILIES) {
     const range = unicode[subset];
     if (!range) throw new Error(`${pkg} has no "${subset}" subset`);
 
+    /* ⚠️ THE UPSTREAM STEM IS THE PACKAGE NAME, NOT OUR SHORT NAME.
+       fontsource ships `playfair-display-latin-wght-normal.woff2` and
+       `jetbrains-mono-latin-…`, while we serve `/fonts/playfair-latin-…` and
+       `/fonts/jetbrains-latin-…` — short names that `site-themes.ts` can
+       reference without restating a vendor's packaging. Derived from `pkg`
+       rather than written out a second time, so a package rename cannot leave
+       a stale literal behind: it fails here, loudly, at generation time. */
+    const stem = pkg.split('/')[1];
+    const source = `${stem}-${subset}-wght-normal.woff2`;
     const name = `${file}-${subset}-wght-normal.woff2`;
-    copyFileSync(`${pkgDir}files/${name}`, `${OUT_DIR}${name}`);
+    copyFileSync(`${pkgDir}files/${source}`, `${OUT_DIR}${name}`);
     console.log(`  public/fonts/${name}`);
 
     blocks.push(
@@ -93,5 +161,29 @@ for (const { pkg, family, file } of FAMILIES) {
   }
 }
 
+/*
+ * The per-theme family aliases.
+ *
+ * They live HERE, next to the @font-face rules that make them real, rather
+ * than in tokens.css: a family name and the file it loads from are one fact,
+ * and splitting them across two files is how a theme ends up pointing at a
+ * family nobody ships. `site-themes.css` selects one of these into
+ * `--mcc-font-display`; nothing else may name a family.
+ *
+ * NOT in tokens.css's `@theme` block, deliberately — Tailwind generates a
+ * utility class for every `--font-*` entry there, and four `font-display-*`
+ * utilities nobody will ever write would be dead CSS in every build.
+ */
+const displays = FAMILIES.filter((f) => f.role === 'display');
+blocks.push(
+  '/* Per-theme heading families. `--mcc-font-display` picks one; see',
+  ' * src/styles/site-themes.css. The body face is deliberately absent from',
+  ' * this list: it does not vary by theme, and it must not start. */',
+  ':root {',
+  ...displays.map((f) => `  --font-display-${f.key}: '${f.family}', ${f.stack};`),
+  '}',
+  '',
+);
+
 writeFileSync(CSS_OUT, blocks.join('\n'));
-console.log('\n  src/styles/fonts.css\n');
+console.log(`\n  src/styles/fonts.css — ${displays.length} heading families, 1 body face\n`);

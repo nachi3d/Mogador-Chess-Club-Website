@@ -30,6 +30,30 @@ const { count, size, warnings } = await generateSW({
     // See the block comment above — the engine is lazy-loaded, never precached.
     '**/stockfish*',
     '**/*.wasm',
+
+    /*
+     * ── THEME ASSETS (E6/E7) — THE SAME ARGUMENT AS THE ENGINE ───────────
+     *
+     * A reader uses ONE theme, which means one piece set and one heading
+     * face. Precaching all of them charges every first visit for three sets
+     * and three faces it will never draw:
+     *
+     *     piece sets      4 × ~2–9 KB brotli   ⇒ ~32 KB, ~23 KB wasted
+     *     heading fonts   4 × ~31–40 KB        ⇒ ~144 KB, ~108 KB wasted
+     *
+     * ~130 KB on the first visit of a phone on Essaouira mobile data, to
+     * support a theme nobody has chosen. The runtime rules below cache each
+     * on first use instead, so switching theme costs one fetch, once, ever.
+     *
+     * ⚠️ THE DEFAULT THEME'S ASSETS ARE DELIBERATELY *NOT* EXCLUDED. Bois's
+     * merida pieces and Fraunces are in the precache, because they are what
+     * an offline first-time reader will actually be shown. Excluding them to
+     * make the rule uniform would trade a real offline guarantee for a tidier
+     * ignore list.
+     */
+    'pieces/!(merida).css',
+    'fonts/!(inter|fraunces)-*.woff2',
+
     // Source maps are for us, not for visitors' storage quota.
     '**/*.map',
     'sw.js',
@@ -50,12 +74,39 @@ const { count, size, warnings } = await generateSW({
 
   runtimeCaching: [
     {
-      // Self-hosted fonts are immutable and content-hashed by fontsource.
+      /**
+       * Self-hosted fonts are immutable and content-hashed by fontsource.
+       *
+       * This rule now covers the three non-default HEADING faces as well
+       * (see `globIgnores`): a reader who switches to Marbre fetches Playfair
+       * once and never again, on any page or visit.
+       *
+       * `maxEntries` is 12 rather than the 10 files that ship, so a stale
+       * entry from a previous build cannot evict a live one mid-session.
+       */
       urlPattern: /\.woff2$/,
       handler: 'CacheFirst',
       options: {
         cacheName: 'mcc-fonts',
         expiration: { maxEntries: 12, maxAgeSeconds: 60 * 60 * 24 * 365 },
+      },
+    },
+    {
+      /**
+       * THE PIECE SETS — cached at runtime, precached only for the default
+       * theme. Same reasoning as the engine and the heading fonts.
+       *
+       * `cacheableResponse` matters here for the same reason it does for the
+       * engine: a truncated stylesheet cached as if it were whole gives a
+       * board with some pieces missing, on every later visit, with no way
+       * back short of clearing site data.
+       */
+      urlPattern: /\/pieces\/[\w-]+\.css$/,
+      handler: 'CacheFirst',
+      options: {
+        cacheName: 'mcc-pieces',
+        expiration: { maxEntries: 8, maxAgeSeconds: 60 * 60 * 24 * 365 },
+        cacheableResponse: { statuses: [200] },
       },
     },
     {

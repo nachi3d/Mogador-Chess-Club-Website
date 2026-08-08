@@ -13,10 +13,19 @@
 
 @import './tokens.css';
 
+/* The four site themes. MUST come after tokens.css — the base tokens ARE the
+   Bois theme, and the other three override them. The file's header explains
+   the specificity that makes each mode block win unambiguously; it is not a
+   source-order trick, but it does still have to be imported in this order. */
+@import './site-themes.css';
+
 /* The board presets. After tokens.css: the `.board-<id>` classes override the
    board defaults declared there. A reader's own colours override these again,
    as inline properties on <html>. */
 @import './board-themes.css';
+
+/* Reading craft (E7). After the themes: it consumes `--mcc-font-display`. */
+@import './typography.css';
 
 /* Scroll reveals. Opt-in per page and fail-visible — see the file header. */
 @import './motion.css';
@@ -27,6 +36,11 @@
 @layer base {
   html {
     background-color: var(--mcc-surface-page);
+    /* The theme's texture — wood grain, marble veining, zellige, scanlines.
+       Always a CSS gradient, never an image: no request, nothing to precache,
+       and it scales to any viewport for free. `none` on a theme that wants a
+       flat surface, which is why this is unconditional. */
+    background-image: var(--mcc-page-texture);
     color: var(--mcc-text-primary);
     font-family: var(--font-body);
     -webkit-font-smoothing: antialiased;
@@ -46,14 +60,20 @@
     flex: 1 0 auto;
   }
 
+  /* ⚠️ `--mcc-font-display`, NOT `--font-display`. The raw `--font-*` entries
+     are the palette of faces and do not follow the theme; a heading that reads
+     one of them directly stays on Fraunces in all four themes, exactly as a
+     component reading `--color-wood-600` stays light-mode-only. */
   h1,
   h2,
   h3,
   h4 {
-    font-family: var(--font-display);
+    font-family: var(--mcc-font-display);
     color: var(--mcc-text-heading);
     font-weight: 600;
-    letter-spacing: -0.015em;
+    /* Tight tracking suits a serif at display size and cramps a monospace one,
+       so Terminal overrides it. Everything else takes the default. */
+    letter-spacing: var(--mcc-display-tracking, -0.015em);
     text-wrap: balance;
   }
 
@@ -72,9 +92,12 @@
     outline-color: var(--mcc-focus-ring-inverse);
   }
 
+  /* Themed since E6 — brass-on-ink was a raw-scale pair that looked like a
+     foreign object on a phosphor page. `check-contrast.mjs` audits it as a
+     text pair in all eight theme/mode combinations. */
   ::selection {
-    background-color: var(--color-brass-300);
-    color: var(--color-ink-950);
+    background-color: var(--mcc-selection-bg);
+    color: var(--mcc-selection-ink);
   }
 
   /* Move lists, FEN and PGN — tabular figures keep notation in columns. */

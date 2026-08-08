@@ -61,6 +61,21 @@ const fr = {
 
   /* The three pillars. Order is the learning path, not the nav order:
      you learn, then you drill, then you play. */
+  /* ── The main menu (E5) ──────────────────────────────────────────
+     ⚠️ The menu entries themselves DO NOT get their own strings. They reuse
+     `nav.*` verbatim, because two different names for the same destination
+     reads as two different sites. Only the entries with no nav counterpart
+     are declared here. */
+  'menu.label': 'Menu principal',
+  'menu.resume': 'Reprendre',
+  /* Announced instead of the bare label once resolved, so a screen-reader user
+     hears WHERE they are being resumed to. `%s` is the step title. */
+  'menu.resume.aria': 'Reprendre — %s',
+  'menu.more': 'En savoir plus',
+  'home.about.title': 'Un club, et un site pour apprendre entre les séances',
+  'home.about.lede':
+    "Le Mogador Chess Club enseigne les échecs à Essaouira, aux enfants comme aux adultes. Ce site prolonge les séances : des cours progressifs, une bibliothèque de pièges d'ouverture, des exercices interactifs et une partie contre l'ordinateur — gratuitement, en français comme en anglais, sans compte et sans publicité.",
+  'home.about.cta': 'Commencer par les bases',
   'home.pillars.title': 'Trois façons de progresser',
   'home.pillar.learn.title': 'Apprendre',
   'home.pillar.learn.text':
@@ -203,8 +218,19 @@ const fr = {
   'settings.mode.dark': 'Sombre',
   'settings.mode.system': 'Comme le système',
   'settings.mode.systemHint': "Suit le réglage de votre téléphone ou de votre ordinateur.",
+  /* ── Level 2 and 3, behind one disclosure ─────────────────────────────
+     "Personnaliser" is deliberately ONE control hiding TWO sections. The
+     hierarchy is about how many decisions a reader is offered at once, and
+     two collapsed panels side by side is two decisions again. */
+  'settings.advanced.heading': 'Personnaliser',
+  'settings.advanced.hint':
+    "Le thème choisit déjà un damier. Ouvrez ceci seulement si vous voulez le vôtre.",
   'settings.board.heading': "Échiquier",
   'settings.board.hint': 'Choisissez un damier. Les coordonnées restent lisibles sur chacun.',
+  'settings.board.follow': 'Suivre le thème',
+  'settings.board.followHint':
+    "Le damier change avec le thème. C'est le réglage par défaut.",
+  'settings.board.pinned': 'Ce damier est conservé quand vous changez de thème.',
   'settings.custom.heading': 'Vos propres couleurs',
   'settings.custom.hint':
     "Choisissez les deux couleurs des cases. La couleur des coordonnées est calculée automatiquement pour rester la plus lisible possible.",
@@ -227,6 +253,30 @@ const fr = {
   'board.tournoi': 'Vert tournoi',
   'board.bleu': 'Bleu',
   'board.glace': 'Glace',
+  'board.phosphore': 'Phosphore',
+
+  /* ── Level 1: the themes (E6) ────────────────────────────────────────
+     The hint is one line and says what the theme IS, not what it does —
+     a reader picking an appearance is choosing a mood, not a feature. */
+  'theme.heading': 'Thème',
+  'theme.hint':
+    "Le thème règle le fond, les couleurs, le titrage, l'échiquier et les pièces d'un seul coup.",
+  'theme.bois': 'Bois',
+  'theme.bois.hint': 'Chêne et noyer, fond parchemin, pièces chaleureuses.',
+  'theme.marbre': 'Marbre',
+  'theme.marbre.hint': 'Blanc veiné et ardoise. Froid, sobre, très net.',
+  'theme.souiri': 'Souiri',
+  'theme.souiri.hint': "Zellige, bleu d'Essaouira et blanc de chaux.",
+  'theme.terminal': 'Terminal',
+  'theme.terminal.hint': 'Vert phosphore sur noir. Le clin d’œil rétro.',
+  'theme.preview.label': 'Aperçu du thème',
+
+  /* ── The piece sets ──────────────────────────────────────────────── */
+  'pieces.heading': 'Pièces',
+  'pieces.cburnett': 'Cburnett',
+  'pieces.merida': 'Merida',
+  'pieces.chessnut': 'Chessnut',
+  'pieces.kiwen-suwi': 'Kiwen Suwi',
 
   'theme.toggle': "Changer l'apparence",
   'theme.now.light': 'Apparence : claire',
@@ -413,6 +463,14 @@ const en: Record<keyof typeof fr, string> = {
   'home.cta.play': 'Play',
   'home.cta.traps': 'Explore traps',
 
+  'menu.label': 'Main menu',
+  'menu.resume': 'Resume',
+  'menu.resume.aria': 'Resume — %s',
+  'menu.more': 'Find out more',
+  'home.about.title': 'A club, and a site to learn between sessions',
+  'home.about.lede':
+    'Mogador Chess Club teaches chess in Essaouira, to children and adults alike. This site carries on between sessions: progressive courses, a library of opening traps, interactive exercises and a game against the computer — free, in English as well as French, with no account and no advertising.',
+  'home.about.cta': 'Start with the basics',
   'home.pillars.title': 'Three ways to get better',
   'home.pillar.learn.title': 'Learn',
   'home.pillar.learn.text': 'Step-by-step lessons, from moving the pieces to endgames.',
@@ -541,8 +599,14 @@ const en: Record<keyof typeof fr, string> = {
   'settings.mode.dark': 'Dark',
   'settings.mode.system': 'Match the system',
   'settings.mode.systemHint': 'Follows the setting on your phone or computer.',
+  'settings.advanced.heading': 'Customise',
+  'settings.advanced.hint':
+    'The theme already picks a board. Open this only if you want your own.',
   'settings.board.heading': 'Board',
   'settings.board.hint': 'Pick a board. The coordinates stay legible on every one of them.',
+  'settings.board.follow': 'Follow the theme',
+  'settings.board.followHint': 'The board changes with the theme. This is the default.',
+  'settings.board.pinned': 'This board is kept when you change theme.',
   'settings.custom.heading': 'Your own colours',
   'settings.custom.hint':
     'Choose the two square colours. The coordinate colour is worked out automatically to stay as legible as possible.',
@@ -565,6 +629,31 @@ const en: Record<keyof typeof fr, string> = {
   'board.tournoi': 'Tournament green',
   'board.bleu': 'Blue',
   'board.glace': 'Ice',
+  'board.phosphore': 'Phosphor',
+
+  'theme.heading': 'Theme',
+  'theme.hint':
+    'A theme sets the background, the colours, the headings, the board and the pieces in one go.',
+  /* ⚠️ "Bois" and "Souiri" are NOT translated, and that is deliberate.
+     "Souiri" is what someone from Essaouira is called — translating it to
+     "Essaouira style" would turn the identity theme into a description of
+     itself. "Bois" becomes "Wood" because it names a material, not a place.
+     "Marbre"/"Marble" likewise. */
+  'theme.bois': 'Wood',
+  'theme.bois.hint': 'Oak and walnut, parchment background, warm pieces.',
+  'theme.marbre': 'Marble',
+  'theme.marbre.hint': 'Veined white and slate. Cool, sober, very crisp.',
+  'theme.souiri': 'Souiri',
+  'theme.souiri.hint': 'Zellige, Essaouira blue and lime white.',
+  'theme.terminal': 'Terminal',
+  'theme.terminal.hint': 'Phosphor green on black. The retro nod.',
+  'theme.preview.label': 'Theme preview',
+
+  'pieces.heading': 'Pieces',
+  'pieces.cburnett': 'Cburnett',
+  'pieces.merida': 'Merida',
+  'pieces.chessnut': 'Chessnut',
+  'pieces.kiwen-suwi': 'Kiwen Suwi',
 
   'theme.toggle': 'Change the appearance',
   'theme.now.light': 'Appearance: light',

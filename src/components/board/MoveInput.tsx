@@ -43,6 +43,12 @@ export interface MoveInputProps {
    * Bump to pull focus back into the field — after the opponent has replied,
    * so a keyboard player is never left with focus on a dead control and no
    * idea that it is their move again.
+   *
+   * ⚠️ THE CALLER DECIDES WHETHER TO BUMP IT, AND THE ANSWER IS "ONLY IF THE
+   * READER TYPED THE MOVE". Bumping it after a tapped move opens the virtual
+   * keyboard and scrolls the board off screen — see `useMoveSource.ts`, which
+   * holds the whole rule. This component honours the signal; it does not judge
+   * it, because it cannot see how the move arrived.
    */
   readonly focusSignal: number;
 }
@@ -56,14 +62,40 @@ export default function MoveInput(props: MoveInputProps) {
   const firstRender = useRef(true);
 
   /* Focus follows the turn — but never on mount. Stealing focus on page load
-     would drag a reader past the board and the hint they had not read yet. */
+     would drag a reader past the board and the hint they had not read yet.
+
+     ⚠️ `focusSignal` IS THE ONLY DEPENDENCY, AND `disabled` MUST NOT BE ONE.
+
+     It used to be, and that quietly defeated the whole "never on mount" rule.
+     `disabled` starts true — the exercise board is view-only until its
+     lazily-imported chess.js chunk lands — and flips to false when the chunk
+     arrives, a few hundred milliseconds after load. That flip re-ran this
+     effect with `firstRender` already spent, so the field grabbed focus on
+     its own, scrolled the reader down to it, and (on a lesson page, where a
+     replayer sits above the exercise) swallowed the replayer's arrow keys,
+     because ReplayView's document handler ignores keys aimed at an INPUT.
+
+     It presented as a flaky spec rather than as a bug: whether the chunk won
+     the race against the reader's first keypress depended on machine load,
+     so it failed in full-suite runs and passed every time in isolation.
+
+     `disabled` is still READ here — a signal arriving while the field is
+     disabled must not focus it — it simply must not TRIGGER this. */
   useEffect(() => {
     if (firstRender.current) {
       firstRender.current = false;
       return;
     }
-    if (!disabled) inputRef.current?.focus();
-  }, [focusSignal, disabled]);
+    /* `preventScroll` because focusing an element scrolls it into view by
+       default, and this fires while the reader is looking at the BOARD. The
+       field is already on screen whenever this legitimately runs (the reader
+       just typed into it), so there is nothing to scroll to — and if that ever
+       stops being true, doing nothing is the better failure than yanking the
+       page. The modality gate in the callers is the primary fix; this is the
+       second line, and it is the one that would have limited the damage. */
+    if (!disabled) inputRef.current?.focus({ preventScroll: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusSignal]);
 
   const submit = (event: Event) => {
     event.preventDefault();

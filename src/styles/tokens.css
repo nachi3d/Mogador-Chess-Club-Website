@@ -133,6 +133,24 @@
    raw scale step would be the wrong abstraction.
    ============================================================ */
 :root {
+  /* ---------- Which THEME these values belong to ----------
+     ⚠️ THE BASE TOKENS ARE THE "BOIS" THEME, not a theme-neutral default.
+
+     E6 turned the palette into four themes, and Bois — the wood-panelled room
+     with a green baize table and brass lamps this site has always had — stayed
+     where it was rather than moving into `site-themes.css` with the other
+     three. Two reasons, both about failure modes:
+
+       • a reader with no stored preference, or with JavaScript off, gets a
+         COMPLETE theme from this file alone. No class, no cascade, no gap;
+       • the other three override this one, so anything a theme forgets to
+         restate falls back to something coherent rather than to nothing.
+
+     The consequence to respect: a token added here is a token every other
+     theme may need to override. `scripts/check-contrast.mjs` audits all four
+     themes against the same pair list, so a forgotten override shows up as a
+     failing ratio rather than as a colour nobody notices. */
+
   --mcc-surface-page: var(--color-cream-100);
   --mcc-surface-raised: var(--color-cream-50);
   --mcc-surface-sunken: var(--color-cream-200);
@@ -198,6 +216,39 @@
   --mcc-level-debutant: var(--color-green-300);
   --mcc-level-intermediaire: var(--color-brass-300);
   --mcc-level-avance: var(--color-wood-400);
+
+  /* ---------- Typography, per theme (E7) ----------
+     The heading family is the one typographic thing a theme changes. The body
+     face NEVER changes — that is the E7 safety rule: a reader learning the
+     en-passant rule must not have to fight the page to do it.
+
+     `--mcc-font-display` rather than using `--font-display` directly, for the
+     same reason every other themed value goes through an `--mcc-*`: the raw
+     `--font-*` entries are the *palette* of faces and do not follow the theme.
+     A component that reaches past this alias stays on Fraunces for ever. */
+  --mcc-font-display: var(--font-display);
+
+  /* ---------- Texture ----------
+     Themes paint their background and board texture in CSS gradients, never
+     images — the zero-request rule and the precache weight both depend on it.
+     `none` here so a theme that wants a flat surface simply says nothing.
+
+     ⚠️ `check-contrast.mjs` CANNOT SEE THESE. They sit behind text and behind
+     pieces, exactly as the ambient hero layer does, and the same discipline
+     applies: keep the alpha low enough that the worst case is still the
+     audited pair. Every texture shipped is ≤ 0.05 alpha except the Terminal
+     scanline, which is computed by hand in the comment beside it. */
+  --mcc-page-texture: none;
+  --mcc-board-texture: none;
+
+  /* ---------- Selection ----------
+     Was `--color-brass-300` on `--color-ink-950`, straight from the raw scale —
+     precisely the "component reaches past the semantic layer" trap this file
+     warns about. On a phosphor-green Terminal page a brass selection is a
+     visible foreign object, so it became a pair of themed tokens and is
+     audited like any other text-on-fill pair. */
+  --mcc-selection-bg: var(--color-brass-300);
+  --mcc-selection-ink: var(--color-ink-950);
 
   /* ---------- Layout rhythm ---------- */
   --mcc-container-max: 74rem;
@@ -292,6 +343,10 @@
      a green-black page only black does — a tinted shadow there just looks like
      a misaligned border. */
   --mcc-press-shadow: rgb(0 0 0 / 0.5);
+
+  /* Brass reads as the lamp still burning; the selection follows it. */
+  --mcc-selection-bg: var(--color-brass-300);
+  --mcc-selection-ink: var(--color-ink-950);
 }
 
 /* Light-mode values for the aliases introduced alongside dark mode. They live
@@ -364,23 +419,25 @@
    Wood behaves the same way (wood-400 as text = 3.89:1), but
    wood is never used as text in v1, so only the fill rule ships.
    ============================================================ */
-.text-brass {
-  color: var(--color-brass-700);
-}
-
 /*
-  IN DARK MODE THE RULE INVERTS. brass-700 is a deep mid-tone chosen to be
-  readable ON CREAM; against a green-black page it is nearly invisible (1.5:1).
-  The same reasoning that picks the deep variant in light picks the light
-  variant here — the rule is "brass as text takes whichever step clears AA
-  against the surface", and the surface changed.
+  ⚠️ IT POINTS AT THE SEMANTIC TOKEN, NOT AT A SCALE STEP — CHANGED IN E6.
 
-  Specificity: `:root[data-theme='dark'] .text-brass` (0,2,1) beats the
-  unlayered `.text-brass` (0,1,0), and both still beat any layered Tailwind
-  utility. The app-wide AA guarantee holds in both palettes.
+  This used to be `color: var(--color-brass-700)` with a second rule flipping
+  it to brass-300 under `[data-theme='dark']`: two hardcoded steps, one per
+  palette. With four themes that becomes EIGHT hardcoded steps, and seven of
+  them would be wrong the day a theme's page colour moved.
+
+  `--mcc-accent-text` already means exactly "the accent, at whichever step
+  clears AA against THIS surface" — every theme declares it and
+  `check-contrast.mjs` proves it in all eight combinations. So the rule is one
+  line and follows every theme for free, including themes not written yet.
+
+  The unlayered-beats-layered mechanism is unchanged and is still the point:
+  a `text-white` utility on this element silently loses, which is what enforces
+  AA app-wide without per-component vigilance.
 */
-:root[data-theme='dark'] .text-brass {
-  color: var(--color-brass-300);
+.text-brass {
+  color: var(--mcc-accent-text);
 }
 
 /*

@@ -7,6 +7,7 @@
  */
 import type { Locale } from '@config/site';
 import { site, LOCALES } from '@config/site';
+import { SITE_THEMES, DEFAULT_SITE_THEME } from '@config/site-themes';
 import { alternatePath, stripLocale } from '@i18n/paths';
 import { useTranslations } from '@i18n/ui';
 import Header from '@components/Header.astro';
@@ -31,9 +32,115 @@ interface Props {
    * otherwise, so an un-opted page carries no reveal cost at all.
    */
   reveals?: boolean;
+  /**
+   * This page mounts a chessboard.
+   *
+   * It becomes `data-board` on `<html>`, and the theme head script reads it to
+   * decide whether to fetch the active theme's piece stylesheet. Pages without
+   * a board — every index, the agenda, the legal notice — therefore fetch no
+   * piece artwork at all, which is the whole reason the sets are split into one
+   * file each. See `scripts/build-pieces.mjs`.
+   *
+   * ⚠️ A BOARD PAGE THAT FORGETS THIS RENDERS AN EMPTY BOARD: squares, no
+   * pieces. `tests/e2e/themes.spec.ts` walks every route that mounts a board
+   * and asserts the attribute is present, so it cannot be forgotten silently.
+   */
+  board?: boolean;
+  /**
+   * This page shows the piece-set previews (only `/parametres/`).
+   *
+   * Loads `/pieces/preview.css` — four knights, ~3 KB — rather than four full
+   * sets, which would be ~32 KB brotli to draw four glyphs.
+   */
+  piecePreviews?: boolean;
 }
 
-const { locale, title, description, reveals = false } = Astro.props;
+const {
+  locale,
+  title,
+  description,
+  reveals = false,
+  board = false,
+  piecePreviews = false,
+} = Astro.props;
+
+/**
+ * The theme table, handed to the inline script by `define:vars`.
+ *
+ * ⚠️ THIS IS WHY THE HEAD SCRIPT IS NOT A THIRD HAND-MAINTAINED COPY.
+ *
+ * The script cannot import `@config/site-themes` — that would reintroduce the
+ * module fetch the whole anti-FOUC design exists to avoid. The theme script
+ * already duplicates `applyTheme()` for that reason, and it says so. But the
+ * *data* it needs (which board and which pieces each theme defaults to) does
+ * not have to be duplicated: it is serialised in at build time from the one
+ * source, so it cannot drift even in principle.
+ *
+ * Only the LOGIC is duplicated, and only because it must be.
+ */
+const THEME_TABLE = Object.fromEntries(
+  SITE_THEMES.map((theme) => [
+    theme.id,
+    { board: theme.defaultBoard, pieces: theme.pieceSet, font: theme.fontFile },
+  ]),
+);
+
+/* ============================================================================
+   THE THEME HEAD SCRIPT — the full rationale lives HERE, not in the script.
+
+   ⚠️ AN `is:inline` SCRIPT SHIPS VERBATIM, COMMENTS AND ALL, ON EVERY PAGE.
+   Astro does not process it — that is the whole point of `is:inline` — so
+   every line of explanation inside it is bytes in all 84 documents, before
+   the first paint it is blocking. Written the way the rest of this codebase
+   is commented it measured 8.4 KB per page; the notes are here instead, in
+   frontmatter, which is compiled away. The script keeps short pointers back.
+
+   WHY IT IS INLINE AT ALL. An external module would be fetched
+   asynchronously, the page would paint in the default palette, and a
+   dark-mode reader would get a white flash on every navigation. The cost is
+   a little parse time before first paint, which is the correct trade.
+
+   ⚠️ IT DUPLICATES `applyTheme()` FROM src/lib/theme.ts, deliberately, and
+   the two must not drift. That module cannot run here — importing it would
+   reintroduce the fetch this exists to avoid. The no-flash assertion in
+   tests/e2e/theme.spec.ts is what catches a divergence.
+
+   ⚠️ ONLY THE LOGIC IS DUPLICATED. The DATA — which board and which pieces
+   each theme defaults to, and which font it preloads — is serialised in from
+   `@config/site-themes` as `MCC_THEMES` via `define:vars`, so it cannot drift
+   even in principle. Resist any temptation to hand-write that table here.
+
+   WHAT IT DOES, IN ORDER:
+     1. `js` on <html>, proving scripting before first paint (the header's
+        theme toggle is display:none until it lands, never visible-but-inert);
+     2. resolves `system` to a concrete light/dark and sets `data-theme`;
+     3. applies `theme-<id>`, `board-<id>`, `pieces-<id>`;
+        - the board is the reader's PIN if they have one, else the theme's
+          default. Absence is a real state — see `boardTheme` in theme.ts;
+     4. re-applies a reader's custom square colours as inline properties;
+     5. injects two <link>s (see below);
+     6. re-runs on OS scheme change and on `astro:after-swap`.
+
+   ⚠️ THE TWO INJECTED <link>s ARE APPENDED SYNCHRONOUSLY DURING HEAD
+   PARSING, AND THAT IS THE POINT.
+
+   - The PIECE STYLESHEET, on board pages only (`<html data-board>`). A
+     stylesheet added to <head> while the parser is still in <head> blocks
+     rendering exactly as a static one does, so the pieces paint WITH the
+     board. Injecting it from the island's mount effect would be simpler and
+     would show a board of empty squares first — worse than a flash of the
+     wrong theme, because it reads as the position having failed to load.
+   - The HEADING FONT preload, for the ACTIVE theme. A preload fetches
+     unconditionally, so four static preloads would pull four heading faces
+     per page and undo the per-theme split entirely. Inter is preloaded
+     statically further down because every theme uses it.
+
+   Both are SAME-ORIGIN; the no-third-party-request rule is untouched.
+
+   Kept defensive rather than clever throughout: any failure to read or parse
+   the stored value must leave the reader on the default theme with a working
+   page, never on a half-applied one.
+   ========================================================================= */
 
 /**
  * Scroll reveals. ~20 lines of vanilla JS rather than an animation library: the
@@ -106,29 +213,16 @@ const pageDescription = description ?? site.description[locale];
 ---
 
 <!doctype html>
-<html lang={locale}>
+<html lang={locale} data-board={board ? '' : undefined}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    {/*
-      THEME — inline, blocking, and first. This is the anti-FOUC script.
-
-      It is `is:inline` on purpose: an external module would be fetched
-      asynchronously, the page would paint in the default light palette, and a
-      dark-mode reader would get a white flash on every navigation. The cost is
-      ~1 KB of parse time before first paint, which is the correct trade.
-
-      ⚠️ IT DUPLICATES `applyTheme()` FROM src/lib/theme.ts, deliberately, and
-      the two must not drift. That module cannot run here — importing it would
-      reintroduce the fetch this exists to avoid. Keep both in step; the
-      no-flash assertion in tests/e2e/theme.spec.ts is what catches it.
-
-      Kept defensive rather than clever: any failure to read or parse the
-      stored value must leave the reader on the default theme with a working
-      page, never on a half-applied one.
-    */}
-    <script is:inline>
+    {/* THEME — inline, blocking, first. The anti-FOUC script.
+        ⚠️ Ships verbatim on every page, so it is kept terse deliberately:
+        the rationale is in this file's frontmatter, which is compiled away.
+        Read that before changing anything here. */}
+    <script is:inline define:vars={{ MCC_THEMES: THEME_TABLE, MCC_THEME_DEFAULT: DEFAULT_SITE_THEME }}>
       (function () {
         var KEY = 'mcc:theme:v1';
         var HEX = /^#[0-9a-f]{6}$/i;
@@ -148,7 +242,7 @@ const pageDescription = description ?? site.description[locale];
           var y = luminance(b);
           return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
         }
-        /* The two-ink rule — see bestInkFor() in src/lib/theme.ts. */
+        /* two-ink rule: bestInkFor() in src/lib/theme.ts */
         function inkFor(square) {
           return ratio(INK, square) >= ratio(CREAM, square) ? INK : CREAM;
         }
@@ -164,10 +258,27 @@ const pageDescription = description ?? site.description[locale];
           }
         }
 
-        /* Proves scripting is available, before first paint. The theme toggle
-           in the header is `display: none` until this lands, so it is never
-           visible-but-inert. */
         root.classList.add('js');
+
+        /* Prefixes are structural, so no copy of src/config/*.ts is needed. */
+        function clearPrefix(prefix) {
+          for (var i = root.classList.length - 1; i >= 0; i--) {
+            var name = root.classList[i];
+            if (name.indexOf(prefix) === 0) root.classList.remove(name);
+          }
+        }
+
+        /* One <link> per role. Appended during head parsing so it blocks
+           render like a static one — see the frontmatter note. */
+        function ensureLink(role, attrs) {
+          var el = document.querySelector('link[data-mcc="' + role + '"]');
+          if (!el) {
+            el = document.createElement('link');
+            el.setAttribute('data-mcc', role);
+            document.head.appendChild(el);
+          }
+          for (var key in attrs) el.setAttribute(key, attrs[key]);
+        }
 
         function apply() {
           var state = stored();
@@ -183,20 +294,45 @@ const pageDescription = description ?? site.description[locale];
           root.setAttribute('data-theme', resolved);
           root.style.colorScheme = resolved;
 
-          /* Any `board-*` class, rather than a hardcoded list: the presets live
-             in src/config/board-themes.ts and must not be duplicated here. */
-          for (var i = root.classList.length - 1; i >= 0; i--) {
-            var name = root.classList[i];
-            if (name.indexOf('board-') === 0) root.classList.remove(name);
-          }
-          var board = state.boardTheme;
+          /* Validated against the table, not a regex: an unknown id would
+             add a class no stylesheet defines. */
+          var themeId = typeof state.theme === 'string' && MCC_THEMES[state.theme]
+            ? state.theme
+            : MCC_THEME_DEFAULT;
+          var theme = MCC_THEMES[themeId];
+
+          clearPrefix('theme-');
+          root.classList.add('theme-' + themeId);
+
+          /* The reader's pin if any, else the theme's default. Absence is a
+             real state — see `boardTheme` in src/lib/theme.ts. */
+          clearPrefix('board-');
+          var pinned = state.boardTheme;
           root.classList.add(
-            'board-' + (typeof board === 'string' && /^[a-z0-9-]+$/.test(board) ? board : 'classique'),
+            'board-' +
+              (typeof pinned === 'string' && /^[a-z0-9-]+$/.test(pinned) ? pinned : theme.board),
           );
 
-          /* Custom squares override the preset as inline properties. Stored
-             values are always 6-digit — theme.ts normalises before writing —
-             so anything else is corrupt and falls back to the preset. */
+          /* Always the theme's; never chosen separately. */
+          clearPrefix('pieces-');
+          root.classList.add('pieces-' + theme.pieces);
+
+          /* The artwork, on board pages only (BaseLayout's `board` prop). */
+          if (root.hasAttribute('data-board')) {
+            ensureLink('pieces', { rel: 'stylesheet', href: '/pieces/' + theme.pieces + '.css' });
+          }
+
+          /* ⚠️ Injected, not static: a preload fetches unconditionally, so a
+             static one would pull a face the theme does not use. */
+          ensureLink('display-font', {
+            rel: 'preload',
+            as: 'font',
+            type: 'font/woff2',
+            crossorigin: '',
+            href: theme.font,
+          });
+
+          /* Custom squares override the preset as inline properties. */
           var custom = state.custom;
           var props = [
             '--mcc-board-light',
@@ -216,18 +352,14 @@ const pageDescription = description ?? site.description[locale];
 
         apply();
 
-        /* `system` follows the OS live, without a reload. */
+        /* `system` follows the OS live. */
         try {
           window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', apply);
         } catch (error) {
-          /* older Safari has no addEventListener on MediaQueryList; the theme is
-             still correct on load, it just will not follow a mid-session change */
+          /* older Safari: correct on load, just not live */
         }
 
-        /* Astro's ClientRouter swaps the <html> attributes on navigation, which
-           would drop data-theme and the board class. No view transitions are
-           configured today; this costs nothing until they are, and means the
-           theme cannot silently break on the commit that adds them. */
+        /* ClientRouter would drop the <html> attributes on navigation. */
         document.addEventListener('astro:after-swap', apply);
       })();
     </script>
@@ -244,17 +376,19 @@ const pageDescription = description ?? site.description[locale];
     }
     <link rel="alternate" hreflang="x-default" href={new URL(alternatePath(pathname, 'fr'), site.url).href} />
 
-    {/* The two latin subsets carry every glyph on a FR/EN page. Preloaded
-        because they are discovered only after the CSS parses, and `swap`
-        would otherwise flash Georgia on the headings. The latin-ext files
-        are deliberately NOT preloaded — they are the rare-glyph fallback. */}
-    <link
-      rel="preload"
-      href="/fonts/fraunces-latin-wght-normal.woff2"
-      as="font"
-      type="font/woff2"
-      crossorigin
-    />
+    {/* Inter — the BODY face, used by every theme, so it is safe to preload
+        statically. It is discovered only after the CSS parses, and `swap`
+        would otherwise flash system-ui through the first paragraph.
+
+        ⚠️ THE HEADING FONT IS NOT PRELOADED HERE. It depends on the reader's
+        theme, which is not known at build time, so it is injected by the
+        script above for the ACTIVE theme only. A static preload of one
+        theme's face would make the other three themes download two heading
+        fonts and use one. (This is exactly what the line that used to sit
+        here — a hardcoded Fraunces preload — would now do.)
+
+        The latin-ext files are deliberately not preloaded either, in any
+        theme: they are the rare-glyph fallback. */}
     <link
       rel="preload"
       href="/fonts/inter-latin-wght-normal.woff2"
@@ -262,6 +396,10 @@ const pageDescription = description ?? site.description[locale];
       type="font/woff2"
       crossorigin
     />
+
+    {/* Four knights for the theme previews on /parametres/ — not four full
+        piece sets. See `scripts/build-pieces.mjs`. */}
+    {piecePreviews && <link rel="stylesheet" href="/pieces/preview.css" />}
 
     {/* PWA */}
     <link rel="manifest" href="/manifest.webmanifest" />

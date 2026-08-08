@@ -11,6 +11,319 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+_Nothing yet._
+
+---
+
+## [0.4.0] — 2026-08-08
+
+The appearance release. v0.3.0 taught; this one decides what the teaching looks
+like — and gives the reader the choice. The home page becomes a main menu, the
+palette becomes four coherent themes with their own pieces and typefaces, and a
+defect that made the site unusable by tapping on a phone is fixed.
+
+### Highlights
+
+- **A retro main menu on the home page** (E5) — club title, a centred stack, a
+  small knight marking the active line, arrow-key navigation. **"Reprendre"**
+  appears only when there is progress to resume, and resumes at the *furthest*
+  step you reached, not the first gap you skipped.
+- **Four complete themes** (E6/E7) — **Bois**, **Marbre**, **Souiri** and
+  **Terminal**. Each brings its own **piece set**, **heading typeface** and
+  **default board**, in a full light *and* dark palette. Light/dark lives inside
+  a theme rather than beside it, so all eight combinations ship and all eight
+  are audited.
+- **A sixth board preset, `phosphore`** — phosphor green on black, so Terminal
+  has an honest board rather than a borrowed one.
+- **A three-level settings hierarchy** — theme → board → your own colours, in
+  decreasing prominence. One decision for almost everyone; the rest is one
+  gesture away.
+- **Reading craft** — a drop cap on the first paragraph of a lesson, chess
+  notation set as a **visual object** (fixed pitch, light ground, a hairline),
+  French guillemets with the narrow no-break space, a 65-character measure and
+  subheads that breathe.
+- **A touch fix** — the move input no longer steals focus after a tapped move.
+  On a phone that was opening the virtual keyboard and scrolling the board out
+  of view, which made playing by tapping unusable.
+- **A quick-change path** — `npm run quick`, so a typo no longer costs the full
+  release gate. It shortens verification only; promotion still needs approval.
+
+### Three pre-existing bugs fixed on the way
+
+None was introduced by this release; all three had been shipping quietly.
+
+- The exercise **move input stole focus** when its lazily-imported chess.js
+  chunk landed, scrolling the reader down and swallowing the replayer's arrow
+  keys on lesson pages.
+- Lesson `<code>` referenced **`--font-mono`, a token that has never existed**,
+  so every inline notation in every lesson rendered in the body font instead of
+  monospace. An unknown custom property invalidates the declaration silently.
+- The solved-state **axe check sampled the badge mid-fade**, because
+  `data-state="solved"` flips at the start of the two-beat animation and
+  Playwright counts an `opacity: 0` element as visible.
+
+### Verification
+
+`check-contrast.mjs` grew from 67 assertions to **291** — 4 themes × 2 modes ×
+27 pairs, 6 board presets against all 8 theme pages, plus a new **piece-on-board
+legibility audit**. That audit exists because the first draft of Terminal paired
+a monochrome piece set with a near-black board and lost half the position at
+1.03:1, with every other check green.
+
+The full matrix is run as **four stable projects together plus WebKit
+serially** — the Windows WebKit build hangs under the full five-project
+fan-out, which is a browser problem rather than an application one.
+
+---
+
+### Touch focus, and a quick-change path
+
+#### Fixed
+
+- **Playing by tapping was unusable on a phone.** After every move focus
+  returned to the move-entry field, which opens the virtual keyboard, which
+  shrinks the visual viewport, which scrolls the board out of view. Found by
+  Seàn on a real phone; the automated suite could not have found it, because a
+  headless browser has no soft keyboard.
+
+  The a11y session specified "after the opponent reply, focus returns to the
+  input" — correct for a keyboard user. The brief was incomplete, not the
+  implementation.
+
+  **Focus now follows the modality of the MOVE, not the device**
+  (`src/components/board/useMoveSource.ts`). Deliberately not a user-agent
+  sniff or a `pointer: coarse` query, both of which get it backwards: a phone
+  user with a Bluetooth keyboard who *types* still gets the field back, and a
+  desktop user who *drags* does not. Applies everywhere `MoveInput` appears —
+  tutorial steps, course lessons, `/exercices/`, `/jouer/`.
+
+  Two related cases fixed with it: tapping **"Commencer"** on `/jouer/` used to
+  focus the field before the reader had seen the position (game start is not a
+  move, so the modality of the *activation* decides), and `focus()` now passes
+  `preventScroll` as a second line of defence.
+
+  The field is never hidden or disabled on touch — some students will prefer
+  typing, and it is the accessible path. It just stops grabbing focus unasked.
+
+#### Added
+
+- **A quick-change path** — `npm run quick`, and a section in CLAUDE.md. A typo
+  used to cost the full release gate: five browser projects, half an hour. That
+  is a tax that discourages fixing small things, and unfixed small things are
+  what a visitor sees.
+
+  ⚠️ It shortens **verification only**. `dev` → `main` still needs Seàn.
+
+  `scripts/quick.mjs` **refuses rather than advises**: it diffs the branch
+  against `dev` and exits non-zero naming any file that is out of bounds, with
+  the reason. Enforcing the exclusion list in code rather than in a document is
+  the only version that survives a Friday afternoon. It then runs the content
+  check, the build (which carries `check-contrast` as its own first step), and
+  **only the chromium specs covering what changed**.
+
+- `tests/e2e/touch-focus.spec.ts` — the tapped-move rule on desktop and both
+  mobile projects, including the scroll assertion, which is the closest a
+  headless run gets to the symptom. It states which of its tests actually fail
+  on the old code, verified by rebuilding without the fix rather than assumed.
+- `docs/MANUAL-TESTS.md` gains "play a whole exercise on a phone by tapping
+  only" and an "after a quick change lands on `main`" list.
+
+### E6 + E7 — four complete themes, and typography that follows them
+
+Direction: `docs/direction/mcc-direction-esthetique-addendum.md` §§ E6, E7.
+Combined into one session deliberately: both touch the same tokens, and split
+they would have done the same work twice.
+
+**Bois**, **Marbre**, **Souiri** and **Terminal**. A theme sets the background,
+the surfaces, the heading typeface, the default board preset and the piece set
+— one decision, four coherent moods.
+
+#### Added
+
+- **Four site themes**, each with a full light AND dark palette. Light/dark
+  lives *inside* a theme ("Bois de jour", "Bois de nuit") rather than as a
+  second axis, so the existing toggle now switches within the active theme.
+  All eight combinations ship and all eight are audited.
+- **`/parametres/` restructured into three levels** of decreasing prominence:
+  Thème (four live previews) → Apparence (light/dark) → **Personnaliser**, one
+  collapsed disclosure holding the board presets *and* the reader's own
+  colours. Twenty-four equivalent swatches is not more choice; it is the same
+  choice made unusable.
+- **Theme previews painted by the themes' own rules.** Each tile is
+  `.theme-preview .theme-<id>`, and `site-themes.css` scopes every block to
+  `:is(:root, .theme-preview)` — so a tile shows the real tokens. There is no
+  second copy of any colour, and a preview that looks wrong means the *theme*
+  is wrong. Same trick the preset swatches already used.
+- **Four piece sets**, one per theme: merida (Bois), kiwen-suwi (Marbre),
+  chessnut (Souiri), cburnett (Terminal). Vendored under `vendor/pieces/`
+  with provenance and licences recorded, and credited on `/mentions-legales/`.
+- **`check-contrast.mjs` audits each theme's piece set against the board that
+  theme uses.** The first draft of Terminal paired a monochrome set with the
+  near-black phosphor board and **lost half the position** — 1.03:1, no error,
+  every existing assertion green, found by looking at a screenshot. The rule is
+  "at least one of the piece's two inks clears 3:1", because a white piece on a
+  light square is always low-contrast and it is the outline that separates it.
+  Verified to fail on the old pairing.
+- **A sixth board preset, `phosphore`** — phosphor green on black. Terminal had
+  no honest default among the five, and a cream board inside a terminal is the
+  single thing that would have made that theme read as a background swap.
+- **Three heading typefaces** (Playfair Display, Outfit, JetBrains Mono)
+  alongside Fraunces, self-hosted and subset by the existing script. **A theme
+  loads only its own.**
+- **Reading craft**: a 65-character measure, generous leading, subheads that
+  breathe, a drop cap on the first paragraph of a lesson, small caps for
+  mentions, French guillemets with the narrow no-break space, and chess
+  notation set as a small badge — fixed pitch, light ground, a hairline.
+- **CSS-generated textures** per theme: wood grain, marble veining, a zellige
+  lattice, terminal scanlines. Gradients, never images — no request, nothing to
+  precache, and they scale to any viewport for free.
+- `tests/e2e/themes.spec.ts` — 51 specs covering the themes, the pin rule, the
+  migration, the no-flash path, what is actually fetched, and the E7 craft.
+
+#### Changed
+
+- **`boardTheme` is now optional, and absence is a real state.** Absent means
+  "follow the theme"; present means the reader **pinned** a preset — and a pin
+  **survives a theme change**. Level 2 exists precisely for a player with a
+  board preference independent of the site's mood, so a theme change silently
+  destroying it would destroy the only preference that level is for. "Suivre le
+  thème" is the escape hatch, named and offered first.
+- **The v1 migration is lossless by construction.** The key is unchanged
+  (`mcc:theme:v1`) because the shape is unchanged: a field was added and a
+  field became optional. Every pre-E6 record carries a `boardTheme`, so every
+  returning reader is pinned to exactly the board they last saw, on the Bois
+  palette that record was written under.
+- **`check-contrast.mjs` audits the whole matrix**: 4 themes × 2 modes × 6
+  presets, **275 assertions, up from 67**. It resolves each theme through the
+  same cascade the browser does. Default output is now one line per
+  combination; `--verbose` prints the full table.
+- **`.text-brass` resolves `--mcc-accent-text`** instead of naming a scale step.
+  Two hardcoded steps became eight the moment there were four themes; the
+  semantic token already means "the accent, at whichever step clears AA against
+  *this* surface", so the rule is one line and follows themes not yet written.
+- `::selection` and the level-badge fills are themed tokens rather than raw
+  scale steps — a brass selection was a visible foreign object on a phosphor
+  page.
+- **Piece artwork is one stylesheet per set**, fetched only on pages that
+  declare a board and only for the active theme. Measured: bundling all four
+  into the island chunk cost ~32 KB brotli on every board page to use ~9 KB.
+  Percent-encoded rather than base64 — half the transfer for the same pixels.
+- **The heading font is preloaded by the head script**, for the active theme
+  only. A preload fetches unconditionally, so the previous static Fraunces
+  preload would now make three themes out of four download two faces and use
+  one. Inter stays static: every theme uses it.
+- The service worker precaches **only the default theme's** piece set and
+  heading face; the rest are runtime-cached, the same argument as the engine.
+- The inline theme script was trimmed from 8.4 KB to 5.7 KB per page. An
+  `is:inline` script ships verbatim, comments and all, in all 84 documents —
+  the rationale moved to BaseLayout's frontmatter, which is compiled away.
+- `.prose` typography moved out of `LessonPage`'s scoped `<style>` into
+  `src/styles/typography.css`. Scoped rules carry an attribute selector and
+  beat any global rule of the same class specificity, so the shared craft
+  styles could not have extended them.
+
+#### Fixed
+
+- **Lesson `<code>` has been rendering in Inter, not monospace, since lessons
+  landed.** The rule read `var(--font-mono)` — a token this project has never
+  had. An unknown custom property invalidates the whole declaration silently,
+  so every inline notation in every lesson quietly lost its face. Exactly the
+  `--mcc-border` failure again. The token is `--font-notation`.
+- **The exercise's move input stole focus a moment after page load.**
+  `MoveInput` deliberately never focuses on mount — "stealing focus on page load
+  would drag a reader past the board and the hint they had not read yet" — but
+  `disabled` was in the effect's dependency array, and it flips from true to
+  false when the lazily-imported chess.js chunk lands. So the effect re-ran with
+  `firstRender` already spent and the field focused itself anyway, scrolling the
+  reader down to it. On a lesson page with a replayer above the exercise it also
+  swallowed the replayer's arrow keys, because `ReplayView`'s document handler
+  ignores keys aimed at an `INPUT` by design.
+
+  Found by chasing a "flaky" spec: whether the chunk won the race against the
+  first keypress depended on machine load, so it failed in full-suite runs and
+  passed every time in isolation. Not an E6 regression — it has been there since
+  the lazy chunk was introduced.
+- `ReplayView` now sets `data-keys="bound"` in the same effect that binds its
+  document key listener, so a spec can wait on the handler rather than on
+  `<cg-board>` — which belongs to a child component and proves nothing about it.
+- The correct-move pulse spec gained a second sampler that reads a
+  `MutationObserver`'s **records** alongside the rAF loop. rAF is starved under
+  load on WebKit, which had been producing intermittent "the pulse never
+  happened" failures in full-matrix runs. Reading records is not the pattern the
+  existing rule warns against — that one re-queries the live DOM.
+
+#### Deliberately not done
+
+- **Most of Lichess's piece sets could not be used.** The majority are
+  `CC BY-NC-SA`, "freeware", or unlicensed; the GPL forbids the added
+  restrictions, so they are undistributable here regardless of quality. `alpha`
+  — named in the brief — is "free for personal non commercial use" and was
+  **dropped**. The AGPL sets (`letter`, `pirouetti`, `pixel`) were also
+  declined: not a conflict, but §13 adds an obligation the repo does not carry,
+  and taking it on is a project-level decision. `pixel` would have suited
+  Terminal; it is left on the table rather than quietly adopted.
+- **Old-style figures are declared but inert on body text.** Inter ships no
+  `onum`. The declaration is harmless, correct the moment a face that has them
+  is used, and a spec *reports* whether it took effect so the comment saying so
+  can never quietly become false.
+
+### E5 — the home page becomes a main menu
+
+Direction: `docs/direction/mcc-direction-esthetique-addendum.md` § E5. A 1990s
+PC-chess-game main menu — club title, a centred vertical stack, a small knight
+marking the active line. CSS and a roving tabindex; no new dependency, no island.
+
+#### Added
+
+- **The main menu**, both locales: Reprendre (conditional), Jouer, Apprendre,
+  S'entraîner, Pièges d'ouverture, Le club. Arrow keys move the selection, Home
+  and End jump, Enter follows the link, and the selection wraps like a game menu.
+- **"Reprendre"** — the detail that makes it feel like a game. It appears only
+  when there is progress in `mcc:progress:v1`, and resolves to the **furthest**
+  incomplete step: the tutorial if it was started, otherwise the last course
+  lesson touched. A game's Continue resumes where you stopped, not at the first
+  gap you skipped — both branches have a spec.
+- **A descriptive section below the menu** (`#a-propos`) carrying an `<h2>`, real
+  prose and a start-here button, plus an explicit meta description. The menu owns
+  the first screen; this is what Google and a parent actually read.
+- `tests/e2e/main-menu.spec.ts` — 22 specs.
+
+#### Changed
+
+- **The home page's two CTA buttons and the beginner line are gone**, replaced by
+  the menu. The three pillar cards stay, below the fold.
+- The meta description on `/` is now set explicitly instead of falling back to
+  the site-wide one — six words of menu do not index.
+
+#### Notes
+
+- ⚠️ **The menu's labels are the NAV's labels**, from the same `nav.*` keys. The
+  spec reads the header's own labels off the page and requires the menu's to be a
+  subset, so a rename on one side fails there rather than shipping two names for
+  one destination. A side effect: an unscoped `getByRole('link', …)` on the home
+  page now matches two elements and fails strict mode. That collision is the
+  guarantee working; `smoke.spec.ts` scopes to `.site-nav`.
+- ⚠️ **With no JavaScript there are five entries, not six.** "Reprendre" is a
+  claim about stored progress, which cannot be read without JS; rendering it
+  anyway would assert something we do not know. The five standing entries are
+  real links and all work. The roving tabindex is applied *by* the script, so a
+  no-JS reader gets the ordinary tab order rather than five links stranded behind
+  `tabindex="-1"`.
+- ⚠️ **The resolver is `is:inline` and duplicates the progress key** — the third
+  such duplication after the theme head script and `AccountButton`, for the same
+  reason. A deferred module script would show "Reprendre" one frame late and push
+  a vertically-centred menu down under the reader's eyes. Measured: CLS 0.000
+  before and after.
+- `feel.spec.ts` retargeted from `home-cta-play` to the new below-fold button:
+  the former is now a menu entry rather than a button, and has neither a press
+  nor a shadow to assert.
+
+#### Performance
+
+Lighthouse mobile on `/`, median of three, before → after: **Performance
+100 → 100**, Accessibility 100 → 100, SEO 100 → 100. Speed Index 1108ms →
+1073ms, LCP 1663 → 1662, TBT 0, **CLS 0.000 → 0.000**.
+
 ---
 
 ## [0.3.0] — 2026-08-07
@@ -1166,7 +1479,9 @@ Foundation only: no real content, no interactive board yet.
   `url()` references unresolved and the fonts silently 404 into a Georgia
   fallback. `scripts/build-fonts.mjs` self-hosts them instead. See CLAUDE.md.
 
-[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/releases/tag/v0.1.0

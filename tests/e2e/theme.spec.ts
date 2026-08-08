@@ -34,8 +34,28 @@ async function seedTheme(page: Page, value: unknown) {
   );
 }
 
+/**
+ * Open the "Personnaliser" disclosure.
+ *
+ * ⚠️ EVERY BOARD AND CUSTOM-COLOUR CONTROL LIVES INSIDE IT NOW (E6). That is
+ * the hierarchy working, not an obstacle: the theme is level 1 and picks a
+ * board for you, so the presets and the colour pickers are deliberately one
+ * gesture away. A test that reaches straight for `[data-custom-light]` fails
+ * with "element is not visible", which is the correct behaviour.
+ */
+async function openAdvanced(page: Page) {
+  const advanced = page.locator('[data-advanced]');
+  if (!(await advanced.evaluate((el: HTMLDetailsElement) => el.open))) {
+    await advanced.locator('summary').click();
+  }
+  await expect(advanced).toHaveJSProperty('open', true);
+}
+
 /** Click a preset tile the way a reader does — the radio itself is hidden. */
-const pickBoard = (page: Page, id: string) => page.locator(`[data-board-label="${id}"]`).click();
+async function pickBoard(page: Page, id: string) {
+  await openAdvanced(page);
+  await page.locator(`[data-board-label="${id}"]`).click();
+}
 
 /** A CSS custom property as the browser actually resolves it on <html>. */
 const cssVar = (page: Page, name: string) =>
@@ -171,17 +191,26 @@ test.describe('theme — board presets', () => {
     expect(await cssVar(page, '--mcc-board-light')).toBe('#e6cfa8');
   });
 
-  test('every preset is offered and exactly one is selected', async ({ page }) => {
+  test('every preset is offered, plus "follow the theme", and exactly one is selected', async ({
+    page,
+  }) => {
     await page.goto(SETTINGS_FR);
+    await openAdvanced(page);
+    /* Six presets since E6 added `phosphore` for the Terminal theme, plus the
+       "Suivre le thème" option that un-pins. Seven radios, one group. */
     const boards = page.locator('[data-board-input]');
-    await expect(boards).toHaveCount(5);
+    await expect(boards).toHaveCount(7);
     await expect(page.locator('[data-board-input]:checked')).toHaveCount(1);
+    /* With nothing stored, the checked one is "follow" — not a preset. The
+       reader has expressed no board preference and the theme decides. */
+    await expect(page.locator('[data-board-input]:checked')).toHaveValue('follow');
   });
 });
 
 test.describe('theme — custom colours', () => {
   test('custom colours apply, and override the preset', async ({ page }) => {
     await page.goto(SETTINGS_FR);
+    await openAdvanced(page);
 
     await page.locator('[data-custom-light]').fill('#ffcc00');
     await page.locator('[data-custom-dark]').fill('#333366');
@@ -206,6 +235,7 @@ test.describe('theme — custom colours', () => {
    */
   test('a pair that fails AA warns without refusing', async ({ page }) => {
     await page.goto(SETTINGS_FR);
+    await openAdvanced(page);
 
     // ~4.36:1 for whichever ink is better — below the 4.5 needed for text.
     await page.locator('[data-custom-light]').fill('#7a7a7a');
@@ -224,6 +254,7 @@ test.describe('theme — custom colours', () => {
 
   test('a good pair shows no warning', async ({ page }) => {
     await page.goto(SETTINGS_FR);
+    await openAdvanced(page);
     await page.locator('[data-custom-light]').fill('#f0e6cc');
     await page.locator('[data-custom-dark]').fill('#3d5c46');
     await expect(page.locator('[data-contrast-warning]')).toBeHidden();
@@ -236,6 +267,10 @@ test.describe('theme — custom colours', () => {
       custom: { light: '#ffcc00', dark: '#333366' },
     });
     await page.goto(SETTINGS_FR);
+    /* Already open on arrival: the script opens the disclosure when a pinned
+       board or custom colours are in force, so a setting the reader is USING is
+       never hidden behind a closed summary. */
+    await expect(page.locator('[data-advanced]')).toHaveJSProperty('open', true);
     expect(await cssVar(page, '--mcc-board-light')).toBe('#ffcc00');
 
     await page.locator('[data-custom-reset]').click();
@@ -261,23 +296,53 @@ test.describe('theme — custom colours', () => {
 });
 
 test.describe('theme — surviving bad input', () => {
+  /*
+   * ⚠️ THE EXPECTED BOARD IS PER-FIXTURE, NOT ONE CONSTANT — a distinction E6
+   * introduced and it is worth stating, because the obvious blanket assertion
+   * is wrong in both directions.
+   *
+   * `boardTheme` is now a PIN, and a pin is honoured whenever it is valid, even
+   * if the rest of the record is rubbish. So a fixture whose damage is in
+   * `mode` or in `custom` still has a perfectly good `classique` pin and must
+   * keep it — throwing away a valid preference because a neighbouring field was
+   * corrupt would be exactly the "normalise field by field, never cast" rule
+   * being broken. Only a fixture with no usable pin falls through to the
+   * theme's own board, which for Bois is `bois`.
+   */
   const BAD = [
-    ['not json at all', 'nonsense{'],
-    ['a JSON string, not an object', '"dark"'],
-    ['an unknown mode', '{"mode":"neon","boardTheme":"classique"}'],
-    ['an unknown board', '{"mode":"light","boardTheme":"../evil"}'],
-    ['half a custom pair', '{"mode":"light","boardTheme":"classique","custom":{"light":"#fff"}}'],
-    ['a non-colour custom', '{"mode":"light","boardTheme":"classique","custom":{"light":"red","dark":"blue"}}'],
+    ['not json at all', 'nonsense{', 'bois'],
+    ['a JSON string, not an object', '"dark"', 'bois'],
+    ['an unknown mode', '{"mode":"neon","boardTheme":"classique"}', 'classique'],
+    ['an unknown board', '{"mode":"light","boardTheme":"../evil"}', 'bois'],
+    [
+      'half a custom pair',
+      '{"mode":"light","boardTheme":"classique","custom":{"light":"#fff"}}',
+      'classique',
+    ],
+    [
+      'a non-colour custom',
+      '{"mode":"light","boardTheme":"classique","custom":{"light":"red","dark":"blue"}}',
+      'classique',
+    ],
   ] as const;
 
-  for (const [name, raw] of BAD) {
-    test(`${name} falls back to the default board`, async ({ page }) => {
+  /** The light square of each preset a fixture can land on. */
+  const SQUARE: Record<string, string> = { bois: '#e6cfa8', classique: '#e8dcbe' };
+
+  for (const [name, raw, expectedBoard] of BAD) {
+    test(`${name} degrades to a coherent theme`, async ({ page }) => {
       await seedTheme(page, raw);
       await page.goto('/pieges/legal/');
 
-      // Never an unstyled or half-applied board.
-      await expect(page.locator('html')).toHaveClass(/board-classique/);
-      expect(await cssVar(page, '--mcc-board-light')).toBe('#e8dcbe');
+      /* The theme itself never survives a damaged record, so it is always the
+         default — and a default theme is a COMPLETE one: surfaces, board and
+         pieces all from Bois. Never unstyled, never half-applied. */
+      await expect(page.locator('html')).toHaveClass(/theme-bois/);
+      await expect(page.locator('html')).toHaveClass(/pieces-merida/);
+      await expect(page.locator('html')).toHaveClass(
+        new RegExp(`board-${expectedBoard}(\\s|$)`),
+      );
+      expect(await cssVar(page, '--mcc-board-light')).toBe(SQUARE[expectedBoard]);
       await expect(page.locator('html')).toHaveAttribute('data-theme', /^(light|dark)$/);
     });
   }

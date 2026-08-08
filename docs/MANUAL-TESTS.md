@@ -35,6 +35,54 @@ can prove a duration is 150ms; they cannot prove 150ms is the right number.
 Do this section **first**, before you have looked at anything else — the answers
 are about first impressions and you only get one.
 
+### Q0 — Does the home page feel like opening a game? — ⚠️ AND is the club's purpose clear to an adult in five seconds?
+
+Two questions that pull in opposite directions, which is exactly why they are
+asked together. Open `/` on a phone, cold.
+
+**The game half:**
+
+- [ ] Does the first screen read as a **main menu** — title, a stack of choices —
+      rather than as a web page with links on it?
+- [ ] Move the selection with ↑ / ↓. A small **knight** marks the line you are
+      on. Does it feel like a cursor moving, or like six things lighting up?
+- [ ] Enter follows the selection. Home and End jump to the ends; the selection
+      wraps around, as a game menu does
+- [ ] **No scrolling to reach any entry**, on the smallest phone you have.
+      Rotate to landscape and check again — that is the tightest case
+- [ ] Every entry is comfortable to hit with a thumb
+
+**The adult half — ask someone who has never seen the site:**
+
+- [ ] Hand them the phone for **five seconds**, then take it back. Can they say
+      what this is and who it is for? If they cannot, the sentence under the menu
+      is the thing to fix — it is the only descriptive text above the fold
+- [ ] Scroll down. Is there enough there for a parent deciding whether to bring
+      their child — and for Google?
+- [ ] ⚠️ **The menu labels and the header nav labels are the same words.** Open
+      the nav and compare, in both languages. Two names for one destination reads
+      as two different sites
+
+**"Reprendre" — the detail that makes it a game:**
+
+- [ ] On a browser that has never used the site: **five** entries, no Reprendre
+- [ ] Start a tutorial step, get one move wrong, go home: **Reprendre** appears,
+      first in the list, and takes you back to that step
+- [ ] Finish that step, go home: Reprendre now points at the **next** one
+- [ ] Skip ahead — do a later lesson — then go home. It resumes at the **furthest**
+      point you reached, not the earliest thing you skipped
+- [ ] DevTools → Application → Local Storage → delete `mcc:progress:v1`, reload:
+      Reprendre is gone and the menu is otherwise untouched
+- [ ] Set `mcc:progress:v1` to `not json` by hand, reload: still five clean
+      entries, **nothing in the console**
+
+**With JavaScript disabled** (DevTools → Settings → Debugger → Disable JS):
+
+- [ ] **Five** entries, all visible, all clickable. No Reprendre — that is
+      correct, not a bug: progress cannot be read without JavaScript
+- [ ] Tab reaches each of the five in turn
+- [ ] The descriptive section below still renders in full
+
 ### Q1 — Does the site feel alive within five seconds of landing?
 
 - [ ] Open `/` on a phone and **do nothing** for five seconds. Is there any sense
@@ -300,6 +348,45 @@ Progress:
 
 ---
 
+## 4b. ⚠️ PLAY A WHOLE EXERCISE ON A PHONE, BY TAPPING ONLY
+
+**On a real phone, not a narrow desktop window** — a desktop browser has no
+virtual keyboard, which is the entire point of this section.
+
+This is the check that would have caught the defect Seàn hit: every tapped move
+used to re-focus the move-entry field, which opens the keyboard, which shrinks
+the viewport, which scrolls the board out of view. The automated suite cannot
+see it, because a headless browser has no soft keyboard.
+
+Use a **two-step** exercise (`/exercices/opposition-et-mat/`) — a one-move
+exercise never reaches the code path.
+
+- [ ] Tap a piece, tap its destination. **The keyboard must never open**
+- [ ] **The board must never scroll out of view** — not after your move, not
+      after the opponent replies, not after a refused move
+- [ ] Play the exercise to the end by tapping only. It should feel like a board,
+      not like a form
+- [ ] Do the same on a **course lesson** (the exercise sits far down the page,
+      so a stray focus has a long way to scroll), a **tutorial step**, and
+      **`/jouer/`**
+- [ ] On `/jouer/`, **tapping "Commencer" must not open the keyboard either** —
+      the setup form is replaced by the board, and focus used to land in the field
+- [ ] Play several moves against the engine by tapping. The board stays put
+      through every engine reply
+
+### The other half — the field must still be there, and still work
+
+- [ ] The move field is **visible and enabled** on the phone. It is never hidden
+      or disabled on touch: some students prefer typing, and it is the
+      accessible path
+- [ ] **Tap into the field yourself and type a move.** It works, the keyboard
+      opens (because you asked for it), and after the opponent replies **focus
+      returns to the field** so you can keep typing
+- [ ] Now tap a piece on the board instead. Focus **leaves** the field and the
+      keyboard closes — the modality of the last move decides, not the device
+
+---
+
 ## 5. Keyboard move entry
 
 On any exercise, and on `/jouer/` — **without touching the board at all**:
@@ -368,9 +455,112 @@ On any exercise, and on `/jouer/` — **without touching the board at all**:
 - [ ] Choose light or dark explicitly: the site now ignores the OS setting
 - [ ] The choice survives a reload, and applies on every page
 
+### 7a. The four themes — ⚠️ THE JUDGEMENT CALLS, ON A REAL PHONE, DAY AND NIGHT
+
+Everything measurable about the themes is already proved: 275 contrast assertions in
+`check-contrast.mjs` and 51 specs in `themes.spec.ts`. **What no machine can answer is
+whether they are any good**, and those questions are the whole reason E6 was a session
+of its own. Do these outdoors in daylight and again in a dark room.
+
+- [ ] `/parametres/` shows **four themes first**, each with a live preview: the page
+      colour, its texture, a board, a knight, and the theme's own heading letter
+- [ ] The previews **look like the themes they promise**. A preview that lies is worse
+      than no preview
+- [ ] Pick each theme in turn. Every one changes the background, the surfaces, the
+      headings, the board **and the pieces** together — not just the background
+- [ ] The board and pieces change on a real board too (`/pieges/legal/`), not only on
+      the settings page
+
+#### ⚠️ Q3 — Does **Souiri** feel like Essaouira?
+
+This is the identity theme and the one no other chess site will have. It is either the
+best thing in this session or it is decoration.
+
+- [ ] The blue reads as **the blue of the doors and the boats**, not as a generic
+      "brand blue"
+- [ ] The background is recognisably **zellige** — a tiling, with structure — and not
+      just a texture. Look at it at arm's length on a phone, which is how it will be seen
+- [ ] The lime white feels like **a whitewashed wall**, warm, not like a grey UI surface
+- [ ] The saffron accent belongs with the other two. If it reads as an error colour,
+      that is a bug
+- [ ] Show it to someone from Essaouira if you can. **Their reaction is the test.**
+
+#### ⚠️ Q4 — Is **Terminal** readable, or just a gimmick?
+
+- [ ] Read a **whole lesson** in Terminal dark, on a phone, without stopping. If your
+      eyes hurt or you switch away before the end, it is a gimmick and it must be
+      softened or dropped
+- [ ] The phosphor green does not **vibrate** against the black. (It is deliberately
+      stepped back from the saturated `#00ff41` cliché for exactly this reason)
+- [ ] Amber for links and focus, green for everything read — is that distinction
+      **learnable in one page**, or does it just look like two random colours?
+- [ ] The scanlines are visible enough to be intentional and faint enough to read
+      through. On a low-brightness phone screen especially
+- [ ] **Terminal light** ("the printout") is coherent rather than a joke — a reader
+      whose OS is in light mode gets this, and it has to stand on its own
+- [ ] The monospace headings do not look cramped or broken at the largest heading size
+
+#### Bois and Marbre
+
+- [ ] **Bois** is unchanged from the site you already know. If anything looks different
+      from before this session, that is a regression, not a theme
+- [ ] The wood grain on the page and on the board squares is **just barely** perceptible.
+      If you can see it without looking for it, it is too strong
+- [ ] **Marbre** feels cold and sober — the room with the wood taken out. The veining
+      does not repeat visibly
+- [ ] The gold vein accent reads as stone, not as brass borrowed from Bois
+
+#### Light and dark inside every theme
+
+- [ ] Every theme has a **day and a night**, and both are usable. Switch mode while on
+      each theme in turn — eight combinations, and all eight are shipped
+- [ ] **No white flash** on navigation in any theme's dark mode, including a hard reload
+- [ ] The theme previews on `/parametres/` **follow the mode you are in** — in dark
+      mode all four tiles show their dark palettes
+
+#### The pieces
+
+- [ ] Each theme's pieces suit it: warm Staunton in Bois, crisp outlines in Marbre,
+      flat graphic in Souiri, minimal geometric in Terminal
+- [ ] ⚠️ **A knight is recognisable at a glance in every set**, at phone size. This is
+      the reason textured/raster pieces were rejected; if a set fails it here it must go
+- [ ] White and black pieces are clearly distinguishable **on both square colours** of
+      that theme's board
+- [ ] No piece is missing or shows as an empty square. (A missing piece set is the
+      failure mode of forgetting `board` on a page — check a lesson, a tutorial step, a
+      trap, an exercise and `/jouer/`)
+- [ ] ⚠️ **COUNT THE SQUARES: eight across, eight down, in every theme.** Both defects
+      this session shipped in a first draft and survived a screenshot review looked
+      *plausible* rather than broken — a 2×2 checker still reads as "a chessboard" at a
+      glance, and a board with the black pieces missing still reads as "a position".
+      Count, and look for both colours of piece, rather than glancing
+
+#### Typography (E7)
+
+- [ ] The **heading face changes with the theme** and the **body face never does**.
+      Compare a lesson in all four themes: the prose is the same face every time
+- [ ] A lesson's first paragraph has a **drop cap**, and only the first
+- [ ] On a narrow phone the drop cap **disappears** rather than sitting next to two words
+- [ ] Inline notation (`Cf3`, `Fc4`) reads as a **small badge** — fixed pitch, light
+      ground, a hairline. ⚠️ It rendered in the body font until this session; if it looks
+      like ordinary text again, that bug is back
+- [ ] French quotation marks are `« comme ceci »` with a narrow space inside them
+- [ ] Lesson lines are comfortable to read — roughly 60–70 characters on a desktop
+
 ### Board themes
 
-- [ ] All five presets are offered with a mini preview each, and the previews look like
+- [ ] The presets and custom colours are behind **"Personnaliser"**, closed by default.
+      That is the hierarchy, not a bug: the theme has already chosen a board
+- [ ] **"Suivre le thème"** is the first option and is selected when you have never
+      pinned a board
+- [ ] ⚠️ **Pin a preset, then change theme: the board stays.** This is the decision this
+      session made — a board preference is independent of the site's mood. A note appears
+      saying so
+- [ ] Choose "Suivre le thème" again: the board goes back to following, and now changes
+      with each theme you pick
+- [ ] If you had chosen a board **before this session**, it is still your board after it.
+      Nothing about your setup changed without being asked
+- [ ] All six presets are offered with a mini preview each, and the previews look like
       the boards they promise
 - [ ] Pick each one and check a real board (`/pieges/legal/`): squares change, and the
       **coordinates stay readable on both square colours** — this is the one to actually
@@ -532,9 +722,10 @@ Read the **French** of all 13 steps as though you had never played chess.
 
 ### The home page
 
-- [ ] The hero shows **Jouer** / **Play** as the primary (green) button, and it lands on `/jouer/`
-- [ ] **Découvrir les pièges** / **Explore traps** sits beside it and lands on `/pieges/`
-- [ ] Three pillar cards below: **Apprendre → /cours/**, **S'entraîner → /exercices/**, **Jouer → /jouer/**
+- [ ] The first screen is the **main menu** (see 0b above for the full pass)
+- [ ] **Jouer** / **Play** is the first standing entry and lands on `/jouer/`
+- [ ] **Pièges d'ouverture** / **Opening traps** lands on `/pieges/`
+- [ ] Three pillar cards further down: **Apprendre → /cours/**, **S'entraîner → /exercices/**, **Jouer → /jouer/**
 - [ ] Clicking anywhere on a pillar card follows its link; tabbing reaches each card once
       *(one link per card — if Tab stops twice on a card, the whole-card overlay has regressed)*
 - [ ] Chess-piece silhouettes drift slowly behind the hero. **They should be barely
@@ -599,6 +790,9 @@ Animation effects off; macOS: Accessibility → Display → Reduce motion; or De
 Rendering → Emulate `prefers-reduced-motion`).
 
 - [ ] Silhouettes are **still there** but completely still — the texture stays, the motion goes
+- [ ] The home menu's **knight cursor still marks the selected line** — it just
+      appears rather than sliding in. Removing it would take away the menu's only
+      state, so its absence is a bug, not a reduced-motion success
 - [ ] ⚠️ **Check the FAR pieces too, not just the near ones.** They are a separate
       layer with its own selector, and E1 shipped with them still drifting under
       reduced motion until a spec caught it. If any piece is moving, that is the bug
@@ -762,3 +956,28 @@ axe covers a lot of this automatically; these are the parts it cannot judge.
 - [ ] `npx playwright test` — full matrix (see CLAUDE.md for the known environmental flakes)
 - [ ] This checklist, worked through on desktop **and** a real phone
 - [ ] Lighthouse ≥ 90 on Performance, Accessibility and SEO
+
+---
+
+## After a QUICK CHANGE lands on `main`
+
+A quick change (see CLAUDE.md → Quick change) is verified by `npm run quick` —
+chromium only, and only the specs covering what moved. That is deliberate, and
+it means **the deployed result is checked by a person instead**. It takes a
+minute and it is the whole safety margin the fast path trades away.
+
+**On the deployed URL, not localhost:**
+
+- [ ] The Cloudflare deploy for that commit went **green** — check the dashboard
+      rather than assuming; a build that fails at deploy time fails after every
+      local gate has already passed
+- [ ] Open the **changed page in FR**, and confirm the change is actually there
+- [ ] Open the **same page in EN**. A wording fix applied to one locale and not
+      the other is the single most likely quick-change mistake
+- [ ] The page still renders normally around the change — nothing shifted,
+      nothing lost its styling
+- [ ] If the change was a **new collection entry**: it appears on its index page
+      in both locales, and its detail page opens in both
+
+If any of these is wrong, revert the commit rather than fixing forward — the
+same rule as the fast path itself.

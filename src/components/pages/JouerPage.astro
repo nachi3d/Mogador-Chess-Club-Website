@@ -20,7 +20,7 @@ const { locale } = Astro.props;
 const t = useTranslations(locale);
 ---
 
-<BaseLayout locale={locale} title={t('play.title')} description={t('play.intro')}>
+<BaseLayout locale={locale} title={t('play.title')} description={t('play.intro')} board>
   <PageIntro title={t('play.title')} intro={t('play.intro')} />
   <PlayBoard locale={locale} />
 </BaseLayout>

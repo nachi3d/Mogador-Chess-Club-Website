@@ -1,0 +1,231 @@
+/* ============================================================
+   READING CRAFT (E7)
+
+   The heading typeface follows the theme; this file is everything
+   else — the part that costs nothing and does most of the "I want
+   to read this" work. It is deliberately NOT per-theme: a lesson
+   on the en-passant rule must read identically in Terminal and in
+   Marbre, because the reader is eleven and learning chess, not
+   admiring a page.
+
+   ⚠️ THE BODY FACE NEVER CHANGES. That is the E7 safety rule.
+   Rhythm may vary — measure, leading, spacing. Family may not.
+
+   `.prose` is the shared long-form container: lesson bodies
+   (LessonPage) and the privacy notice (PrivacyPage) both use it.
+   The rules used to live in LessonPage's scoped <style>, which
+   meant they carried `[data-astro-cid-…]` and could not be
+   extended from anywhere else without losing a specificity fight.
+   They are global now, so there is ONE definition of what prose
+   looks like on this site.
+   ============================================================ */
+
+.prose {
+  /* ── MEASURE ──────────────────────────────────────────────
+     65 characters. The 60–70 band is not folklore: below it the
+     eye returns too often and the rhythm breaks up; above it the
+     return sweep starts missing the next line, which is exactly
+     the failure a struggling reader cannot diagnose and blames on
+     themselves.
+
+     `ch` is the width of "0" in the current font, so this tracks
+     the body face rather than assuming a pixel width — and the
+     body face is the same in every theme, so the measure is too. */
+  max-inline-size: 65ch;
+
+  /* ── LEADING ──────────────────────────────────────────────
+     Generous, and generous BY MEASURE: a long line needs more
+     leading to stay trackable. 1.7 against a 65ch measure. */
+  line-height: 1.7;
+
+  /* ── OLD-STYLE FIGURES ────────────────────────────────────
+     Lining figures are uppercase-height and stand out of running
+     text like a shout — "il y a 8 pièces" reads as if the 8 were
+     bold. Old-style figures have ascenders and descenders and sit
+     in the line like letters.
+
+     ⚠️ INTER DOES NOT SHIP `onum`, SO THIS IS INERT ON BODY TEXT
+     TODAY. It is declared anyway, and that is a considered choice
+     rather than an oversight: the property is harmless when the
+     feature is absent (the font simply keeps its default figures),
+     it is correct the moment a face that has them is used, and it
+     documents the intent where the intent applies. Two of the four
+     heading faces DO have them, so headings and pull quotes get
+     the real thing — see the `--mcc-font-display` note below.
+     `tests/e2e/typography.spec.ts` measures whether it took
+     effect and REPORTS rather than asserts, so this comment can
+     never quietly become false. */
+  font-variant-numeric: oldstyle-nums proportional-nums;
+
+  /* Hyphenation makes a 65ch measure hold on a phone without
+     rivers. `text-wrap: pretty` handles the orphan. */
+  hyphens: auto;
+}
+
+.prose p,
+.prose li {
+  text-wrap: pretty;
+}
+
+.prose p {
+  margin-block: 0 1.15em;
+}
+
+/* ── SUBHEADS THAT BREATHE ──────────────────────────────────
+   The commonest typographic mistake in a lesson is a subhead with
+   equal space above and below, which visually attaches it to the
+   paragraph it follows rather than the one it introduces. Space
+   above must be clearly larger than space below. */
+.prose h2 {
+  margin-block: 2.25rem 0.6rem;
+  font-size: 1.375rem;
+  line-height: 1.25;
+}
+
+.prose h3 {
+  margin-block: 1.75rem 0.45rem;
+  font-size: 1.125rem;
+  line-height: 1.3;
+}
+
+/* The first heading in a body has nothing to separate itself from. */
+.prose > :first-child {
+  margin-block-start: 0;
+}
+
+.prose a {
+  color: var(--mcc-link);
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+/* ── SMALL CAPS FOR MENTIONS ────────────────────────────────
+   Named things that are not emphasis — an opening, a club, a
+   piece set. `<abbr>` and an explicit class, never `<small>`,
+   which means something else.
+
+   Real small caps where the face has them; browsers synthesise
+   otherwise, and a synthesised small cap is still better than
+   full caps in running text, which shout. The letter-spacing is
+   what makes the synthesised version legible. */
+.prose abbr,
+.prose .mention {
+  font-variant-caps: all-small-caps;
+  letter-spacing: 0.06em;
+  text-decoration: none;
+}
+
+/* ── THE DROP CAP ───────────────────────────────────────────
+   On the first paragraph of a lesson only — it marks where the
+   teaching starts, and a second one would mark nothing.
+
+   ⚠️ IT IS PURELY DECORATIVE AND MUST STAY THAT WAY. It is
+   `::first-letter` on real text, so a screen reader reads the
+   word normally and selection and copy-paste are unaffected.
+   Never implement it by splitting the letter into its own
+   element: that turns "Une pièce" into "U" + "ne pièce" for
+   anyone listening.
+
+   It takes the theme's heading face, which is the one place a
+   theme's typography reaches into body copy — a single letter,
+   at a size where a characterful face is a pleasure and cannot
+   cost legibility. */
+.prose[data-dropcap] > p:first-of-type::first-letter {
+  float: inline-start;
+  margin-inline-end: 0.08em;
+  padding-block-start: 0.06em;
+  color: var(--mcc-text-heading);
+  font-family: var(--mcc-font-display);
+  font-size: 3.1em;
+  font-weight: 600;
+  line-height: 0.82;
+}
+
+/* A drop cap needs three or four lines of text beside it to sit in.
+   On a narrow phone it would be a giant letter next to two words, so
+   it simply does not appear — the paragraph reads normally. */
+@media (max-width: 26rem) {
+  .prose[data-dropcap] > p:first-of-type::first-letter {
+    float: none;
+    margin: 0;
+    padding: 0;
+    font: inherit;
+    color: inherit;
+  }
+}
+
+/* ── FRENCH QUOTATION MARKS ─────────────────────────────────
+   « comme ceci », with the narrow no-break space French
+   typography requires INSIDE the guillemets — U+202F, which is
+   both narrow and unbreakable, so a quotation can never wrap
+   between the mark and the word it opens.
+
+   Keyed on `:lang()`, so it follows the document language rather
+   than a build-time locale: the same component serves both, and
+   an English page inside a French quotation (or the reverse) is
+   still typeset correctly. */
+:lang(fr) q {
+  quotes: '«\202F' '\202F»' '“' '”';
+}
+
+:lang(en) q {
+  quotes: '“' '”' '‘' '’';
+}
+
+/* ============================================================
+   CHESS NOTATION AS A VISUAL OBJECT
+
+   `Cf3`, `Fc4`, a FEN, a PGN fragment. Notation is not prose and
+   should not look like it: fixed pitch, a light ground, a little
+   air. Almost a badge. This single detail is what makes a lesson
+   page look like it was set by someone who plays.
+
+   ⚠️ THE PITCH MATTERS MORE THAN THE BOX. A proportional "Cf3"
+   sets the C, f and 3 at three different widths, so a move list
+   never forms columns and two similar moves are harder to tell
+   apart at a glance. `--font-notation` and tabular figures are
+   the functional half; the ground is the readable half.
+
+   ⚠️ `--font-mono` DOES NOT EXIST, AND NEVER DID. The lesson
+   `<code>` rule reached for it, which made the whole
+   `font-family` declaration invalid at computed-value time — so
+   every inline notation in every lesson has been rendering in
+   Inter, silently, since lessons landed. Exactly the `--mcc-border`
+   failure again: an unknown custom property does not warn, it just
+   drops the declaration. The token is `--font-notation`.
+   ============================================================ */
+.prose code,
+.mcc-notation {
+  padding: 0.12em 0.4em;
+  border: 1px solid var(--mcc-border-subtle);
+  border-radius: 3px;
+  background-color: var(--mcc-surface-sunken);
+  color: var(--mcc-text-primary);
+  font-family: var(--font-notation);
+  /* Figures in columns — the reason notation is monospaced at all. */
+  font-variant-numeric: tabular-nums lining-nums;
+  font-size: 0.875em;
+  /* Notation inside a 1.7-leaded paragraph must not push the line apart. */
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+/* A block of notation — a PGN, a FEN — is a quotation, not a badge:
+   the border-and-ground treatment at paragraph size reads as a fence. */
+.prose pre {
+  overflow-x: auto;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid var(--mcc-border-subtle);
+  border-radius: var(--radius-card);
+  background-color: var(--mcc-surface-sunken);
+  font-size: 0.875rem;
+  line-height: 1.55;
+}
+
+.prose pre code {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: inherit;
+  white-space: pre;
+}
