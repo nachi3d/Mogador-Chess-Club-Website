@@ -11,7 +11,88 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
-_Nothing yet._
+### M1 + M2 — the site becomes an app on a phone
+
+Direction: `docs/direction/mcc-direction-mobile-app.md`, which **supersedes the
+E5 retro menu on mobile only**. Desktop keeps the retro menu and the grouped
+header, and that divergence is now a tested regression guard.
+
+On a phone the header ate a third of the screen, the centred menu below it
+repeated the same entries, and five entries of identical weight gave no
+hierarchy — two stacked menus before any useful content. The retro menu was
+designed for a large screen; at 390px it was a list of links on a dark
+background.
+
+#### Added
+
+- **A fixed bottom navigation bar** with exactly four entries — Accueil,
+  Apprendre, Jouer, Progrès — ≥48px targets, `aria-current` on the active one,
+  `env(safe-area-inset-bottom)` respected, and it never hides on scroll.
+  ⚠️ **Settings is deliberately not one of them**: it is visited twice and then
+  never again, and five targets across 390px is 78px each.
+- **A one-line mobile header**: club name, theme, language. Nothing else.
+- **The home page becomes a dashboard on mobile.** One dominant card that
+  adapts — "Jouer une partie" with no progress, "Reprendre — <lesson>" with a
+  progress bar once there is some — then two tiles, a stats line and the next
+  session. It reuses the E5 resolver unchanged.
+- **`/progres/`** (+ `/en/progres/`) — a local progress view read from
+  `localStorage`. The bar's fourth entry needs a destination and `/compte/` is
+  not emitted at all while accounts are off.
+- **A settings entry in the desktop header**, beside the theme and language
+  controls. It was footer-only, which meant scrolling to the bottom of whatever
+  page you were on.
+- `tests/e2e/mobile-app.spec.ts` — the bar, the header, both dashboard
+  branches, the progress view, and **both sides of the 768px breakpoint**
+  (767px and 768px explicitly), so a future "unification" fails there.
+
+#### Changed
+
+- Card craft on the dashboard: full-width, generous radius, real shadow,
+  **left-aligned** text, hierarchy by size, and E1's press feedback applied to
+  cards rather than only to buttons.
+- `--radius-app` / `--mcc-radius-app` — a separate, **themed** radius for the
+  app surfaces. Terminal squares it off; rounded corners on a phosphor terminal
+  are the one detail that would say "phone app".
+- Two `main-menu.spec.ts` tests that asserted the menu's behaviour **at 390px**
+  now run at 900px, because below 768px the menu deliberately no longer renders.
+  Their mobile counterparts moved to the new spec.
+- **Specs that assert desktop chrome now say which viewport they mean.** The
+  phone projects run every spec, so `nav-coords`' grouped-navigation block,
+  `motion`'s home-CTA block, `smoke`'s home-renders block and all of
+  `main-menu` set a desktop viewport. Running only chromium hid this: it
+  surfaced as 37 failures the first time the phone projects ran.
+- `scroll-padding-block-end` on the root below 768px. The footer padding stops
+  the fixed bar covering the **end of the document**; this stops it covering
+  whatever anything **scrolls into view** — an `#anchor` link, Tab-ing to a
+  control near the bottom, `scrollIntoView` on a form field. Found by two
+  settings specs that passed on a phone before the bar existed: a theme radio
+  was scrolled flush to the bottom edge and the tap landed on the bar.
+- The lazy-hydration spec now **asserts its own premise**. It put the board
+  below the fold at 380×620; M1 cut the mobile header from three rows to one,
+  the board moved up into view, and the test failed for the right reason about
+  the wrong thing. A test whose setup has stopped creating the condition it
+  tests is worse than a failing one — it goes green while checking nothing.
+
+#### Fixed
+
+- **An accessibility regression the whole suite passed** (Lighthouse a11y
+  100 → 96): text over the primary fill carried `opacity: 0.9`, which blends it
+  toward the background and drops an audited token pair to 4.42:1.
+  ⚠️ **`check-contrast.mjs` cannot see this** — it proves the token pair, and
+  the pair was correct; the CSS weakened the rendering. Same class as the
+  ambient-layer ceiling. Hierarchy is now size, weight and letter-spacing.
+
+  The specs missed it because every axe test **seeded progress**, and the
+  resolver removes that element when it resolves — the never-seeded state was
+  the one nobody audited. axe now runs on both branches and in dark mode.
+
+#### Known, and not introduced here
+
+- The language switcher fails WCAG 2.5.3 (Label in Name): it shows "English"
+  but its accessible name is "Changer de langue", so voice control cannot reach
+  it by its visible text. Present on `dev` before this work, zero-weight in
+  Lighthouse's score. Recorded in BACKLOG.md rather than fixed in an unrelated
+  session.
 
 ---
 

@@ -123,6 +123,66 @@ Open `/exercices/mat-du-couloir/` on a real phone and solve it.
 
 ---
 
+## 0c. ⚠️ THE PHONE IS THE PRIMARY DEVICE — M1/M2
+
+**On a real phone.** A narrow desktop window gives you the layout but not the
+thumb, and the thumb is the whole point of moving navigation to the bottom.
+
+### The two-second test
+
+- [ ] Open the home page. **Within two seconds, is it obvious what to do next?**
+      There should be exactly one big coloured card and it should say either
+      *Jouer une partie* or *Reprendre — <lesson>*. If your eye has to choose
+      between two things of similar weight, the hierarchy has failed
+- [ ] Is the primary card **fully visible without scrolling**?
+- [ ] A returning student: does *Reprendre* name the lesson they actually
+      stopped on, and does the bar show roughly the right amount?
+
+### Thumb reach
+
+- [ ] Hold the phone one-handed, as a teenager would. **Can you reach all four
+      bar entries with your thumb without shifting your grip?**
+- [ ] Tap each one. They respond immediately and the press is felt (the card
+      and the bar entry both move slightly)
+- [ ] The active entry is obvious at a glance — colour *and* the rule above it
+- [ ] ⚠️ **On an iPhone with a gesture bar**: the bar sits ABOVE it, not
+      underneath. Tapping the bottom row never triggers the home gesture instead
+- [ ] Scroll a long page (a lesson, the legal notice) to the very bottom.
+      **Nothing is hidden behind the bar** — the last line clears it
+- [ ] The bar **never disappears** while scrolling, in either direction
+
+### The dashboard in all four themes
+
+- [ ] Switch through **Bois, Marbre, Souiri, Terminal**, light and dark, and
+      look at the home page in each. The dominant card must stay obviously
+      dominant and the text on it must stay comfortable to read
+- [ ] ⚠️ In **Terminal**, the primary card is inverse video (bright fill, dark
+      text) and the corners are square. That is deliberate — rounded corners on
+      a phosphor terminal would be the one detail that says "phone app"
+- [ ] The little board motif in the corner of the two tiles follows your theme
+      AND your board preset. It must stay a background detail — if it competes
+      with the card's words, it is too strong
+- [ ] The *Prochaine séance* line shows the next real session, with its venue
+
+### The reduced header
+
+- [ ] The header is **one line**: club name, theme button, language button.
+      No nav, no settings gear
+- [ ] It takes a small fraction of the screen — nothing like the third it used
+      to take
+- [ ] Rotating to landscape and back does not break either the header or the bar
+
+### And on desktop, nothing changed
+
+- [ ] At a desktop width the **retro menu and the grouped header are exactly as
+      they were**. The bottom bar is absent
+- [ ] The **settings gear** is in the header, beside the theme and language
+      buttons, and reaches `/parametres/` without scrolling to the footer
+- [ ] Resize the window slowly across 768px: the two layouts swap cleanly, and
+      neither appears twice
+
+---
+
 ## 1. Smoke and i18n
 
 - [ ] `/` loads. Heading is *Mogador Chess Club*, nav is in French

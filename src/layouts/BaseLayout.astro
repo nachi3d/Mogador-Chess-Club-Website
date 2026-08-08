@@ -12,6 +12,7 @@ import { alternatePath, stripLocale } from '@i18n/paths';
 import { useTranslations } from '@i18n/ui';
 import Header from '@components/Header.astro';
 import Footer from '@components/Footer.astro';
+import MobileNav from '@components/MobileNav.astro';
 import Analytics from '@components/Analytics.astro';
 import '@styles/global.css';
 
@@ -436,6 +437,11 @@ const pageDescription = description ?? site.description[locale];
 
     <Footer locale={locale} />
 
+    {/* The bottom bar — mobile only, hidden by its own CSS at ≥768px. It is
+        rendered on EVERY page: a permanent bar that appears on some routes and
+        not others is worse than none. See src/components/MobileNav.astro. */}
+    <MobileNav locale={locale} pathname={pathname} />
+
     {reveals && <script is:inline set:html={REVEAL_SCRIPT} />}
 
     <script is:inline>
@@ -456,5 +462,43 @@ const pageDescription = description ?? site.description[locale];
 <style>
   .site-main {
     padding-block: 2.5rem;
+  }
+
+  /* ⚠️ ROOM FOR THE BOTTOM BAR, OR IT COVERS THE LAST LINE OF EVERY PAGE.
+     The bar is `position: fixed`, so it is out of flow and takes no space —
+     the page has to reserve it. `--mcc-bottom-nav` is the bar's row height,
+     declared in tokens.css so the bar and this padding cannot disagree; the
+     iOS safe-area inset is added here because `env()` cannot live inside a
+     custom property and still resolve per-device.
+
+     It goes on the FOOTER's bottom padding rather than on `body`, so the
+     footer's background still runs to the bottom of the scroll instead of
+     leaving a strip of page colour behind a translucent bar. */
+  @media (max-width: 767.98px) {
+    :global(.site-footer) {
+      padding-block-end: calc(var(--mcc-bottom-nav) + env(safe-area-inset-bottom, 0px) + 1rem);
+    }
+
+    /* ⚠️ `scroll-padding-bottom` IS NOT OPTIONAL WITH A FIXED BOTTOM BAR.
+       The padding above stops the bar covering the END of the document; this
+       stops it covering whatever anything SCROLLS INTO VIEW. Without it the
+       browser is free to park an element flush against the bottom edge — which
+       is underneath the bar — so:
+
+         • an `#anchor` link lands on a heading hidden behind it;
+         • Tab-ing to a control near the bottom scrolls it under the bar;
+         • `scrollIntoView` on a form control leaves it untappable.
+
+       Found by two settings-page specs that passed on a phone before the bar
+       existed and failed after: a theme radio was scrolled to the bottom edge,
+       and the tap landed on the bar instead of the control. That was the test
+       reproducing a real interaction, not a test artefact.
+
+       It belongs on the scroll container, which is the root element. */
+    :global(html) {
+      scroll-padding-block-end: calc(
+        var(--mcc-bottom-nav) + env(safe-area-inset-bottom, 0px) + 0.75rem
+      );
+    }
   }
 </style>

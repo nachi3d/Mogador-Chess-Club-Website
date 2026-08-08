@@ -172,6 +172,8 @@ Every session that reaches a merge updates all three, in the same commit as the 
 23. **The body typeface never changes with the theme.** Headings do; body does not. Tested by comparing the computed family across all four.
 24. **A theme loads only its own heading font and its own piece set.** Asserted against the network log, not against appearance.
 25. **Every piece set is licence-checked individually and credited on `/mentions-legales/`.** For three of the four it is a condition of use, not a courtesy.
+26. **Mobile and desktop diverge at 768px, deliberately.** Bottom bar + one-line header + dashboard below; grouped header + retro menu above. Both sides are pinned by specs.
+27. **The bottom bar has exactly four entries and never hides on scroll**, and no page may hide content behind it.
 
 ---
 
@@ -593,7 +595,8 @@ FR at the root, EN under `/en/...`. **Route segments are not translated** (`/en/
 | `/agenda/` | `/en/agenda/` | Sessions; venue falls back to site config |
 | `/contact/` | `/en/contact/` | WhatsApp CTA, venue, socials |
 | `/mentions-legales/` | `/en/mentions-legales/` | Legal notice + credits. **Footer only, not in the nav.** |
-| `/parametres/` | `/en/parametres/` | Appearance settings. Footer only; the header carries a quick toggle. |
+| `/parametres/` | `/en/parametres/` | Appearance settings. Reachable from the **desktop header** (gear, beside the theme toggle) and the footer. |
+| `/progres/` | `/en/progres/` | Local progress. The mobile bar's fourth entry; read from `localStorage`, no account. |
 | `/connexion/` | `/en/connexion/` | **NOT EMITTED by default** — see the account flag below |
 | `/compte/` | `/en/compte/` | **NOT EMITTED by default** — see the account flag below |
 | `/auth/callback/` | — | **NOT EMITTED by default.** The only unlocalised route |
@@ -978,7 +981,115 @@ The drift periods were **47–71s before E1**, which is slow enough that a reade
 
 ---
 
-## The home page is a MAIN MENU (E5)
+## ⚠️ MOBILE AND DESKTOP DIVERGE AT 768px — ON PURPOSE (M1 + M2)
+
+Direction: `docs/direction/mcc-direction-mobile-app.md`. It **supersedes the E5
+retro menu on mobile only**.
+
+| | below 768px | 768px and above |
+|---|---|---|
+| Navigation | fixed **bottom bar**, four entries | grouped header, unchanged |
+| Header | **one line**: name + theme + language | logo, three nav groups, settings, theme, language |
+| Home | **dashboard** (dominant card, tiles, stats, next session) | the E5 retro menu, unchanged |
+
+### ⚠️ DO NOT "UNIFY" THESE. THE DIVERGENCE IS THE FEATURE.
+
+The retro menu was designed for a large screen. At 390px it was a list of links
+on a dark background, under a header that already repeated every one of them:
+two stacked menus before any useful content, five entries of identical weight,
+nothing saying where to start. That is not an execution defect — the design was
+wrong for the format.
+
+`tests/e2e/mobile-app.spec.ts` pins **both sides of the breakpoint**, including
+767px and 768px explicitly. A future session tidying the two layouts into one
+finds out there.
+
+### How the two home pages coexist
+
+Both are in the DOM; CSS decides which is on screen. Three details are
+load-bearing:
+
+- **The dashboard comes FIRST in the DOM.** Below 768px the menu screen hides
+  everything of its own *except the tagline*, so the phone reading order is:
+  dominant card → tiles → stats → next session → that sentence. It is ONE
+  element, shared. A second copy in the same file is a sentence that will
+  eventually disagree with itself.
+- **The `<h1>` goes `sr-only` on mobile, never `display: none`.** The club name
+  is already visible in the reduced header, so repeating it is the redundancy
+  M1 exists to remove — but `display: none` takes the page's only `<h1>` out of
+  the accessibility tree and leaves the document with no top-level heading.
+- **The desktop menu markup and CSS are untouched.** Everything mobile lives in
+  a `max-width: 767.98px` query.
+
+### The bottom bar
+
+**Exactly four entries: Accueil, Apprendre, Jouer, Progrès.** Not five.
+
+⚠️ **Settings is deliberately not one of them.** It is visited twice and then
+never again, so it does not earn a slot in the one element visible on every
+screen — and five targets across 390px is 78px each, where labels truncate.
+Pièges, exercices, agenda and contact live *inside* these four sections.
+
+- ≥48px targets, `aria-current="page"` on the active entry, and the active
+  state is colour **plus** a rule above it, never colour alone.
+- **It never hides on scroll.** Stability beats the pixels.
+- ⚠️ **`env(safe-area-inset-bottom)` in TWO places**: as the bar's own bottom
+  padding (so its background reaches into the iOS gesture area) and in the
+  footer's bottom padding (so the bar does not cover the last line of every
+  page). The bar is `position: fixed` and therefore takes no space — the page
+  has to reserve it. `--mcc-bottom-nav` is the shared row height; `env()`
+  cannot live inside a custom property and still resolve per device.
+
+### `/progres/` exists because the bar needs a fourth destination
+
+The direction doc points "Progrès" at `/compte/` *or a local view while
+accounts are off*. Accounts are off and `/compte/` is **not emitted at all**, so
+pointing there would 404 from the one navigation element on every mobile screen.
+When accounts land (v2-S3) the synced view goes here, in the same shape.
+
+It is the **fourth** duplication of `mcc:progress:v1` in an inline script, after
+the theme head script, `AccountButton` and the home resolver — same trade, same
+reason, and the spec seeds the key directly so a divergence from
+`src/lib/progress.ts` fails there.
+
+### Settings in the desktop header — beside the tools, not in a nav group
+
+Chosen over "inside Le club", and the reasoning is in `SettingsLink.astro`: it
+is a **preference control**, so it belongs with the other two preference
+controls; the theme toggle beside it is a shortcut to one of these very
+settings; and the nav groups are **content sections** that a reader walks
+looking for something to read. "Le club" is about the organisation — filing a
+personal display preference under it is exactly where nobody would look.
+
+Desktop only. On a phone it would be a fourth icon on the single line M1 exists
+to clear. The footer link stays.
+
+### ⚠️ NEVER PUT `opacity` ON TEXT OVER AN AUDITED FILL
+
+It cost a Lighthouse accessibility regression (100 → 96) that the entire
+Playwright suite passed. `--mcc-primary-contrast` on `--mcc-primary` is proved
+by `check-contrast.mjs` in all eight theme/mode combinations — and then CSS set
+the text to `opacity: 0.9`, which blends it toward the fill and drops the real
+ratio to **4.42:1**. The tokens were right; the rendering was not.
+
+**The auditor cannot see an alpha applied on top of a pair it has proved.**
+Same class as the ambient-layer ceiling, which is why that one is computed by
+hand in a comment. Differentiate by size, weight and letter-spacing.
+
+⚠️ And the reason the specs missed it: every axe test **seeded progress**, and
+the resolver *removes* that element when it resolves. The never-seeded state
+was the one state nobody audited. **A state that only exists before the reader
+has done anything is still a state a reader sees** — axe now runs on both
+branches, and in dark mode, where the lighter primary fill has less headroom.
+
+---
+
+## The home page is a MAIN MENU (E5) — ⚠️ ON DESKTOP ONLY SINCE M2
+
+**Everything in this section applies at 768px and above.** Below it the menu is
+replaced by the dashboard — see the divergence section above. The rules here
+(identical labels, one screen, no-JS shape, the Reprendre resolution) are all
+still live at desktop widths, and the resolver is shared with the dashboard.
 
 Direction: `docs/direction/mcc-direction-esthetique-addendum.md` § E5. The home
 page is a 1990s PC-game main menu — club title, a centred vertical stack, a small

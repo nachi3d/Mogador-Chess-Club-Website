@@ -66,6 +66,51 @@ const fr = {
      `nav.*` verbatim, because two different names for the same destination
      reads as two different sites. Only the entries with no nav counterpart
      are declared here. */
+  /* ── Mobile app shell (M1/M2) ────────────────────────────────────────
+     ⚠️ The bottom bar reuses `nav.*` labels wherever one exists, for the same
+     reason the E5 menu does: two names for one destination reads as two
+     sites. Only "Progrès", which has no nav counterpart, is declared here. */
+  'nav.progress': 'Progrès',
+  'nav.mobile': 'Navigation principale',
+
+  /* ── The mobile dashboard (M2) ───────────────────────────────────────
+     These are CARD titles, not menu labels: a card has room for a verb and a
+     line of explanation, and the E5 identical-labels rule is about the menu.
+     The bar above still borrows the nav's words. */
+  'home.dash.play.title': 'Jouer une partie',
+  'home.dash.play.text': "Contre l'ordinateur, dans le navigateur. Trois niveaux.",
+  'home.dash.resume.title': 'Reprendre',
+  'home.dash.resume.progress': '%s / %s étapes',
+  'home.dash.basics.title': 'Apprendre les bases',
+  'home.dash.basics.text': 'Treize étapes courtes, depuis zéro.',
+  'home.dash.playShort.title': 'Jouer',
+  'home.dash.playShort.text': "Une partie contre l'ordinateur.",
+  'home.dash.practise.title': "S'entraîner",
+  'home.dash.practise.text': 'Des positions à résoudre.',
+  'home.dash.stats.solved': 'résolus',
+  'home.dash.stats.lessons': 'leçons',
+  'home.dash.stats.rank': 'Rang',
+  'home.dash.stats.soon': 'bientôt',
+  'home.dash.next.title': 'Prochaine séance',
+  'home.dash.next.none': "Aucune séance annoncée pour l'instant.",
+
+  /* ── The local progress view ─────────────────────────────────────── */
+  'progress.title': 'Progrès',
+  'progress.intro':
+    "Ce que vous avez terminé. Tout est enregistré sur cet appareil uniquement — rien n'est envoyé nulle part.",
+  'progress.basics': 'Les bases',
+  'progress.courses': 'Cours',
+  'progress.exercises': 'Exercices',
+  'progress.done': 'terminé',
+  'progress.of': 'sur',
+  'progress.empty': "Vous n'avez rien commencé pour l'instant.",
+  'progress.emptyCta': 'Commencer par les bases',
+  'progress.continue': 'Continuer',
+  'progress.noJs':
+    "L'affichage de la progression a besoin de JavaScript : elle est lue depuis cet appareil.",
+  'progress.cleared':
+    'Si vous videz les données du navigateur, cette progression disparaît. Elle ne vit que sur cet appareil.',
+
   'menu.label': 'Menu principal',
   'menu.resume': 'Reprendre',
   /* Announced instead of the bare label once resolved, so a screen-reader user
@@ -462,6 +507,41 @@ const en: Record<keyof typeof fr, string> = {
 
   'home.cta.play': 'Play',
   'home.cta.traps': 'Explore traps',
+
+  'nav.progress': 'Progress',
+  'nav.mobile': 'Main navigation',
+
+  'home.dash.play.title': 'Play a game',
+  'home.dash.play.text': 'Against the computer, in your browser. Three levels.',
+  'home.dash.resume.title': 'Resume',
+  'home.dash.resume.progress': '%s / %s steps',
+  'home.dash.basics.title': 'Learn the basics',
+  'home.dash.basics.text': 'Thirteen short steps, from scratch.',
+  'home.dash.playShort.title': 'Play',
+  'home.dash.playShort.text': 'A game against the computer.',
+  'home.dash.practise.title': 'Practise',
+  'home.dash.practise.text': 'Positions to solve.',
+  'home.dash.stats.solved': 'solved',
+  'home.dash.stats.lessons': 'lessons',
+  'home.dash.stats.rank': 'Rank',
+  'home.dash.stats.soon': 'soon',
+  'home.dash.next.title': 'Next session',
+  'home.dash.next.none': 'No session announced yet.',
+
+  'progress.title': 'Progress',
+  'progress.intro':
+    'What you have finished. Everything is saved on this device only — nothing is sent anywhere.',
+  'progress.basics': 'The basics',
+  'progress.courses': 'Courses',
+  'progress.exercises': 'Exercises',
+  'progress.done': 'done',
+  'progress.of': 'of',
+  'progress.empty': 'You have not started anything yet.',
+  'progress.emptyCta': 'Start with the basics',
+  'progress.continue': 'Continue',
+  'progress.noJs': 'Showing your progress needs JavaScript: it is read from this device.',
+  'progress.cleared':
+    'If you clear your browser data this progress disappears. It lives on this device only.',
 
   'menu.label': 'Main menu',
   'menu.resume': 'Resume',

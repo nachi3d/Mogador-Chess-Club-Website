@@ -395,6 +395,10 @@
    ============================================================ */
 :is(:root, .theme-preview).theme-terminal {
   --mcc-font-display: var(--font-display-jetbrains);
+  /* ⚠️ Square corners on the app cards. Everything else on this theme is
+     drawn with straight lines; a 14px radius is the one detail that would
+     say "phone app" instead of "terminal". */
+  --mcc-radius-app: 2px;
   /* The one theme where headings want to sit wide and flat rather than tight:
      a monospace face at a display size looks cramped with negative tracking. */
   --mcc-display-tracking: 0.01em;

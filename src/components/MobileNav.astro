@@ -1,0 +1,229 @@
+---
+/**
+ * The bottom navigation bar — MOBILE ONLY, below 768px (M1).
+ *
+ * Direction: `docs/direction/mcc-direction-mobile-app.md` § 1.
+ *
+ * ─────────────────────────────────────────────────────────────────────────
+ * ⚠️ EXACTLY FOUR ENTRIES, AND THE FOURTH IS NOT SETTINGS.
+ *
+ * Four because five targets across 390px is 78px each, which is where labels
+ * start truncating and the choice blurs. And settings is not a destination —
+ * it is visited twice and then never again — so it belongs in the header with
+ * the other preference controls, not in the one permanent bar a reader sees on
+ * every screen. Pièges, exercices, agenda and contact live INSIDE these four
+ * sections rather than beside them.
+ *
+ * ⚠️ IT NEVER HIDES ON SCROLL. A bar that comes and goes makes the reader
+ * hunt for it; stability is worth more than the few pixels a hiding bar buys.
+ *
+ * ⚠️ `env(safe-area-inset-bottom)` IS NOT OPTIONAL. Without it the bar sits
+ * underneath the iOS gesture bar and the bottom row of targets is unreachable.
+ * The same inset is added to the page's bottom padding in BaseLayout, or the
+ * last line of every page hides behind this.
+ * ─────────────────────────────────────────────────────────────────────────
+ *
+ * Icons are inline SVG: four small paths, no request, no sprite sheet, and
+ * they inherit `currentColor` so they follow the theme like everything else.
+ * They are `aria-hidden` — the label beside them is the accessible name, and
+ * an icon that duplicates a visible label just makes a screen reader say it
+ * twice.
+ */
+import type { Locale } from '@config/site';
+import { localizePath, stripLocale } from '@i18n/paths';
+import { useTranslations } from '@i18n/ui';
+
+interface Props {
+  locale: Locale;
+  pathname: string;
+}
+
+const { locale, pathname } = Astro.props;
+const t = useTranslations(locale);
+const current = stripLocale(pathname);
+
+/**
+ * The four. `key` is a `nav.*` key wherever a nav counterpart exists, for the
+ * same reason the E5 menu reuses them — two names for one destination reads as
+ * two different sites. Only "Progrès" is new, because nothing else names it.
+ *
+ * `match` decides the active state: a section is active when the reader is
+ * anywhere inside it, not only on its index. Someone reading a trap is inside
+ * "Apprendre" and the bar should say so.
+ */
+const entries = [
+  { key: 'nav.home', href: '/', icon: 'home', match: ['/'] },
+  {
+    key: 'nav.group.learn',
+    href: '/cours/',
+    icon: 'book',
+    match: ['/cours/', '/pieges/', '/apprendre-les-bases/'],
+  },
+  { key: 'nav.play', href: '/jouer/', icon: 'piece', match: ['/jouer/'] },
+  { key: 'nav.progress', href: '/progres/', icon: 'chart', match: ['/progres/', '/exercices/'] },
+] as const;
+
+/** Home matches exactly; every other section matches its whole subtree. */
+function isActive(match: readonly string[]): boolean {
+  return match.some((base) => (base === '/' ? current === '/' : current.startsWith(base)));
+}
+---
+
+<nav class="mobile-nav" aria-label={t('nav.mobile')} data-mobile-nav>
+  <ul class="mobile-nav-list">
+    {
+      entries.map((entry) => {
+        const active = isActive(entry.match);
+        return (
+          <li class="mobile-nav-item">
+            <a
+              class:list={['mobile-nav-link', { 'is-active': active }]}
+              href={localizePath(entry.href, locale)}
+              aria-current={active ? 'page' : undefined}
+              data-testid={`mobilenav-${entry.icon}`}
+            >
+              <span class="mobile-nav-icon" aria-hidden="true">
+                {entry.icon === 'home' && (
+                  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 10.5 12 3l9 7.5" />
+                    <path d="M5.5 9.5V20a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1V9.5" />
+                    <path d="M9.5 21v-6h5v6" />
+                  </svg>
+                )}
+                {entry.icon === 'book' && (
+                  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 4.5A1.5 1.5 0 0 1 5.5 3H10a3 3 0 0 1 2 5.2V21a3 3 0 0 0-2-.8H5.5A1.5 1.5 0 0 1 4 18.7z" />
+                    <path d="M20 4.5A1.5 1.5 0 0 0 18.5 3H14a3 3 0 0 0-2 5.2V21a3 3 0 0 1 2-.8h4.5a1.5 1.5 0 0 0 1.5-1.5z" />
+                  </svg>
+                )}
+                {entry.icon === 'piece' && (
+                  /* A knight, the same silhouette as the E5 menu cursor — the
+                     one piece a beginner recognises instantly at 22px. */
+                  <svg viewBox="0 0 44 64" width="20" height="26" fill="currentColor">
+                    <path d="M15 5c8-2 16 2 20 10 3 7 3 16 0 23-2 5-6 9-11 12h9v6H9v-6c0-7 4-13 10-17l-9-3-3-10 8-5z" />
+                  </svg>
+                )}
+                {entry.icon === 'chart' && (
+                  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 20V4" />
+                    <path d="M4 20h16" />
+                    <path d="M8 20v-5" />
+                    <path d="M13 20V9" />
+                    <path d="M18 20v-8" />
+                  </svg>
+                )}
+              </span>
+              <span class="mobile-nav-label">{t(entry.key)}</span>
+            </a>
+          </li>
+        );
+      })
+    }
+  </ul>
+</nav>
+
+<style>
+  /* ══ MOBILE ONLY. The breakpoint is 768px and it is stated in CLAUDE.md.
+     Above it the grouped header and the retro menu are unchanged — this bar
+     is an adaptation, not a replacement. ═══════════════════════════════ */
+  .mobile-nav {
+    position: fixed;
+    inset-inline: 0;
+    inset-block-end: 0;
+    z-index: 40;
+    background-color: var(--mcc-surface-raised);
+    /* A hairline, not a shadow: the bar sits ON the page rather than over it,
+       and a shadow under a bottom bar reads as a rendering artefact. */
+    border-block-start: 1px solid var(--mcc-border-subtle);
+    /* ⚠️ The inset is PADDING, not margin: the bar's background has to extend
+       into the gesture area, or there is a strip of page colour under it. */
+    padding-block-end: env(safe-area-inset-bottom, 0px);
+  }
+
+  @media (min-width: 768px) {
+    .mobile-nav {
+      display: none;
+    }
+  }
+
+  .mobile-nav-list {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .mobile-nav-link {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.15rem;
+    /* ≥48px, per the direction doc. The label and icon together are nowhere
+       near that on their own — the min-height is what provides the target. */
+    min-block-size: var(--mcc-bottom-nav);
+    padding-block: 0.35rem;
+    color: var(--mcc-text-secondary);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    line-height: 1.1;
+    text-decoration: none;
+    /* Réponse (E1): the bar answers a tap like every other control. */
+    transition: color var(--motion-response) var(--ease-response);
+  }
+
+  .mobile-nav-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    block-size: 1.5rem;
+  }
+
+  /* ⚠️ The active entry is marked by COLOUR AND WEIGHT AND a rule above it —
+     never colour alone. `aria-current="page"` carries it for a screen reader. */
+  .mobile-nav-link.is-active {
+    color: var(--mcc-accent-text);
+  }
+
+  .mobile-nav-link.is-active::before {
+    content: '';
+    position: absolute;
+    inset-block-start: 0;
+    inline-size: 2.25rem;
+    block-size: 2px;
+    border-radius: 0 0 2px 2px;
+    background-color: var(--mcc-accent-text);
+  }
+
+  .mobile-nav-item {
+    position: relative;
+    display: flex;
+  }
+
+  .mobile-nav-item > .mobile-nav-link {
+    inline-size: 100%;
+  }
+
+  .mobile-nav-link:focus-visible {
+    outline: 2px solid var(--mcc-focus-ring);
+    outline-offset: -3px;
+    border-radius: var(--radius-card);
+  }
+
+  /* The press, as E1 defines it — applied to a nav target rather than a
+     button, because on a phone this bar IS the buttons. */
+  .mobile-nav-link:active {
+    transform: translateY(var(--motion-press-y));
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .mobile-nav-link {
+      transition: none;
+    }
+
+    .mobile-nav-link:active {
+      transform: none;
+    }
+  }
+</style>
