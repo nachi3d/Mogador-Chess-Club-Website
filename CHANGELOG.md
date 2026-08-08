@@ -11,6 +11,71 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+_Nothing yet._
+
+---
+
+## [0.4.0] — 2026-08-08
+
+The appearance release. v0.3.0 taught; this one decides what the teaching looks
+like — and gives the reader the choice. The home page becomes a main menu, the
+palette becomes four coherent themes with their own pieces and typefaces, and a
+defect that made the site unusable by tapping on a phone is fixed.
+
+### Highlights
+
+- **A retro main menu on the home page** (E5) — club title, a centred stack, a
+  small knight marking the active line, arrow-key navigation. **"Reprendre"**
+  appears only when there is progress to resume, and resumes at the *furthest*
+  step you reached, not the first gap you skipped.
+- **Four complete themes** (E6/E7) — **Bois**, **Marbre**, **Souiri** and
+  **Terminal**. Each brings its own **piece set**, **heading typeface** and
+  **default board**, in a full light *and* dark palette. Light/dark lives inside
+  a theme rather than beside it, so all eight combinations ship and all eight
+  are audited.
+- **A sixth board preset, `phosphore`** — phosphor green on black, so Terminal
+  has an honest board rather than a borrowed one.
+- **A three-level settings hierarchy** — theme → board → your own colours, in
+  decreasing prominence. One decision for almost everyone; the rest is one
+  gesture away.
+- **Reading craft** — a drop cap on the first paragraph of a lesson, chess
+  notation set as a **visual object** (fixed pitch, light ground, a hairline),
+  French guillemets with the narrow no-break space, a 65-character measure and
+  subheads that breathe.
+- **A touch fix** — the move input no longer steals focus after a tapped move.
+  On a phone that was opening the virtual keyboard and scrolling the board out
+  of view, which made playing by tapping unusable.
+- **A quick-change path** — `npm run quick`, so a typo no longer costs the full
+  release gate. It shortens verification only; promotion still needs approval.
+
+### Three pre-existing bugs fixed on the way
+
+None was introduced by this release; all three had been shipping quietly.
+
+- The exercise **move input stole focus** when its lazily-imported chess.js
+  chunk landed, scrolling the reader down and swallowing the replayer's arrow
+  keys on lesson pages.
+- Lesson `<code>` referenced **`--font-mono`, a token that has never existed**,
+  so every inline notation in every lesson rendered in the body font instead of
+  monospace. An unknown custom property invalidates the declaration silently.
+- The solved-state **axe check sampled the badge mid-fade**, because
+  `data-state="solved"` flips at the start of the two-beat animation and
+  Playwright counts an `opacity: 0` element as visible.
+
+### Verification
+
+`check-contrast.mjs` grew from 67 assertions to **291** — 4 themes × 2 modes ×
+27 pairs, 6 board presets against all 8 theme pages, plus a new **piece-on-board
+legibility audit**. That audit exists because the first draft of Terminal paired
+a monochrome piece set with a near-black board and lost half the position at
+1.03:1, with every other check green.
+
+The full matrix is run as **four stable projects together plus WebKit
+serially** — the Windows WebKit build hangs under the full five-project
+fan-out, which is a browser problem rather than an application one.
+
+---
+
 ### Touch focus, and a quick-change path
 
 #### Fixed
@@ -1414,7 +1479,9 @@ Foundation only: no real content, no interactive board yet.
   `url()` references unresolved and the fonts silently 404 into a Georgia
   fallback. `scripts/build-fonts.mjs` self-hosts them instead. See CLAUDE.md.
 
-[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/releases/tag/v0.1.0
