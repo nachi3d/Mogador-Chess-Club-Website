@@ -113,6 +113,7 @@ Concretely: keep `src/lib/` chess logic pure and synchronous. The board island, 
 - Conventional commit format: `feat(scope): description`
 - **Commits are authored as `nachi3D` only. NEVER add `Co-Authored-By` lines for Claude or anyone else.**
 - Tag releases: `git tag -a vX.Y.Z -m "..."` on main after merge
+- **Bump `package.json` `version` to match the tag, in the release commit.** See the promotion routine below.
 - Update CHANGELOG.md on every merge to dev
 - **Back-merge convention:** after each release, merge `main` → `dev` to keep histories aligned
 - Claude Code merges to `dev` only; **`dev` → `main` requires Seàn's explicit approval per release**
@@ -124,6 +125,31 @@ Every session that reaches a merge updates all three, in the same commit as the 
 1. **`CHANGELOG.md`** — what changed, and the reasoning behind anything surprising.
 2. **`CLAUDE.md`** — any decision, rule or gotcha that the next session would otherwise rediscover.
 3. **`docs/MANUAL-TESTS.md`** — **whenever the session adds or changes anything a visitor can see.** New feature, new page, new failure mode, new regression worth watching: it goes in the checklist. This is the one most easily skipped and the one whose absence is least visible — a checklist that lags the site makes an incomplete test pass feel complete.
+
+#### Promotion routine — `dev` → `main`
+
+Every promotion does all four, and the version bump is **part of the release
+commit, not a follow-up**:
+
+1. **Bump `package.json` `version` to the release version** — `0.5.0` ships as
+   `"version": "0.5.0"`. It is the one machine-readable statement of what this
+   tree *is*, and it is what `npm version`, tooling and a future consumer read.
+2. **Stamp `CHANGELOG.md`** — move `[Unreleased]` to `[X.Y.Z] — <date>` and add
+   the compare-link pair at the bottom.
+3. **Merge `--no-ff`, then `git tag -a vX.Y.Z`** on main.
+4. **Back-merge `main` → `dev`.**
+
+⚠️ **The bump belongs in the release commit because a promotion already runs
+the full gate.** Doing it afterwards means either a second gate for a one-line
+change or an untested tree — and `package.json` is deliberately on
+`scripts/quick.mjs`'s FORBIDDEN list, so it cannot take the fast path on its
+own. That exclusion is correct and stays: its pattern cannot tell a `version`
+string from a dependency edit, and guessing wrong in that direction is how a
+dependency change reaches production on a shortened gate.
+
+⚠️ **This drifted for three releases.** v0.3.0, v0.4.0 and v0.5.0 all shipped
+with `"version": "0.2.0"`, because nothing named the file and nothing checked
+it. Tags said one thing and the manifest said another.
 
 ### Shell
 - NO chained `&&` commands — git and cd run as separate steps
@@ -2549,6 +2575,8 @@ Run `npm run demo`, which prints its path, and work down it. The release gate is
 □ npx playwright test — green (full matrix; see the known environmental flakes above)
 □ docs/MANUAL-TESTS.md — worked through on desktop AND a real phone
 □ Lighthouse ≥ 90 (Performance, Accessibility, SEO)
+□ package.json "version" matches the tag about to be cut
+□ CHANGELOG.md stamped, [Unreleased] emptied, compare-links updated
 ```
 
 It is a **living document**: keep it in step with the site, in the same commit as the feature. See the session finish routine under Conventions.
