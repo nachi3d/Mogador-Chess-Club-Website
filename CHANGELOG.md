@@ -11,6 +11,28 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+_Nothing yet._
+
+---
+
+## [0.6.0] — 2026-08-09
+
+The engine difficulty ladder, rebuilt. The three levels were **one opponent
+under three names** — measured, not suspected — and weakness now comes from a
+**measured blunder frequency** rather than from `Skill Level`.
+
+v0.5.0 decided what the site is on a phone. This one fixes the thing a club
+member notices first and fastest: that the computer cannot be beaten. Débutant
+is now genuinely a beginner's opponent, and the three levels are a ladder in
+the only sense that matters — each one beats the one below it.
+
+The load-bearing finding is that `Skill Level` **cannot** produce a weak
+opponent here, because it only ever chooses among the engine's own top
+candidates and every search ends in a quiescence pass that resolves all
+captures. A dial that never hangs a piece cannot make a beginner's opponent, at
+any depth. That is why the fix is a blunder rate and not a re-tune, and why the
+numbers below were measured against reference bots instead of chosen.
+
 ### Fixed — the computer was unbeatable at every level
 
 Reported by Seàn, who plays chess and had **not won a single game** against
@@ -1733,7 +1755,8 @@ Foundation only: no real content, no interactive board yet.
   `url()` references unresolved and the fonts silently 404 into a Georgia
   fallback. `scripts/build-fonts.mjs` self-hosts them instead. See CLAUDE.md.
 
-[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.2.0...v0.3.0
