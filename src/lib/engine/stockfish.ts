@@ -41,29 +41,86 @@ export interface EngineLevel {
   readonly depth: number;
   /** Wall-clock cap, whichever comes first. Bounds latency on a slow phone. */
   readonly movetimeMs: number;
+  /**
+   * Probability (0–1) of playing a uniformly random legal move instead of the
+   * searched one.
+   *
+   * ⚠️ THIS IS NOT A HACK — IT IS THE ONLY THING THAT MAKES THE ENGINE HANG A
+   * PIECE. `Skill Level` picks among the engine's OWN top candidates, and a
+   * Stockfish search of any depth ends in a quiescence search that resolves
+   * every capture. So even `skill 0, depth 1` never leaves a piece en prise to
+   * a one-move capture, and never misses a free one. Measured: at the shipped
+   * `skill 0, depth 2` the engine played its top choice in 23 of 24 searches
+   * of one position — MORE deterministic than either higher level.
+   *
+   * A beginner needs an opponent that sometimes gives material away. That
+   * cannot come from a dial that only ever chooses between good moves.
+   */
+  readonly blunderChance: number;
 }
 
 /**
- * ⚠️ THESE ARE HAND-SET, AND THEY ARE NOT ELO.
+ * ⚠️ THESE ARE MEASURED, AND THEY ARE STILL NOT ELO.
  *
- * The vendored build exposes NO `UCI_LimitStrength` and NO `UCI_Elo` — the only
- * strength dial it has is `Skill Level` (0–20), verified by reading the `uci`
- * option list out of the worker. So the three presets are a skill level plus a
- * depth cap, chosen by hand to feel like a beginner, a club player and a strong
- * club player.
+ * The vendored build exposes NO `UCI_LimitStrength` and NO `UCI_Elo` — verified
+ * by reading the `uci` option list out of the running worker. The only strength
+ * dials are `Skill Level` (0–20) and two companions, `Skill Level Maximum
+ * Error` and `Skill Level Probability`.
  *
- * The design targets were ~800 / ~1400 / ~2000, and the UI therefore names the
- * levels rather than printing a rating: an Elo number the engine does not
- * enforce and nobody has measured would be a fact we invented. If a real rating
- * is ever wanted, it has to be measured against rated opposition, not asserted
- * here. (CLAUDE.md → "Play mode — the level mapping".)
+ * ⚠️ AND `Skill Level` ALONE CANNOT MAKE THIS ENGINE BEATABLE. Two measured
+ * facts, both from `scripts/engine-lab`:
+ *
+ *  1. It only ever chooses among the engine's OWN top candidates, and every
+ *     Stockfish search — at any depth — ends in a quiescence search that
+ *     resolves all captures. So no (skill, depth) pair ever hangs a piece or
+ *     misses a free one. "depth 2" is not "sees one move ahead".
+ *  2. At the old `skill 0, depth 2` the engine played its top choice in 23 of
+ *     24 searches of one position — MORE deterministic than either higher
+ *     level. Débutant was the least random preset on the ladder.
+ *
+ * Setting `Skill Level Maximum Error` to 5000 and `Probability` to 1000 — both
+ * extremes — made it MORE deterministic, not less. Not a usable dial here.
+ *
+ * The result was a ladder that was not a ladder. Measured over 16 games per
+ * pairing against two reference opponents, the presets that shipped up to
+ * v0.5.0 scored:
+ *
+ *     debutant      vs greedy   97%      vs novice   100%
+ *     intermediaire vs greedy  100%      vs novice    97%
+ *     avance        vs greedy  100%      vs novice   100%
+ *
+ * Three names, one opponent, and a club player who had not won a single game.
+ *
+ * ⚠️ RE-MEASURE, DO NOT RE-REASON. `node scripts/engine-lab/run.mjs --verify`
+ * plays these exact values and prints the table. The numbers below are the
+ * output of that, not a guess that sounded about right. See CLAUDE.md → "Play
+ * mode — the level presets are MEASURED".
+ *
+ * The UI still names the levels and prints no rating: these are win rates
+ * against two crude reference bots, which is evidence of ORDER and of
+ * beatability, and is not a rating. Claiming an Elo would still be inventing a
+ * fact.
  */
 export const LEVELS: Readonly<Record<LevelId, EngineLevel>> = {
-  // Skill 0 plus a shallow search: it sees one move ahead and takes the free
-  // piece it is offered, which is what losing to a beginner looks like.
-  debutant: { skill: 0, depth: 2, movetimeMs: 300 },
-  intermediaire: { skill: 5, depth: 6, movetimeMs: 800 },
-  avance: { skill: 13, depth: 12, movetimeMs: 2000 },
+  /**
+   * Loses about two games in three to an opponent that simply never hangs a
+   * piece. Measured: 30% against `novice`, 70% against `greedy`.
+   *
+   * The blunder rate is what does the work, and 0.4 is a deliberate ceiling —
+   * at 0.5 it fell to 13% but half its moves were noise and the games stopped
+   * resembling chess. Beatable is the goal; incoherent is not.
+   */
+  debutant: { skill: 0, depth: 1, movetimeMs: 50, blunderChance: 0.4 },
+  /**
+   * Favoured but genuinely losable: 63% against `novice`, so an accurate
+   * opponent takes better than one game in three.
+   */
+  intermediaire: { skill: 3, depth: 4, movetimeMs: 500, blunderChance: 0.25 },
+  /**
+   * Never blunders on purpose, and punishes anything that does: ~100% against
+   * both reference opponents, and it beats Intermédiaire head to head.
+   */
+  avance: { skill: 14, depth: 12, movetimeMs: 1500, blunderChance: 0 },
 };
 
 /**
@@ -105,6 +162,76 @@ class StockfishProvider implements MoveProvider {
     this.#worker?.postMessage(command);
   }
 
+  /**
+   * Collect every line until `match`, then resolve with all of them.
+   *
+   * `#await` throws its lines away, which is right for `bestmove` and wrong for
+   * a MultiPV sweep, where the answer IS the accumulated `info` lines.
+   */
+  #collect(
+    match: (line: string) => boolean,
+    timeoutMs: number,
+    label: string,
+  ): Promise<readonly string[]> {
+    return new Promise<readonly string[]>((resolve, reject) => {
+      if (this.#disposed || !this.#worker) {
+        reject(new Error('engine disposed'));
+        return;
+      }
+      const lines: string[] = [];
+      const timer = setTimeout(() => {
+        this.#listeners.delete(listener);
+        reject(new Error(`stockfish: timed out waiting for ${label}`));
+      }, timeoutMs);
+
+      const listener: Listener = (line) => {
+        lines.push(line);
+        if (!match(line)) return;
+        clearTimeout(timer);
+        this.#listeners.delete(listener);
+        resolve(lines);
+      };
+      this.#listeners.add(listener);
+    });
+  }
+
+  /**
+   * A uniformly random legal move, obtained from the engine itself.
+   *
+   * `MultiPV 500` at `depth 1` makes Stockfish report EVERY root move (its
+   * MultiPV is clamped to the number of legal moves), so the reported set is
+   * exactly the legal move list — verified against chess.js: 20 from the start
+   * position, 31 in the test position.
+   *
+   * ⚠️ Done this way ON PURPOSE, rather than importing chess.js to generate
+   * moves. chess.js in this module would land in the engine chunk, and the
+   * whole point of that chunk is that only a reader who presses "start" ever
+   * downloads it. The engine already knows the legal moves; asking it costs one
+   * shallow search and no bytes.
+   */
+  async #randomLegalMove(fen: string): Promise<Uci | null> {
+    this.#send('setoption name MultiPV value 500');
+    this.#send(`position fen ${fen}`);
+    this.#send('go depth 1');
+    let lines: readonly string[];
+    try {
+      lines = await this.#collect((l) => l.startsWith('bestmove'), MOVE_TIMEOUT_MS, 'bestmove');
+    } finally {
+      // Restore in a finally: leaving MultiPV at 500 would make every later
+      // search report 500 lines and search measurably slower.
+      this.#send('setoption name MultiPV value 1');
+    }
+
+    const moves = new Map<number, string>();
+    for (const line of lines) {
+      const m = /^info .*\bmultipv (\d+)\b.*\bpv ([a-h][1-8][a-h][1-8][qrbn]?)/.exec(line);
+      if (m?.[1] && m[2]) moves.set(Number(m[1]), m[2]);
+    }
+    const list = [...moves.values()];
+    if (list.length === 0) return null;
+    return list[Math.floor(Math.random() * list.length)] ?? null;
+  }
+
   /** Resolve when `match` returns true for a line. Always cleans up. */
   #await(match: (line: string) => boolean, timeoutMs: number, label: string): Promise<string> {
     return new Promise<string>((resolve, reject) => {
@@ -142,6 +269,15 @@ class StockfishProvider implements MoveProvider {
 
   async nextMove(fen: string): Promise<Uci | null> {
     if (this.#disposed || !this.#worker) return null;
+
+    // The blunder is decided BEFORE the search, so a blundering move costs one
+    // shallow sweep rather than a full search plus a sweep.
+    if (this.#level.blunderChance > 0 && Math.random() < this.#level.blunderChance) {
+      const random = await this.#randomLegalMove(fen);
+      if (random) return random;
+      // Fall through: an empty sweep means the position has no moves, or the
+      // engine answered oddly. Better a good move than none.
+    }
 
     // `ucinewgame` is deliberately NOT sent per move: it clears the hash, and
     // the hash is the only thing making the engine quick on a phone.

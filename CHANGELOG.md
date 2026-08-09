@@ -11,6 +11,83 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### Fixed — the computer was unbeatable at every level
+
+Reported by Seàn, who plays chess and had **not won a single game** against
+**Débutant**.
+
+It was worse than one bad preset. Measured against two reference opponents, the
+three levels that shipped up to v0.5.0 were **one opponent with three names**:
+
+```
+debutant      vs greedy   97%      vs novice   100%
+intermediaire vs greedy  100%      vs novice    97%
+avance        vs greedy  100%      vs novice   100%
+```
+
+#### The diagnosis, and why the obvious fix does not work
+
+The presets were applied correctly — `depth` genuinely caps the search, and
+`Skill Level` is honoured. The problem is what `Skill Level` *is*:
+
+- **It only ever chooses among the engine's own top candidates**, and every
+  Stockfish search — at any depth — ends in a **quiescence search that resolves
+  all captures**. No `(skill, depth)` pair will ever hang a piece or miss a free
+  one. **"depth 2" is not "sees one move ahead".**
+- At the old `skill 0, depth 2` the engine played its top choice in **23 of 24**
+  searches of one position — **more deterministic than either higher level**.
+  Débutant was the *least* random preset on the ladder.
+- `Skill Level Maximum Error` and `Skill Level Probability` at both extremes
+  made it *more* deterministic, not less. Not a usable dial.
+
+So weakness now comes from a **deliberate blunder rate**: `blunderChance` on
+`EngineLevel`, the probability of playing a uniformly random legal move instead
+of the searched one. A beginner needs an opponent that sometimes gives material
+away, and that cannot come from a dial that only chooses between good moves.
+
+⚠️ The random move is drawn **from the engine**, via `MultiPV 500` at depth 1
+(Stockfish clamps MultiPV to the legal move count, so the reported set *is* the
+legal move list — verified against chess.js: 20 from the start position, 31 in
+the test position). Importing chess.js here would land it in the engine chunk,
+and that chunk exists so a reader who never presses "start" never downloads it.
+
+#### The new presets — measured, not chosen
+
+| Preset | Skill | depth | movetime | blunder | vs `greedy` | vs `novice` |
+|---|---|---|---|---|---|---|
+| Débutant | 0 | 1 | 50 ms | 40% | 60% | **38%** |
+| Intermédiaire | 3 | 4 | 500 ms | 25% | 98% | **65%** |
+| Avancé | 14 | 12 | 1500 ms | 0% | 100% | 98% |
+
+Head-to-head, which is what proves the order (both bots saturate at the top):
+Avancé beats Intermédiaire **100%**, Intermédiaire beats Débutant **85%**.
+
+Débutant now **loses** to an opponent that merely never hangs a piece.
+
+⚠️ **0.4 is a ceiling, not a dial to turn up.** At 0.5 Débutant fell to 13%, but
+half its moves were noise and the games stopped resembling chess. Beatable is
+the goal; incoherent is not.
+
+**The UI still names the levels and prints no rating** — these are win rates
+against two crude bots, which is evidence of order and beatability, not an Elo.
+
+#### Added
+
+- **`scripts/engine-lab/`** — the measurement harness: `--probe` (what the build
+  exposes, and whether skill is applied), `--bots` (validate the yardstick),
+  `--verify` (play the shipped presets), `--ladder`, `--sweep`. Not part of
+  `npm run build`; nothing calls it automatically.
+  ⚠️ `--verify` **parses `LEVELS` out of the TypeScript source** rather than
+  keeping its own copy — a lab that measures its own private numbers proves
+  nothing about what the reader plays against.
+- **`tests/e2e/engine-levels.spec.ts`** — guards the ladder's **order and
+  shape**, deliberately **not** the measured values. It reads the table in Node,
+  so it costs no engine boot.
+- A `play.spec.ts` test that plays five plies at Débutant using **candidate move
+  lists** rather than a fixed line, because the replies are now partly random.
+  It exists to catch the two ways the new UCI exchange could break invisibly: a
+  sweep returning something unplayable, or `MultiPV` leaking at 500.
+
 ### Changed
 
 - **`package.json` `version` now tracks the release tags** — it had read `0.2.0`

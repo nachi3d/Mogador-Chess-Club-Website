@@ -482,9 +482,32 @@ On any exercise, and on `/jouer/` — **without touching the board at all**:
 - [ ] Moves work by **dragging**, by **tapping**, and from the **keyboard field**
 - [ ] The move list fills in correctly, White and Black in the right columns
 - [ ] While the computer is thinking the board does not accept moves and says so
-- [ ] Try all three levels — **Débutant** should feel genuinely beatable by a beginner,
-      **Avancé** clearly should not
-      *(these are hand-set skill levels, not measured ratings — judgement call, and worth making)*
+### Difficulty — the thing that was wrong until v0.6.0
+
+Until v0.6.0 all three levels were effectively **one opponent**, and a club
+player could not win a single game. The presets are now measured
+(`node scripts/engine-lab/run.mjs --verify`), but the whole point is that a
+human has to agree with the numbers.
+
+- [ ] **Débutant: you must be able to WIN.** Play three or four games. If you
+      are a club player you should win comfortably and fairly often by simply
+      taking material it gives away
+- [ ] **Débutant hangs pieces, on purpose.** Roughly two moves in five are
+      random. If it never leaves anything en prise, the blunder path is not
+      running — check the browser console for a UCI error
+      *(it is not "the engine playing badly"; it is a deliberate random legal
+      move, and it is the only thing that makes a beginner able to win)*
+- [ ] ⚠️ **But it must still look like chess.** If it feels like nonsense
+      rather than a weak opponent, the blunder rate is too high — that is a
+      real regression, not a taste question
+- [ ] **Intermédiaire**: you should have to play accurately. Beatable, but it
+      punishes a hung piece
+- [ ] **Avancé**: it should never hand you anything, and should punish a real
+      mistake
+- [ ] The three feel **clearly different from each other** — that ordering is
+      the fix. If two feel the same, say so
+      *(these are win rates against crude reference bots, NOT Elo — the UI
+      still prints no rating, deliberately)*
 
 ### Ending
 
