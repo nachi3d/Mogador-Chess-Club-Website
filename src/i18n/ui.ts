@@ -101,11 +101,22 @@ const fr = {
   'progress.basics': 'Les bases',
   'progress.courses': 'Cours',
   'progress.exercises': 'Exercices',
-  'progress.done': 'terminé',
   'progress.of': 'sur',
-  'progress.empty': "Vous n'avez rien commencé pour l'instant.",
-  'progress.emptyCta': 'Commencer par les bases',
-  'progress.continue': 'Continuer',
+  /* ── The section headings (M3) ──────────────────────────────────────
+     `progress.empty`, `progress.emptyCta`, `progress.continue` and
+     `progress.done` were removed with the old shape. The empty state is no
+     longer a sentence and a button: the page now shows real counts at zero
+     and names the first three things to do, which is a truer answer than
+     "vous n'avez rien commencé" and is the same markup a returning reader
+     sees. The way back in is the shared resume card. */
+  'progress.sections.done': 'Ce que vous avez terminé',
+  'progress.sections.byLevel': 'Exercices par niveau',
+  'progress.sections.byTheme': 'Exercices par thème',
+  'progress.sections.next': 'La suite',
+  'progress.allDone': 'Vous avez tout terminé. Bravo.',
+  /* Labelled as not-yet, never printed as a figure — see the note on the
+     dashboard's rank tile. */
+  'progress.rank': 'Rang et points',
   'progress.noJs':
     "L'affichage de la progression a besoin de JavaScript : elle est lue depuis cet appareil.",
   'progress.cleared':
@@ -118,6 +129,12 @@ const fr = {
   'progress.state.started': 'En cours',
   'progress.state.solved': 'Résolu',
   'progress.state.lessonDone': 'Terminé',
+
+  /* The tally under a resume card. Deliberately units-free — the same card
+     stands for tutorial steps on one page, lessons on another and exercises
+     on a third, and `home.dash.resume.progress` already says "étapes" where
+     the journey really is the steps. */
+  'progress.countPattern': '%s / %s terminés',
 
   'menu.label': 'Menu principal',
   'menu.resume': 'Reprendre',
@@ -542,11 +559,13 @@ const en: Record<keyof typeof fr, string> = {
   'progress.basics': 'The basics',
   'progress.courses': 'Courses',
   'progress.exercises': 'Exercises',
-  'progress.done': 'done',
   'progress.of': 'of',
-  'progress.empty': 'You have not started anything yet.',
-  'progress.emptyCta': 'Start with the basics',
-  'progress.continue': 'Continue',
+  'progress.sections.done': 'What you have finished',
+  'progress.sections.byLevel': 'Exercises by level',
+  'progress.sections.byTheme': 'Exercises by theme',
+  'progress.sections.next': 'What comes next',
+  'progress.allDone': 'You have finished everything. Well played.',
+  'progress.rank': 'Rank and points',
   'progress.noJs': 'Showing your progress needs JavaScript: it is read from this device.',
   'progress.cleared':
     'If you clear your browser data this progress disappears. It lives on this device only.',
@@ -555,6 +574,8 @@ const en: Record<keyof typeof fr, string> = {
   'progress.state.started': 'In progress',
   'progress.state.solved': 'Solved',
   'progress.state.lessonDone': 'Completed',
+
+  'progress.countPattern': '%s / %s done',
 
   'menu.label': 'Main menu',
   'menu.resume': 'Resume',

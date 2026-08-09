@@ -387,3 +387,129 @@
   color: var(--mcc-text-secondary);
   font-style: italic;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   BELOW 768px: THE CONTROLS COMPACT. THE BOARD DOES NOT. (M3)
+
+   ⚠️ MEASURED PROBLEM, MEASURED FIX. At 360×640 the exercise component was
+   796px against 587px of usable viewport — and the BOARD was only 330px of
+   it. The other 466px was the control stack: two stacked meters, a reserved
+   verdict panel, a four-part move-entry form and a standalone hint button,
+   each a full-width block with 20px between them.
+
+   So the board keeps its size and its touch targets — it is the thing being
+   taught with, and shrinking it to win back pixels would be solving the wrong
+   problem. Everything AROUND it collapses to one dense row plus what has to
+   stay full width.
+
+   ⚠️ THIS IS CSS ONLY, AND THAT IS DELIBERATE. Reordering with flex `order`
+   means the DOM — and therefore the reading order for a screen reader, and
+   the desktop layout above 768px — is untouched. A JSX restructure would have
+   moved the hint button above the verdict on DESKTOP too, which is the
+   regression guard M3 exists to respect.
+
+   The row is built from the two elements that are already siblings: the
+   meters block, and BOTH `.mcc-exercise-button`s (hint and "Recommencer").
+   They are mutually consistent across every state the view has:
+
+     idle              [ 1/2 · 0 ]  [Indice]
+     after a mistake   [ 1/2 · 1 ]  [Indice]  [Recommencer]
+     hint revealed     [ 1/2 · 1 ]  [Recommencer]   + the hint panel below
+     solved            [ 2/2 · 1 ]  [Recommencer]   + the solution list below
+
+   ⚠️ 768px, NOT the 56rem two-column breakpoint above. Those are different
+   questions: 56rem is "is there room for a side column beside the board",
+   768px is "is this a phone". Between them the single-column desktop stack is
+   correct and unchanged.
+   ═══════════════════════════════════════════════════════════════════════ */
+@media (max-width: 767.98px) {
+  .mcc-exercise {
+    /* The board and its controls are one object on a phone, not two stacked
+       sections. */
+    gap: 0.75rem;
+  }
+
+  /* The turn line belongs to the board, so it stays under it — it just stops
+     claiming a full line's worth of air above itself. */
+  .mcc-exercise-turn {
+    margin-top: 0.4rem;
+  }
+
+  /* ── The dense row ─────────────────────────────────────────────────────
+     Flex rather than grid, because `order` is what lets three DOM siblings
+     that are NOT adjacent share one line without touching the markup. */
+  .mcc-exercise-side {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.6rem;
+  }
+
+  .mcc-exercise-meters {
+    order: 1;
+    flex: 0 0 auto;
+    /* Tight: these are two small readouts, not two panels. */
+    gap: 0.85rem;
+  }
+
+  /* Both buttons. `.mcc-exercise-hint` (the revealed panel) is NOT one of
+     these — it is a block of prose and goes full width below. */
+  .mcc-exercise-side > .mcc-exercise-button {
+    order: 2;
+    flex: 0 0 auto;
+    /* Still ≥44px. The row is dense; the targets are not. */
+    padding-inline: 0.85rem;
+    font-size: 0.875rem;
+  }
+
+  /* Everything that is genuinely a block stays one, in reading order. */
+  .mcc-exercise-status {
+    order: 3;
+    flex: 1 0 100%;
+  }
+
+  .mcc-exercise-hint {
+    order: 4;
+    flex: 1 0 100%;
+  }
+
+  .mcc-exercise-solution {
+    order: 5;
+    flex: 1 0 100%;
+  }
+
+  /* ⚠️ LAST, AND THAT IS WHAT MAKES THE HELP TEXT REVEAL SAFE.
+     `move-input.css` shows the help line only on focus below 768px. Because
+     the form is the last thing in the column, revealing it pushes the page
+     footer down and nothing the reader is touching. It is also the last
+     element in the DOM here whenever it renders at all — the solution list
+     only exists once solved, and the form is not rendered then. */
+  .mcc-move-input {
+    order: 6;
+    flex: 1 0 100%;
+  }
+
+  /* ── The meters, inline ────────────────────────────────────────────────
+     Label above value costs two lines and 46px for four short words. On one
+     line it is 24px and reads the same. */
+  .mcc-meter {
+    display: flex;
+    align-items: baseline;
+    gap: 0.35rem;
+  }
+
+  .mcc-meter-value {
+    font-size: 1rem;
+  }
+
+  /* ── The verdict panel ─────────────────────────────────────────────────
+     ⚠️ THE RESERVE STAYS. It is smaller because the panel is full-page-width
+     here rather than a 15rem side column, so the same sentences take fewer
+     lines — NOT because reserving stopped mattering. Without it the move
+     field jumps up and down under the reader's thumb between attempts, which
+     is the exact defect the desktop reserve was added for. */
+  .mcc-exercise-status {
+    min-height: 5.25rem;
+    padding: 0.8rem 0.9rem;
+  }
+}

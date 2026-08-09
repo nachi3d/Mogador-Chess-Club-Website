@@ -11,6 +11,153 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### M3 (suite) — the board fits the phone, and there is one answer to "where did I stop"
+
+Three items were left from M3. The board no longer shares a screen with 466px
+of chrome, "Reprendre" is one rule instead of two-and-a-half copies, and
+`/progres/` says something.
+
+#### Fixed — the exercise fits a phone, and the board was not touched to do it
+
+Measured at 360×640 before this: the exercise component was **796px against
+587px of usable viewport, and the board was only 330px of it**. The rest was
+the control stack — two stacked meters, a reserved verdict panel, a four-part
+move-entry form and a standalone hint button, each a full-width block with
+20px between them.
+
+The controls compact; the board keeps its size and its touch targets.
+
+| | 390×844 | 360×640 |
+|---|---|---|
+| exercise component | 799 → **618** *(usable 791 — now fits)* | 796 → **615** *(usable 587)* |
+| control stack | 403 → **244** | 403 → **244** |
+| board | 333 → **333** | 330 → **330** |
+| scroll to reach prev/next | 815 → **618** | 1 079 → **882** |
+| page height, tutorial step | 2 431 → **2 219** | 2 491 → **2 279** |
+
+Below 768px the meters, the hint button and *Recommencer* sit on **one dense
+row** under the board; the verdict panel, the hint and the move field stay full
+width beneath it.
+
+- ⚠️ **360×640 still does not fit one screen — 615 against 587**, and the spec
+  bounds it at 660 rather than pretending otherwise. The remaining 28px is one
+  short nudge instead of the 209px scroll it was. Closing it would have cost
+  either the board's size or the verdict panel's reserved height.
+- ⚠️ **It is CSS only.** The row is built with flex `order` from elements that
+  are not adjacent in the DOM, so the markup — and therefore the screen-reader
+  reading order and the ≥768px layout — is untouched. A JSX restructure would
+  have moved the hint button above the verdict panel on desktop too, and
+  `mobile-fit.spec.ts` guards that side at a named viewport.
+- The verdict panel's reserve shrinks (6.5rem → 5.25rem) because the panel is
+  full-page-width on a phone, **not** because reserving stopped mattering.
+- ⚠️ **The move-entry help line is clipped until the field has focus, never
+  `display: none`** — the field points at it with `aria-describedby`, and a
+  clipped element is in the accessibility tree with certainty. The visible
+  label stays: hiding it and leaning on the placeholder saves 22px and is the
+  trap where the field's only visible name vanishes as you type.
+- `main`'s block padding drops 2.5rem → 1.5rem below 768px: 80px of a 640px
+  screen, on every page, spent before the reader reaches anything.
+
+#### Fixed — a pre-existing frame bug found on the way
+
+`board-frame.spec.ts` was **already failing on `dev`** — three tests, confirmed
+by stashing this session's work and rebuilding.
+
+`updateBounds()` floors the board to a whole number of 8 device pixels so the
+squares stay crisp, and pins `cg-container` top-left, so the whole remainder
+sat at the right and the bottom. Measured on a tutorial step at 1000px: host
+279.44px, board 272px, frame gaps **6.4px left/top against 13.8px right/bottom**.
+
+`.cg-wrap cg-container { inset: 0; margin: auto }` splits the remainder. The
+4px tolerance in the spec is untouched — the asymmetry is removed rather than
+excused. Safe for hit-testing because Chessground takes `bounds` from the
+`cg-board` element itself, which `board-pointer.spec.ts` proves by tapping.
+
+#### Added — every long route ends with a way onward
+
+Trap and exercise detail pages had a back link at the top only, so finishing
+one on a phone meant scrolling ~2 300px back up to leave. Both now end with the
+same link, from the **same i18n key** as the one at the top.
+
+#### Changed — one resume rule, four journeys
+
+The E5 resolver lived inside `HomePage.astro`, with a near-copy in
+`ProgressPage.astro` and a third copy of just the key scheme in
+`CoursPage.astro`.
+
+- **`src/lib/journey.ts`** — the only place `tutorial:<slug>`,
+  `lesson:<course>:<lesson>:<boardIndex>` and the bare exercise slug are
+  written.
+- **`ResumeResolver.astro`** — the rule, the inline script, and a declarative
+  binding contract.
+- **`ResumeCard.astro`** — the card `/cours/`, `/exercices/` and `/progres/`
+  show, hidden until there is genuinely something to resume.
+
+Each call site resolves its own journey, and they may legitimately differ: `/`
+walks the tutorial then the lessons, `/cours/` the lessons, `/exercices/` the
+exercises, `/progres/` all three.
+
+- ⚠️ **The home page is unchanged, and that was the constraint.**
+  `tests/e2e/resume.spec.ts` was written FIRST, run green against the old code
+  and green against the new. It pins CLS in both branches, that the script
+  carries no `type="module"` / `src` / `defer` / `async`, and both directions of
+  the dashboard's adaptive swap. Its `journeyOf()` accepts either the old or the
+  new data attribute so that **not one assertion had to move** — only the handle
+  did.
+- ⚠️ **The CLS assertion was verified to have teeth**: deferring the resolver to
+  `DOMContentLoaded` in a built `dist/index.html` produced **CLS 0.0057** and
+  failed it.
+- ⚠️ **The declarative contract has two halves.** Counts and bars are filled
+  whether or not there is a step; the link, the title and the un-hiding happen
+  only when there is one. That is what lets one contract serve a statistic
+  ("2 sur 13", true at zero) and an offer ("Reprendre — La tour", which must not
+  appear until it is true).
+- ⚠️ **A level and a theme are just journeys**, so the `/progres/` breakdowns are
+  extra tables rather than extra logic. `journeys` is a record precisely so one
+  component instance resolves all of them with one copy of the script.
+
+#### Changed — `/progres/` says something
+
+It was three bars and an empty-state button. It now carries the resume card,
+the three group bars, **exercises by level** and **by theme** (only buckets that
+actually contain an exercise — an empty "Avancé — 0 sur 0" is a fact about the
+content, not about the reader), and **La suite**: the first three unfinished
+steps, as links.
+
+- ⚠️ **Rank and points say "bientôt" and print no number.** Nothing computes
+  one. Inventing a figure would be the site telling a student something it does
+  not know.
+- The empty state is gone as a sentence: with nothing stored the page shows real
+  counts at zero and names the first three things to do — server-rendered, so it
+  works with no JavaScript. `progress.empty`, `progress.emptyCta`,
+  `progress.continue` and `progress.done` were removed with it.
+- "La suite" can name a different step from the resume card, and both are right:
+  one answers *what is left*, the other *where did you stop* (furthest, not
+  earliest).
+
+#### Verification
+
+`npm run test:branch --all` — **446 passed, 0 failed**, 18 skipped (auth, off by
+default). Two new spec files: `resume.spec.ts` and `mobile-fit.spec.ts`, both
+mapped in `scripts/spec-map.mjs`.
+
+Lighthouse mobile, five routes, on the built site:
+
+| route | Perf | A11y | Best practices | SEO | CLS |
+|---|---|---|---|---|---|
+| `/` | 100 | 100 | 100 | 100 | 0.000 |
+| `/cours/` | 98 | 100 | 100 | 100 | 0.000 |
+| `/exercices/` | 100 | 100 | 100 | 100 | 0.000 |
+| `/exercices/mat-du-couloir/` | 99 | 100 | 100 | 100 | 0.003 |
+| `/progres/` | 100 | 100 | 100 | 100 | 0.000 |
+
+⚠️ **No before-figures are quoted, because no baseline artefact exists in the
+repo** — the previous session captured one in conversation and did not write it
+down. These are recorded here so the next session has one. The only failing
+audit anywhere is `label-content-name-mismatch`, the pre-existing language
+switcher issue already in BACKLOG.md; it is zero-weight, which is why
+Accessibility still reads 100.
+
 ### Changed — the testing policy, because the matrix had become the default
 
 Sessions were running the full five-browser matrix routinely, at **30-45
