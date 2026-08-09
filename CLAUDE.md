@@ -113,6 +113,7 @@ Concretely: keep `src/lib/` chess logic pure and synchronous. The board island, 
 - Conventional commit format: `feat(scope): description`
 - **Commits are authored as `nachi3D` only. NEVER add `Co-Authored-By` lines for Claude or anyone else.**
 - Tag releases: `git tag -a vX.Y.Z -m "..."` on main after merge
+- **Bump `package.json` `version` to match the tag, in the release commit.** See the promotion routine below.
 - Update CHANGELOG.md on every merge to dev
 - **Back-merge convention:** after each release, merge `main` → `dev` to keep histories aligned
 - Claude Code merges to `dev` only; **`dev` → `main` requires Seàn's explicit approval per release**
@@ -124,6 +125,31 @@ Every session that reaches a merge updates all three, in the same commit as the 
 1. **`CHANGELOG.md`** — what changed, and the reasoning behind anything surprising.
 2. **`CLAUDE.md`** — any decision, rule or gotcha that the next session would otherwise rediscover.
 3. **`docs/MANUAL-TESTS.md`** — **whenever the session adds or changes anything a visitor can see.** New feature, new page, new failure mode, new regression worth watching: it goes in the checklist. This is the one most easily skipped and the one whose absence is least visible — a checklist that lags the site makes an incomplete test pass feel complete.
+
+#### Promotion routine — `dev` → `main`
+
+Every promotion does all four, and the version bump is **part of the release
+commit, not a follow-up**:
+
+1. **Bump `package.json` `version` to the release version** — `0.5.0` ships as
+   `"version": "0.5.0"`. It is the one machine-readable statement of what this
+   tree *is*, and it is what `npm version`, tooling and a future consumer read.
+2. **Stamp `CHANGELOG.md`** — move `[Unreleased]` to `[X.Y.Z] — <date>` and add
+   the compare-link pair at the bottom.
+3. **Merge `--no-ff`, then `git tag -a vX.Y.Z`** on main.
+4. **Back-merge `main` → `dev`.**
+
+⚠️ **The bump belongs in the release commit because a promotion already runs
+the full gate.** Doing it afterwards means either a second gate for a one-line
+change or an untested tree — and `package.json` is deliberately on
+`scripts/quick.mjs`'s FORBIDDEN list, so it cannot take the fast path on its
+own. That exclusion is correct and stays: its pattern cannot tell a `version`
+string from a dependency edit, and guessing wrong in that direction is how a
+dependency change reaches production on a shortened gate.
+
+⚠️ **This drifted for three releases.** v0.3.0, v0.4.0 and v0.5.0 all shipped
+with `"version": "0.2.0"`, because nothing named the file and nothing checked
+it. Tags said one thing and the manifest said another.
 
 ### Shell
 - NO chained `&&` commands — git and cd run as separate steps
@@ -321,19 +347,84 @@ We ship `stockfish.js` (2.28 MB glue) + `stockfish.wasm` (1.38 MB) and **not** `
 - `globIgnores` in `scripts/build-sw.mjs` keeps it out of the precache; a runtime `CacheFirst` rule (`mcc-engine`) caches it after the first game, so game two is instant and first-visit cost is unchanged.
 - `tests/e2e/play.spec.ts` asserts against the **network log** that opening `/jouer/` requests neither the worker nor the wasm, and that pressing start requests both.
 
-### ⚠️ The level presets are Skill Level, NOT Elo
+### ⚠️ The level presets are MEASURED — and `Skill Level` alone does not work
 
-**The vendored build exposes no `UCI_LimitStrength` and no `UCI_Elo`** — verified by reading the `uci` option list out of the running worker. The only strength dial it has is `Skill Level` (0–20), alongside `Skill Level Maximum Error` and `Skill Level Probability`.
+**The vendored build exposes no `UCI_LimitStrength` and no `UCI_Elo`** — verified by reading the `uci` option list out of the running worker. The only strength dials are `Skill Level` (0–20), `Skill Level Maximum Error` and `Skill Level Probability`.
 
-So the three presets in `LEVELS` (`src/lib/engine/stockfish.ts`) are a skill level plus a depth and a movetime cap, set by hand:
+#### The bug this section exists to prevent coming back
 
-| Preset | Skill Level | depth | movetime | design target |
-|---|---|---|---|---|
-| Débutant | 0 | 2 | 300 ms | ~800 |
-| Intermédiaire | 5 | 6 | 800 ms | ~1400 |
-| Avancé | 13 | 12 | 2000 ms | ~2000 |
+Up to v0.5.0 the presets were **hand-set and never measured**, and they were not a ladder at all. Measured over 16 games per pairing against two reference opponents:
 
-**The UI names the levels and does not print a rating.** The design targets are recorded here; they have not been measured against rated opposition, and an Elo number the engine does not enforce and nobody has verified would be a fact we invented. If a real rating is ever wanted it has to be measured, not asserted.
+```
+debutant      vs greedy   97%      vs novice   100%
+intermediaire vs greedy  100%      vs novice    97%
+avance        vs greedy  100%      vs novice   100%
+```
+
+Three names, one opponent. Seàn, who plays chess, had not won a single game against **Débutant**.
+
+#### ⚠️ WHY `Skill Level` CANNOT FIX IT — the load-bearing finding
+
+Two facts, both measured with `scripts/engine-lab`:
+
+1. **`Skill Level` only ever chooses among the engine's OWN top candidates**, and every Stockfish search — at *any* depth — ends in a **quiescence search that resolves all captures**. So no `(skill, depth)` pair will ever hang a piece or miss a free one. **"depth 2" is not "sees one move ahead".**
+2. At the old `skill 0, depth 2`, the engine played its top choice in **23 of 24** searches of one position — **more deterministic than either higher level**. Débutant was the *least* random preset on the ladder.
+
+`Skill Level Maximum Error 5000` + `Probability 1000` — both extremes — made it **more** deterministic, not less. Not a usable dial here.
+
+**So weakness has to come from somewhere Stockfish does not provide: a deliberate blunder rate.** `blunderChance` on `EngineLevel` is the probability of playing a **uniformly random legal move** instead of the searched one. A beginner needs an opponent that sometimes gives material away, and that cannot come from a dial that only ever chooses between good moves.
+
+#### ⚠️ The random move comes from the ENGINE, not from chess.js
+
+`#randomLegalMove()` sets `MultiPV 500`, searches `depth 1`, reads every `info … multipv N … pv <move>` line, then **restores `MultiPV 1` in a `finally`**. Stockfish clamps MultiPV to the number of legal moves, so the reported set *is* the legal move list — verified against chess.js: 20 from the start position, 31 in the test position.
+
+Done this way because **importing chess.js here would land it in the engine chunk**, and that chunk exists precisely so a reader who never presses "start" never downloads it. The engine already knows the legal moves; asking costs one shallow search and no bytes.
+
+⚠️ Leaving `MultiPV` at 500 would make every later search report 500 lines and run measurably slower — hence the `finally`.
+
+#### The shipped presets, and what they measured
+
+| Preset | Skill | depth | movetime | blunder | vs `greedy` | vs `novice` |
+|---|---|---|---|---|---|---|
+| Débutant | 0 | 1 | 50 ms | **40%** | 60% | **38%** |
+| Intermédiaire | 3 | 4 | 500 ms | **25%** | 98% | **65%** |
+| Avancé | 14 | 12 | 1500 ms | 0% | 100% | 98% |
+
+Head-to-head, which is what proves the **order** (both bots saturate at the top):
+
+```
+avance        vs intermediaire   100%
+intermediaire vs debutant         85%
+avance        vs debutant        100%
+```
+
+The reference opponents are in `scripts/engine-lab/bots.mjs`:
+
+- **`greedy`** — grabs the biggest capture available, otherwise plays a *random* move. Below a real club beginner: it does not develop, it wanders.
+- **`novice`** — 2-ply material minimax. Takes what is free and will not leave a piece hanging to one capture. **This is the yardstick that matters**; it is roughly "a club beginner who plays accurately".
+
+`--bots` validates the yardstick before it is used to judge anything (`random` scores 28% vs `greedy`, `greedy` 1% vs `novice`).
+
+#### ⚠️ 0.4 IS A CEILING, NOT A DIAL TO TURN UP
+
+At `blunderChance 0.5` Débutant fell to **13%** against `novice` — but half its moves were noise and the games stopped resembling chess. **Beatable is the goal; incoherent is not.** `tests/e2e/engine-levels.spec.ts` caps it at 0.5 for that reason.
+
+#### ⚠️ RE-MEASURE, DO NOT RE-REASON
+
+```sh
+node scripts/engine-lab/run.mjs --probe        # what the build exposes; is skill applied
+node scripts/engine-lab/run.mjs --bots         # validate the yardstick first
+node scripts/engine-lab/run.mjs --verify       # play the SHIPPED presets
+node scripts/engine-lab/run.mjs --ladder --shipped
+```
+
+`--verify` **parses `LEVELS` out of `src/lib/engine/stockfish.ts`** rather than keeping its own copy: a lab that measures its own private numbers proves nothing about what the reader plays against. Budget ~30 minutes for a full pass; it is not part of `npm run build` and nothing calls it automatically.
+
+`tests/e2e/engine-levels.spec.ts` guards the **order and shape** (skill/depth/movetime increasing, blunder rate decreasing, Débutant > 0, Avancé = 0) and deliberately **does not pin the measured values** — those belong to the measurement, and pinning them would make every re-tune a two-file change with a test that only restates the source.
+
+Three environment quirks bit while building the lab, all documented in `scripts/engine-lab/engine.mjs`: Node's global `fetch` makes the Emscripten glue abort (it must stay removed for the *whole* run, not just the constructor); `public/engine/stockfish.js` is CommonJS inside a `"type": "module"` package, so it needs a `.cjs` alias **in the OS temp dir, never in the repo** — a copy under `scripts/` would walk straight into the `astro check` heap death that `public/engine` is excluded to avoid; and `postMessage(cmd, true)` is **synchronous**, so a listener registered after `send()` misses the reply and looks like a hang.
+
+**The UI still names the levels and prints no rating.** These are win rates against two crude bots — evidence of *order* and of *beatability*, not a rating. Claiming an Elo would still be inventing a fact.
 
 The movetime cap is what bounds latency on a slow phone — depth alone would let Avancé think for a long time on a complicated middlegame.
 
@@ -2549,6 +2640,8 @@ Run `npm run demo`, which prints its path, and work down it. The release gate is
 □ npx playwright test — green (full matrix; see the known environmental flakes above)
 □ docs/MANUAL-TESTS.md — worked through on desktop AND a real phone
 □ Lighthouse ≥ 90 (Performance, Accessibility, SEO)
+□ package.json "version" matches the tag about to be cut
+□ CHANGELOG.md stamped, [Unreleased] emptied, compare-links updated
 ```
 
 It is a **living document**: keep it in step with the site, in the same commit as the feature. See the session finish routine under Conventions.

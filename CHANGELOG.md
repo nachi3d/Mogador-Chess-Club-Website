@@ -15,6 +15,125 @@ _Nothing yet._
 
 ---
 
+## [0.6.0] — 2026-08-09
+
+The engine difficulty ladder, rebuilt. The three levels were **one opponent
+under three names** — measured, not suspected — and weakness now comes from a
+**measured blunder frequency** rather than from `Skill Level`.
+
+v0.5.0 decided what the site is on a phone. This one fixes the thing a club
+member notices first and fastest: that the computer cannot be beaten. Débutant
+is now genuinely a beginner's opponent, and the three levels are a ladder in
+the only sense that matters — each one beats the one below it.
+
+The load-bearing finding is that `Skill Level` **cannot** produce a weak
+opponent here, because it only ever chooses among the engine's own top
+candidates and every search ends in a quiescence pass that resolves all
+captures. A dial that never hangs a piece cannot make a beginner's opponent, at
+any depth. That is why the fix is a blunder rate and not a re-tune, and why the
+numbers below were measured against reference bots instead of chosen.
+
+### Fixed — the computer was unbeatable at every level
+
+Reported by Seàn, who plays chess and had **not won a single game** against
+**Débutant**.
+
+It was worse than one bad preset. Measured against two reference opponents, the
+three levels that shipped up to v0.5.0 were **one opponent with three names**:
+
+```
+debutant      vs greedy   97%      vs novice   100%
+intermediaire vs greedy  100%      vs novice    97%
+avance        vs greedy  100%      vs novice   100%
+```
+
+#### The diagnosis, and why the obvious fix does not work
+
+The presets were applied correctly — `depth` genuinely caps the search, and
+`Skill Level` is honoured. The problem is what `Skill Level` *is*:
+
+- **It only ever chooses among the engine's own top candidates**, and every
+  Stockfish search — at any depth — ends in a **quiescence search that resolves
+  all captures**. No `(skill, depth)` pair will ever hang a piece or miss a free
+  one. **"depth 2" is not "sees one move ahead".**
+- At the old `skill 0, depth 2` the engine played its top choice in **23 of 24**
+  searches of one position — **more deterministic than either higher level**.
+  Débutant was the *least* random preset on the ladder.
+- `Skill Level Maximum Error` and `Skill Level Probability` at both extremes
+  made it *more* deterministic, not less. Not a usable dial.
+
+So weakness now comes from a **deliberate blunder rate**: `blunderChance` on
+`EngineLevel`, the probability of playing a uniformly random legal move instead
+of the searched one. A beginner needs an opponent that sometimes gives material
+away, and that cannot come from a dial that only chooses between good moves.
+
+⚠️ The random move is drawn **from the engine**, via `MultiPV 500` at depth 1
+(Stockfish clamps MultiPV to the legal move count, so the reported set *is* the
+legal move list — verified against chess.js: 20 from the start position, 31 in
+the test position). Importing chess.js here would land it in the engine chunk,
+and that chunk exists so a reader who never presses "start" never downloads it.
+
+#### The new presets — measured, not chosen
+
+| Preset | Skill | depth | movetime | blunder | vs `greedy` | vs `novice` |
+|---|---|---|---|---|---|---|
+| Débutant | 0 | 1 | 50 ms | 40% | 60% | **38%** |
+| Intermédiaire | 3 | 4 | 500 ms | 25% | 98% | **65%** |
+| Avancé | 14 | 12 | 1500 ms | 0% | 100% | 98% |
+
+Head-to-head, which is what proves the order (both bots saturate at the top):
+Avancé beats Intermédiaire **100%**, Intermédiaire beats Débutant **85%**.
+
+Débutant now **loses** to an opponent that merely never hangs a piece.
+
+⚠️ **0.4 is a ceiling, not a dial to turn up.** At 0.5 Débutant fell to 13%, but
+half its moves were noise and the games stopped resembling chess. Beatable is
+the goal; incoherent is not.
+
+**The UI still names the levels and prints no rating** — these are win rates
+against two crude bots, which is evidence of order and beatability, not an Elo.
+
+#### Added
+
+- **`scripts/engine-lab/`** — the measurement harness: `--probe` (what the build
+  exposes, and whether skill is applied), `--bots` (validate the yardstick),
+  `--verify` (play the shipped presets), `--ladder`, `--sweep`. Not part of
+  `npm run build`; nothing calls it automatically.
+  ⚠️ `--verify` **parses `LEVELS` out of the TypeScript source** rather than
+  keeping its own copy — a lab that measures its own private numbers proves
+  nothing about what the reader plays against.
+- **`tests/e2e/engine-levels.spec.ts`** — guards the ladder's **order and
+  shape**, deliberately **not** the measured values. It reads the table in Node,
+  so it costs no engine boot.
+- A `play.spec.ts` test that plays five plies at Débutant using **candidate move
+  lists** rather than a fixed line, because the replies are now partly random.
+  It exists to catch the two ways the new UCI exchange could break invisibly: a
+  sweep returning something unplayable, or `MultiPV` leaking at 500.
+
+### Changed
+
+- **`package.json` `version` now tracks the release tags** — it had read `0.2.0`
+  since that release, so v0.3.0, v0.4.0 and v0.5.0 all shipped a manifest
+  disagreeing with their tag. Set to `0.5.0`, and CLAUDE.md's new **promotion
+  routine** makes the bump part of every release commit rather than a
+  follow-up, so it cannot drift again.
+
+  ⚠️ The tree tagged `v0.5.0` still reads `0.2.0` and always will — retagging a
+  published release would be worse than the inconsistency. The manifest is
+  correct from this commit forward, and first *true* at v0.6.0.
+
+#### Notes
+
+- `npm run quick` **refuses** this change: `package.json` is on its FORBIDDEN
+  list under "dependencies", and its pattern cannot tell a `version` string
+  from a dependency edit. That exclusion is correct and stays — guessing the
+  other way is how a dependency change reaches production on a shortened gate.
+  Verified instead by content check, full build, and by confirming `dist/`
+  built from this branch is byte-identical to the deployed v0.5.0, which had
+  just passed the full matrix.
+
+---
+
 ## [0.5.0] — 2026-08-09
 
 The mobile release. v0.4.0 decided what the teaching looks like; this one
@@ -1636,7 +1755,8 @@ Foundation only: no real content, no interactive board yet.
   `url()` references unresolved and the fonts silently 404 into a Georgia
   fallback. `scripts/build-fonts.mjs` self-hosts them instead. See CLAUDE.md.
 
-[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.2.0...v0.3.0

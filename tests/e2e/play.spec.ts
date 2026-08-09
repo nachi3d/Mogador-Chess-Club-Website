@@ -285,6 +285,70 @@ test.describe('play — a game', () => {
   });
 
   /**
+   * ⚠️ THE BLUNDER PATH, EXERCISED IN A REAL BROWSER.
+   *
+   * Débutant plays a uniformly random legal move 40% of the time, and that
+   * move comes from a SECOND kind of UCI exchange: `MultiPV 500` at depth 1 to
+   * enumerate the root moves, then a restore to `MultiPV 1`. Two things could
+   * break and neither would look like a chess bug — the sweep could return
+   * something unplayable, or the restore could fail and leave every subsequent
+   * search reporting 500 lines.
+   *
+   * Over five replies the chance of never taking that path is 0.6^5 ≈ 8%, and
+   * the other tests in this file play at Débutant too, so across the file it
+   * is exercised with near certainty. What this one adds is REPETITION inside
+   * a single game, which is what would expose a leaked `MultiPV`.
+   *
+   * ⚠️ The reader's moves are CANDIDATE LISTS, not a fixed line. The engine's
+   * replies are partly random, so a scripted opening would be illegal most
+   * runs. The move list is the app's own record of what it accepted, so it is
+   * the thing to test against.
+   */
+  test('débutant keeps answering legally across several plies', async ({ page }) => {
+    await openPlay(page, FR);
+    await startGame(page, { level: 'Débutant' });
+
+    const view = page.getByTestId('play');
+    const list = page.getByTestId('play-move-list');
+
+    const plies = [
+      ['e4', 'd4', 'Nf3'],
+      ['Nf3', 'Nc3', 'd4', 'a3', 'h3'],
+      ['Bc4', 'Bb5', 'd3', 'h3', 'a3'],
+      ['d3', 'a3', 'h3', 'Be2', 'Nc3'],
+      ['Nc3', 'a3', 'h3', 'd3', 'Be2'],
+    ];
+
+    for (const candidates of plies) {
+      /* A random opponent can walk into mate in a handful of moves. The game
+         ending is a legitimate outcome, not a failure of the thing under
+         test. */
+      if ((await view.getAttribute('data-phase')) !== 'playing') break;
+
+      const before = (await list.textContent()) ?? '';
+      let played = false;
+      for (const move of candidates) {
+        await typeMove(page, move);
+        try {
+          // An accepted move reaches the list; a refused one leaves it alone.
+          await expect(list).not.toHaveText(before, { timeout: 3_000 });
+          played = true;
+          break;
+        } catch {
+          /* not legal in this position — try the next candidate */
+        }
+      }
+      expect(played, `none of ${candidates.join('/')} was legal here`).toBe(true);
+
+      // The engine has to answer and hand the move back — every single time.
+      await expect(view).toHaveAttribute('data-turn', 'white', { timeout: ENGINE_TIMEOUT });
+    }
+
+    // Still a game: the engine never returned something that broke it.
+    await expect(view).toHaveAttribute('data-phase', /playing|over/);
+  });
+
+  /**
    * The POINTER path, which the rest of this file does not exercise — every
    * other test here types. Without it, a break in the board's move handling on
    * `/jouer/` would surface only when a human tried it.
