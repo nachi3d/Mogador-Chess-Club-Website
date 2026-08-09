@@ -11,6 +11,7 @@ import { NAV_GROUPS, useTranslations } from '@i18n/ui';
 import LangSwitcher from '@components/LangSwitcher.astro';
 import AccountButton from '@components/AccountButton.astro';
 import ThemeToggle from '@components/ThemeToggle.astro';
+import SettingsLink from '@components/SettingsLink.astro';
 
 interface Props {
   locale: Locale;
@@ -97,6 +98,14 @@ const current = stripLocale(pathname);
 
     <div class="header-tools">
       <AccountButton locale={locale} />
+      {/* ⚠️ DESKTOP ONLY. On a phone the header is one line — name plus theme
+          plus language — and settings is reachable from the bottom bar's
+          sections and the footer. Adding a fourth icon to a 390px line is
+          exactly the crowding M1 exists to undo. See SettingsLink for why it
+          sits here rather than in the "Le club" nav group. */}
+      <span class="tools-desktop">
+        <SettingsLink locale={locale} current={current === '/parametres/'} />
+      </span>
       <ThemeToggle locale={locale} />
       <LangSwitcher locale={locale} pathname={pathname} />
     </div>
@@ -211,6 +220,45 @@ const current = stripLocale(pathname);
     display: flex;
     align-items: center;
     gap: 0.5rem;
+  }
+
+  /* ══ THE MOBILE HEADER IS ONE LINE (M1) ═══════════════════════════════
+     Direction: mcc-direction-mobile-app.md § 1. Below 768px the header was
+     eating a third of the screen — logo, four nav groups, two setting
+     buttons — and then the menu below it repeated the same entries.
+
+     What survives on a phone: the club name, the theme toggle, the language
+     switcher. Navigation moved to the bottom bar, where the thumb is.
+
+     ⚠️ `display: none` on the nav, NOT a visually-hidden class. These links
+     are all reachable from the bottom bar and the pages it leads to, so
+     leaving them in the a11y tree would give a screen-reader user two full
+     navigations to walk past on every page. The bar carries `aria-label`
+     and is the navigation on this breakpoint.
+
+     ⚠️ Everything here is inside a max-width query. The desktop header is
+     UNCHANGED — that is a regression guard in main-menu.spec.ts and
+     mobile-app.spec.ts, not a style preference. */
+  @media (max-width: 767.98px) {
+    .site-nav,
+    .tools-desktop {
+      display: none;
+    }
+
+    .header-inner {
+      /* One line: name left, tools right. */
+      gap: 0.5rem;
+      padding-block: 0.5rem;
+    }
+
+    .brand-mark {
+      width: 28px;
+      height: 28px;
+    }
+
+    .brand-name {
+      font-size: 1rem;
+    }
   }
 
   /* ── Grouped navigation ─────────────────────────────────────────────

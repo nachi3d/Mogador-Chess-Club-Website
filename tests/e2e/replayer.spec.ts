@@ -89,11 +89,27 @@ test.describe('replayer — rendering', () => {
    * `client:load`, this test fails.
    */
   test('the board does NOT hydrate until scrolled into view', async ({ page }) => {
-    await page.setViewportSize({ width: 380, height: 620 });
+    /* ⚠️ 420px TALL, NOT 620. M1 cut the mobile header from three rows to one,
+       which pulled the board UP into a 620px viewport — so the test started
+       failing because the board was legitimately visible on load, not because
+       lazy hydration had broken.
+
+       The premise is now ASSERTED rather than assumed. A test whose setup has
+       silently stopped creating the condition it tests is worse than a failing
+       one: it goes green while checking nothing. */
+    await page.setViewportSize({ width: 380, height: 420 });
     await page.goto(TRAP_FR);
 
     // The markup is server-rendered, so the host div is present...
-    await expect(page.locator('[data-testid="chessboard"]')).toHaveCount(1);
+    const host = page.locator('[data-testid="chessboard"]');
+    await expect(host).toHaveCount(1);
+
+    const box = (await host.boundingBox())!;
+    expect(
+      box.y,
+      'the board is not below the fold — this test can no longer observe lazy hydration',
+    ).toBeGreaterThanOrEqual(420);
+
     // ...but Chessground has not run.
     await expect(page.locator('cg-board')).toHaveCount(0);
 
