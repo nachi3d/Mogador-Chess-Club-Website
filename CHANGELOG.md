@@ -11,6 +11,82 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+_Nothing yet._
+
+---
+
+## [0.5.0] — 2026-08-09
+
+The mobile release. v0.4.0 decided what the teaching looks like; this one
+decides what it *is* on a phone — an app, with a bar at the bottom and a home
+screen that knows whether you have started.
+
+Club members will overwhelmingly arrive on a phone, and until now they arrived
+at a desktop layout that had been made narrower. The retro menu was designed
+for a large screen; at 390px it was a list of links on a dark background, under
+a header that already repeated every one of them. That is the format being
+wrong rather than the execution, so the answer is a **second layout** — not a
+tidier version of the first.
+
+### Highlights
+
+- **A fixed bottom navigation bar** — Accueil, Apprendre, Jouer, Progrès.
+  Exactly four entries, ≥48px targets, `aria-current` on the active one, the
+  active state carried by a rule as well as by colour, and it **never hides on
+  scroll**. Settings is deliberately not among them: it is visited twice and
+  then never again, and five targets across 390px is 78px each.
+- **A one-line mobile header** — club name, theme, language. The three rows it
+  replaces were repeating the menu directly beneath them.
+- **An adaptive home dashboard.** One dominant card that reads **"Jouer une
+  partie"** before there is any progress and **"Reprendre — <lesson>"** with a
+  progress bar once there is, then two tiles, a stats line and the next
+  session. It reuses the E5 "Reprendre" resolver unchanged — same journey, same
+  furthest-not-earliest rule.
+- **`/progres/`** (+ `/en/progres/`) — a local progress view, read from
+  `localStorage`, no account required. The bar's fourth entry needs a
+  destination, and `/compte/` is not emitted at all while accounts are off.
+- **A settings entry in the desktop header**, beside the theme and language
+  controls. It was footer-only, which meant scrolling to the bottom of whatever
+  page you were on.
+- **Card craft** — full-width cards, a themed app radius, a real shadow,
+  left-aligned text, hierarchy by size, and E1's press feedback extended from
+  buttons to cards.
+
+### Three fixes, one of which the whole suite passed
+
+- **A contrast regression** (Lighthouse accessibility 100 → 96): text over the
+  primary fill carried `opacity: 0.9`, which blends it toward the fill and
+  drops an audited token pair to **4.42:1**. The tokens were right; the
+  rendering weakened them, and **`check-contrast.mjs` cannot see an alpha
+  applied on top of a pair it has already proved.** It hid from the specs
+  because every axe test **seeded progress**, and the resolver removes that
+  element once it resolves — so the never-seeded state was the one state nobody
+  audited. axe now runs on both branches, and in dark mode.
+- **The fixed bar could cover whatever was scrolled into view** — an `#anchor`
+  link, a Tab to a control near the bottom, a `scrollIntoView` on a form field.
+  The footer padding only stops it covering the *end of the document*;
+  `scroll-padding-block-end` on the root below 768px covers the rest. Found by
+  two settings specs that passed on a phone before the bar existed.
+- **Specs that assert desktop chrome now name their viewport.** The phone
+  projects run every spec, so a block asserting the grouped header was asserting
+  it at 390px, where it deliberately no longer renders. Running only chromium
+  hid this completely: it surfaced as **37 failures** the first time the phone
+  projects ran.
+
+### Verification
+
+Gate green: `check-content.mjs`, `check-contrast.mjs` (291 assertions), the
+build, and the full five-project matrix run the documented way — **four stable
+projects together plus WebKit serially**, because the Windows WebKit build
+crashes under the five-project fan-out for reasons that belong to the browser
+and not to the site.
+
+`tests/e2e/mobile-app.spec.ts` pins **both sides of the 768px breakpoint**, at
+767px and 768px explicitly. The divergence is the feature; a future session
+tidying the two layouts into one finds out there.
+
+---
+
 ### M1 + M2 — the site becomes an app on a phone
 
 Direction: `docs/direction/mcc-direction-mobile-app.md`, which **supersedes the
@@ -1560,7 +1636,8 @@ Foundation only: no real content, no interactive board yet.
   `url()` references unresolved and the fonts silently 404 into a Georgia
   fallback. `scripts/build-fonts.mjs` self-hosts them instead. See CLAUDE.md.
 
-[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.1.1...v0.2.0
