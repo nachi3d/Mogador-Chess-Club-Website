@@ -106,3 +106,51 @@
   font-size: 0.75rem;
   line-height: 1.45;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   BELOW 768px: THE HELP LINE IS REVEALED ON FOCUS (M3)
+
+   It is three lines and 52px on a 360px screen — a sixth of the space the
+   whole control stack is allowed — explaining a notation the reader is not
+   using until they put the cursor in the field. So below 768px it is visible
+   exactly then.
+
+   ⚠️ `sr-only`, NEVER `display: none`. The field points at this element with
+   `aria-describedby`, and clipping keeps it in the accessibility tree with
+   certainty — a `display: none` target is honoured by most screen readers and
+   guaranteed by none. A reader who cannot see it must still be told the
+   notation, which is the entire reason this control exists.
+
+   ⚠️ It is safe to make this element grow because the form is the LAST thing
+   in the exercise column below 768px (`exercise.css` puts it at `order: 6`).
+   Revealing it pushes the page footer down and nothing the reader is
+   touching. If anything is ever placed after it, this reveal moves that
+   element and has to be reconsidered.
+
+   The label stays VISIBLE. Hiding it and leaning on the placeholder would
+   save another 22px and is a well-known trap: a placeholder disappears the
+   moment the reader types, taking the only visible name of the field with it.
+   ═══════════════════════════════════════════════════════════════════════ */
+@media (max-width: 767.98px) {
+  .mcc-move-input-help {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .mcc-move-input:focus-within .mcc-move-input-help {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 0;
+    overflow: visible;
+    clip-path: none;
+    white-space: normal;
+  }
+}

@@ -1,6 +1,6 @@
 ---
 /**
- * `/progres/` — the local progress view (M1).
+ * `/progres/` — the local progress view (M1, given substance in M3).
  *
  * ─────────────────────────────────────────────────────────────────────────
  * ⚠️ WHY THIS PAGE EXISTS AT ALL. The bottom bar's fourth entry is "Progrès",
@@ -15,23 +15,41 @@
  * ⚠️ EVERYTHING HERE IS READ IN THE BROWSER. Progress lives in the reader's
  * own `localStorage`; the server knows the JOURNEY (which is content) and
  * nothing about who has done what. So this renders the full structure with
- * zeroes and a script fills it in — rather than rendering nothing and building
- * the page in JS, which would flash an empty screen and leave a no-JS reader
- * with a blank page instead of an explanation.
+ * zeroes and the shared resolver fills it in — rather than rendering nothing
+ * and building the page in JS, which would flash an empty screen and leave a
+ * no-JS reader with a blank page instead of an explanation.
  *
- * ⚠️ IT NEVER CLAIMS MORE THAN IT KNOWS. A reader whose storage is
- * unavailable, or who has cleared it, sees the empty state and a way to start
- * — not an error. The line about clearing browser data is there because this
- * is the one page where a reader might reasonably expect their progress to be
- * kept somewhere safe, and it is not: it is on this device only.
+ * ⚠️ IT NEVER CLAIMS MORE THAN IT KNOWS. Every number on this page is a count
+ * of records that exist. There is no score, no streak and no rank, because
+ * nothing computes one — the rank tile says "bientôt" and means it. Printing
+ * an invented figure would be the site telling a student something it does
+ * not know, which is the same class of lie the `onlyMove` rule exists to
+ * prevent.
+ *
+ * ⚠️ THE RULE IS NOT WRITTEN HERE ANY MORE (M3). This page used to carry its
+ * own copy of "touched / complete / where did they stop", subtly different
+ * from the one on the home page — so the two could name different lessons and
+ * neither would look broken. `ResumeResolver.astro` owns it now, and every
+ * count below is a `data-resume-for` surface it binds. The only script left
+ * on this page is the "what is left" list, and it reads the resolver's
+ * published answer rather than recomputing anything.
  * ─────────────────────────────────────────────────────────────────────────
+ *
+ * ⚠️ EVERY BUCKET IS A JOURNEY. A level ("débutant") and a theme ("mat") are
+ * just ordered sets of steps, and `done / total` over a set is exactly what
+ * the resolver already computes — so the by-level and by-theme breakdowns are
+ * extra tables rather than extra logic. Their steps carry no `u` or `t`,
+ * because a statistic has nowhere to send anyone.
  */
 import type { Locale } from '@config/site';
 import { getCollection } from 'astro:content';
-import { localizePath } from '@i18n/paths';
-import { useTranslations } from '@i18n/ui';
+import { LEVEL_KEYS, useTranslations } from '@i18n/ui';
+import type { JourneyStep } from '@lib/journey';
+import { exerciseJourney, lessonJourney, tutorialJourney } from '@lib/journey';
 import BaseLayout from '@layouts/BaseLayout.astro';
 import PageIntro from '@components/PageIntro.astro';
+import ResumeResolver from '@components/progress/ResumeResolver.astro';
+import ResumeCard from '@components/progress/ResumeCard.astro';
 
 interface Props {
   locale: Locale;
@@ -40,49 +58,57 @@ interface Props {
 const { locale } = Astro.props;
 const t = useTranslations(locale);
 
-/* ── The three groups, built exactly the way HomePage builds its journey ──
-   Same key scheme (`tutorial:<slug>`, `lesson:<course>:<lesson>:<index>`, and
-   the bare exercise slug), because there is one progress store and it would be
-   worse than useless if two pages disagreed about how to read it. */
-const basics = (await getCollection('tutoriel'))
-  .filter((entry) => !entry.data.draft)
-  .sort((a, b) => a.data.order - b.data.order)
-  .map((entry) => ({
-    u: localizePath(`/apprendre-les-bases/${entry.data.slug}/`, locale),
-    t: locale === 'fr' ? entry.data.title_fr : entry.data.title_en,
-    k: [`tutorial:${entry.data.slug}`],
-  }));
+const basics = await tutorialJourney(locale);
+const lessons = await lessonJourney(locale);
+const exercises = await exerciseJourney(locale);
 
-const courses = (await getCollection('cours'))
-  .filter((entry) => !entry.data.draft)
-  .sort((a, b) => a.data.order - b.data.order);
+/**
+ * ⚠️ ALL THREE, AND THAT IS A DELIBERATE DIFFERENCE FROM THE HOME PAGE.
+ *
+ * Home resumes the COURSE journey — the tutorial then the lessons — because
+ * that is the sequence it teaches. This page is the whole picture, so its
+ * "Reprendre" can land on a standalone exercise too. The two can therefore
+ * name different things, which is correct rather than a drift: they are
+ * answering the same question about different journeys.
+ */
+const everything = [...basics, ...lessons, ...exercises];
 
-const allLessons = (await getCollection('lessons')).filter(
-  (entry) => !entry.data.draft && entry.data.lang === locale,
-);
+/* ── The breakdowns ──────────────────────────────────────────────────────
+   Only buckets that actually contain something are rendered. An empty
+   "Avancé — 0 / 0" row is not a fact about the reader, it is a fact about how
+   much content has been written, and it belongs on neither this page nor a
+   student's conscience. */
+const exerciseEntries = (await getCollection('exercices')).filter((entry) => !entry.data.draft);
 
-const lessons = courses.flatMap((course) =>
-  allLessons
-    .filter((lesson) => lesson.data.course === course.data.slug)
-    .sort((a, b) => a.data.order - b.data.order)
-    .map((lesson) => ({
-      u: localizePath(`/cours/${course.data.slug}/${lesson.data.slug}/`, locale),
-      t: lesson.data.title,
-      k: lesson.data.boards
-        .map((board, index) => ({ board, index }))
-        .filter(({ board }) => board.kind === 'exercise')
-        .map(({ index }) => `lesson:${course.data.slug}:${lesson.data.slug}:${index}`),
-    }))
-    .filter((step) => step.k.length > 0),
-);
+/** A statistics bucket: keys only, because a count has nowhere to send anyone. */
+function bucket(slugs: readonly string[]): JourneyStep[] {
+  return slugs.map((slug) => ({ u: '', t: '', k: [slug] }));
+}
 
-const exercises = (await getCollection('exercices'))
-  .filter((entry) => !entry.data.draft)
-  .map((entry) => ({
-    u: localizePath(`/exercices/${entry.data.slug}/`, locale),
-    t: locale === 'fr' ? entry.data.title_fr : entry.data.title_en,
-    k: [entry.data.slug],
-  }));
+const levels = (Object.keys(LEVEL_KEYS) as (keyof typeof LEVEL_KEYS)[])
+  .map((level) => ({
+    id: `level-${level}`,
+    label: t(LEVEL_KEYS[level]),
+    slugs: exerciseEntries.filter((e) => e.data.level === level).map((e) => e.data.slug),
+  }))
+  .filter((row) => row.slugs.length > 0);
+
+/**
+ * Themes are CONTENT VOCABULARY and are not translated — the same decision
+ * the trap and exercise cards already make. Sorted by size then name so the
+ * list is stable between builds rather than following file order.
+ */
+const themeCounts = new Map<string, string[]>();
+for (const entry of exerciseEntries) {
+  for (const theme of entry.data.themes) {
+    const list = themeCounts.get(theme) ?? [];
+    list.push(entry.data.slug);
+    themeCounts.set(theme, list);
+  }
+}
+const themes = [...themeCounts.entries()]
+  .map(([theme, slugs]) => ({ id: `theme-${theme}`, label: theme, slugs }))
+  .sort((a, b) => b.slugs.length - a.slugs.length || a.label.localeCompare(b.label));
 
 const groups = [
   { id: 'basics', label: t('progress.basics'), steps: basics },
@@ -90,9 +116,19 @@ const groups = [
   { id: 'exercises', label: t('progress.exercises'), steps: exercises },
 ];
 
-const dataJson = JSON.stringify(
-  Object.fromEntries(groups.map((group) => [group.id, group.steps])),
-);
+/**
+ * ⚠️ EXACTLY THREE ROWS, ALWAYS, AND THE SERVER FILLS THEM WITH THE FIRST
+ * THREE STEPS OF THE JOURNEY.
+ *
+ * That is not a placeholder: for a reader with no stored progress the first
+ * three steps ARE what is next, so the no-JS page is true rather than empty.
+ * The script rewrites them to the first three INCOMPLETE steps when there is
+ * something stored. A fixed count is what keeps the section from changing
+ * height when it does — the same reserve-the-space rule as `.card-status` and
+ * the dashboard's progress bar.
+ */
+const NEXT_COUNT = 3;
+const nextSeed = everything.slice(0, NEXT_COUNT);
 ---
 
 <BaseLayout locale={locale} title={t('progress.title')} description={t('progress.intro')}>
@@ -103,122 +139,174 @@ const dataJson = JSON.stringify(
   </noscript>
 
   <div class="progress" data-progress-view>
-    {
-      groups.map((group) => (
-        <section class="progress-group" data-group={group.id}>
-          <h2 class="progress-heading">
-            {group.label}
-            <span class="progress-count">
-              <b data-group-done>0</b> {t('progress.of')} {group.steps.length}
+    {/* The way back in. Hidden until the resolver proves there is one. */}
+    <ResumeCard id="progres" locale={locale} testId="resume-progres" />
+
+    {/* ── What has been done ─────────────────────────────────────────── */}
+    <section class="progress-block" aria-labelledby="progress-groups">
+      <h2 class="progress-block-title" id="progress-groups">{t('progress.sections.done')}</h2>
+      {
+        groups.map((group) => (
+          <div
+            class="progress-group"
+            data-group={group.id}
+            data-resume-for={group.id}
+            data-resume-count-pattern={`%s ${t('progress.of')} %s`}
+          >
+            <p class="progress-heading">
+              <span>{group.label}</span>
+              <span class="progress-count" data-resume-count>
+                0 {t('progress.of')} {group.steps.length}
+              </span>
+            </p>
+            <span class="progress-track" aria-hidden="true">
+              <span class="progress-fill" data-resume-fill />
             </span>
+          </div>
+        ))
+      }
+    </section>
+
+    {/* ── Exercises by level ─────────────────────────────────────────── */}
+    {
+      levels.length > 0 && (
+        <section class="progress-block" aria-labelledby="progress-levels">
+          <h2 class="progress-block-title" id="progress-levels">
+            {t('progress.sections.byLevel')}
           </h2>
-          <span class="progress-track" aria-hidden="true">
-            <span class="progress-fill" data-group-fill />
-          </span>
+          <ul class="progress-rows">
+            {levels.map((row) => (
+              <li
+                class="progress-row"
+                data-resume-for={row.id}
+                data-resume-count-pattern={`%s ${t('progress.of')} %s`}
+              >
+                <span class="progress-row-label">{row.label}</span>
+                <span class="progress-row-count" data-resume-count>
+                  0 {t('progress.of')} {row.slugs.length}
+                </span>
+              </li>
+            ))}
+          </ul>
         </section>
-      ))
+      )
     }
 
-    {/* Shown only when there is genuinely nothing — see the script. Always in
-        the DOM so revealing it moves nothing. */}
-    <p class="progress-empty" data-progress-empty hidden>
-      {t('progress.empty')}
-      <a class="btn btn-primary" href={localizePath('/apprendre-les-bases/', locale)}>
-        {t('progress.emptyCta')}
-      </a>
-    </p>
+    {/* ── Exercises by theme ─────────────────────────────────────────── */}
+    {
+      themes.length > 0 && (
+        <section class="progress-block" aria-labelledby="progress-themes">
+          <h2 class="progress-block-title" id="progress-themes">
+            {t('progress.sections.byTheme')}
+          </h2>
+          {/* Chips rather than rows: with one exercise per theme a full row
+              each would be a page of near-empty bars. The vocabulary is the
+              site's existing `.chip`, from cards.css. */}
+          <ul class="chip-list">
+            {themes.map((row) => (
+              <li
+                class="chip progress-chip"
+                data-resume-for={row.id}
+                data-resume-count-pattern="%s/%s"
+              >
+                {row.label} <b data-resume-count>0/{row.slugs.length}</b>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )
+    }
 
-    {/* The way back in — the same resolved step the home dashboard offers. */}
-    <p class="progress-continue" data-progress-continue hidden>
-      <a class="btn btn-primary" href="#" data-progress-continue-link>
-        {t('progress.continue')}
-      </a>
+    {/* ── What is left ───────────────────────────────────────────────── */}
+    <section class="progress-block" aria-labelledby="progress-next">
+      <h2 class="progress-block-title" id="progress-next">{t('progress.sections.next')}</h2>
+      <ul class="progress-next" data-progress-next>
+        {
+          nextSeed.map((step) => (
+            <li class="progress-next-item">
+              <a href={step.u}>{step.t}</a>
+            </li>
+          ))
+        }
+      </ul>
+      {/* Shown only when the journey really is finished. Always in the DOM so
+          revealing it moves nothing. */}
+      <p class="progress-done" data-progress-done hidden>{t('progress.allDone')}</p>
+    </section>
+
+    {/* ── Not yet ────────────────────────────────────────────────────── */}
+    {/* ⚠️ A PLACEHOLDER, AND LABELLED AS ONE — the same treatment the mobile
+        dashboard's rank tile gets. Ranks and points are E3 and nothing
+        computes one. It says "bientôt" rather than inventing a number.
+        ⚠️ No `opacity` on this text: it is `--mcc-text-secondary` on the page
+        surface, which sits AT the 4.5 floor in some themes, so any alpha on
+        top of it fails an audit that cannot see it (the M1 regression). */}
+    <p class="progress-soon">
+      {t('progress.rank')} · <i>{t('home.dash.stats.soon')}</i>
     </p>
 
     <p class="progress-note">{t('progress.cleared')}</p>
   </div>
 
-  <script type="application/json" data-progress-data set:html={dataJson}></script>
+  {/* ⚠️ THE RESOLVER GOES LAST, AND THE "WHAT IS LEFT" BINDER AFTER IT. Both
+      are inline and synchronous, so document order is the whole of the
+      ordering guarantee. Every table is resolved in ONE pass by ONE copy of
+      the script — see the note about `journeys` being a record. */}
+  <ResumeResolver
+    journeys={{
+      progres: everything,
+      basics,
+      courses: lessons,
+      exercises,
+      ...Object.fromEntries(levels.map((row) => [row.id, bucket(row.slugs)])),
+      ...Object.fromEntries(themes.map((row) => [row.id, bucket(row.slugs)])),
+    }}
+  />
 </BaseLayout>
 
 {/*
-  ⚠️ `is:inline`, and it duplicates `mcc:progress:v1` — the FOURTH such copy,
-  after the theme head script, AccountButton and the home resolver. Same trade
-  for the same reason: an inline script cannot import a bare specifier, and
-  importing would reintroduce the round trip. The general rule in CLAUDE.md
-  still stands — nothing else may touch `localStorage`. The spec seeds the key
-  directly, so a divergence from `src/lib/progress.ts` fails there.
-
-  It only READS, and it fails silent: an unreadable store leaves every bar at
-  zero and shows the empty state, which is a usable page rather than a broken
-  one.
+  "Ce qu'il reste" — the ONLY script left on this page, and it computes
+  nothing. `remaining` is a list of indices the resolver already worked out;
+  this rewrites three anchors from it. No second copy of `complete()`, and no
+  second reading of `mcc:progress:v1`.
 */}
 <script is:inline>
   (function () {
     try {
-      var view = document.querySelector('[data-progress-view]');
-      var data = document.querySelector('[data-progress-data]');
-      if (!view || !data) return;
+      var resolved = window.MCC_RESUME && window.MCC_RESUME.progres;
+      var list = document.querySelector('[data-progress-next]');
+      if (!resolved || !list) return;
 
-      var groups = JSON.parse(data.textContent || '{}');
-      var raw = window.localStorage.getItem('mcc:progress:v1');
-      var records = {};
-      if (raw) {
-        var store = JSON.parse(raw);
-        records = (store && store.exercises) || {};
+      var items = list.querySelectorAll('.progress-next-item');
+      var left = resolved.remaining || [];
+
+      if (!left.length) {
+        /* Finished. The list would otherwise sit there naming the first three
+           steps again, which reads as "you have not started". */
+        list.setAttribute('hidden', '');
+        var done = document.querySelector('[data-progress-done]');
+        if (done) done.removeAttribute('hidden');
+        return;
       }
 
-      function complete(step) {
-        return step.k.every(function (key) {
-          var r = records[key];
-          return !!r && typeof r === 'object' && r.solved === true;
-        });
-      }
-
-      function touched(step) {
-        return step.k.some(function (key) {
-          var r = records[key];
-          return !!r && typeof r === 'object' && (r.solved === true || r.attempts > 0 || r.hintUsed === true);
-        });
-      }
-
-      var anything = false;
-      var firstIncomplete = null;
-
-      Object.keys(groups).forEach(function (id) {
-        var steps = groups[id] || [];
-        var section = view.querySelector('[data-group="' + id + '"]');
-        if (!section) return;
-
-        var done = 0;
-        for (var i = 0; i < steps.length; i++) {
-          if (touched(steps[i])) anything = true;
-          if (complete(steps[i])) done++;
-          else if (!firstIncomplete && touched(steps[i])) firstIncomplete = steps[i];
+      for (var i = 0; i < items.length; i++) {
+        var step = i < left.length ? resolved.journey[left[i]] : null;
+        var link = items[i].querySelector('a');
+        if (!step || !link) {
+          /* Fewer than three left. Hiding the spare rows shifts the block, and
+             that is accepted: it happens once, at the very end of the whole
+             journey, on a page nobody is mid-gesture on. */
+          items[i].setAttribute('hidden', '');
+          continue;
         }
-
-        var label = section.querySelector('[data-group-done]');
-        if (label) label.textContent = String(done);
-        var fill = section.querySelector('[data-group-fill]');
-        if (fill) fill.style.inlineSize = steps.length ? Math.round((done / steps.length) * 100) + '%' : '0%';
-      });
-
-      var empty = view.querySelector('[data-progress-empty]');
-      var cont = view.querySelector('[data-progress-continue]');
-
-      if (!anything) {
-        if (empty) empty.removeAttribute('hidden');
-      } else if (firstIncomplete && cont) {
-        var link = cont.querySelector('[data-progress-continue-link]');
-        if (link) {
-          link.setAttribute('href', firstIncomplete.u);
-          link.setAttribute('title', firstIncomplete.t);
-        }
-        cont.removeAttribute('hidden');
+        link.setAttribute('href', step.u);
+        link.textContent = step.t;
+        items[i].removeAttribute('hidden');
       }
-      view.setAttribute('data-resolved', 'true');
+      list.setAttribute('data-resolved', 'true');
     } catch (e) {
-      /* Storage unavailable or hand-edited. Zeroes and the empty state. */
+      /* The seeded first three steps stay. They are a true answer for a reader
+         with no progress, which is the state an unreadable store looks like. */
     }
   })();
 </script>
@@ -226,13 +314,28 @@ const dataJson = JSON.stringify(
 <style>
   .progress {
     display: grid;
-    gap: 1.5rem;
+    gap: 2rem;
     max-width: 44rem;
+  }
+
+  .progress-block {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .progress-block-title {
+    margin: 0;
+    font-family: var(--font-body);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--mcc-text-secondary);
   }
 
   .progress-group {
     display: grid;
-    gap: 0.5rem;
+    gap: 0.4rem;
   }
 
   .progress-heading {
@@ -241,7 +344,10 @@ const dataJson = JSON.stringify(
     justify-content: space-between;
     gap: 1rem;
     margin: 0;
+    font-family: var(--mcc-font-display);
     font-size: 1.0625rem;
+    font-weight: 600;
+    color: var(--mcc-text-heading);
   }
 
   .progress-count {
@@ -249,10 +355,6 @@ const dataJson = JSON.stringify(
     font-family: var(--font-body);
     font-size: 0.875rem;
     font-weight: 400;
-  }
-
-  .progress-count b {
-    color: var(--mcc-text-primary);
     font-variant-numeric: tabular-nums;
   }
 
@@ -274,12 +376,75 @@ const dataJson = JSON.stringify(
     transition: inline-size var(--motion-transition) var(--ease-transition);
   }
 
-  .progress-empty,
-  .progress-continue {
+  /* ── By level ─────────────────────────────────────────────────────── */
+  .progress-rows {
     display: grid;
-    justify-items: start;
-    gap: 0.75rem;
+    gap: 0.35rem;
     margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .progress-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.5rem 0.75rem;
+    background-color: var(--mcc-surface-sunken);
+    border-radius: var(--radius-card);
+    font-size: 0.9375rem;
+  }
+
+  .progress-row-count {
+    color: var(--mcc-text-secondary);
+    font-size: 0.875rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ── By theme ─────────────────────────────────────────────────────── */
+  .progress-chip b {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ── What is left ─────────────────────────────────────────────────── */
+  .progress-next {
+    display: grid;
+    gap: 0.35rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .progress-next-item a {
+    display: flex;
+    align-items: center;
+    /* ≥44px: these are the primary things to do next on a phone. */
+    min-height: 2.75rem;
+    padding: 0.4rem 0.75rem;
+    background-color: var(--mcc-surface-raised);
+    border: 1px solid var(--mcc-border-subtle);
+    border-radius: var(--radius-card);
+    color: var(--mcc-link);
+    font-size: 0.9375rem;
+    text-decoration: none;
+  }
+
+  .progress-next-item a:hover {
+    border-color: var(--mcc-border-strong);
+  }
+
+  .progress-done {
+    margin: 0;
+    color: var(--mcc-text-primary);
+    font-weight: 600;
+  }
+
+  /* ── Not yet ──────────────────────────────────────────────────────── */
+  .progress-soon {
+    margin: 0;
+    color: var(--mcc-text-secondary);
+    font-size: 0.875rem;
   }
 
   .progress-note {
@@ -287,26 +452,6 @@ const dataJson = JSON.stringify(
     color: var(--mcc-text-secondary);
     font-size: 0.875rem;
     line-height: 1.5;
-  }
-
-  .btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 2.75rem;
-    padding: 0.7rem 1.4rem;
-    border-radius: var(--radius-card);
-    text-decoration: none;
-  }
-
-  .btn-primary {
-    background-color: var(--mcc-primary);
-    color: var(--mcc-primary-contrast);
-    border: 1px solid var(--mcc-primary);
-  }
-
-  .btn-primary:hover {
-    background-color: var(--mcc-primary-hover);
   }
 
   @media (prefers-reduced-motion: reduce) {

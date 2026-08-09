@@ -3,9 +3,12 @@ import { getCollection } from 'astro:content';
 import type { Locale } from '@config/site';
 import { exercisePath } from '@i18n/paths';
 import { useTranslations } from '@i18n/ui';
+import { exerciseJourney } from '@lib/journey';
 import BaseLayout from '@layouts/BaseLayout.astro';
 import PageIntro from '@components/PageIntro.astro';
 import CardGrid, { type CardItem } from '@components/CardGrid.astro';
+import ResumeResolver from '@components/progress/ResumeResolver.astro';
+import ResumeCard from '@components/progress/ResumeCard.astro';
 
 interface Props {
   locale: Locale;
@@ -17,6 +20,14 @@ const t = useTranslations(locale);
 const entries = (await getCollection('exercices', ({ data }) => !data.draft)).sort((a, b) =>
   a.data.slug.localeCompare(b.data.slug),
 );
+
+/**
+ * ⚠️ THE JOURNEY IS BUILT IN THE SAME ORDER THIS PAGE LISTS THE CARDS, and it
+ * has to be: "Reprendre" walking a different order from the one the reader is
+ * looking at would send them to a card further down the page than the one they
+ * expected. `exerciseJourney()` sorts by slug, exactly as the line above does.
+ */
+const journey = await exerciseJourney(locale);
 
 const items: CardItem[] = entries.map(({ data }) => ({
   title: locale === 'fr' ? data.title_fr : data.title_en,
@@ -36,7 +47,11 @@ const items: CardItem[] = entries.map(({ data }) => ({
   {/* NOTE: no board is mounted here. The single Chessground island is
       client:visible and belongs on the exercise DETAIL route, never on an
       index — see the architecture rule in CLAUDE.md. */}
+  <ResumeCard id="exercices" locale={locale} testId="resume-exercices" />
+
   <CardGrid locale={locale} items={items} emptyMessage={t('agenda.empty')} />
+
+  <ResumeResolver journeys={{ exercices: journey }} />
 </BaseLayout>
 
 {/*

@@ -464,6 +464,18 @@ const pageDescription = description ?? site.description[locale];
     padding-block: 2.5rem;
   }
 
+  /* ⚠️ 40px of air top AND bottom is a desktop measurement (M3). On a 640px
+     phone it is 80px — an eighth of the screen — spent before the reader
+     reaches anything, on every page. Sixteen of those pixels sit between the
+     header and the first heading, and sixteen more between the last control
+     and the footer. Reduced here rather than per page, so no route can be
+     missed; the desktop figure is untouched. */
+  @media (max-width: 767.98px) {
+    .site-main {
+      padding-block: 1.5rem;
+    }
+  }
+
   /* ⚠️ ROOM FOR THE BOTTOM BAR, OR IT COVERS THE LAST LINE OF EVERY PAGE.
      The bar is `position: fixed`, so it is out of flow and takes no space —
      the page has to reserve it. `--mcc-bottom-nav` is the bar's row height,

@@ -22,9 +22,16 @@ interface Step {
   readonly k: readonly string[];
 }
 
-/** The build-time journey table the resolver reads. */
+/**
+ * The build-time journey table the resolver reads.
+ *
+ * ⚠️ Both selectors: M3 moved the resolver into a shared component and renamed
+ * the tag from `data-menu-journey` to `data-resume-journey="<id>"`. The old one
+ * is kept in the query so this file's assertions — which are about the RULE,
+ * not about the plumbing — did not have to be touched by that move.
+ */
 async function journeyOf(page: Page): Promise<Step[]> {
-  const raw = await page.locator('[data-menu-journey]').textContent();
+  const raw = await page.locator('[data-menu-journey], [data-resume-journey]').first().textContent();
   return JSON.parse(raw ?? '[]') as Step[];
 }
 

@@ -30,12 +30,13 @@
  */
 import type { Locale } from '@config/site';
 import { site } from '@config/site';
-import { getCollection } from 'astro:content';
 import { localizePath } from '@i18n/paths';
 import { useTranslations } from '@i18n/ui';
+import { fullJourney } from '@lib/journey';
 import BaseLayout from '@layouts/BaseLayout.astro';
 import HeroAmbient from '@components/motion/HeroAmbient.astro';
 import Dashboard from '@components/home/Dashboard.astro';
+import ResumeResolver from '@components/progress/ResumeResolver.astro';
 
 interface Props {
   locale: Locale;
@@ -66,57 +67,22 @@ const entries = [
 
 /* ── "Reprendre" — the detail that makes it feel like a game ─────────────
  *
- * Built here, resolved in the browser: the ORDER of the journey is content and
- * belongs at build time, but which part of it a reader has done lives in their
- * own `localStorage` and cannot be known until then.
+ * ⚠️ THE JOURNEY AND THE RULE BOTH MOVED OUT (M3).
  *
- * A step is RESUMABLE when it has at least one exercise to record progress
- * against. A lesson with only diagrams leaves no trace in `mcc:progress:v1`, so
- * it can be neither touched nor completed — including it would let it block the
- * scan forever.
+ * The ordered table is built by `src/lib/journey.ts` — which is now the ONE
+ * place the `mcc:progress:v1` key scheme is written, after three pages had
+ * grown their own copy of it — and the resolution rule lives in
+ * `ResumeResolver.astro`, which `/cours/`, `/exercices/` and `/progres/` also
+ * use. What is left in this file is only the binding for the two surfaces
+ * that are genuinely bespoke to the home page: the E5 menu entry (declarative,
+ * see below) and the mobile dashboard (imperative, the script at the bottom).
+ *
+ * Nothing about WHICH step is chosen changed. See the resolver's frontmatter
+ * for the rule, and `tests/e2e/resume.spec.ts` for the properties that had to
+ * survive the move — it was written first, run green against the old code, and
+ * run green against this.
  */
-const tutorialSteps = (await getCollection('tutoriel'))
-  .filter((entry) => !entry.data.draft)
-  .sort((a, b) => a.data.order - b.data.order)
-  /* Short field names — `u`/`t`/`k` — because this JSON is inlined into the
-     HTML of the site's most-visited page and the long names would be pure
-     weight. The inline script below is the only reader. */
-  .map((entry) => ({
-    u: localizePath(`/apprendre-les-bases/${entry.data.slug}/`, locale),
-    t: locale === 'fr' ? entry.data.title_fr : entry.data.title_en,
-    k: [`tutorial:${entry.data.slug}`],
-  }));
-
-const courses = (await getCollection('cours'))
-  .filter((entry) => !entry.data.draft)
-  .sort((a, b) => a.data.order - b.data.order);
-
-const allLessons = (await getCollection('lessons')).filter(
-  (entry) => !entry.data.draft && entry.data.lang === locale,
-);
-
-const lessonSteps = courses.flatMap((course) =>
-  allLessons
-    .filter((lesson) => lesson.data.course === course.data.slug)
-    .sort((a, b) => a.data.order - b.data.order)
-    .map((lesson) => ({
-      u: localizePath(`/cours/${course.data.slug}/${lesson.data.slug}/`, locale),
-      t: lesson.data.title,
-      /* ⚠️ The index is the position in the FULL `boards` array, not among the
-         exercises — that is exactly what `LessonPage.astro` uses to build the
-         slug it records under. Filtering first would silently key off a
-         different number and never match a single stored record. */
-      k: lesson.data.boards
-        .map((board, index) => ({ board, index }))
-        .filter(({ board }) => board.kind === 'exercise')
-        .map(({ index }) => `lesson:${course.data.slug}:${lesson.data.slug}:${index}`),
-    }))
-    .filter((step) => step.k.length > 0),
-);
-
-/** Canonical journey order: the tutorial first, then the courses in order. */
-const journey = [...tutorialSteps, ...lessonSteps];
-const journeyJson = JSON.stringify(journey);
+const journey = await fullJourney(locale);
 ---
 
 <BaseLayout
@@ -150,7 +116,17 @@ const journeyJson = JSON.stringify(journey);
               no JavaScript it stays hidden, and that is correct: "Reprendre"
               with nothing to reprendre would be a lie, and progress is only
               knowable in the browser. Five real links is the no-JS shape. */}
-          <li class="menu-entry" data-menu-resume data-resume-aria={t('menu.resume.aria')} hidden>
+          {/* `data-resume-for="home"` is the resolver's declarative contract:
+              it sets the href, the aria-label from the pattern beside it, and
+              removes `hidden` — exactly what the old bespoke code did here.
+              `data-menu-resume` stays as the specs' handle. */}
+          <li
+            class="menu-entry"
+            data-menu-resume
+            data-resume-for="home"
+            data-resume-aria={t('menu.resume.aria')}
+            hidden
+          >
             <a class="menu-link" href={localizePath('/apprendre-les-bases/', locale)} data-testid="menu-resume">
               <span class="menu-cursor" aria-hidden="true">
                 <svg viewBox="0 0 44 64" fill="currentColor" width="16" height="23">
@@ -237,135 +213,52 @@ const journeyJson = JSON.stringify(journey);
     </ul>
   </section>
 
-  {/* The journey table, read by the inline resolver below. `application/json`
-      so it is data rather than code — nothing executes it, and a CSP that
-      forbids inline script would still leave the data readable. */}
-  <script type="application/json" data-menu-journey set:html={journeyJson}></script>
+  {/* ⚠️ THE RESOLVER GOES LAST INSIDE THE LAYOUT, AND THE DASHBOARD BINDER
+      BELOW COMES AFTER IT. Both are inline and synchronous, so document order
+      is the whole of the ordering guarantee — there is no race to lose, but
+      there is an order to keep. Moving either one above the markup it touches
+      would leave it binding elements that do not exist yet. */}
+  <ResumeResolver journeys={{ home: journey }} />
 </BaseLayout>
 
 {/*
-  ⚠️ `is:inline`, AND IT DUPLICATES THE PROGRESS KEY. Both are deliberate.
+  THE DASHBOARD BINDER — the one surface too bespoke for the declarative
+  contract (M3).
 
-  INLINE, because it runs synchronously during parsing, before the browser
-  paints. A bundled module script is deferred, so "Reprendre" would appear one
-  frame late and push a vertically-centred menu down under the reader's eyes —
-  a visible jump on the site's most-visited page, and a CLS regression on the
-  page least able to afford one.
+  ⚠️ THE RULE IS NOT HERE ANY MORE. It is in
+  `src/components/progress/ResumeResolver.astro`, which runs immediately
+  above this in document order and publishes its answer at
+  `window.MCC_RESUME.home`. This script only MOVES THINGS AROUND. If you are
+  looking for how the step is chosen, read the resolver's frontmatter.
 
-  DUPLICATING `mcc:progress:v1`, because an inline script cannot import a bare
-  specifier. This is the THIRD such duplication on the site, after the theme
-  head script (which copies `applyTheme`) and `AccountButton` (which copies
-  `mcc:auth:v1`), and it is the same trade for the same reason: importing would
-  reintroduce exactly the round trip the script exists to avoid.
+  ⚠️ STILL `is:inline`, for the same reason the resolver is: it runs
+  synchronously during parsing, so the swap is in the first paint and nothing
+  jumps. A bundled module is deferred and would cost a visible reflow on the
+  site's most-visited page. `tests/e2e/resume.spec.ts` measures the CLS.
 
-  The general rule in CLAUDE.md still stands — nothing else may touch
-  `localStorage` — and `tests/e2e/main-menu.spec.ts` seeds the key directly, so
-  a divergence between here and `src/lib/progress.ts` fails there rather than in
-  production.
+  It touches no storage at all now — that is the resolver's job — so there is
+  one fewer copy of `mcc:progress:v1` on this page than there was.
 
-  It only ever READS, and it fails silent: a broken or absent store leaves the
-  entry hidden, which is a menu with five items rather than a broken page.
+  WHAT IT DOES. The server rendered the "nothing yet" branch — "Jouer une
+  partie" — because that is what is true for a first-time visitor and it works
+  with no JavaScript. Given a step to resume, swap it in place:
+
+    title  ← the step's own name
+    card   → that step
+    beside → "Jouer", since Play is no longer the primary thing to do
+
+  Nothing is created, so nothing moves: the progress bar's height was reserved
+  by CSS from the first paint (see Dashboard.astro).
 */}
 <script is:inline>
   (function () {
     try {
-      var mount = document.querySelector('[data-menu-resume]');
-      var data = document.querySelector('[data-menu-journey]');
-      if (!mount || !data) return;
+      var resolved = window.MCC_RESUME && window.MCC_RESUME.home;
+      var step = resolved && resolved.step;
+      if (!step) return;
 
-      var journey = JSON.parse(data.textContent || '[]');
-      if (!journey.length) return;
-
-      var raw = window.localStorage.getItem('mcc:progress:v1');
-      if (!raw) return;
-      var store = JSON.parse(raw);
-      var records = (store && store.exercises) || {};
-
-      function record(key) {
-        var r = records[key];
-        return r && typeof r === 'object' ? r : null;
-      }
-
-      /* Touched: the reader has done ANYTHING here — solved it, attempted it,
-         or asked for the hint. Opening the page alone leaves no trace, which is
-         correct: reading is not progress. */
-      function touched(step) {
-        return step.k.some(function (key) {
-          var r = record(key);
-          return !!r && (r.solved === true || r.attempts > 0 || r.hintUsed === true);
-        });
-      }
-
-      function complete(step) {
-        return step.k.every(function (key) {
-          var r = record(key);
-          return !!r && r.solved === true;
-        });
-      }
-
-      /* ── THE RESOLUTION RULE ──────────────────────────────────────────
-         "Reprendre" means what Continue means in a game: pick up at the
-         FURTHEST point reached, not the earliest gap.
-
-           1. find the last step the reader has touched;
-           2. from there forward, take the first step that is not complete —
-              which is that same step if they stopped mid-way through it;
-           3. if everything after it is complete, fall back to the earliest
-              incomplete step anywhere (a lesson they skipped past);
-           4. if nothing at all is incomplete, or nothing has been touched,
-              render nothing. There is nothing to resume. */
-      var last = -1;
-      for (var i = 0; i < journey.length; i++) if (touched(journey[i])) last = i;
-      if (last < 0) return;
-
-      var target = -1;
-      for (var j = last; j < journey.length; j++) {
-        if (!complete(journey[j])) {
-          target = j;
-          break;
-        }
-      }
-      if (target < 0) {
-        for (var m = 0; m < last; m++) {
-          if (!complete(journey[m])) {
-            target = m;
-            break;
-          }
-        }
-      }
-      if (target < 0) return;
-
-      var step = journey[target];
-      var link = mount.querySelector('a');
-      if (link) {
-        link.setAttribute('href', step.u);
-        /* The label stays the bare word — it is a menu, and a wrapping entry
-           would break the one-screen rule. The destination is announced to a
-           screen reader and shown on hover instead. */
-        var pattern = mount.getAttribute('data-resume-aria') || '%s';
-        link.setAttribute('aria-label', pattern.replace('%s', step.t));
-        link.setAttribute('title', step.t);
-      }
-      mount.removeAttribute('hidden');
-      mount.setAttribute('data-resolved', 'true');
-
-      /* ── The mobile dashboard's dominant card (M2) ──────────────────────
-         Same resolved step, a second surface. The server rendered the
-         "nothing yet" branch — "Jouer une partie" — because that is what is
-         true for a first-time visitor and it works with no JavaScript at all.
-         Having found something to resume, swap it in place:
-
-           title  ← the step's own name
-           card   → that step
-           beside → "Jouer", since Play is no longer the primary thing to do
-
-         Nothing is created or removed, so nothing moves: the progress bar's
-         height was reserved by CSS from the first paint. */
       var dash = document.querySelector('[data-dashboard]');
       if (!dash) return;
-
-      var done = 0;
-      for (var c = 0; c < journey.length; c++) if (complete(journey[c])) done++;
 
       function fill(selector, text) {
         var el = dash.querySelector(selector);
@@ -387,14 +280,14 @@ const journeyJson = JSON.stringify(journey);
       if (text) text.remove();
 
       var bar = dash.querySelector('[data-dash-progress]');
-      if (bar) {
+      if (bar && resolved.total) {
         var pattern = dash.getAttribute('data-label-progress') || '%s / %s';
         fill(
           '[data-dash-progress-label]',
-          pattern.replace('%s', String(done)).replace('%s', String(journey.length)),
+          pattern.replace('%s', String(resolved.done)).replace('%s', String(resolved.total)),
         );
         var f = dash.querySelector('[data-dash-progress-fill]');
-        if (f) f.style.inlineSize = Math.round((done / journey.length) * 100) + '%';
+        if (f) f.style.inlineSize = Math.round((resolved.done / resolved.total) * 100) + '%';
         bar.removeAttribute('hidden');
       }
 
@@ -407,21 +300,14 @@ const journeyJson = JSON.stringify(journey);
         fill('[data-dash-secondary-text]', dash.getAttribute('data-label-play-text') || '');
       }
 
-      /* The stats line. Solved exercises is a straight count of the store;
-         lessons is how far along the journey they are. Both are real. */
-      var solved = 0;
-      for (var key in records) {
-        if (Object.prototype.hasOwnProperty.call(records, key)) {
-          var r = record(key);
-          if (r && r.solved === true) solved++;
-        }
-      }
-      fill('[data-dash-solved]', String(solved));
-      fill('[data-dash-lessons]', String(done));
+      /* Both real. "Solved" counts the whole store; "lessons" is how far along
+         this journey the reader is. */
+      fill('[data-dash-solved]', String(resolved.solved));
+      fill('[data-dash-lessons]', String(resolved.done));
       dash.setAttribute('data-resolved', 'true');
     } catch (e) {
-      /* Storage unavailable, or a hand-edited value. Five entries, no error.
-         The same silent-failure contract as src/lib/progress.ts. */
+      /* The dashboard keeps its server-rendered branch. Same silent-failure
+         contract as src/lib/progress.ts. */
     }
   })();
 </script>

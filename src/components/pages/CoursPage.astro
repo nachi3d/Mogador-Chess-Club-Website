@@ -3,9 +3,12 @@ import { getCollection } from 'astro:content';
 import type { Locale } from '@config/site';
 import { localizePath } from '@i18n/paths';
 import { useTranslations } from '@i18n/ui';
+import { courseKeys, lessonJourney } from '@lib/journey';
 import BaseLayout from '@layouts/BaseLayout.astro';
 import PageIntro from '@components/PageIntro.astro';
 import CardGrid, { type CardItem } from '@components/CardGrid.astro';
+import ResumeResolver from '@components/progress/ResumeResolver.astro';
+import ResumeCard from '@components/progress/ResumeCard.astro';
 
 interface Props {
   locale: Locale;
@@ -37,24 +40,25 @@ const coursesWithLessons = new Set(localeLessons.map((l) => l.data.course));
  * Every exercise-board key inside a course, so the card can say whether the
  * reader has started it (M3).
  *
- * ⚠️ SAME KEY SCHEME AS THE E5 RESOLVER AND /progres — `lesson:<course>:<lesson>:<boardIndex>`,
- * and lessons with no exercise board contribute nothing. A lesson that records
- * nothing can be neither touched nor completed, so counting it would leave
- * every course permanently "in progress".
+ * ⚠️ THE KEY SCHEME IS NOT WRITTEN HERE ANY MORE. It lived in this file, in
+ * `HomePage.astro` and in `ProgressPage.astro` — three copies of
+ * `lesson:<course>:<lesson>:<boardIndex>` and of the "only exercise boards
+ * count" walk. `src/lib/journey.ts` is the one definition now; three chances
+ * to disagree about what a reader has done became one.
  */
-function progressKeysFor(courseSlug: string): string[] {
-  return localeLessons
-    .filter((lesson) => lesson.data.course === courseSlug)
-    .flatMap((lesson) =>
-      lesson.data.boards
-        .map((board, index) => ({ board, index }))
-        .filter(({ board }) => board.kind === 'exercise')
-        .map(({ index }) => `lesson:${courseSlug}:${lesson.data.slug}:${index}`),
-    );
-}
+const keysByCourse = new Map(
+  await Promise.all(
+    entries.map(
+      async ({ data }) => [data.slug, await courseKeys(locale, data.slug)] as const,
+    ),
+  ),
+);
+
+/** The resume card's journey: this locale's lessons, in course order. */
+const journey = await lessonJourney(locale);
 
 const items: CardItem[] = entries.map(({ data }) => {
-  const keys = progressKeysFor(data.slug);
+  const keys = keysByCourse.get(data.slug) ?? [];
   return {
     title: locale === 'fr' ? data.title_fr : data.title_en,
     summary: locale === 'fr' ? data.summary_fr : data.summary_en,
@@ -78,7 +82,15 @@ const items: CardItem[] = entries.map(({ data }) => {
       {t('tutorial.prerequisite')}
     </a>
   </p>
+
+  {/* Above the list, because the reader who has one is looking for exactly one
+      thing and should not have to find it among the cards. Hidden until the
+      resolver proves there IS one — see ResumeCard.astro. */}
+  <ResumeCard id="cours" locale={locale} testId="resume-cours" />
+
   <CardGrid locale={locale} items={items} emptyMessage={t('agenda.empty')} />
+
+  <ResumeResolver journeys={{ cours: journey }} />
 </BaseLayout>
 
 <style>

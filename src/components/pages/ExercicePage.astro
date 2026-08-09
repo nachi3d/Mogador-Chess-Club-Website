@@ -79,9 +79,19 @@ const whatsappShare = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
       hint={hint}
     />
 
+    {/* The way out, at the end as well as at the top — see the note in
+        TrapPage.astro. Same key as the link above it, so the two can never
+        come to call the same destination by two names. */}
     <footer class="exercise-footer">
       <a class="share" href={whatsappShare} rel="noopener noreferrer" target="_blank">
         {t('exercises.share')}
+      </a>
+      <a
+        class="exercise-footer-back"
+        href={exercisesPath(locale)}
+        data-testid="exercise-back-bottom"
+      >
+        ← {t('exercises.backToIndex')}
       </a>
     </footer>
   </article>
@@ -126,9 +136,23 @@ const whatsappShare = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
      on each item; nothing chip-shaped belongs in a scoped block. */
 
   .exercise-footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 1rem;
     margin-top: 2.5rem;
     padding-top: 1.5rem;
     border-top: 1px solid var(--mcc-border-subtle);
+  }
+
+  .exercise-footer-back {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+    color: var(--mcc-link);
+    font-size: 0.9375rem;
+    text-decoration: underline;
+    text-underline-offset: 0.15em;
   }
 
   .share {

@@ -313,24 +313,65 @@ test.describe('the dashboard replaces the menu on a phone', () => {
 
 /* ═══ The progress view ═════════════════════════════════════════════════ */
 
+/**
+ * ⚠️ THE SHAPE OF THIS PAGE CHANGED IN M3, AND THESE TESTS CHANGED WITH IT.
+ *
+ * `[data-group-done]`, `[data-progress-empty]` and `[data-progress-continue]`
+ * are gone. The counts are now `data-resume-for` surfaces bound by the shared
+ * resolver, the way back in is the shared `ResumeCard`, and the empty state is
+ * no longer a sentence plus a button — the page shows real counts at zero and
+ * names the first three things to do, which is both truer and the same markup
+ * a returning reader sees.
+ *
+ * That is a deliberate redesign (M3 task 4), not a relaxation: every assertion
+ * below still says what its predecessor said. Only the handles moved.
+ */
 test.describe('the local progress view', () => {
   for (const path of ['/progres/', '/en/progres/']) {
     test(`${path} renders and reads the local store`, async ({ page }) => {
       await seedProgress(page, SEEDED);
       await page.goto(path);
-      await expect(page.locator('[data-progress-view]')).toHaveAttribute('data-resolved', 'true');
-      await expect(page.locator('[data-group="basics"] [data-group-done]')).toHaveText('2');
+      // Two tutorial steps solved in the seed.
+      await expect(page.locator('[data-group="basics"] [data-resume-count]')).toHaveText(/^2 /);
       // Something was started, so the way back in is offered.
-      await expect(page.locator('[data-progress-continue]')).toBeVisible();
-      await expect(page.locator('[data-progress-empty]')).toBeHidden();
+      await expect(page.getByTestId('resume-progres')).toBeVisible();
+      await expect(page.getByTestId('resume-progres')).toHaveAttribute('data-resolved', 'true');
     });
   }
 
-  test('with nothing stored it offers a way to start', async ({ page }) => {
+  test('with nothing stored it names what to do first, and claims nothing', async ({ page }) => {
     await page.goto('/progres/');
-    await expect(page.locator('[data-progress-empty]')).toBeVisible();
-    await expect(page.locator('[data-progress-continue]')).toBeHidden();
-    await expect(page.locator('[data-group="basics"] [data-group-done]')).toHaveText('0');
+
+    // No offer to resume — there is nothing to resume.
+    await expect(page.getByTestId('resume-progres')).toBeHidden();
+    await expect(page.locator('[data-group="basics"] [data-resume-count]')).toHaveText(/^0 /);
+
+    /* ⚠️ AND YET THERE IS SOMEWHERE TO GO. The old page said "you have not
+       started anything" and offered one button; this one names the first three
+       steps, server-rendered, so it works with no JavaScript at all. */
+    const next = page.locator('[data-progress-next] .progress-next-item:not([hidden]) a');
+    await expect(next).toHaveCount(3);
+    await expect(next.first()).toHaveAttribute('href', /apprendre-les-bases/);
+  });
+
+  test('the breakdowns count only what exists, and never invent a rank', async ({ page }) => {
+    await seedProgress(page, SEEDED);
+    await page.goto('/progres/');
+
+    /* Only levels that actually hold an exercise are rendered — an empty
+       "Avancé — 0 of 0" row is a fact about the content, not about the
+       reader. */
+    const levels = page.locator('[data-resume-for^="level-"]');
+    expect(await levels.count()).toBeGreaterThan(0);
+    for (const text of await levels.allTextContents()) {
+      expect(text).toMatch(/\d+\s+\w+\s+\d+/);
+    }
+
+    await expect(page.locator('[data-resume-for^="theme-"]').first()).toBeVisible();
+
+    /* ⚠️ Rank and points are E3 and nothing computes one. The page says so
+       rather than printing a number it would be making up. */
+    await expect(page.locator('.progress-soon')).toContainText(/bientôt|soon/i);
   });
 });
 

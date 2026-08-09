@@ -229,6 +229,10 @@ it. Tags said one thing and the manifest said another.
 25. **Every piece set is licence-checked individually and credited on `/mentions-legales/`.** For three of the four it is a condition of use, not a courtesy.
 26. **Mobile and desktop diverge at 768px, deliberately.** Bottom bar + one-line header + dashboard below; grouped header + retro menu above. Both sides are pinned by specs.
 27. **The bottom bar has exactly four entries and never hides on scroll**, and no page may hide content behind it.
+28. **Below 768px the exercise controls compact; the board never does.** See the M3 section — the board is the thing being taught with.
+29. **There is ONE resume rule, in `ResumeResolver.astro`, and ONE key scheme, in `src/lib/journey.ts`.** Four surfaces read them. A second copy of either is how two pages come to disagree about what a reader has done.
+30. **The progress page never prints a number nothing computed.** Rank and points say "bientôt".
+31. **Every long route ends with a way onward**, clear of the bottom bar.
 
 ---
 
@@ -716,7 +720,7 @@ FR at the root, EN under `/en/...`. **Route segments are not translated** (`/en/
 | `/contact/` | `/en/contact/` | WhatsApp CTA, venue, socials |
 | `/mentions-legales/` | `/en/mentions-legales/` | Legal notice + credits. **Footer only, not in the nav.** |
 | `/parametres/` | `/en/parametres/` | Appearance settings. Reachable from the **desktop header** (gear, beside the theme toggle) and the footer. |
-| `/progres/` | `/en/progres/` | Local progress. The mobile bar's fourth entry; read from `localStorage`, no account. |
+| `/progres/` | `/en/progres/` | Local progress: three group bars, exercises by level and by theme, what is left, and a resume card. Read from `localStorage`, no account. **Rank and points say "bientôt" and print no number** — nothing computes one. |
 | `/connexion/` | `/en/connexion/` | **NOT EMITTED by default** — see the account flag below |
 | `/compte/` | `/en/compte/` | **NOT EMITTED by default** — see the account flag below |
 | `/auth/callback/` | — | **NOT EMITTED by default.** The only unlocalised route |
@@ -832,6 +836,38 @@ tracks lie inside the frame's inner edge, and that the four gaps agree within
 ⚠️ It deliberately does **not** assert "a border exists": that would have passed
 throughout the bug. Verified to fail on the old geometry, with the message *"the
 file labels fall outside the frame"*.
+
+### ⚠️ Chessground leaves up to 8px of the host unused — CENTRE IT (M3)
+
+`updateBounds()` in `chessground/src/render.ts` sizes the board by flooring the
+host's width to a whole number of **8 device pixels**:
+
+```js
+width = Math.floor((bounds.width * devicePixelRatio) / 8) * 8 / devicePixelRatio;
+```
+
+so an 8×8 grid always lands on whole device pixels and the squares stay crisp.
+`cg-container` is then `position: absolute; top: 0` with no `left`, which puts
+the entire remainder at the **right and the bottom**.
+
+Measured on a tutorial step at 1000px: host 279.44px, board 272px — and the
+frame's gap was **6.4px left/top against 13.8px right/bottom**. The frame was
+drawn correctly; it simply was not centred on what it encloses, which is the
+rule above. `.cg-wrap cg-container { inset: 0; margin: auto }` centres an
+absolutely-positioned box with a definite width and height — which this one has,
+set inline by the JS — so the remainder is split and all four gaps agree.
+
+⚠️ **Safe for hit-testing, and worth stating because it looks risky.**
+Chessground derives every square from `bounds`, which is
+`elements.board.getBoundingClientRect()` — the `cg-board` element itself, not
+the wrapper. Moving the container moves the board and the bounds with it.
+`board-pointer.spec.ts` is what actually proves it.
+
+⚠️ **This was a PRE-EXISTING failure of `board-frame.spec.ts` on `dev`**, found
+during M3-suite and confirmed by stashing that session's work and rebuilding —
+it failed identically. The spec's 4px tolerance encoded "sub-pixel rounding of
+an 8-square grid"; the real quantum is 8px. The fix removes the asymmetry rather
+than widening the tolerance, which is why the tolerance is untouched.
 
 ---
 
@@ -1160,6 +1196,70 @@ Pièges, exercices, agenda and contact live *inside* these four sections.
   has to reserve it. `--mcc-bottom-nav` is the shared row height; `env()`
   cannot live inside a custom property and still resolve per device.
 
+### ⚠️ BELOW 768px THE EXERCISE CONTROLS COMPACT. THE BOARD DOES NOT. (M3)
+
+Measured at 360×640: the exercise component was **796px against 587px of
+usable viewport, and the board was only 330px of it.** The other 466px was the
+control stack — two stacked meters, a reserved verdict panel, a four-part
+move-entry form and a standalone hint button, each a full-width block with
+20px between them.
+
+**The decision is to compact the controls and leave the board alone.** The
+board is the thing being taught with; winning back pixels by shrinking it
+would be solving the wrong problem. Measured after:
+
+| | 390×844 | 360×640 |
+|---|---|---|
+| exercise component | 799 → **618** (usable 791 — fits) | 796 → **615** (usable 587) |
+| control stack | 403 → **244** | 403 → **244** |
+| board | 333 → **333** | 330 → **330** |
+| scroll to reach prev/next | 815 → **618** | 1079 → **882** |
+
+⚠️ **360×640 still does not fit in one screen — 615 against 587.** The
+remaining 28px is one short nudge rather than the 209px scroll it was, and
+`mobile-fit.spec.ts` bounds it at 660 rather than pretending otherwise.
+Closing it completely would have cost either the board's size or the verdict
+panel's reserved height.
+
+**It is CSS only, and that is what keeps the desktop safe.** The dense row is
+built with flex `order` from elements that are *not* adjacent in the DOM, so
+the markup — and therefore the screen-reader reading order and the ≥768px
+layout — is untouched. A JSX restructure would have moved the hint button
+above the verdict panel on desktop too.
+
+Three things pay for it, and each has a rule:
+
+- **The meters go inline.** Label-above-value costs two lines for four words.
+- **The verdict panel's reserve shrinks, it does not go.** 6.5rem → 5.25rem,
+  because the panel is full-page-width here rather than a 15rem side column,
+  so the same sentences take fewer lines. Removing the reserve would put the
+  move field back to jumping under the reader's thumb between attempts.
+- **The move-entry help line is `sr-only` until the field has focus.**
+  ⚠️ Clipped, NEVER `display: none` — the field points at it with
+  `aria-describedby`, and a clipped element is in the accessibility tree with
+  certainty where a `display: none` target is honoured by most screen readers
+  and guaranteed by none. It is safe to let it grow because the form is the
+  LAST element in the column below 768px (`order: 6`); anything placed after
+  it makes the reveal shift content again.
+  **The visible label stays.** Hiding it and leaning on the placeholder saves
+  another 22px and is the well-known trap: a placeholder disappears the moment
+  the reader types.
+
+`main`'s block padding also drops 2.5rem → 1.5rem below 768px — 80px of a
+640px screen spent before the reader reaches anything, on every page.
+
+### ⚠️ Every long route ends with a way onward (M3)
+
+Trap and exercise detail pages carried a back link at the **top only**. A
+reader who finished one on a phone was ~2 300px down, with the bottom bar
+offering "Apprendre" (the courses) and nothing pointing at the index they came
+from, and had to scroll the whole page back up to leave.
+
+Both now end with the same link, from the **same i18n key** as the one at the
+top — one destination, one name. `mobile-fit.spec.ts` asserts on four routes
+and three phone sizes that the end-of-content navigation is visible, clears
+the fixed bar, and is ≥44px.
+
 ### `/progres/` exists because the bar needs a fourth destination
 
 The direction doc points "Progrès" at `/compte/` *or a local view while
@@ -1276,6 +1376,67 @@ Then, and this is the part that makes it feel like a game:
 
 ⚠️ **FURTHEST, not earliest.** A game's Continue resumes where you stopped, not
 at the first gap you skipped past. Both branches have a spec.
+
+### ⚠️ THE RESOLVER IS SHARED, AND THE JOURNEY IS A PARAMETER (M3)
+
+It used to live inside `HomePage.astro`'s inline script, with a near-copy of
+the same rule in `ProgressPage.astro` and a third copy of just the key scheme
+in `CoursPage.astro`. Two answers to "where did this reader stop" is one too
+many, and the failure is silent — the pages name different lessons and neither
+looks broken.
+
+| File | What it owns |
+|---|---|
+| `src/lib/journey.ts` | The **only** place the `mcc:progress:v1` key scheme is written. Build-time; imports `astro:content`, so no island may touch it |
+| `src/components/progress/ResumeResolver.astro` | The rule, the inline script, and the declarative binding |
+| `src/components/progress/ResumeCard.astro` | The card `/cours/`, `/exercices/` and `/progres/` show |
+
+**Each call site resolves its own journey, and they may legitimately differ:**
+
+| Page | Journey |
+|---|---|
+| `/` | tutorial, then lessons — the course sequence |
+| `/cours/` | lessons alone |
+| `/exercices/` | exercises alone |
+| `/progres/` | all three |
+
+So `/progres/` can name a different step from `/` once a reader has touched a
+standalone exercise. That is four answers to four questions, not a drift.
+
+⚠️ **`journeys` is a RECORD, one component instance per page.** `/progres/`
+needs a table for the whole journey, one per group bar, and one per level and
+theme bucket. Five instances would emit five copies of the inline script, four
+of them no-ops; one instance resolves every table in a single pass.
+
+⚠️ **A level and a theme are just journeys.** `done / total` over an ordered
+set of steps is exactly what the resolver computes, so the by-level and
+by-theme breakdowns on `/progres/` are extra tables rather than extra logic.
+Their steps carry no `u` or `t` — a statistic has nowhere to send anyone.
+
+⚠️ **The declarative contract has two halves, and collapsing them breaks it.**
+`[data-resume-count]` and `[data-resume-fill]` are filled **whether or not
+there is a step to resume**; the link, the title and the un-hiding happen
+**only when there is one**. That is what lets one contract serve a statistic
+("2 sur 13", true and worth showing at zero) and an offer ("Reprendre — La
+tour", which must not appear until it is true). `ResumeCard` is `hidden` by
+default and stays hidden; a group bar is not and always gets its numbers.
+
+**The home dashboard stays bespoke**, reading `window.MCC_RESUME.home` from a
+plain inline script that runs *after* the resolver. It swaps a card's eyebrow,
+title, bar, secondary tile and stats line — too specific to describe in
+attributes. Document order is the whole of the ordering guarantee; both are
+inline and synchronous, so there is no race to lose but there is an order to
+keep.
+
+**`tests/e2e/resume.spec.ts` was written BEFORE the extraction**, run green
+against the old code and green against the new. It pins CLS, the script's
+non-deferred attributes, and both dashboard branches. Its `journeyOf()`
+accepts `[data-menu-journey]` *or* `[data-resume-journey]` precisely so that
+not one assertion had to move — only the handle did.
+
+⚠️ **The CLS assertion has teeth, and was verified to.** Wrapping the resolver
+in `DOMContentLoaded` in a built `dist/index.html` produced **CLS 0.0057** and
+failed the test.
 
 ### ⚠️ The resolver is `is:inline`, and it duplicates the progress key
 

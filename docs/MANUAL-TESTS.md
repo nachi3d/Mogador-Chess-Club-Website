@@ -197,14 +197,51 @@ to the next one, on a real phone, without touching the address bar.
 - [ ] Press a card: it **pushes flat** and springs back — the same press as a
       button, on a surface that starts raised
 - [ ] The board is reachable and **fully visible when you go to play on it** —
-      you never tap a square you cannot see. ⚠️ Known: the exercise and replayer
-      **blocks** overflow a 390px screen (833px and 895px against 791px usable),
-      and worse at 360px. Note what you actually hit; the fix is still open
+      you never tap a square you cannot see
 - [ ] Prev/next at the end of the lesson are reachable, and **nothing hides
       behind the bottom bar** — scroll to the very bottom and check the last
       line clears it
 - [ ] At **360px** as well as 390px. The header wraps to two lines at 360px
       (97px vs 61px) — known, not yet fixed
+
+### The exercise controls, compacted — M3 (suite)
+
+The block used to be 799px against 791px of usable screen at 390×844, of which
+the board was only 333px. The controls were compacted; **the board was not
+touched**. Measured after: 618px at 390×844, 615px at 360×640.
+
+- [ ] Under the board there is **ONE dense row**: `COUP n / n`, `ESSAIS n`, and
+      the *Afficher l'indice* button, all on the same line. Not three stacked
+      blocks
+- [ ] The board is **the same size as before** — it fills the column, and a
+      square is still comfortable to tap
+- [ ] Play a wrong move: the verdict panel appears **without the move field
+      jumping up or down**. The reserve is smaller on a phone than on a desktop
+      because the panel is full-width here, but it is still reserved
+- [ ] After a wrong move, **Recommencer joins the same row** beside the hint
+      button. Both are still ≥44px
+- [ ] Reveal the hint: the button is replaced by the hint panel, full width,
+      and the row keeps the counters
+- [ ] ⚠️ **The notation help line under the move field is hidden until you tap
+      into the field**, then appears. It is *clipped*, not removed — a screen
+      reader still announces it as the field's description. Check with
+      VoiceOver/TalkBack if you can
+- [ ] Solve it: the solution list appears full width, and the row still holds
+      the counters and *Recommencer*
+- [ ] **On a desktop (≥768px) none of this applies** — the controls are still a
+      stack, the hint button still sits below the verdict panel, and the help
+      line is plainly visible. If a desktop looks like a phone, that is the
+      regression
+
+### A way out at the END of the page — M3 (suite)
+
+Trap and exercise pages had a back link at the top only, so finishing one on a
+phone meant scrolling ~2 300px back up to leave.
+
+- [ ] `/pieges/legal/` — scroll to the bottom: **← Tous les pièges** sits beside
+      the WhatsApp button, clears the bottom bar, and is a comfortable target
+- [ ] `/exercices/mat-du-couloir/` — same, **← Tous les exercices**
+- [ ] Both in English (`/en/…`), same words as the link at the top of the page
 
 ### The index tells you where you stopped
 
@@ -221,6 +258,48 @@ to the next one, on a real phone, without touching the address bar.
       an alpha over an audited pair is invisible to `check-contrast.mjs`
 - [ ] Turn JavaScript off: every card still reads "Pas encore commencé" and
       nothing is broken or blank
+
+### "Reprendre" is now on four pages — M3 (suite)
+
+One resolver, four journeys. They can legitimately name different steps: `/`
+walks the tutorial then the lessons, `/cours/` the lessons alone, `/exercices/`
+the exercises alone, and `/progres/` all three.
+
+- [ ] On a **fresh device**, none of the three index pages shows a resume card.
+      Nothing is claimed that is not known
+- [ ] Start a lesson exercise and leave it. `/cours/` now shows **REPRENDRE —
+      <that lesson>** above the card list, with a tally and a bar
+- [ ] `/exercices/` shows one only once you have touched an exercise, and it
+      names the exercise
+- [ ] ⚠️ **Nothing on the page jumps when the card appears.** Reload a few
+      times and watch the first card of the list — it must not shift down
+- [ ] Turn JavaScript off: no resume card anywhere, and every index is still
+      fully usable
+- [ ] The home page behaves **exactly as before** — the retro menu's sixth entry
+      on desktop, the dominant "Reprendre" card on a phone. This was an
+      extraction, so any change here is a regression
+
+## The progress page has substance — M3 (suite)
+
+`/progres/` used to be three bars and an empty-state button.
+
+- [ ] With nothing stored: every count reads **0 sur N** — real, not blank — and
+      **La suite** names the first three steps of the journey as links. No
+      "vous n'avez rien commencé" sentence, because the page now shows you
+      where to start instead
+- [ ] It works with **JavaScript off**: the counts sit at zero and the three
+      "La suite" links are real and correct
+- [ ] Solve a few things. The three bars move, **Exercices par niveau** counts
+      only levels that actually contain an exercise, and **Exercices par thème**
+      shows a chip per theme with `n/m`
+- [ ] **La suite** now names the first three things you have *not* finished —
+      and note it can differ from the resume card, which resumes the FURTHEST
+      point rather than the earliest gap. Both are correct
+- [ ] **Rang et points · bientôt** — it says "bientôt" and prints no number.
+      ⚠️ If a rank or a score ever appears here without something computing it,
+      that is the site inventing a fact about a student
+- [ ] Finish everything: the list is replaced by **"Vous avez tout terminé."**
+- [ ] Both locales, all four themes, light and dark
 
 ---
 
