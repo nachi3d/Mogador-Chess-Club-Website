@@ -126,6 +126,35 @@ Every session that reaches a merge updates all three, in the same commit as the 
 2. **`CLAUDE.md`** — any decision, rule or gotcha that the next session would otherwise rediscover.
 3. **`docs/MANUAL-TESTS.md`** — **whenever the session adds or changes anything a visitor can see.** New feature, new page, new failure mode, new regression worth watching: it goes in the checklist. This is the one most easily skipped and the one whose absence is least visible — a checklist that lags the site makes an incomplete test pass feel complete.
 
+#### ⚠️ KILL EVERY LONG-LIVED PROCESS THE SESSION STARTED
+
+A session that starts a server **terminates it when the task that needed it
+ends** — `astro preview`, `npm run demo`, a watch, anything holding a port.
+
+**This is not tidiness.** A stale listener on 4321 is the documented trap that
+has already cost real debugging time twice: Playwright's `reuseExistingServer`
+silently skips its own build and tests **whatever is on disk from before**, and
+`astro preview` quietly moves to 4322 and serves the old build to anyone who
+opens the URL they expected. A fixed bug then keeps "failing".
+
+One ran for **4h28m** during the M3 session before anyone noticed.
+
+⚠️ **Stopping the npm wrapper does NOT stop the server.** `npm run preview`
+spawns `astro preview` as a child; killing the parent leaves the child holding
+the port. Verify the port is actually free, and kill by PID if it is not:
+
+```sh
+netstat -ano | grep -E ':432[1-5]'    # NOT `-p tcp` — that is IPv4 only, and
+                                      # node binds [::1]. See the note below.
+```
+
+```powershell
+Stop-Process -Id <pid> -Force
+```
+
+`npm run demo` clears 4321-4325 on startup, which is a safety net rather than a
+substitute: it protects the next session, not this one.
+
 #### Promotion routine — `dev` → `main`
 
 Every promotion does all four, and the version bump is **part of the release
@@ -2264,7 +2293,17 @@ Umami, env-driven. `PUBLIC_UMAMI_WEBSITE_ID` is read at build time from the Clou
 
 Playwright + axe-core. Specs live in `tests/e2e/` and run against the **built** site served by `astro preview` — not the dev server. The service worker, the generated manifest and the self-hosted fonts only exist after `astro build` plus the post-build step, so testing the dev server would be testing a different application.
 
-Scripts: `npm run test:e2e` (full matrix), `npm run test:e2e:chromium` (branch default).
+**Scripts — use these two, not the raw playwright commands:**
+
+| | |
+|---|---|
+| `npm run test:branch` | chromium, specs mapped from what changed. **The per-session command.** |
+| `npm run test:release` | the full matrix. **Promotion only** — see the verification policy. |
+
+`test:e2e` and `test:e2e:chromium` still exist as thin escape hatches for
+debugging a single project by hand. They are **not** the session commands: they
+do no spec mapping, and `test:e2e` in particular is the raw matrix with none of
+the exit-code and arithmetic checking `test:release` does for you.
 
 ### Manual testing — `npm run demo`, and nothing else
 
@@ -2579,13 +2618,50 @@ overrides the comparison branch; it exists for testing the script itself.
 
 ---
 
-### Verification policy
+### ⚠️ VERIFICATION POLICY — TWO COMMANDS, AND THE MATRIX RUNS ONCE
 
-- **Default (every feature branch):** `npx playwright test --project=chromium <touched specs>` — sufficient to merge to `dev`.
-- **Full matrix (Chromium, Firefox, WebKit, Pixel 5, iPhone 13) REQUIRED for:**
-  - any merge to `main` (release gate);
-  - any change touching **i18n routing**, the **board island**, the **exercise validator**, or the **service worker** (this project's critical paths).
-- Everything else (copy, styling, new content entries) merges to `dev` on chromium-only.
+| | Command | When | Cost |
+|---|---|---|---|
+| **Every feature branch** | `npm run test:branch` | every session, before merging to `dev` | ~1-3 min |
+| **Promotion only** | `npm run test:release` | once, when promoting `dev` → `main` | 30-45 min |
+
+`npm run test:branch` is **chromium only** and runs the specs mapped from what
+actually changed (`scripts/spec-map.mjs`). `--all` runs every chromium spec for
+a sweeping refactor — still one browser.
+
+#### ⚠️ DO NOT RUN THE MATRIX ON A FEATURE BRANCH. EVER. NOT "TO BE SAFE".
+
+This is the rule most likely to be reasoned away, so here is the reasoning
+already done:
+
+- **The matrix answers exactly one question** — does this work in Firefox and
+  WebKit. Asking it on every branch does not make the answer truer. It moves
+  the cost from one run per release to one run per session.
+- **It was costing 30-45 minutes per session**, routinely, because it *felt*
+  prudent. That is not caution. It is a tax that discourages small fixes, and
+  unfixed small things are what a visitor actually sees.
+- **A chromium failure is a failure.** If `test:branch` fails, fix it. Do not
+  run the matrix to find out whether it is "really" broken.
+- **A chromium pass is enough to merge to `dev`.** `dev` is not production.
+  Nothing reaches a reader without passing through `test:release` first.
+
+#### ⚠️ THE "CRITICAL PATH" TRIGGER IS GONE, AND ITS REMOVAL IS THE POINT
+
+The old policy said the **board island**, the **exercise validator**, **i18n
+routing** and the **service worker** required the matrix *on any branch*. It
+read as prudence and it functioned as a loophole: almost everything on this
+site touches one of those four, so the exception quietly became the default.
+
+Those paths did not lose coverage — they gained precision. `scripts/spec-map.mjs`
+runs **seven** spec files for a `BoardSurface.tsx` change, which is more than
+any session ever selected by hand, and it runs them in seconds. Their
+cross-browser pass happens at the release gate, like everything else on the
+site.
+
+**If you believe you have found the exception:** change this policy in
+CLAUDE.md in the same commit, with the reason. Do not make a one-off exception
+no future session will know about — that is precisely how the last policy
+eroded.
 
 ### Critical-path tests (never skip)
 
@@ -2637,7 +2713,8 @@ Run `npm run demo`, which prints its path, and work down it. The release gate is
 □ npm run demo — builds clean, no new warnings
 □ node scripts/check-contrast.mjs — green
 □ node scripts/check-content.mjs — green
-□ npx playwright test — green (full matrix; see the known environmental flakes above)
+□ npm run test:release — green (the full matrix; see the known environmental
+  flakes above. This is the ONE place it runs.)
 □ docs/MANUAL-TESTS.md — worked through on desktop AND a real phone
 □ Lighthouse ≥ 90 (Performance, Accessibility, SEO)
 □ package.json "version" matches the tag about to be cut

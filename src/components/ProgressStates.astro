@@ -1,0 +1,53 @@
+---
+/**
+ * Fills in every `[data-status-for]` row on the page (M3).
+ *
+ * ⚠️ ONE SCRIPT, WHATEVER DRAWS THE CARDS. `CardGrid` and `NumberedCard` both
+ * render a status row, and before this existed each would have carried its own
+ * copy of "read the store, decide the state, toggle the spans". That is the
+ * shape that produced three `.chip` definitions — so the reader of the store
+ * is a component, included once per page by whoever needs it.
+ *
+ * ⚠️ A PLAIN MODULE SCRIPT, NOT AN ISLAND. It imports `@lib/progress` and
+ * toggles a `hidden` attribute. The one-board-island rule is about hydrated
+ * framework components and this stays firmly on the right side of it.
+ *
+ * ⚠️ NOT `is:inline`. The three inline duplications on this site (the theme
+ * head script, AccountButton, the E5 resolver) all exist because they must run
+ * BEFORE first paint. This one must not: it changes text inside a row whose
+ * height is already reserved, so running it late costs nothing and reflows
+ * nothing. An inline copy would be a fourth duplication of `mcc:progress:v1`
+ * bought for no gain.
+ */
+---
+
+<script>
+  import { progressStates } from '@lib/progress';
+
+  const states = progressStates();
+
+  for (const row of document.querySelectorAll<HTMLElement>('[data-status-for]')) {
+    const keys = (row.dataset.statusFor ?? '').split(' ').filter(Boolean);
+    if (keys.length === 0) continue;
+
+    /* Solved only when EVERY key is — a course half done is "in progress",
+       never "solved". Started when any key has been touched at all.
+
+       ⚠️ This is the SAME rule as the E5 "Reprendre" resolver's
+       complete/touched pair. If the two ever diverge, a card will say "in
+       progress" for something Reprendre refuses to resume, and the reader has
+       no way to tell which of the two is lying. */
+    const solved = keys.every((key) => states.get(key) === 'solved');
+    const started = keys.some((key) => states.get(key) !== undefined);
+    const state = solved ? 'solved' : started ? 'started' : 'none';
+
+    /* "none" is what the server already rendered, and it is TRUE rather than a
+       placeholder — a reader with no stored progress has not started. Leaving
+       it alone means a storage failure degrades to the correct default. */
+    if (state === 'none') continue;
+
+    row.dataset.state = state;
+    row.querySelector<HTMLElement>('.card-state-none')?.setAttribute('hidden', '');
+    row.querySelector<HTMLElement>(`.card-state-${state}`)?.removeAttribute('hidden');
+  }
+</script>

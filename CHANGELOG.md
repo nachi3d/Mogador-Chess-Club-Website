@@ -11,7 +11,149 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
-_Nothing yet._
+### Changed — the testing policy, because the matrix had become the default
+
+Sessions were running the full five-browser matrix routinely, at **30-45
+minutes each**. CLAUDE.md already said feature branches run chromium only; the
+rule was not being followed, and one clause explains why.
+
+The old policy required the matrix on **any branch** for changes touching the
+board island, the exercise validator, i18n routing or the service worker. It
+read as prudence and functioned as a loophole: almost everything on this site
+touches one of those four, so the exception became the rule.
+
+**That trigger is removed.** The matrix answers exactly one question — does
+this work in Firefox and WebKit — and asking it every session does not make the
+answer truer. It runs **once**, at promotion.
+
+Those paths did not lose coverage, they gained precision: `scripts/spec-map.mjs`
+selects **seven** spec files for a `BoardSurface.tsx` change, more than any
+session ever picked by hand, and runs them in seconds.
+
+#### Added
+
+- **`npm run test:branch`** — chromium, only the specs mapped from what
+  actually changed (committed, working-tree and untracked). `--all` runs every
+  chromium spec for a sweeping refactor, still on one browser. **This is the
+  per-session command.**
+- **`npm run test:release`** — the full matrix. Promotion only. It redirects to
+  a log and checks the exit code itself, because `npx playwright test | tail`
+  reports **tail's** status: a run with 14 failures reads as "196 passed", exit
+  0. It also flags a passed count that is not a multiple of 5, which is the
+  arithmetic tell that specs never ran on some project.
+- **`scripts/spec-map.mjs`** — the ONE path→spec mapping. `quick.mjs` had its
+  own copy and `test-branch` would have been a second; the mapping now has one
+  home and two readers.
+
+#### Fixed
+
+- **A preview server had been running for 4h28m.** Stopping the `npm run
+  preview` wrapper does **not** stop the `astro preview` child that holds the
+  port — which is the documented stale-server trap that has already cost real
+  debugging time twice, because Playwright's `reuseExistingServer` then skips
+  its own build and tests whatever is on disk. The session finish routine now
+  requires every long-lived process to be terminated **and the port verified
+  free**, with the kill-by-PID recipe beside it.
+
+### Changed — M3: app density on the internal pages (partial, see below)
+
+Direction: `docs/direction/mcc-direction-mobile-app.md` § 3. M1/M2 made the
+home page and navigation app-shaped; the internal pages still used the site
+layout, and the inconsistency was the first thing visible on a phone.
+
+#### One card, one definition
+
+The card was written **five times** — `CardGrid.card`, `CourseDetailPage.lesson-card`,
+`TutorialIndexPage.step`, `Dashboard.dash-card`, `LoginPage.auth-card` — with
+drifts between every pair. Two of them had no shadow at all, so a lesson list
+and a course list looked like two different sites. `.chip` existed **three**
+times with two different paddings.
+
+- **`src/styles/cards.css`** — the one card surface vocabulary: border, radius,
+  shadow, hover, press, focus, the stretched link, `.chip`, `.chip-list` and
+  the numbered disc. Same bargain `controls.css` struck for buttons — structure
+  global, page-specific colour and margins scoped — and for the same reason:
+  Astro scoped styles carry an attribute selector and beat any global rule of
+  the same class specificity.
+- **The card press moved out of `controls.css`.** A card was described across
+  two files with neither saying so. A card is a different gesture from a button
+  (it starts *raised* and is pushed flat), so it owns its whole vocabulary next
+  to its surface; `controls.css` now points here.
+- **`NumberedCard.astro`** — `CourseDetailPage.lesson-card` and
+  `TutorialIndexPage.step` were pixel-identical copies. Now one component.
+- **Cards take the M2 app radius below 768px** and the stationery radius above.
+  Moving from the dashboard to `/cours` used to change the shape of every
+  object on screen. **Desktop is untouched.**
+
+#### Progress became information rather than decoration
+
+The indexes marked *solved* and nothing else, so a step attempted and not
+solved looked identical to one never opened — which is the single most useful
+thing an index can tell a returning reader.
+
+- Three states — **not started / in progress / solved** — on `/cours`,
+  `/exercices`, `/apprendre-les-bases` and `/cours/[slug]`.
+- **`progressState()` / `progressStates()` in `src/lib/progress.ts`**, so
+  nothing else learns the storage key. `started` means *attempted* — a move
+  judged or a hint opened — which is deliberately the same definition the E5
+  "Reprendre" resolver uses for `touched`. If the two diverged, a card could
+  say "in progress" for something Reprendre refuses to resume.
+- A course card aggregates **every** exercise key in its lessons: solved only
+  when all are, started when any is.
+- **`ProgressStates.astro`** — one reader of the store for every card type,
+  rather than a copy per index. It is a plain module script, **not** `is:inline`:
+  the three inline duplications on this site exist because they must run before
+  first paint, and this one must not — it fills a row whose height is already
+  reserved.
+- ⚠️ **The server renders "not started" and means it.** It is true of every
+  first-time visitor, so a storage failure degrades to a correct statement
+  rather than to a blank. The spec for a broken `localStorage` asserts exactly
+  that.
+- One full-width column below 768px. `auto-fill` already collapsed at 390px but
+  not at 640px, where a large phone in landscape got two ~300px cards.
+
+#### Fixed — a spec that was getting away with the documented anti-pattern
+
+`tutorial.spec.ts` scrolled its board with `scrollIntoViewIfNeeded()` alone.
+CLAUDE.md has warned since the board-pointer session that this guarantees only
+**partial** visibility, so a tap aimed at an off-screen square is silently
+dropped and the board looks dead — `data-ready` true, `data-busy` false,
+`data-attempts` stuck at 0, state never leaving `idle`, because no move was ever
+produced to judge.
+
+It surfaced on `le-cavalier`, whose solution starts at **g1** — near the bottom
+edge of the board and therefore the first square to fall off. The tell that it
+was the harness and not the application: `board-pointer.spec.ts` plays the
+**same g1-f3 move on the same page** and passed in the same run, because it does
+the centring scroll. Both call sites now use `scrollIntoView({ block: 'center' })`.
+
+#### Measured, and NOT yet fixed
+
+The board-fit hazard M3 names is real, and it is the **block** — board plus
+tag, controls, move field and verdict — not the squares, which fit easily:
+
+| 390×844 (791px usable) | block | |
+|---|---|---|
+| lesson demonstration board | 552-691px | fits |
+| exercise block | **833px** | 42px over |
+| trap replayer block | **895px** | 104px over |
+
+At 360×640 (587px usable) everything except a bare demonstration block
+overflows — the exercise block by **241px**, the replayer by **278px**. The
+M1 one-line mobile header is also 61px at 390px but **97px at 360px**, where it
+wraps to two lines.
+
+**Recorded rather than half-fixed.** The board is 335px of an 833px block; the
+remaining ~500px is the control stack, and compressing it is a design decision
+about what an exercise shows at once, not a CSS tweak. See BACKLOG.
+
+#### Still open from the M3 brief
+
+- The "continue where you left off" card, and extracting the E5 resolver into
+  one shared component (decided: `ResumeCard.astro`, four call sites)
+- Board fit and prev/next bottom-bar clearance (measured above)
+- `/progres` substance — solved by level and theme, lessons, what remains
+- The 360px header wrap
 
 ---
 

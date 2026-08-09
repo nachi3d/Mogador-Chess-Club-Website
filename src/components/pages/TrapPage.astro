@@ -54,7 +54,7 @@ const whatsappShare = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
         data.themes.length > 0 && (
           <>
             <h2 class="trap-themes-heading">{t('traps.themes')}</h2>
-            <ul class="trap-themes">
+            <ul class="chip-list">
               {data.themes.map((theme) => (
                 <li class="chip">{theme}</li>
               ))}
@@ -127,23 +127,8 @@ const whatsappShare = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
     color: var(--mcc-text-secondary);
   }
 
-  .trap-themes {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.35rem;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  .chip {
-    padding: 0.15rem 0.55rem;
-    background-color: var(--mcc-surface-sunken);
-    border: 1px solid var(--mcc-border-subtle);
-    border-radius: var(--radius-pill);
-    color: var(--mcc-text-secondary);
-    font-size: var(--text-2xs);
-  }
+  /* `.chip` / `.chip-list` live in src/styles/cards.css (M3) — see the note in
+     ExercicePage. Three copies with two paddings became one. */
 
   .trap-footer {
     margin-top: 2.5rem;

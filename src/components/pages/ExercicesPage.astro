@@ -27,7 +27,7 @@ const items: CardItem[] = entries.map(({ data }) => ({
   meta: `${data.solution.length} ${t(
     data.solution.length === 1 ? 'exercises.moveCount.one' : 'exercises.moveCount.other',
   )}`,
-  progressKey: data.slug,
+  progressKeys: [data.slug],
 }));
 ---
 
@@ -36,39 +36,13 @@ const items: CardItem[] = entries.map(({ data }) => ({
   {/* NOTE: no board is mounted here. The single Chessground island is
       client:visible and belongs on the exercise DETAIL route, never on an
       index — see the architecture rule in CLAUDE.md. */}
-  <CardGrid
-    locale={locale}
-    items={items}
-    emptyMessage={t('agenda.empty')}
-    solvedLabel={t('exercises.solved')}
-  />
+  <CardGrid locale={locale} items={items} emptyMessage={t('agenda.empty')} />
 </BaseLayout>
 
 {/*
-  The solved ticks.
-
-  This is a plain `<script>`, NOT an island. The one-board-island rule is about
-  hydrated framework components; this is ~1 KB of vanilla JS that reads
-  localStorage and removes an attribute, and it must stay that way. If it ever
-  needs a component, it does not belong on an index page.
-
-  It runs AFTER the cards are in the DOM (module scripts are deferred), so the
-  markers it reveals were already laid out — the row reserves its height, so
-  nothing reflows. See `.card-status` in CardGrid.astro.
-
-  Everything about storage failure is handled inside `@lib/progress`: on a
-  device where localStorage throws, `solvedSlugs()` returns an empty list and
-  the page is simply a page. Nothing here needs to know.
+  ⚠️ THE SOLVED-TICK SCRIPT MOVED INTO CardGrid (M3), because the same three
+  states are now drawn on /cours and /pieges too and a second copy here would
+  be the fourth definition of "what does this reader's storage say". CardGrid
+  emits it only when at least one of its items tracks progress, so /pieges —
+  which tracks none — still ships no script at all.
 */}
-<script>
-  import { solvedSlugs } from '@lib/progress';
-
-  for (const slug of solvedSlugs()) {
-    // Slugs are `[a-z0-9-]` by schema, but CSS.escape costs nothing and means
-    // a future slug rule can never turn this into a selector-injection bug.
-    const selector = `[data-solved-for="${CSS.escape(slug)}"]`;
-    for (const marker of document.querySelectorAll(selector)) {
-      marker.removeAttribute('hidden');
-    }
-  }
-</script>

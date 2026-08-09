@@ -98,6 +98,19 @@ board stays sober throughout.
 | **"Nocturne" board preset** | `resolved` | Superseded by E6. `phosphore` is the sixth preset, and every theme now names its own board — so "too bright in a dark room" is answered by choosing Terminal or Marbre rather than by another preset. Reopen only if a reader wants a dark board *inside* a light theme. |
 | **AGPL piece sets** (`pixel`, `letter`, `pirouetti`) | `conditional` | Free software, and NOT a licence conflict — but AGPLv3 §13 adds a network-use obligation the repo does not currently carry, so adopting one changes the licence statement on `/mentions-legales/`. `pixel` would suit Terminal well. Needs Seàn's decision, not a session's. |
 | **Old-style figures in body text** | `blocked` | Declared in `typography.css` and inert: Inter ships no `onum`. Only unblocked by changing the body face, which the E7 safety rule forbids doing per-theme. A spec reports whether it ever starts working. |
+| **The board BLOCK overflows a phone screen** | `open` | **Measured in M3, not fixed.** At 390×844 (791px usable) the exercise block is **833px** and the trap replayer **895px**; at 360×640 (587px usable) they are 828px and 865px. The *board* is fine — 335px — so this is not a sizing bug: the other ~500px is the control stack (tag, move field, buttons, hint, verdict). Compressing it is a design decision about what an exercise shows at once, which is why M3 recorded it rather than tweaking CSS. Re-measure with `scripts/measure-board.mjs` (scratchpad, M3 session) or rebuild it — it walks `.mcc-board-block` at both viewports. |
+| **The M1 mobile header wraps at 360px** | `open` | 61px at 390px, **97px at 360px** — the "one line" header becomes two, eating 36px of an already short screen. Found in M3. |
+
+## M3 — app density, unfinished items
+
+M3 delivered the card consolidation and three-state progress. These were in the
+brief and are **not** done:
+
+| Item | Status | Note |
+|---|---|---|
+| **"Reprendre" card on `/cours` and `/exercices`** | `open` | Decided with Seàn during M3: extract the E5 resolver from `HomePage.astro` into one `ResumeCard.astro` (props: locale, journey, variant) with four call sites — Home, Dashboard, `/cours`, `/exercices`, `/progres`. It must stay `is:inline` (it runs before first paint; measured CLS 0.000) and `/exercices` needs its own journey, since standalone exercises are not in the E5 journey at all. |
+| **Board fit and prev/next clearance** | `open` | See the two rows above. |
+| **`/progres` substance** | `open` | Currently three bars. The brief wants exercises solved **by level and by theme**, lessons completed, tutorial progress, and what remains — all from data that exists today. Rank and points stay "bientôt" until E3, as the dashboard already does. |
 
 ## Beyond v2
 

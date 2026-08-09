@@ -182,12 +182,20 @@ test.describe('exercise — progress', () => {
       timeout: 10_000,
     });
 
-    // The tick appears on the index, on the right card and only on it.
+    /* The tick appears on the index, on the right card and only on it.
+       ⚠️ M3 replaced the solved-only marker with a three-state row, so the
+       assertion is now on the resolved STATE rather than on a marker's
+       visibility — an untouched card is no longer an empty box, it says "pas
+       encore commencé". Asserting visibility alone would now pass for all
+       three states. */
     await page.goto('/exercices/');
-    const solved = page.locator('[data-solved-for="mat-du-couloir"]');
-    await expect(solved).toBeVisible();
+    const solved = page.locator('[data-status-for="mat-du-couloir"]');
+    await expect(solved).toHaveAttribute('data-state', 'solved');
     await expect(solved).toContainText('Résolu');
-    await expect(page.locator('[data-solved-for="fourchette-de-cavalier"]')).toBeHidden();
+    await expect(page.locator('[data-status-for="fourchette-de-cavalier"]')).toHaveAttribute(
+      'data-state',
+      'none',
+    );
 
     // And the detail page greets a returning solver differently.
     await openExercise(page, MATE_IN_1.fr);
@@ -209,7 +217,10 @@ test.describe('exercise — progress', () => {
 
     // The tick on the index is untouched — solving it once happened.
     await page.goto('/exercices/');
-    await expect(page.locator('[data-solved-for="mat-du-couloir"]')).toBeVisible();
+    await expect(page.locator('[data-status-for="mat-du-couloir"]')).toHaveAttribute(
+      'data-state',
+      'solved',
+    );
   });
 
   /**
@@ -237,10 +248,15 @@ test.describe('exercise — progress', () => {
       timeout: 10_000,
     });
 
-    // The index still renders; it simply knows nothing.
+    /* The index still renders; it simply knows nothing. The row keeps the
+       "not started" the SERVER rendered, which is the correct degradation:
+       a reader whose storage throws sees a true statement, not a blank. */
     await page.goto('/exercices/');
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-    await expect(page.locator('[data-solved-for="mat-du-couloir"]')).toBeHidden();
+    await expect(page.locator('[data-status-for="mat-du-couloir"]')).toHaveAttribute(
+      'data-state',
+      'none',
+    );
   });
 });
 

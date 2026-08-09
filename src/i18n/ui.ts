@@ -111,6 +111,14 @@ const fr = {
   'progress.cleared':
     'Si vous videz les données du navigateur, cette progression disparaît. Elle ne vit que sur cet appareil.',
 
+  /* The three card states (M3). "none" is deliberately the quietest wording on
+     the card: it is what every first visitor sees, and an index that shouts it
+     reads as a list of failures rather than a list of things to do. */
+  'progress.state.none': 'Pas encore commencé',
+  'progress.state.started': 'En cours',
+  'progress.state.solved': 'Résolu',
+  'progress.state.lessonDone': 'Terminé',
+
   'menu.label': 'Menu principal',
   'menu.resume': 'Reprendre',
   /* Announced instead of the bare label once resolved, so a screen-reader user
@@ -542,6 +550,11 @@ const en: Record<keyof typeof fr, string> = {
   'progress.noJs': 'Showing your progress needs JavaScript: it is read from this device.',
   'progress.cleared':
     'If you clear your browser data this progress disappears. It lives on this device only.',
+
+  'progress.state.none': 'Not started',
+  'progress.state.started': 'In progress',
+  'progress.state.solved': 'Solved',
+  'progress.state.lessonDone': 'Completed',
 
   'menu.label': 'Main menu',
   'menu.resume': 'Resume',

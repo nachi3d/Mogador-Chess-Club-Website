@@ -1,0 +1,236 @@
+/* ============================================================
+   Cards — ONE surface vocabulary, in one place.
+
+   ── Why this file exists ─────────────────────────────────────
+   The card was defined FIVE times before M3, once per component
+   that needed one, with drifts between every pair:
+
+     CardGrid          .card         1px border, --shadow-lift
+     CourseDetailPage  .lesson-card  1px border, NO shadow
+     TutorialIndexPage .step         1px border, NO shadow
+     Dashboard         .dash-card    no border, --shadow-lift,
+                                     --mcc-radius-app
+     LoginPage         .auth-card    1px border, no radius token
+
+   Three of them also spelled the same hover, the same
+   focus-within ring and the same stretched-link pseudo-element
+   independently. `.chip` existed THREE times (CardGrid,
+   ExercicePage, TrapPage) with two different paddings.
+
+   That is exactly the shape that produced `--mcc-border` and
+   `--font-mono`: a copy drifts, then a copy of the copy invents
+   a token nobody declared, and the whole declaration silently
+   computes to nothing. Consolidating is cheaper than auditing
+   five of them forever.
+
+   ── The controls.css bargain, applied again ──────────────────
+   Astro scoped styles carry an `[data-astro-cid-…]` attribute
+   and therefore BEAT any global rule of the same class
+   specificity. So a shared rule can only survive where the
+   scoped block does not also set that property.
+
+   The division is the same one controls.css settled on:
+
+     here          structure — surface, border, radius, shadow,
+                   press, focus, the stretched link
+     scoped block  colour that is genuinely page-specific, and
+                   margins that depend on what the card sits
+                   next to
+
+   If you find yourself adding a background-color to a scoped
+   card rule, that is the signal the token is missing, not that
+   this file is insufficient.
+
+   ── The press lives HERE, not in controls.css ────────────────
+   It used to be three selectors inside controls.css, which meant
+   the card was described in two files. controls.css is the
+   BUTTON press; a card is a different gesture (it starts raised
+   and is pushed flat, rather than starting flush and moving
+   down) and it now owns its whole vocabulary. controls.css
+   carries a pointer here.
+   ============================================================ */
+
+/* ── The surface ──────────────────────────────────────────────
+   Every card on the site. `.dash-card` is deliberately included
+   even though M2 wrote it first: it was the reference for "card
+   craft" and there is no reason for the home dashboard to own a
+   private definition of it. */
+.card,
+.lesson-card,
+.step,
+.auth-card,
+.dash-card {
+  position: relative;
+  background-color: var(--mcc-surface-raised);
+  border: 1px solid var(--mcc-border-subtle);
+  /* ⚠️ --mcc-border-subtle, NEVER --mcc-border. The latter has never existed;
+     an unknown custom property invalidates the whole `border` shorthand at
+     computed-value time and the width falls back to 0 with no error at all.
+     Twelve occurrences shipped borderless for several sessions. */
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-lift);
+  /* Réponse (E1). The hover and the press share one transition so a card
+     cannot develop two different speeds. */
+  transition:
+    border-color var(--motion-response) var(--ease-response),
+    transform var(--motion-response) var(--ease-response),
+    box-shadow var(--motion-response) var(--ease-response);
+}
+
+/* ── The app radius, below the breakpoint ─────────────────────
+   M2 gave the dashboard a 14px radius and the internal pages
+   kept the 3px stationery radius, so moving from the home screen
+   to /cours changed the shape of every object on the screen.
+   Below 768px every card takes the app radius; above it, the
+   stationery radius is unchanged — desktop is not touched. */
+@media (max-width: 767.98px) {
+  .card,
+  .lesson-card,
+  .step,
+  .auth-card,
+  .dash-card {
+    border-radius: var(--mcc-radius-app);
+  }
+}
+
+/* The dashboard's dominant card paints its own fill and wants no hairline
+   over it — it is the one card that is a coloured surface rather than paper. */
+.dash-card {
+  border-color: transparent;
+}
+
+/* ── Hover ───────────────────────────────────────────────────
+   Pointer devices only. On a touch screen `:hover` sticks after
+   a tap and leaves a card looking permanently focused. */
+@media (hover: hover) {
+  .card-linked:hover,
+  .lesson-card:hover,
+  .step:hover {
+    border-color: var(--mcc-border-strong);
+    transform: translateY(-2px);
+  }
+}
+
+/* ── The press: a grab, not a push ────────────────────────────
+   A card starts raised (`--shadow-lift`). Pressing it puts it
+   back down flat — the same gesture as a button, read on a
+   surface that begins lifted rather than flush. */
+.card-linked:active,
+.lesson-card:active,
+.step:active,
+.dash-card:active,
+.pillar:active {
+  transform: translateY(var(--motion-press-y));
+  box-shadow: 0 1px 2px var(--mcc-press-shadow);
+}
+
+/* ── Focus ───────────────────────────────────────────────────
+   The stretched pseudo-element below carries no outline of its
+   own, so the ring is drawn on the card. Without this a keyboard
+   reader gets a ring around nothing. */
+.card-linked:focus-within,
+.lesson-card:focus-within,
+.step:focus-within,
+.auth-card:focus-within {
+  outline: 2px solid var(--mcc-focus-ring);
+  outline-offset: 3px;
+}
+
+.dash-card:focus-visible {
+  outline: 2px solid var(--mcc-focus-ring);
+  outline-offset: 3px;
+}
+
+/* ── The stretched link ───────────────────────────────────────
+   ONE link per card in the accessibility tree: the <a> wraps
+   only the title and is stretched over the card by this
+   pseudo-element. Wrapping the summary and the chips too would
+   make the accessible name a paragraph long. */
+.card-link::after,
+.lesson-card h2 a::after,
+.step h2 a::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.card-link,
+.lesson-card h2 a,
+.step h2 a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.card-link:focus-visible,
+.lesson-card h2 a:focus-visible,
+.step h2 a:focus-visible {
+  outline: none;
+}
+
+/* ── Chips ───────────────────────────────────────────────────
+   Was three definitions with two paddings. Content vocabulary
+   (themes, ECO codes) — never a level, which is LevelBadge and
+   carries its own AA-proved fill. */
+.chip {
+  display: inline-block;
+  padding: 0.15rem 0.55rem;
+  background-color: var(--mcc-surface-sunken);
+  border: 1px solid var(--mcc-border-subtle);
+  border-radius: var(--radius-pill);
+  color: var(--mcc-text-secondary);
+  font-size: var(--text-2xs);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* ── The numbered disc ───────────────────────────────────────
+   Shared by the lesson list and the tutorial step list, which
+   were pixel-identical copies of each other. */
+.card-number {
+  display: grid;
+  place-items: center;
+  inline-size: 2rem;
+  block-size: 2rem;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-brass-300);
+  /* A brass fill always carries an ink label — see the brass rule in
+     tokens.css. Never a cream one. */
+  color: var(--color-ink-950);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Reduced motion ──────────────────────────────────────────
+   The press is FEEDBACK, so it is made instant rather than
+   removed: the shadow and border still report the press, only
+   the travel goes. The hover lift is decoration and does go. */
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .lesson-card,
+  .step,
+  .auth-card,
+  .dash-card {
+    transition-duration: 1ms;
+  }
+
+  .card-linked:hover,
+  .lesson-card:hover,
+  .step:hover,
+  .card-linked:active,
+  .lesson-card:active,
+  .step:active,
+  .dash-card:active,
+  .pillar:active {
+    transform: none;
+  }
+}

@@ -88,19 +88,14 @@
   box-shadow: 0 0 0 var(--mcc-press-shadow);
 }
 
-/* ── Cards: a grab, not a push ────────────────────────────────
-   A card is already lifted (`--shadow-lift`) and rises further on
-   hover. Pressing it puts it back down flat — the same gesture as
-   a button, read on a surface that starts raised rather than
-   flush. `.card-linked` and `.pillar` set their own transition in
-   scoped blocks, already on the Réponse family, so only the
-   :active state is needed here. */
-.card-linked:active,
-.pillar:active,
-.lesson-card:active {
-  transform: translateY(0);
-  box-shadow: none;
-}
+/* ── Cards live in cards.css ──────────────────────────────────
+   The card press used to be three selectors here, which meant a
+   card was described in two files and neither said so. A card is
+   a different gesture from a button — it starts RAISED and is
+   pushed flat, where a button starts flush and moves down — so
+   it owns its whole vocabulary next to its surface.
+
+   See `src/styles/cards.css`. Nothing about cards belongs here. */
 
 /* ── Reduced motion ───────────────────────────────────────────
    The press is FEEDBACK, not decoration, so it is not removed —
@@ -116,10 +111,7 @@
   .btn-ghost,
   .share,
   .settings-button,
-  .lesson-nav-link,
-  .card-linked,
-  .pillar,
-  .lesson-card {
+  .lesson-nav-link {
     transition-duration: 1ms;
   }
 
@@ -128,10 +120,7 @@
   .btn-ghost:active,
   .share:active,
   .settings-button:active,
-  .lesson-nav-link:active,
-  .card-linked:active,
-  .pillar:active,
-  .lesson-card:active {
+  .lesson-nav-link:active {
     transform: none;
   }
 }

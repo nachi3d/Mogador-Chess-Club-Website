@@ -59,7 +59,7 @@ const whatsappShare = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
         data.themes.length > 0 && (
           <>
             <h2 class="exercise-themes-heading">{t('traps.themes')}</h2>
-            <ul class="exercise-themes">
+            <ul class="chip-list">
               {data.themes.map((theme) => (
                 <li class="chip">{theme}</li>
               ))}
@@ -120,23 +120,10 @@ const whatsappShare = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
     color: var(--mcc-text-secondary);
   }
 
-  .exercise-themes {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.35rem;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  .chip {
-    padding: 0.15rem 0.55rem;
-    background-color: var(--mcc-surface-sunken);
-    border: 1px solid var(--mcc-border-subtle);
-    border-radius: var(--radius-pill);
-    color: var(--mcc-text-secondary);
-    font-size: var(--text-2xs);
-  }
+  /* ⚠️ `.chip` and the row that holds it live in src/styles/cards.css (M3).
+     They were spelled here, in TrapPage and in CardGrid — three copies, two
+     different paddings. Use `class="chip-list"` on the <ul> and `class="chip"`
+     on each item; nothing chip-shaped belongs in a scoped block. */
 
   .exercise-footer {
     margin-top: 2.5rem;

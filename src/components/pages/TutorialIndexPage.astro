@@ -13,6 +13,8 @@ import { localizePath } from '@i18n/paths';
 import { useTranslations } from '@i18n/ui';
 import BaseLayout from '@layouts/BaseLayout.astro';
 import PageIntro from '@components/PageIntro.astro';
+import NumberedCard from '@components/NumberedCard.astro';
+import ProgressStates from '@components/ProgressStates.astro';
 
 interface Props {
   locale: Locale;
@@ -32,48 +34,25 @@ const steps = (await getCollection('tutoriel', ({ data }) => !data.draft)).sort(
   <ol class="steps" data-reveal-stagger>
     {
       steps.map((step) => (
-        <li class="step" data-reveal>
-          {/* One link per card, wrapping the heading — the card is made
-              clickable by CSS, keeping a single entry in the a11y tree. */}
-          <span class="step-number" aria-hidden="true">
-            {step.data.order}
-          </span>
-          <div class="step-body">
-            <h2>
-              <a href={localizePath(`/apprendre-les-bases/${step.data.slug}/`, locale)}>
-                {locale === 'fr' ? step.data.title_fr : step.data.title_en}
-              </a>
-            </h2>
-            <p>{locale === 'fr' ? step.data.summary_fr : step.data.summary_en}</p>
-          </div>
-          {/* Height reserved so revealing a tick cannot reflow the list —
-              the same trick CardGrid uses for solved markers. */}
-          <span class="step-status" data-tutorial-status={`tutorial:${step.data.slug}`} hidden>
-            ✓<span class="sr-only"> {t('tutorial.done')}</span>
-          </span>
-        </li>
+        <NumberedCard
+          locale={locale}
+          number={step.data.order}
+          title={locale === 'fr' ? step.data.title_fr : step.data.title_en}
+          summary={locale === 'fr' ? step.data.summary_fr : step.data.summary_en}
+          href={localizePath(`/apprendre-les-bases/${step.data.slug}/`, locale)}
+          progressKeys={[`tutorial:${step.data.slug}`]}
+          doneLabel={t('tutorial.done')}
+        />
       ))
     }
   </ol>
 
-  <script>
-    /**
-     * Solved ticks, read from the SAME `mcc:progress:v1` store every exercise
-     * uses — under a `tutorial:` slug namespace, so v2-S3's sync picks them up
-     * with no special-casing.
-     *
-     * A plain script, not an island: this reads a module and removes a `hidden`
-     * attribute. The one-board-island rule is about hydrated framework
-     * components, and this stays firmly on the right side of that line.
-     */
-    import { solvedSlugs } from '@lib/progress';
-
-    const solved = new Set(solvedSlugs());
-    for (const el of document.querySelectorAll<HTMLElement>('[data-tutorial-status]')) {
-      const slug = el.dataset.tutorialStatus;
-      if (slug && solved.has(slug)) el.hidden = false;
-    }
-  </script>
+  {/* ⚠️ The tick script moved into ProgressStates (M3). It used to read
+      `solvedSlugs()` and reveal a bare ✓, which could only ever say "done" —
+      a step the reader had attempted and not solved looked identical to one
+      they had never opened. The shared component says which of the three it
+      is, from the same store under the same `tutorial:` namespace. */}
+  <ProgressStates />
 </BaseLayout>
 
 <style>
@@ -86,75 +65,7 @@ const steps = (await getCollection('tutoriel', ({ data }) => !data.draft)).sort(
     counter-reset: none;
   }
 
-  .step {
-    position: relative;
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    align-items: start;
-    gap: 1rem;
-    padding: 1rem 1.25rem;
-    border: 1px solid var(--mcc-border-subtle);
-    border-radius: var(--radius-card);
-    background-color: var(--mcc-surface-raised);
-    transition: border-color var(--motion-response) var(--ease-response);
-  }
-
-  .step:hover {
-    border-color: var(--mcc-border-strong);
-  }
-
-  .step:focus-within {
-    outline: 2px solid var(--mcc-focus-ring);
-    outline-offset: 2px;
-  }
-
-  .step-number {
-    display: grid;
-    place-items: center;
-    width: 2rem;
-    height: 2rem;
-    border-radius: 999px;
-    background-color: var(--color-brass-300);
-    color: var(--color-ink-950);
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .step h2 {
-    margin: 0 0 0.2rem;
-    font-size: 1.125rem;
-  }
-
-  .step h2 a {
-    color: var(--mcc-text-heading);
-    text-decoration: none;
-  }
-
-  .step h2 a::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-  }
-
-  .step h2 a:hover {
-    color: var(--mcc-link);
-  }
-
-  .step h2 a:focus-visible {
-    outline: none;
-  }
-
-  .step p {
-    margin: 0;
-    color: var(--mcc-text-secondary);
-    line-height: 1.5;
-  }
-
-  /* Reserved width so revealing the tick cannot shift the text beside it. */
-  .step-status {
-    min-width: 1.25rem;
-    color: var(--mcc-primary);
-    font-weight: 700;
-  }
+  /* ⚠️ `.step` MOVED TO NumberedCard.astro (M3). It was a pixel-identical copy
+     of CourseDetailPage's `.lesson-card`. One card, one definition; the
+     surface vocabulary is in src/styles/cards.css. */
 </style>
