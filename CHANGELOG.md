@@ -11,7 +11,27 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
-_Nothing yet._
+### Changed
+
+- **`package.json` `version` now tracks the release tags** — it had read `0.2.0`
+  since that release, so v0.3.0, v0.4.0 and v0.5.0 all shipped a manifest
+  disagreeing with their tag. Set to `0.5.0`, and CLAUDE.md's new **promotion
+  routine** makes the bump part of every release commit rather than a
+  follow-up, so it cannot drift again.
+
+  ⚠️ The tree tagged `v0.5.0` still reads `0.2.0` and always will — retagging a
+  published release would be worse than the inconsistency. The manifest is
+  correct from this commit forward, and first *true* at v0.6.0.
+
+#### Notes
+
+- `npm run quick` **refuses** this change: `package.json` is on its FORBIDDEN
+  list under "dependencies", and its pattern cannot tell a `version` string
+  from a dependency edit. That exclusion is correct and stays — guessing the
+  other way is how a dependency change reaches production on a shortened gate.
+  Verified instead by content check, full build, and by confirming `dist/`
+  built from this branch is byte-identical to the deployed v0.5.0, which had
+  just passed the full matrix.
 
 ---
 
