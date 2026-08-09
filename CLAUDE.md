@@ -152,8 +152,49 @@ netstat -ano | grep -E ':432[1-5]'    # NOT `-p tcp` — that is IPv4 only, and
 Stop-Process -Id <pid> -Force
 ```
 
-`npm run demo` clears 4321-4325 on startup, which is a safety net rather than a
-substitute: it protects the next session, not this one.
+#### ⚠️ A PORT LIST IS NOT THE SWEEP. SWEEP BY REPO PATH.
+
+`netstat` on 4321-4325 only answers "is anything on the ports astro walks to
+on its own". It says nothing about a server someone started with an explicit
+`--port`, and nothing stops anyone doing that.
+
+**Found at the end of the M3-suite session: 26 orphaned
+`astro preview --port 4399` processes for this repo, one still listening** —
+entirely outside the swept range, and therefore invisible to every previous
+run of `npm run demo` and to every session that "checked the ports".
+
+So the real question is *"is anything previewing THIS repo?"*:
+
+```powershell
+Get-CimInstance Win32_Process -Filter "Name='node.exe'" |
+  Where-Object { $_.CommandLine -like '*Mogador-Chess-Club-Website*' -and
+                 $_.CommandLine -like '*preview*' } |
+  ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+```
+
+`scripts/demo.mjs` now does both on startup **and on Ctrl+C** — the port walk,
+then `previewsForRepo()`. Three details in that function are load-bearing:
+
+- **Match the repo path AND `preview`.** The path alone kills `astro dev`, a
+  Playwright run and the editor's TypeScript server; `preview` alone kills
+  another project's server, which is not ours to touch.
+- **The wrapper does not carry the path; the server does.** `npx astro preview`
+  shows as `…/npx-cli.js astro preview` with the repo only as its cwd, which
+  `Win32_Process` does not expose. The path match finds the process that owns
+  the socket — which is the one that matters.
+- **Its PARENT is taken too, when the parent's own command line also mentions
+  `preview`.** Both conditions together mean the pair is one invocation. Without
+  this the wrappers pile up: one sweep that killed only the servers left **13**
+  husks behind, and a husk per run is how a machine reaches dozens of processes
+  nobody can account for.
+
+**PowerShell, not `wmic`** — wmic is deprecated and absent from recent Windows
+11 builds, so it fails silently exactly where this matters. And the matching is
+done in JS rather than in the query: a path is far easier to compare there than
+to quote correctly through two layers of shell.
+
+`npm run demo` doing this on startup is a safety net rather than a substitute:
+it protects the next session, not this one.
 
 #### Promotion routine — `dev` → `main`
 

@@ -11,6 +11,20 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+---
+
+## [0.7.0] — 2026-08-09
+
+**Mobile density on the internal pages.** v0.6.0 fixed the home screen and the
+card indexes; this one fixes the pages a student actually works in. The exercise
+block no longer shares a phone screen with 466px of chrome, "Reprendre" is one
+rule serving four surfaces instead of two-and-a-half copies of itself,
+`/progres/` has real content, and the board frame is centred on what it encloses.
+
+Nothing here changes what the site is: still static, still no account, still no
+in-app communication — and the board itself was not touched to win back a single
+pixel.
+
 ### M3 (suite) — the board fits the phone, and there is one answer to "where did I stop"
 
 Three items were left from M3. The board no longer shares a screen with 466px
@@ -135,11 +149,38 @@ steps, as links.
   one answers *what is left*, the other *where did you stop* (furthest, not
   earliest).
 
+#### Fixed — `npm run demo` sweeps by repo, not by a port list
+
+**26 orphaned `astro preview --port 4399` processes** for this repo were found
+on the machine at the end of the session, one still listening — entirely
+outside the 4321-4325 range the script swept, and therefore invisible to every
+previous run of it and to every session that "checked the ports".
+
+`scripts/demo.mjs` now asks the real question — *is anything previewing THIS
+repo?* — on startup **and on Ctrl+C**, matching the process command line
+against the repo path **and** `preview`. Either condition alone is wrong: the
+path alone kills `astro dev`, a Playwright run and the editor's TypeScript
+server; `preview` alone kills another project's server.
+
+- ⚠️ **The wrapper does not carry the path; the server does.** `npx astro
+  preview` shows the repo only as its cwd, which `Win32_Process` does not
+  expose, while the process holding the socket is
+  `node …/<repo>/…/astro.mjs preview`. The path match targets the one that owns
+  the port.
+- ⚠️ **The parent is taken too when its own command line mentions `preview`.**
+  Without that the wrappers accumulate: one sweep that killed only the servers
+  left **13** husks behind.
+- PowerShell rather than `wmic`, which is deprecated and gone from recent
+  Windows 11 builds — it would fail silently exactly where this matters.
+
+Verified against a live server on port 4477: `killed pid 30452 previewing this
+repo on 4477`, and the port was free afterwards.
+
 #### Verification
 
 `npm run test:branch --all` — **446 passed, 0 failed**, 18 skipped (auth, off by
 default). Two new spec files: `resume.spec.ts` and `mobile-fit.spec.ts`, both
-mapped in `scripts/spec-map.mjs`.
+mapped in `scripts/spec-map.mjs`. The full matrix ran at this promotion.
 
 Lighthouse mobile, five routes, on the built site:
 
@@ -290,17 +331,23 @@ overflows — the exercise block by **241px**, the replayer by **278px**. The
 M1 one-line mobile header is also 61px at 390px but **97px at 360px**, where it
 wraps to two lines.
 
-**Recorded rather than half-fixed.** The board is 335px of an 833px block; the
-remaining ~500px is the control stack, and compressing it is a design decision
-about what an exercise shows at once, not a CSS tweak. See BACKLOG.
+**Recorded rather than half-fixed** at the time: the board is 335px of an 833px
+block, and compressing the rest is a design decision about what an exercise
+shows at once, not a CSS tweak.
 
-#### Still open from the M3 brief
+#### Closed later in this release
 
-- The "continue where you left off" card, and extracting the E5 resolver into
-  one shared component (decided: `ResumeCard.astro`, four call sites)
-- Board fit and prev/next bottom-bar clearance (measured above)
-- `/progres` substance — solved by level and theme, lessons, what remains
-- The 360px header wrap
+That decision was taken — **compact the controls, leave the board alone** — and
+the measurements above are the "before" column of the M3 (suite) table at the
+top of v0.7.0. Also closed: the shared resume resolver across four surfaces,
+`/progres` substance, and end-of-content navigation clear of the bottom bar.
+
+#### Still open
+
+- **The 360px header wrap** (97px against 61px at 390px). Untouched.
+- **The exercise block at 360×640** is 615px against 587px usable — 28px, down
+  from 209px. One short nudge rather than a scroll; see the note in the M3
+  (suite) section for why the last 28px were not taken.
 
 ---
 
@@ -2044,7 +2091,8 @@ Foundation only: no real content, no interactive board yet.
   `url()` references unresolved and the fonts silently 404 into a Georgia
   fallback. `scripts/build-fonts.mjs` self-hosts them instead. See CLAUDE.md.
 
-[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.3.0...v0.4.0
