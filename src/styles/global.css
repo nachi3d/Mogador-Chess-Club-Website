@@ -33,6 +33,11 @@
 /* Pressable controls. After motion.css: it is the Réponse family applied. */
 @import './controls.css';
 
+/* Cards — the one surface vocabulary (M3). After controls.css, which points
+   here for the card press: a card is a different gesture from a button and
+   owns its whole definition in one file. */
+@import './cards.css';
+
 @layer base {
   html {
     background-color: var(--mcc-surface-page);

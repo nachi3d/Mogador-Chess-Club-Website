@@ -11,6 +11,8 @@ import { useTranslations } from '@i18n/ui';
 import BaseLayout from '@layouts/BaseLayout.astro';
 import PageIntro from '@components/PageIntro.astro';
 import LevelBadge from '@components/LevelBadge.astro';
+import NumberedCard from '@components/NumberedCard.astro';
+import ProgressStates from '@components/ProgressStates.astro';
 
 interface Props {
   locale: Locale;
@@ -22,6 +24,22 @@ const { locale, course, lessons } = Astro.props;
 const t = useTranslations(locale);
 const title = locale === 'fr' ? course.data.title_fr : course.data.title_en;
 const summary = locale === 'fr' ? course.data.summary_fr : course.data.summary_en;
+
+/**
+ * The exercise-board keys one lesson records under.
+ *
+ * ⚠️ SAME SCHEME AS LessonPage MOUNTS THEM WITH —
+ * `lesson:<course>:<lesson>:<boardIndex>`, indexed against the FULL boards
+ * array so a lesson whose second board is the exercise is key `:1`, not `:0`.
+ * Re-deriving it from a filtered list would silently renumber every lesson
+ * that opens with a demonstration, which is most of them.
+ */
+function lessonKeys(lesson: CollectionEntry<'lessons'>): string[] {
+  return lesson.data.boards
+    .map((board, index) => ({ board, index }))
+    .filter(({ board }) => board.kind === 'exercise')
+    .map(({ index }) => `lesson:${course.data.slug}:${lesson.data.slug}:${index}`);
+}
 ---
 
 <BaseLayout locale={locale} title={title} description={summary} reveals>
@@ -34,22 +52,20 @@ const summary = locale === 'fr' ? course.data.summary_fr : course.data.summary_e
   <ol class="lessons" data-reveal-stagger>
     {
       lessons.map((lesson) => (
-        <li class="lesson-card" data-reveal>
-          <span class="lesson-number" aria-hidden="true">
-            {lesson.data.order}
-          </span>
-          <div>
-            <h2>
-              <a href={localizePath(`/cours/${course.data.slug}/${lesson.data.slug}/`, locale)}>
-                {lesson.data.title}
-              </a>
-            </h2>
-            <p>{lesson.data.summary}</p>
-          </div>
-        </li>
+        <NumberedCard
+          locale={locale}
+          number={lesson.data.order}
+          title={lesson.data.title}
+          summary={lesson.data.summary}
+          href={localizePath(`/cours/${course.data.slug}/${lesson.data.slug}/`, locale)}
+          progressKeys={lessonKeys(lesson)}
+          doneLabel={t('progress.state.lessonDone')}
+        />
       ))
     }
   </ol>
+
+  <ProgressStates />
 
   <p class="course-back">
     <a href={localizePath('/cours/', locale)}>← {t('courses.title')}</a>
@@ -69,69 +85,11 @@ const summary = locale === 'fr' ? course.data.summary_fr : course.data.summary_e
     list-style: none;
   }
 
-  .lesson-card {
-    position: relative;
-    display: grid;
-    grid-template-columns: auto 1fr;
-    gap: 1rem;
-    padding: 1rem 1.25rem;
-    border: 1px solid var(--mcc-border-subtle);
-    border-radius: var(--radius-card);
-    background-color: var(--mcc-surface-raised);
-    transition: border-color var(--motion-response) var(--ease-response);
-  }
-
-  .lesson-card:hover {
-    border-color: var(--mcc-border-strong);
-  }
-
-  .lesson-card:focus-within {
-    outline: 2px solid var(--mcc-focus-ring);
-    outline-offset: 2px;
-  }
-
-  .lesson-number {
-    display: grid;
-    place-items: center;
-    width: 2rem;
-    height: 2rem;
-    border-radius: 999px;
-    background-color: var(--color-brass-300);
-    color: var(--color-ink-950);
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .lesson-card h2 {
-    margin: 0 0 0.2rem;
-    font-size: 1.125rem;
-  }
-
-  .lesson-card h2 a {
-    color: var(--mcc-text-heading);
-    text-decoration: none;
-  }
-
-  .lesson-card h2 a::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-  }
-
-  .lesson-card h2 a:hover {
-    color: var(--mcc-link);
-  }
-
-  .lesson-card h2 a:focus-visible {
-    outline: none;
-  }
-
-  .lesson-card p {
-    margin: 0;
-    color: var(--mcc-text-secondary);
-    line-height: 1.5;
-  }
+  /* ⚠️ THE CARD MOVED TO NumberedCard.astro (M3). It was a pixel-identical
+     copy of TutorialIndexPage's `.step` — same disc, same grid, same stretched
+     link — and both were missing the shadow CardGrid's `.card` had, so a
+     lesson list and a course list looked like two different sites. The
+     surface vocabulary now lives in src/styles/cards.css. */
 
   .course-back {
     margin-top: 2rem;

@@ -183,6 +183,47 @@ thumb, and the thumb is the whole point of moving navigation to the bottom.
 
 ---
 
+## 0d. ⚠️ WALK A FULL LESSON ON A PHONE — M3
+
+**The question, and it is the whole section:** *does anything require zooming,
+hunting, or scrolling back?* Start at `/` and go all the way through one lesson
+to the next one, on a real phone, without touching the address bar.
+
+- [ ] From the dashboard, reach a course, then a lesson, using only what is on
+      screen. Nothing needed a pinch or a horizontal scroll
+- [ ] Every card is **full width, left-aligned, with a real shadow** and the
+      same corner radius as the dashboard's cards. Moving from home to `/cours/`
+      does not change the shape of the objects
+- [ ] Press a card: it **pushes flat** and springs back — the same press as a
+      button, on a surface that starts raised
+- [ ] The board is reachable and **fully visible when you go to play on it** —
+      you never tap a square you cannot see. ⚠️ Known: the exercise and replayer
+      **blocks** overflow a 390px screen (833px and 895px against 791px usable),
+      and worse at 360px. Note what you actually hit; the fix is still open
+- [ ] Prev/next at the end of the lesson are reachable, and **nothing hides
+      behind the bottom bar** — scroll to the very bottom and check the last
+      line clears it
+- [ ] At **360px** as well as 390px. The header wraps to two lines at 360px
+      (97px vs 61px) — known, not yet fixed
+
+### The index tells you where you stopped
+
+- [ ] On a fresh device every card reads **"Pas encore commencé"** — quiet, not
+      shouted, and it is a true statement rather than a placeholder
+- [ ] Attempt an exercise and get it wrong, then go back to `/exercices/`: that
+      card now reads **"En cours"**. This is the state that did not exist before
+- [ ] Solve it: **"Résolu"** with a tick, on a green fill
+- [ ] A course card on `/cours/` shows **"En cours"** while any lesson exercise
+      is unsolved, and **"Terminé"** only when they all are
+- [ ] Same three states on `/apprendre-les-bases/`
+- [ ] ⚠️ In **all four themes, light and dark**: the "En cours" outline and the
+      "Résolu" fill are both legible. No text on those fills may be faded —
+      an alpha over an audited pair is invisible to `check-contrast.mjs`
+- [ ] Turn JavaScript off: every card still reads "Pas encore commencé" and
+      nothing is broken or blank
+
+---
+
 ## 1. Smoke and i18n
 
 - [ ] `/` loads. Heading is *Mogador Chess Club*, nav is in French

@@ -29,9 +29,9 @@
  */
 
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { specsFor } from './spec-map.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const BASE = process.env['QUICK_BASE'] ?? 'dev';
@@ -92,28 +92,10 @@ const FORBIDDEN = [
   [/^vendor\//, 'vendored third-party assets'],
 ];
 
-/**
- * Which chromium specs to run for a change. Not the whole suite, not the
- * matrix — the specs that actually cover what moved.
- *
- * `smoke.spec.ts` is always included: it is the "both locales still render and
- * the switcher still works" net, and it is cheap.
- */
-const SPEC_MAP = [
-  [/^src\/content\/traps\//, ['replayer.spec.ts']],
-  [/^src\/content\/exercices\//, ['exercise.spec.ts']],
-  [/^src\/content\/(cours|lessons)\//, ['lessons.spec.ts']],
-  [/^src\/content\/tutoriel\//, ['tutorial.spec.ts']],
-  [/^src\/content\/agenda\//, ['smoke.spec.ts']],
-  [/^src\/i18n\/ui\./, ['smoke.spec.ts', 'nav-coords.spec.ts', 'main-menu.spec.ts']],
-  [/^src\/config\/site\./, ['legal.spec.ts', 'smoke.spec.ts']],
-  [/^src\/config\/(board-themes|site-themes|piece-sets)\./, ['themes.spec.ts', 'theme.spec.ts']],
-  [/^src\/styles\//, ['themes.spec.ts', 'theme.spec.ts', 'feel.spec.ts']],
-  [/^src\/components\/pages\/HomePage\./, ['main-menu.spec.ts']],
-  [/^src\/components\/pages\/SettingsPage\./, ['theme.spec.ts', 'themes.spec.ts']],
-  [/^src\/components\/pages\/LegalPage\./, ['legal.spec.ts']],
-  [/^src\/components\//, ['smoke.spec.ts']],
-];
+/* ⚠️ THE SPEC MAPPING MOVED TO scripts/spec-map.mjs.
+   This script and `test-branch.mjs` both need "what covers what moved", and
+   they answered it with identical copies until it was extracted — the same
+   drift that produced three `.chip` definitions. One mapping, two readers. */
 
 /**
  * ⚠️ ONE COMMAND STRING, NOT `(command, argsArray, { shell: true })`.
@@ -180,22 +162,13 @@ run('build (contrast → types → build → service worker)', 'npm run build');
 
 /* ── 3. The specs that cover what moved ───────────────────────────────────── */
 
-const specs = new Set();
-for (const file of files) {
-  for (const [pattern, list] of SPEC_MAP) {
-    if (pattern.test(file)) for (const spec of list) specs.add(spec);
-  }
-}
-specs.add('smoke.spec.ts');
-
-const present = [...specs].filter((spec) => existsSync(join(ROOT, 'tests/e2e', spec))).sort();
+const present = specsFor(files, ROOT);
 
 console.log(
   yellow(`\n  Chromium only, ${present.length} spec file(s) — NOT the matrix.`) +
     '\n  ' +
     present.join(', ') +
-    '\n  Full matrix is still required for a release, and for anything on the' +
-    '\n  normal path that touches a critical feature.\n',
+    '\n  The matrix runs ONCE, at promotion, via `npm run test:release`.\n',
 );
 
 run(

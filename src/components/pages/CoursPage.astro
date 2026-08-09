@@ -30,18 +30,41 @@ const entries = (await getCollection('cours', ({ data }) => !data.draft)).sort(
  * in was to type the URL.
  */
 const lessonEntries = await getCollection('lessons', ({ data }) => !data.draft);
-const coursesWithLessons = new Set(
-  lessonEntries.filter((l) => l.data.lang === locale).map((l) => l.data.course),
-);
+const localeLessons = lessonEntries.filter((l) => l.data.lang === locale);
+const coursesWithLessons = new Set(localeLessons.map((l) => l.data.course));
 
-const items: CardItem[] = entries.map(({ data }) => ({
-  title: locale === 'fr' ? data.title_fr : data.title_en,
-  summary: locale === 'fr' ? data.summary_fr : data.summary_en,
-  level: data.level,
-  ...(coursesWithLessons.has(data.slug)
-    ? { href: localizePath(`/cours/${data.slug}/`, locale) }
-    : {}),
-}));
+/**
+ * Every exercise-board key inside a course, so the card can say whether the
+ * reader has started it (M3).
+ *
+ * ⚠️ SAME KEY SCHEME AS THE E5 RESOLVER AND /progres — `lesson:<course>:<lesson>:<boardIndex>`,
+ * and lessons with no exercise board contribute nothing. A lesson that records
+ * nothing can be neither touched nor completed, so counting it would leave
+ * every course permanently "in progress".
+ */
+function progressKeysFor(courseSlug: string): string[] {
+  return localeLessons
+    .filter((lesson) => lesson.data.course === courseSlug)
+    .flatMap((lesson) =>
+      lesson.data.boards
+        .map((board, index) => ({ board, index }))
+        .filter(({ board }) => board.kind === 'exercise')
+        .map(({ index }) => `lesson:${courseSlug}:${lesson.data.slug}:${index}`),
+    );
+}
+
+const items: CardItem[] = entries.map(({ data }) => {
+  const keys = progressKeysFor(data.slug);
+  return {
+    title: locale === 'fr' ? data.title_fr : data.title_en,
+    summary: locale === 'fr' ? data.summary_fr : data.summary_en,
+    level: data.level,
+    ...(coursesWithLessons.has(data.slug)
+      ? { href: localizePath(`/cours/${data.slug}/`, locale) }
+      : {}),
+    ...(keys.length > 0 ? { progressKeys: keys } : {}),
+  };
+});
 ---
 
 <BaseLayout locale={locale} title={t('courses.title')} description={t('courses.intro')} reveals>

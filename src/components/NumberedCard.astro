@@ -1,0 +1,136 @@
+---
+/**
+ * A numbered card in an ordered list: a course lesson, or a tutorial step.
+ *
+ * ⚠️ THIS REPLACES TWO PIXEL-IDENTICAL COPIES. `CourseDetailPage.lesson-card`
+ * and `TutorialIndexPage.step` were the same card written twice — same disc,
+ * same grid, same stretched link, same hover, same focus ring — differing only
+ * in that one reserved a tick column and the other did not. Both were also
+ * missing the shadow that `CardGrid.card` had, so a lesson list and a course
+ * list looked like two different sites.
+ *
+ * The surface vocabulary is in `src/styles/cards.css`; the class stays
+ * `.lesson-card` on both because eleven specs already select it and renaming
+ * would churn them for no reader-visible gain.
+ *
+ * ⚠️ THE STATUS ROW IS THE SAME MECHANISM AS CardGrid'S. Same
+ * `data-status-for`, same three `.card-state-*` spans, filled in by the same
+ * `ProgressStates` component. Two ways of saying "in progress" would be two
+ * things to keep in step.
+ */
+import type { Locale } from '@config/site';
+import { useTranslations } from '@i18n/ui';
+
+interface Props {
+  locale: Locale;
+  number: number;
+  title: string;
+  summary: string;
+  href: string;
+  /** Progress keys this entry stands for. Empty ⇒ no status row at all. */
+  progressKeys?: readonly string[] | undefined;
+  /** Wording for the completed state — an exercise is "Résolu", a lesson "Terminé". */
+  doneLabel?: string | undefined;
+}
+
+const { locale, number, title, summary, href, progressKeys, doneLabel } = Astro.props;
+const t = useTranslations(locale);
+const tracked = progressKeys && progressKeys.length > 0;
+---
+
+<li class="lesson-card" data-reveal>
+  <span class="card-number" aria-hidden="true">{number}</span>
+  <div class="lesson-card-body">
+    <h2>
+      <a href={href}>{title}</a>
+    </h2>
+    <p>{summary}</p>
+    {
+      tracked && (
+        <p class="card-status" data-status-for={progressKeys.join(' ')} data-state="none">
+          <span class="card-state card-state-none">{t('progress.state.none')}</span>
+          <span class="card-state card-state-started" hidden>
+            {t('progress.state.started')}
+          </span>
+          <span class="card-state card-state-solved" hidden>
+            <span aria-hidden="true">✓</span> {doneLabel ?? t('progress.state.solved')}
+          </span>
+        </p>
+      )
+    }
+  </div>
+</li>
+
+<style>
+  /* Structure only — surface, radius, shadow, hover, press, focus and the
+     stretched link all come from cards.css. */
+  .lesson-card {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: start;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+  }
+
+  .lesson-card h2 {
+    margin: 0 0 0.2rem;
+    font-size: 1.125rem;
+  }
+
+  .lesson-card h2 a {
+    color: var(--mcc-text-heading);
+  }
+
+  .lesson-card h2 a:hover {
+    color: var(--mcc-link);
+  }
+
+  .lesson-card p {
+    margin: 0;
+    color: var(--mcc-text-secondary);
+    line-height: 1.5;
+  }
+
+  /* Same reserved height as CardGrid's, for the same reason: filling the state
+     in must not move the card underneath the reader's thumb. */
+  .card-status {
+    display: flex;
+    align-items: center;
+    min-height: 1.5rem;
+    margin: 0.6rem 0 0;
+  }
+
+  .card-state {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: var(--text-2xs);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .card-state-none {
+    color: var(--mcc-text-secondary);
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: 0.02em;
+  }
+
+  .card-state-started {
+    padding: 0.15rem 0.6rem;
+    border: 1px solid var(--mcc-accent);
+    border-radius: var(--radius-pill);
+    color: var(--mcc-accent-text);
+  }
+
+  /* ⚠️ NO `opacity` on this text: it sits on an audited fill, and an alpha on
+     top of a proved pair is invisible to check-contrast.mjs. That is the M1
+     regression the whole suite passed through. */
+  .card-state-solved {
+    padding: 0.15rem 0.6rem;
+    background-color: var(--mcc-primary);
+    color: var(--mcc-primary-contrast);
+    border-radius: var(--radius-pill);
+  }
+</style>
