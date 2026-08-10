@@ -208,6 +208,63 @@ export default function ExerciseView(props: ExerciseViewProps) {
   }, []);
   useEffect(() => clearTimers, [clearTimers]);
 
+  /**
+   * ⚠️ THE PULSE'S CLOCK STARTS WHEN IT IS PAINTED, NOT WHEN IT IS REQUESTED.
+   *
+   * ── THE DEFECT THIS FIXES ────────────────────────────────────────────────
+   * This used to be `after(PULSE_MS, () => setPulse(null))` on the line right
+   * after `setPulse(square)` in the move handler, so the 300ms was pure
+   * wall-clock, measured from before anything had rendered.
+   *
+   * Chessground's redraw is rAF-debounced AND coalescing
+   * (`debounceRedraw` in `chessground/src/chessground.ts`):
+   *
+   *     if (redrawing) return;          // a second set() is DROPPED
+   *     redrawing = true;
+   *     requestAnimationFrame(() => { redrawNow(); redrawing = false; });
+   *
+   * So on a main thread starved of frames — a cheap Android, or five browsers
+   * on one CI box — the sequence was:
+   *
+   *     api.set({custom:{a8}})   schedules a frame
+   *     …no frame for >300ms…
+   *     api.set({custom:{}})     DROPPED, a redraw is already pending
+   *     the frame finally runs   renders the CURRENT state: no pulse
+   *
+   * The intermediate state was never painted, so the square was never marked
+   * at all. Not marked briefly — never. **The reader on the slowest phone,
+   * the one who most needs to be told their move was accepted, was the one
+   * guaranteed not to be.**
+   *
+   * Waiting one animation frame before starting the clock fixes it: rAF
+   * callbacks run in registration order, and BoardSurface's effect (a child,
+   * so it runs first) has already queued Chessground's redraw by the time
+   * this queues its own. When ours runs, the pulse is on screen — and only
+   * then does the 300ms begin.
+   *
+   * ── HOW IT WAS FOUND, so nobody re-derives it ────────────────────────────
+   * As a "flaky test". `feel.spec.ts`'s pulse test failed WebKit matrix runs
+   * from v0.3.0 to v0.7.0 and was twice patched as a SAMPLING problem. It was
+   * not. A diagnostic with four independent samplers recorded 35 mutation
+   * records and zero sightings of the class, while a `data-pulse` probe on
+   * this component showed the state being committed and cleared normally —
+   * which put the failure below Preact and above the DOM, i.e. exactly here.
+   *
+   * The cleanup replaces what `clearTimers()` used to do: `retry()` sets
+   * `pulse` to null, which runs this cleanup, which cancels both handles.
+   */
+  useEffect(() => {
+    if (pulse === null) return undefined;
+    let timer = 0;
+    const frame = requestAnimationFrame(() => {
+      timer = window.setTimeout(() => setPulse(null), PULSE_MS);
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+      window.clearTimeout(timer);
+    };
+  }, [pulse]);
+
   /* ── Lazy engine, and the stored progress ──────────────────────────────── */
   useEffect(() => {
     let live = true;
@@ -280,10 +337,11 @@ export default function ExerciseView(props: ExerciseViewProps) {
       setBusy(true);
       setShown(verdict.move);
       /* The board's share of the feedback: one Transition on the square the
-         piece landed on. Cleared by its own timer rather than by the next step,
-         so a slow reply cannot leave it glowing. */
+         piece landed on. Cleared by the effect near the top of this component
+         rather than here — the clock must not start until the pulse has been
+         PAINTED. See the note there; starting it on this line silently drops
+         the whole acknowledgement on a slow phone. */
       setPulse(verdict.move.to);
-      after(PULSE_MS, () => setPulse(null));
 
       const advance = () => {
         setFeedback('idle');
@@ -398,6 +456,12 @@ export default function ExerciseView(props: ExerciseViewProps) {
          Exposing it keeps that observable: without it a test (or a reader
          watching the console) cannot tell "refused" from "not listening yet". */
       data-busy={interactive ? 'false' : 'true'}
+      /* Exposed for the same reason as `data-busy`: the pulse is applied below
+         Preact, inside Chessground, and without this there is no way to tell
+         "the state was never set" from "the state was set and never painted".
+         That distinction is what located the rAF-debounce defect above, after
+         two confident wrong diagnoses. Keep it. */
+      data-pulse={pulse ?? ''}
     >
       <div class="mcc-exercise-board">
         {/* The shake lives on this wrapper, never on the Chessground host:
