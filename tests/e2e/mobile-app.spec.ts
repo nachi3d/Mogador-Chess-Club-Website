@@ -420,6 +420,101 @@ test.describe('settings are reachable from the desktop header', () => {
   });
 });
 
+/* ═══ Task 4 — no route may exist on one layout only ════════════════════ */
+
+/**
+ * ⚠️ EVERY BOTTOM-BAR DESTINATION MUST BE REACHABLE FROM THE DESKTOP HEADER.
+ *
+ * `/progres/` shipped in the bar and in NOTHING on desktop. The page built, it
+ * rendered, every one of its own specs passed — and a desktop reader had no way
+ * to get to it. Same family as Critical Feature 32: an index card with no
+ * destination is a page you can see and cannot open; this is a page you can
+ * open and cannot see.
+ *
+ * ⚠️ THE LIST IS READ OFF THE BAR, NEVER HARD-CODED. That is the whole value:
+ * a fifth entry added to the bar fails here until it has a desktop home, which
+ * is the failure the previous four never produced.
+ */
+test.describe('every bottom-bar destination is reachable on desktop', () => {
+  for (const [label, home] of [
+    ['FR', '/'],
+    ['EN', '/en/'],
+  ] as const) {
+    test(`${label}: the desktop header reaches every bar entry`, async ({ page }) => {
+      /* Collect the destinations from the bar itself, at a width where it exists. */
+      await page.setViewportSize(PHONE);
+      await page.goto(home);
+      const bar = page.locator('[data-mobile-nav]');
+      await expect(bar).toBeVisible();
+      const destinations = await bar.locator('a[href]').evaluateAll((links) =>
+        links.map((a) => new URL((a as HTMLAnchorElement).href).pathname),
+      );
+      expect(destinations.length).toBeGreaterThan(0);
+
+      /* Now ask the desktop header for each one. */
+      await page.setViewportSize(DESKTOP);
+      await page.goto(home);
+      await expect(page.locator('[data-mobile-nav]')).toBeHidden();
+
+      const header = page.locator('.site-header');
+      for (const path of destinations) {
+        const link = header.locator(`a[href="${path}"]`);
+        expect(
+          await link.count(),
+          `the bottom bar reaches ${path}, but the desktop header has no link to it`,
+        ).toBeGreaterThan(0);
+      }
+    });
+  }
+
+  test('the progress entry is visible without opening anything', async ({ page }) => {
+    await page.setViewportSize(DESKTOP);
+    await page.goto('/');
+
+    /* Top-level, so it is on screen immediately — not behind a disclosure and
+       not below the fold. A link that needs two clicks to find is the thing
+       this whole block exists to prevent coming back in a weaker form. */
+    const link = page.getByTestId('header-progress');
+    await expect(link).toBeVisible();
+    await expect(link).toHaveAttribute('href', /\/progres\/$/);
+
+    const box = (await link.boundingBox())!;
+    expect(box.y + box.height).toBeLessThanOrEqual(DESKTOP.height);
+    expect(await page.evaluate(() => window.scrollY)).toBe(0);
+  });
+
+  test('it marks itself current on the progress page', async ({ page }) => {
+    await page.setViewportSize(DESKTOP);
+    await page.goto('/progres/');
+    await expect(page.getByTestId('header-progress')).toHaveAttribute('aria-current', 'page');
+  });
+
+  test('its label is the one the bottom bar uses', async ({ page }) => {
+    /* Critical Feature 20, applied across the breakpoint: one destination, one
+       name. Read both and compare rather than pinning the word. */
+    await page.setViewportSize(PHONE);
+    await page.goto('/');
+    const barLabel = (
+      await page.locator('[data-mobile-nav] a[href="/progres/"]').innerText()
+    ).trim();
+
+    await page.setViewportSize(DESKTOP);
+    await page.goto('/');
+    const headerLabel = (await page.getByTestId('header-progress').innerText()).trim();
+
+    expect(headerLabel).toBe(barLabel);
+  });
+
+  test('it is hidden on a phone — the bar is the navigation there', async ({ page }) => {
+    /* The desktop nav is `display: none` below 768px on purpose: leaving it in
+       the a11y tree would give a screen-reader user two navigations to walk
+       past on every page. */
+    await page.setViewportSize(PHONE);
+    await page.goto('/');
+    await expect(page.getByTestId('header-progress')).toBeHidden();
+  });
+});
+
 /* ═══ The regression guard ══════════════════════════════════════════════ */
 
 test.describe('desktop is untouched', () => {

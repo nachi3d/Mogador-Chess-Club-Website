@@ -452,3 +452,101 @@ test.describe('E3 — accessibility', () => {
     }
   }
 });
+
+/* ═══ E3 on DESKTOP, in every theme ═════════════════════════════════════ */
+
+/**
+ * ⚠️ RANK, POINTS, STREAK AND ACHIEVEMENTS MUST ALL RENDER ON DESKTOP.
+ *
+ * `/progres/` was reachable only from the mobile bottom bar until the
+ * desktop-progress-nav session, so every one of these four had been looked at
+ * on a phone far more often than on a wide screen. The axe sweep above proves
+ * the page is ACCESSIBLE in all four themes; it does not prove the resolver
+ * actually filled anything in — a blank rank and a zero total are perfectly
+ * accessible.
+ *
+ * So this asserts the numbers arrived, at a desktop viewport, in every theme
+ * and both modes. Values come from the seeded store, never hardcoded: the
+ * point is "the resolver ran and the page shows its result", not what the
+ * result is (which the threshold tests above already own).
+ */
+test.describe('E3 renders on desktop in every theme', () => {
+  const THEME_KEY = 'mcc:theme:v1';
+  const DESKTOP = { width: 1280, height: 900 };
+
+  for (const theme of ['bois', 'marbre', 'souiri', 'terminal']) {
+    for (const mode of ['light', 'dark']) {
+      test(`${theme} ${mode}: rank, points, streak and achievements all render`, async ({
+        page,
+      }) => {
+        await page.setViewportSize(DESKTOP);
+        await page.addInitScript(
+          ([themeKey, themeValue, streakKey]) => {
+            try {
+              window.localStorage.setItem(themeKey as string, themeValue as string);
+              /* A run of six: the pill only exists from two upward. */
+              window.sessionStorage.setItem(streakKey as string, '6');
+            } catch {
+              /* nothing to do */
+            }
+          },
+          [THEME_KEY, JSON.stringify({ theme, mode }), STREAK_KEY],
+        );
+        await seed(page, {
+          exercises: { 'mat-du-couloir': SOLVED, 'tutorial:la-tour': SOLVED },
+          games: { avance: { wins: 1, draws: 0, losses: 2 } },
+        });
+        await page.goto('/progres/');
+
+        /* The theme really is the one under test — otherwise all eight runs
+           would be the same test eight times. */
+        /* Token match on the class LIST, not a regex against the whole
+           attribute: `theme-bois` is a substring of nothing here today, but a
+           later `theme-boisson` would make a substring test quietly wrong. */
+        const classes = ((await page.locator('html').getAttribute('class')) ?? '').split(/\s+/);
+        expect(classes).toContain(`theme-${theme}`);
+        await expect(page.locator('html')).toHaveAttribute('data-theme', mode);
+
+        /* 2. Points — a real total, and this store is not empty. Checked
+           first because the rank assertion below is derived from it. */
+        const points = page.locator('[data-score-points]').first();
+        await expect(points).toBeVisible();
+        const total = Number(await points.textContent());
+        expect(total).toBeGreaterThan(0);
+
+        /*
+         * 1. Rank — the one the POINTS imply, read from the catalogue.
+         *
+         * ⚠️ "a non-empty label" would be a vacuous assertion here: the page
+         * server-renders `score.rank.pion` into this element as a seed, so it
+         * is never empty and the test would pass with the resolver dead. What
+         * has teeth is that the label AGREES with the total beside it — which
+         * only the resolver can make true. No threshold is hardcoded; the
+         * table is read off the page, as everywhere else in this file.
+         */
+        const catalogue = JSON.parse(
+          (await page.locator('[data-score-catalogue]').textContent()) ?? '{}',
+        ) as Catalogue;
+        const implied = [...catalogue.ranks].reverse().find((r) => total >= r.min)!;
+        const rank = page.locator('[data-score-rank]').first();
+        await expect(rank).toBeVisible();
+        await expect(rank).toHaveText(catalogue.rankLabels[implied.id]!);
+
+        /* 3. Streak — shown, and showing the run that was seeded. */
+        const streak = page.locator('[data-score-streak-wrap]');
+        await expect(streak).toBeVisible();
+        await expect(streak).toContainText('6');
+
+        /* 4. Achievements — the list renders and at least one is earned. */
+        await expect(page.locator('[data-score-achievement]').first()).toBeVisible();
+        await expect(page.locator('[data-score-achievement][data-earned]').first()).toBeVisible();
+        expect(
+          Number(await page.locator('[data-score-earned]').first().textContent()),
+        ).toBeGreaterThan(0);
+
+        /* And the whole block is on screen without hunting for it. */
+        expect(await page.evaluate(() => window.scrollY)).toBe(0);
+      });
+    }
+  }
+});

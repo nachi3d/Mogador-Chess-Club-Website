@@ -412,6 +412,33 @@ not as "unavailable", so the state no longer exists.
 - [ ] The prerequisite line still goes to `/apprendre-les-bases/`, and the
       tutorial index still lists its 13 steps
 
+### ⚠️ No route may exist on one layout only
+
+`/progres/` shipped reachable from the mobile bottom bar and from **nothing**
+on desktop. Nothing was broken; a way in was simply absent, which is the class
+of defect a checklist catches and a suite does not.
+
+- [ ] On a **desktop** window, from the home page: reach `/progres/` using only
+      what is on screen. It is a top-level nav entry — **Progrès**, after
+      "Le club" — not inside a group and not an icon in the tools cluster
+- [ ] It marks itself current when you are on it (colour **and** underline)
+- [ ] Its label is the same word the phone's bottom bar uses. One destination,
+      one name
+- [ ] Do the same walk in English at `/en/`
+- [ ] Narrow the window to about **900px**: the header wraps to two rows —
+      nav on the first, settings/theme/language on the second. Known and
+      recorded (BACKLOG); check it still reads as deliberate rather than broken
+- [ ] Widen past **1024px**: back to one row
+- [ ] On a phone the "Progrès" nav entry must **not** appear in the header —
+      the bar is the navigation there, and two navigations would be read out
+      twice by a screen reader
+
+- [ ] On desktop, `/progres/` shows a **rank**, a **points** total, the
+      **streak** (once you have solved two in a row in this tab) and the
+      **achievements** list. Check in all four themes — the theme changes the
+      surfaces, and this page had been looked at far more on a phone than on a
+      wide screen
+
 ### Course 3 — "Les motifs tactiques" (7 lessons)
 
 - [ ] `/cours/` lists three courses, in order: Bien ouvrir une partie, Les mats
