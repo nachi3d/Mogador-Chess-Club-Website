@@ -126,6 +126,76 @@ Every session that reaches a merge updates all three, in the same commit as the 
 2. **`CLAUDE.md`** — any decision, rule or gotcha that the next session would otherwise rediscover.
 3. **`docs/MANUAL-TESTS.md`** — **whenever the session adds or changes anything a visitor can see.** New feature, new page, new failure mode, new regression worth watching: it goes in the checklist. This is the one most easily skipped and the one whose absence is least visible — a checklist that lags the site makes an incomplete test pass feel complete.
 
+#### ⚠️ KILL EVERY LONG-LIVED PROCESS THE SESSION STARTED
+
+A session that starts a server **terminates it when the task that needed it
+ends** — `astro preview`, `npm run demo`, a watch, anything holding a port.
+
+**This is not tidiness.** A stale listener on 4321 is the documented trap that
+has already cost real debugging time twice: Playwright's `reuseExistingServer`
+silently skips its own build and tests **whatever is on disk from before**, and
+`astro preview` quietly moves to 4322 and serves the old build to anyone who
+opens the URL they expected. A fixed bug then keeps "failing".
+
+One ran for **4h28m** during the M3 session before anyone noticed.
+
+⚠️ **Stopping the npm wrapper does NOT stop the server.** `npm run preview`
+spawns `astro preview` as a child; killing the parent leaves the child holding
+the port. Verify the port is actually free, and kill by PID if it is not:
+
+```sh
+netstat -ano | grep -E ':432[1-5]'    # NOT `-p tcp` — that is IPv4 only, and
+                                      # node binds [::1]. See the note below.
+```
+
+```powershell
+Stop-Process -Id <pid> -Force
+```
+
+#### ⚠️ A PORT LIST IS NOT THE SWEEP. SWEEP BY REPO PATH.
+
+`netstat` on 4321-4325 only answers "is anything on the ports astro walks to
+on its own". It says nothing about a server someone started with an explicit
+`--port`, and nothing stops anyone doing that.
+
+**Found at the end of the M3-suite session: 26 orphaned
+`astro preview --port 4399` processes for this repo, one still listening** —
+entirely outside the swept range, and therefore invisible to every previous
+run of `npm run demo` and to every session that "checked the ports".
+
+So the real question is *"is anything previewing THIS repo?"*:
+
+```powershell
+Get-CimInstance Win32_Process -Filter "Name='node.exe'" |
+  Where-Object { $_.CommandLine -like '*Mogador-Chess-Club-Website*' -and
+                 $_.CommandLine -like '*preview*' } |
+  ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+```
+
+`scripts/demo.mjs` now does both on startup **and on Ctrl+C** — the port walk,
+then `previewsForRepo()`. Three details in that function are load-bearing:
+
+- **Match the repo path AND `preview`.** The path alone kills `astro dev`, a
+  Playwright run and the editor's TypeScript server; `preview` alone kills
+  another project's server, which is not ours to touch.
+- **The wrapper does not carry the path; the server does.** `npx astro preview`
+  shows as `…/npx-cli.js astro preview` with the repo only as its cwd, which
+  `Win32_Process` does not expose. The path match finds the process that owns
+  the socket — which is the one that matters.
+- **Its PARENT is taken too, when the parent's own command line also mentions
+  `preview`.** Both conditions together mean the pair is one invocation. Without
+  this the wrappers pile up: one sweep that killed only the servers left **13**
+  husks behind, and a husk per run is how a machine reaches dozens of processes
+  nobody can account for.
+
+**PowerShell, not `wmic`** — wmic is deprecated and absent from recent Windows
+11 builds, so it fails silently exactly where this matters. And the matching is
+done in JS rather than in the query: a path is far easier to compare there than
+to quote correctly through two layers of shell.
+
+`npm run demo` doing this on startup is a safety net rather than a substitute:
+it protects the next session, not this one.
+
 #### Promotion routine — `dev` → `main`
 
 Every promotion does all four, and the version bump is **part of the release
@@ -200,6 +270,10 @@ it. Tags said one thing and the manifest said another.
 25. **Every piece set is licence-checked individually and credited on `/mentions-legales/`.** For three of the four it is a condition of use, not a courtesy.
 26. **Mobile and desktop diverge at 768px, deliberately.** Bottom bar + one-line header + dashboard below; grouped header + retro menu above. Both sides are pinned by specs.
 27. **The bottom bar has exactly four entries and never hides on scroll**, and no page may hide content behind it.
+28. **Below 768px the exercise controls compact; the board never does.** See the M3 section — the board is the thing being taught with.
+29. **There is ONE resume rule, in `ResumeResolver.astro`, and ONE key scheme, in `src/lib/journey.ts`.** Four surfaces read them. A second copy of either is how two pages come to disagree about what a reader has done.
+30. **The progress page never prints a number nothing computed.** Rank and points say "bientôt".
+31. **Every long route ends with a way onward**, clear of the bottom bar.
 
 ---
 
@@ -687,7 +761,7 @@ FR at the root, EN under `/en/...`. **Route segments are not translated** (`/en/
 | `/contact/` | `/en/contact/` | WhatsApp CTA, venue, socials |
 | `/mentions-legales/` | `/en/mentions-legales/` | Legal notice + credits. **Footer only, not in the nav.** |
 | `/parametres/` | `/en/parametres/` | Appearance settings. Reachable from the **desktop header** (gear, beside the theme toggle) and the footer. |
-| `/progres/` | `/en/progres/` | Local progress. The mobile bar's fourth entry; read from `localStorage`, no account. |
+| `/progres/` | `/en/progres/` | Local progress: three group bars, exercises by level and by theme, what is left, and a resume card. Read from `localStorage`, no account. **Rank and points say "bientôt" and print no number** — nothing computes one. |
 | `/connexion/` | `/en/connexion/` | **NOT EMITTED by default** — see the account flag below |
 | `/compte/` | `/en/compte/` | **NOT EMITTED by default** — see the account flag below |
 | `/auth/callback/` | — | **NOT EMITTED by default.** The only unlocalised route |
@@ -803,6 +877,38 @@ tracks lie inside the frame's inner edge, and that the four gaps agree within
 ⚠️ It deliberately does **not** assert "a border exists": that would have passed
 throughout the bug. Verified to fail on the old geometry, with the message *"the
 file labels fall outside the frame"*.
+
+### ⚠️ Chessground leaves up to 8px of the host unused — CENTRE IT (M3)
+
+`updateBounds()` in `chessground/src/render.ts` sizes the board by flooring the
+host's width to a whole number of **8 device pixels**:
+
+```js
+width = Math.floor((bounds.width * devicePixelRatio) / 8) * 8 / devicePixelRatio;
+```
+
+so an 8×8 grid always lands on whole device pixels and the squares stay crisp.
+`cg-container` is then `position: absolute; top: 0` with no `left`, which puts
+the entire remainder at the **right and the bottom**.
+
+Measured on a tutorial step at 1000px: host 279.44px, board 272px — and the
+frame's gap was **6.4px left/top against 13.8px right/bottom**. The frame was
+drawn correctly; it simply was not centred on what it encloses, which is the
+rule above. `.cg-wrap cg-container { inset: 0; margin: auto }` centres an
+absolutely-positioned box with a definite width and height — which this one has,
+set inline by the JS — so the remainder is split and all four gaps agree.
+
+⚠️ **Safe for hit-testing, and worth stating because it looks risky.**
+Chessground derives every square from `bounds`, which is
+`elements.board.getBoundingClientRect()` — the `cg-board` element itself, not
+the wrapper. Moving the container moves the board and the bounds with it.
+`board-pointer.spec.ts` is what actually proves it.
+
+⚠️ **This was a PRE-EXISTING failure of `board-frame.spec.ts` on `dev`**, found
+during M3-suite and confirmed by stashing that session's work and rebuilding —
+it failed identically. The spec's 4px tolerance encoded "sub-pixel rounding of
+an 8-square grid"; the real quantum is 8px. The fix removes the asymmetry rather
+than widening the tolerance, which is why the tolerance is untouched.
 
 ---
 
@@ -1131,6 +1237,70 @@ Pièges, exercices, agenda and contact live *inside* these four sections.
   has to reserve it. `--mcc-bottom-nav` is the shared row height; `env()`
   cannot live inside a custom property and still resolve per device.
 
+### ⚠️ BELOW 768px THE EXERCISE CONTROLS COMPACT. THE BOARD DOES NOT. (M3)
+
+Measured at 360×640: the exercise component was **796px against 587px of
+usable viewport, and the board was only 330px of it.** The other 466px was the
+control stack — two stacked meters, a reserved verdict panel, a four-part
+move-entry form and a standalone hint button, each a full-width block with
+20px between them.
+
+**The decision is to compact the controls and leave the board alone.** The
+board is the thing being taught with; winning back pixels by shrinking it
+would be solving the wrong problem. Measured after:
+
+| | 390×844 | 360×640 |
+|---|---|---|
+| exercise component | 799 → **618** (usable 791 — fits) | 796 → **615** (usable 587) |
+| control stack | 403 → **244** | 403 → **244** |
+| board | 333 → **333** | 330 → **330** |
+| scroll to reach prev/next | 815 → **618** | 1079 → **882** |
+
+⚠️ **360×640 still does not fit in one screen — 615 against 587.** The
+remaining 28px is one short nudge rather than the 209px scroll it was, and
+`mobile-fit.spec.ts` bounds it at 660 rather than pretending otherwise.
+Closing it completely would have cost either the board's size or the verdict
+panel's reserved height.
+
+**It is CSS only, and that is what keeps the desktop safe.** The dense row is
+built with flex `order` from elements that are *not* adjacent in the DOM, so
+the markup — and therefore the screen-reader reading order and the ≥768px
+layout — is untouched. A JSX restructure would have moved the hint button
+above the verdict panel on desktop too.
+
+Three things pay for it, and each has a rule:
+
+- **The meters go inline.** Label-above-value costs two lines for four words.
+- **The verdict panel's reserve shrinks, it does not go.** 6.5rem → 5.25rem,
+  because the panel is full-page-width here rather than a 15rem side column,
+  so the same sentences take fewer lines. Removing the reserve would put the
+  move field back to jumping under the reader's thumb between attempts.
+- **The move-entry help line is `sr-only` until the field has focus.**
+  ⚠️ Clipped, NEVER `display: none` — the field points at it with
+  `aria-describedby`, and a clipped element is in the accessibility tree with
+  certainty where a `display: none` target is honoured by most screen readers
+  and guaranteed by none. It is safe to let it grow because the form is the
+  LAST element in the column below 768px (`order: 6`); anything placed after
+  it makes the reveal shift content again.
+  **The visible label stays.** Hiding it and leaning on the placeholder saves
+  another 22px and is the well-known trap: a placeholder disappears the moment
+  the reader types.
+
+`main`'s block padding also drops 2.5rem → 1.5rem below 768px — 80px of a
+640px screen spent before the reader reaches anything, on every page.
+
+### ⚠️ Every long route ends with a way onward (M3)
+
+Trap and exercise detail pages carried a back link at the **top only**. A
+reader who finished one on a phone was ~2 300px down, with the bottom bar
+offering "Apprendre" (the courses) and nothing pointing at the index they came
+from, and had to scroll the whole page back up to leave.
+
+Both now end with the same link, from the **same i18n key** as the one at the
+top — one destination, one name. `mobile-fit.spec.ts` asserts on four routes
+and three phone sizes that the end-of-content navigation is visible, clears
+the fixed bar, and is ≥44px.
+
 ### `/progres/` exists because the bar needs a fourth destination
 
 The direction doc points "Progrès" at `/compte/` *or a local view while
@@ -1247,6 +1417,67 @@ Then, and this is the part that makes it feel like a game:
 
 ⚠️ **FURTHEST, not earliest.** A game's Continue resumes where you stopped, not
 at the first gap you skipped past. Both branches have a spec.
+
+### ⚠️ THE RESOLVER IS SHARED, AND THE JOURNEY IS A PARAMETER (M3)
+
+It used to live inside `HomePage.astro`'s inline script, with a near-copy of
+the same rule in `ProgressPage.astro` and a third copy of just the key scheme
+in `CoursPage.astro`. Two answers to "where did this reader stop" is one too
+many, and the failure is silent — the pages name different lessons and neither
+looks broken.
+
+| File | What it owns |
+|---|---|
+| `src/lib/journey.ts` | The **only** place the `mcc:progress:v1` key scheme is written. Build-time; imports `astro:content`, so no island may touch it |
+| `src/components/progress/ResumeResolver.astro` | The rule, the inline script, and the declarative binding |
+| `src/components/progress/ResumeCard.astro` | The card `/cours/`, `/exercices/` and `/progres/` show |
+
+**Each call site resolves its own journey, and they may legitimately differ:**
+
+| Page | Journey |
+|---|---|
+| `/` | tutorial, then lessons — the course sequence |
+| `/cours/` | lessons alone |
+| `/exercices/` | exercises alone |
+| `/progres/` | all three |
+
+So `/progres/` can name a different step from `/` once a reader has touched a
+standalone exercise. That is four answers to four questions, not a drift.
+
+⚠️ **`journeys` is a RECORD, one component instance per page.** `/progres/`
+needs a table for the whole journey, one per group bar, and one per level and
+theme bucket. Five instances would emit five copies of the inline script, four
+of them no-ops; one instance resolves every table in a single pass.
+
+⚠️ **A level and a theme are just journeys.** `done / total` over an ordered
+set of steps is exactly what the resolver computes, so the by-level and
+by-theme breakdowns on `/progres/` are extra tables rather than extra logic.
+Their steps carry no `u` or `t` — a statistic has nowhere to send anyone.
+
+⚠️ **The declarative contract has two halves, and collapsing them breaks it.**
+`[data-resume-count]` and `[data-resume-fill]` are filled **whether or not
+there is a step to resume**; the link, the title and the un-hiding happen
+**only when there is one**. That is what lets one contract serve a statistic
+("2 sur 13", true and worth showing at zero) and an offer ("Reprendre — La
+tour", which must not appear until it is true). `ResumeCard` is `hidden` by
+default and stays hidden; a group bar is not and always gets its numbers.
+
+**The home dashboard stays bespoke**, reading `window.MCC_RESUME.home` from a
+plain inline script that runs *after* the resolver. It swaps a card's eyebrow,
+title, bar, secondary tile and stats line — too specific to describe in
+attributes. Document order is the whole of the ordering guarantee; both are
+inline and synchronous, so there is no race to lose but there is an order to
+keep.
+
+**`tests/e2e/resume.spec.ts` was written BEFORE the extraction**, run green
+against the old code and green against the new. It pins CLS, the script's
+non-deferred attributes, and both dashboard branches. Its `journeyOf()`
+accepts `[data-menu-journey]` *or* `[data-resume-journey]` precisely so that
+not one assertion had to move — only the handle did.
+
+⚠️ **The CLS assertion has teeth, and was verified to.** Wrapping the resolver
+in `DOMContentLoaded` in a built `dist/index.html` produced **CLS 0.0057** and
+failed the test.
 
 ### ⚠️ The resolver is `is:inline`, and it duplicates the progress key
 
@@ -2264,7 +2495,17 @@ Umami, env-driven. `PUBLIC_UMAMI_WEBSITE_ID` is read at build time from the Clou
 
 Playwright + axe-core. Specs live in `tests/e2e/` and run against the **built** site served by `astro preview` — not the dev server. The service worker, the generated manifest and the self-hosted fonts only exist after `astro build` plus the post-build step, so testing the dev server would be testing a different application.
 
-Scripts: `npm run test:e2e` (full matrix), `npm run test:e2e:chromium` (branch default).
+**Scripts — use these two, not the raw playwright commands:**
+
+| | |
+|---|---|
+| `npm run test:branch` | chromium, specs mapped from what changed. **The per-session command.** |
+| `npm run test:release` | the full matrix. **Promotion only** — see the verification policy. |
+
+`test:e2e` and `test:e2e:chromium` still exist as thin escape hatches for
+debugging a single project by hand. They are **not** the session commands: they
+do no spec mapping, and `test:e2e` in particular is the raw matrix with none of
+the exit-code and arithmetic checking `test:release` does for you.
 
 ### Manual testing — `npm run demo`, and nothing else
 
@@ -2579,13 +2820,50 @@ overrides the comparison branch; it exists for testing the script itself.
 
 ---
 
-### Verification policy
+### ⚠️ VERIFICATION POLICY — TWO COMMANDS, AND THE MATRIX RUNS ONCE
 
-- **Default (every feature branch):** `npx playwright test --project=chromium <touched specs>` — sufficient to merge to `dev`.
-- **Full matrix (Chromium, Firefox, WebKit, Pixel 5, iPhone 13) REQUIRED for:**
-  - any merge to `main` (release gate);
-  - any change touching **i18n routing**, the **board island**, the **exercise validator**, or the **service worker** (this project's critical paths).
-- Everything else (copy, styling, new content entries) merges to `dev` on chromium-only.
+| | Command | When | Cost |
+|---|---|---|---|
+| **Every feature branch** | `npm run test:branch` | every session, before merging to `dev` | ~1-3 min |
+| **Promotion only** | `npm run test:release` | once, when promoting `dev` → `main` | 30-45 min |
+
+`npm run test:branch` is **chromium only** and runs the specs mapped from what
+actually changed (`scripts/spec-map.mjs`). `--all` runs every chromium spec for
+a sweeping refactor — still one browser.
+
+#### ⚠️ DO NOT RUN THE MATRIX ON A FEATURE BRANCH. EVER. NOT "TO BE SAFE".
+
+This is the rule most likely to be reasoned away, so here is the reasoning
+already done:
+
+- **The matrix answers exactly one question** — does this work in Firefox and
+  WebKit. Asking it on every branch does not make the answer truer. It moves
+  the cost from one run per release to one run per session.
+- **It was costing 30-45 minutes per session**, routinely, because it *felt*
+  prudent. That is not caution. It is a tax that discourages small fixes, and
+  unfixed small things are what a visitor actually sees.
+- **A chromium failure is a failure.** If `test:branch` fails, fix it. Do not
+  run the matrix to find out whether it is "really" broken.
+- **A chromium pass is enough to merge to `dev`.** `dev` is not production.
+  Nothing reaches a reader without passing through `test:release` first.
+
+#### ⚠️ THE "CRITICAL PATH" TRIGGER IS GONE, AND ITS REMOVAL IS THE POINT
+
+The old policy said the **board island**, the **exercise validator**, **i18n
+routing** and the **service worker** required the matrix *on any branch*. It
+read as prudence and it functioned as a loophole: almost everything on this
+site touches one of those four, so the exception quietly became the default.
+
+Those paths did not lose coverage — they gained precision. `scripts/spec-map.mjs`
+runs **seven** spec files for a `BoardSurface.tsx` change, which is more than
+any session ever selected by hand, and it runs them in seconds. Their
+cross-browser pass happens at the release gate, like everything else on the
+site.
+
+**If you believe you have found the exception:** change this policy in
+CLAUDE.md in the same commit, with the reason. Do not make a one-off exception
+no future session will know about — that is precisely how the last policy
+eroded.
 
 ### Critical-path tests (never skip)
 
@@ -2637,7 +2915,8 @@ Run `npm run demo`, which prints its path, and work down it. The release gate is
 □ npm run demo — builds clean, no new warnings
 □ node scripts/check-contrast.mjs — green
 □ node scripts/check-content.mjs — green
-□ npx playwright test — green (full matrix; see the known environmental flakes above)
+□ npm run test:release — green (the full matrix; see the known environmental
+  flakes above. This is the ONE place it runs.)
 □ docs/MANUAL-TESTS.md — worked through on desktop AND a real phone
 □ Lighthouse ≥ 90 (Performance, Accessibility, SEO)
 □ package.json "version" matches the tag about to be cut

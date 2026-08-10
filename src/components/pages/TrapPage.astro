@@ -54,7 +54,7 @@ const whatsappShare = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
         data.themes.length > 0 && (
           <>
             <h2 class="trap-themes-heading">{t('traps.themes')}</h2>
-            <ul class="trap-themes">
+            <ul class="chip-list">
               {data.themes.map((theme) => (
                 <li class="chip">{theme}</li>
               ))}
@@ -71,9 +71,22 @@ const whatsappShare = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
       shapes={data.shapes}
     />
 
+    {/* ⚠️ THE WAY OUT BELONGS AT THE END TOO (M3).
+        The back link at the top of this page is the only one there was, so a
+        reader who finished the trap on a phone — 2.3k pixels down, with the
+        bottom bar offering "Apprendre" (the courses) and nothing pointing at
+        the traps index — had to scroll the whole page back up to leave. Every
+        other long route on the site already ends with its own way onward;
+        this one did not.
+
+        Same label from the same key as the link at the top: one destination,
+        one name (CLAUDE.md → the E5 label rule). */}
     <footer class="trap-footer">
       <a class="share" href={whatsappShare} rel="noopener noreferrer" target="_blank">
         {t('traps.share')}
+      </a>
+      <a class="trap-footer-back" href={trapsPath(locale)} data-testid="trap-back-bottom">
+        ← {t('traps.backToIndex')}
       </a>
     </footer>
   </article>
@@ -127,28 +140,29 @@ const whatsappShare = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
     color: var(--mcc-text-secondary);
   }
 
-  .trap-themes {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.35rem;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  .chip {
-    padding: 0.15rem 0.55rem;
-    background-color: var(--mcc-surface-sunken);
-    border: 1px solid var(--mcc-border-subtle);
-    border-radius: var(--radius-pill);
-    color: var(--mcc-text-secondary);
-    font-size: var(--text-2xs);
-  }
+  /* `.chip` / `.chip-list` live in src/styles/cards.css (M3) — see the note in
+     ExercicePage. Three copies with two paddings became one. */
 
   .trap-footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 1rem;
     margin-top: 2.5rem;
     padding-top: 1.5rem;
     border-top: 1px solid var(--mcc-border-subtle);
+  }
+
+  .trap-footer-back {
+    /* ≥44px, like every other control on a phone — it is a real destination,
+       not a footnote. */
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+    color: var(--mcc-link);
+    font-size: 0.9375rem;
+    text-decoration: underline;
+    text-underline-offset: 0.15em;
   }
 
   .share {

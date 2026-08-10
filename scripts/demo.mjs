@@ -36,6 +36,8 @@ const CHECKLIST = join(ROOT, 'docs', 'MANUAL-TESTS.md');
  * whole walk is the point: freeing only 4321 still lets a forgotten server on
  * 4322 confuse the next run, and it is the SECOND server that is hardest to
  * notice because nothing about it looks wrong.
+ *
+ * ⚠️ THIS LIST IS NOT THE WHOLE SWEEP, AND CANNOT BE. See `previewsForRepo()`.
  */
 const PORTS = [4321, 4322, 4323, 4324, 4325];
 
@@ -170,26 +172,164 @@ function listenersOn(port) {
   return [...pids];
 }
 
+/**
+ * Every preview server running out of THIS repo, whatever port it took.
+ *
+ * ─────────────────────────────────────────────────────────────────────────
+ * ⚠️ A PORT LIST CANNOT BE THE WHOLE SWEEP, AND THIS IS WHY.
+ *
+ * The list above covers the walk `astro preview` does on its own. It does not
+ * cover a server someone started with an explicit `--port`, and nothing stops
+ * anyone doing that — a session measuring something, a second window, a script
+ * avoiding a collision. **26 orphaned `astro preview --port 4399` processes
+ * were found on this machine**, one of them still listening, entirely outside
+ * the swept range and therefore invisible to every run of this script.
+ *
+ * They are the same trap: a stale server for this repo, serving a `dist/` from
+ * whenever it started. So the sweep asks the real question — "is anything
+ * previewing THIS repo?" — instead of the proxy question "is anything on these
+ * five ports?".
+ *
+ * ⚠️ MATCH ON THE REPO PATH **AND** `preview`. Either alone is wrong:
+ *   - repo path alone would kill `astro dev`, a Playwright run, an editor's
+ *     TypeScript server, this very script;
+ *   - `preview` alone would kill another project's preview server, which is
+ *     not ours to touch.
+ *
+ * ⚠️ THE WRAPPER DOES NOT CARRY THE PATH; THE SERVER DOES. `npx astro preview`
+ * shows as `…/npx-cli.js astro preview` with the repo only as its cwd — which
+ * Win32_Process does not expose — while the process that actually holds the
+ * socket is `node …/<repo>/node_modules/…/astro.mjs preview`.
+ *
+ * So the path match finds the SERVER, and its PARENT is taken too when that
+ * parent's own command line also mentions `preview`. Both conditions together
+ * mean the pair belongs to one preview invocation; the parent alone would be
+ * a terminal, an editor or a shell, and killing those is not ours to do.
+ *
+ * ⚠️ WITHOUT THE PARENT RULE THE WRAPPERS PILE UP. They hold no socket, so
+ * they are not the stale-server trap — but 13 of them were left behind by one
+ * sweep that killed only the servers, and a husk per run is how a machine ends
+ * up with dozens of processes nobody can account for.
+ *
+ * Both probes are best-effort: a shell-less spawn of a real executable, and a
+ * failure sets `probeFailed` so "could not look" is never reported as "nothing
+ * there".
+ * ─────────────────────────────────────────────────────────────────────────
+ */
+function previewsForRepo() {
+  const found = new Map(); // pid → command line, for the message
+
+  /* PowerShell rather than `wmic`: wmic is deprecated and is gone from recent
+     Windows 11 builds, so it fails silently exactly where this matters. The
+     matching is done in JS, not in the query — a path is far easier to compare
+     here than to quote correctly through two layers of shell. */
+  const probe = IS_WINDOWS
+    ? read('powershell', [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        "Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | " +
+          'ForEach-Object { "$($_.ProcessId)|$($_.ParentProcessId)|$($_.CommandLine)" }',
+      ])
+    : read('ps', ['-eo', 'pid=,ppid=,args=']);
+
+  if (!probe.ok) {
+    probeFailed = true;
+    return found;
+  }
+
+  /* Compared case-insensitively and with both separators: Windows reports a
+     mix of `N:\repo\...` and `N:/repo/...` in the same command line. */
+  const normalise = (text) => text.replace(/\\/g, '/').toLowerCase();
+  const root = normalise(ROOT);
+
+  /** Every node process, so a matched server's parent can be looked up. */
+  const processes = new Map(); // pid → { parent, command }
+
+  for (const line of probe.out.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+
+    const parts = IS_WINDOWS
+      ? [trimmed.slice(0, trimmed.indexOf('|')), trimmed.slice(trimmed.indexOf('|') + 1)]
+      : [trimmed.slice(0, trimmed.search(/\s/)), trimmed.slice(trimmed.search(/\s/) + 1).trim()];
+    const pid = parts[0]?.trim() ?? '';
+    const rest = parts[1] ?? '';
+    if (!/^\d+$/.test(pid)) continue;
+
+    const cut = IS_WINDOWS ? rest.indexOf('|') : rest.search(/\s/);
+    if (cut < 0) continue;
+    const parent = rest.slice(0, cut).trim();
+    const command = rest.slice(cut + 1).trim();
+
+    processes.set(pid, { parent, command });
+  }
+
+  const ours = (pid) => pid !== String(process.pid) && pid !== String(process.ppid);
+
+  for (const [pid, { parent, command }] of processes) {
+    if (!ours(pid)) continue;
+
+    const haystack = normalise(command);
+    if (!haystack.includes(root)) continue;
+    if (!/\bpreview\b/.test(haystack)) continue;
+
+    found.set(pid, command);
+
+    /* The wrapper that spawned it — only when it is plainly part of the same
+       preview invocation. */
+    const above = processes.get(parent);
+    if (above && ours(parent) && /\bpreview\b/.test(normalise(above.command))) {
+      found.set(parent, above.command);
+    }
+  }
+
+  return found;
+}
+
 function killPid(pid) {
   // Both are real executables; no shell, so no DEP0190 and no arg mangling.
   if (IS_WINDOWS) spawnSync('taskkill', ['/F', '/PID', pid], { stdio: 'ignore' });
   else spawnSync('kill', ['-9', pid], { stdio: 'ignore' });
 }
 
-step(1, 'Clearing stale preview servers');
-let cleared = 0;
-for (const port of PORTS) {
-  for (const pid of listenersOn(port)) {
-    killPid(pid);
-    cleared += 1;
-    say(`      ${dim(`killed pid ${pid} holding ${port}`)}`);
+/** The whole sweep: the port walk, then anything previewing this repo. */
+function sweep(report = () => {}) {
+  let killed = 0;
+
+  for (const port of PORTS) {
+    for (const pid of listenersOn(port)) {
+      killPid(pid);
+      killed += 1;
+      report(pid, `holding ${port}`);
+    }
   }
+
+  for (const [pid, command] of previewsForRepo()) {
+    killPid(pid);
+    killed += 1;
+    /* The port is the useful half of the line and it is usually right there. */
+    const port = command.match(/--port[= ](\d+)/)?.[1];
+    report(pid, port ? `previewing this repo on ${port}` : 'previewing this repo');
+  }
+
+  return killed;
 }
+
+step(1, 'Clearing stale preview servers');
+const cleared = sweep((pid, why) => say(`      ${dim(`killed pid ${pid} ${why}`)}`));
 // Windows frees the socket a moment after taskkill returns; binding too soon
 // makes astro silently move to the next port, which is the exact trap.
 if (cleared > 0) spawnSync(process.execPath, ['-e', 'setTimeout(()=>{},600)']);
 
 const stillHeld = PORTS.filter((port) => listenersOn(port).length > 0);
+const stillPreviewing = previewsForRepo();
+if (stillPreviewing.size > 0) {
+  say(
+    `      ${yellow(`! ${stillPreviewing.size} preview process(es) for this repo survived`)} — ` +
+      dim(`pids ${[...stillPreviewing.keys()].join(', ')}; check the URL below.`),
+  );
+}
 if (stillHeld.length > 0) {
   say(
     `      ${yellow(`! still in use: ${stillHeld.join(', ')}`)} — ` +
@@ -306,8 +446,9 @@ preview.stdout.on('data', (chunk) => {
    finds the port held and the whole point of step 1 is undone. */
 const stop = () => {
   preview.kill();
-  // The real server can be a grandchild on Windows; clear the ports directly.
-  for (const port of PORTS) for (const pid of listenersOn(port)) killPid(pid);
+  /* The real server can be a grandchild on Windows, and it may not be on a
+     swept port at all — the same full sweep as step 1. */
+  sweep();
   process.exit(0);
 };
 process.on('SIGINT', stop);

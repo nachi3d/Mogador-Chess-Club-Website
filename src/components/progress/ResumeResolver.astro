@@ -1,0 +1,254 @@
+---
+/**
+ * THE RESUME RESOLVER — one rule, every surface that reads progress (M3).
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * WHAT IT IS. A journey is built at BUILD TIME (it is content, and its order
+ * is a claim about teaching). Which part of it a reader has done lives in
+ * their own `localStorage` and cannot be known until the browser runs. So
+ * this ships the ordered table as data and resolves it in place.
+ *
+ * It came out of `HomePage.astro`, where the rule was written once for the E5
+ * menu while a near-copy lived in `ProgressPage.astro` and a third copy of
+ * just the key scheme sat in `CoursPage.astro`. Two answers to "where did
+ * this reader stop" is one answer too many, and the failure is silent: the
+ * pages simply name different lessons and neither looks broken.
+ *
+ * ── THE RESOLUTION RULE ─────────────────────────────────────────────────
+ *   touched  — any of the step's keys has `solved`, `attempts > 0` or
+ *              `hintUsed`. OPENING A PAGE LEAVES NO TRACE: reading is not
+ *              progress, and a step that counted as touched on sight would
+ *              make "Reprendre" point at whatever the reader glanced at.
+ *   complete — every one of the step's keys is solved.
+ *
+ *   1. find the LAST touched step;
+ *   2. from there forward, take the first that is not complete — which is
+ *      that same step when the reader stopped part-way through it;
+ *   3. if everything from there is complete, fall back to the earliest
+ *      incomplete step anywhere (one they skipped past);
+ *   4. otherwise there is nothing to resume, and nothing renders.
+ *
+ * ⚠️ FURTHEST, NOT EARLIEST. A game's Continue resumes where you stopped,
+ * not at the first gap you skipped. Both branches have a spec in
+ * `main-menu.spec.ts`.
+ *
+ * ── WHY IT IS STILL `is:inline` ─────────────────────────────────────────
+ * ⚠️ DO NOT MAKE THIS A MODULE, AND DO NOT ADD `src`, `defer` OR `async`.
+ * It runs synchronously while the document is parsing, so the resolved state
+ * is in the FIRST paint. A deferred script resolves a frame late and pushes a
+ * vertically-centred menu down under the reader's eyes — measured at CLS
+ * 0.0057 on the home page, the page least able to afford it.
+ * `tests/e2e/resume.spec.ts` measures the CLS and asserts the tag's
+ * attributes; the CLS assertion was verified to FAIL on a deferred build.
+ *
+ * ⚠️ AN `is:inline` SCRIPT SHIPS VERBATIM, COMMENTS AND ALL. The rationale
+ * therefore lives here in frontmatter — compiled away — and the script keeps
+ * short pointers back. Same rule as the theme head script in BaseLayout.
+ *
+ * ⚠️ ONE INSTANCE PER PAGE, AND `journeys` IS A RECORD FOR THAT REASON.
+ * `/progres/` needs five tables (the whole journey, three group bars, and one
+ * bucket per level and theme); five component instances would mean five
+ * copies of this script, four of them no-ops. One instance emits the script
+ * once and resolves every table in a single pass.
+ *
+ * ⚠️ IT DUPLICATES THE KEY `mcc:progress:v1`. An inline script cannot import
+ * a bare specifier, so this is the same trade the theme script and
+ * `AccountButton` already make. It only ever READS, and it fails silent: an
+ * unreadable store leaves every surface on its server-rendered branch, which
+ * is a working page. The specs seed the key directly, so a divergence from
+ * `src/lib/progress.ts` fails there.
+ *
+ * ── THE SURFACE CONTRACT ────────────────────────────────────────────────
+ * Two ways to consume a result, and they compose:
+ *
+ * 1. DECLARATIVELY, on any element carrying `data-resume-for="<id>"`:
+ *
+ *      [data-resume-count]  ← the tally, via `data-resume-count-pattern`
+ *      [data-resume-fill]   ← `inline-size` as a percentage
+ *      [data-resume-title]  ← the resumable step's own name
+ *      the element's <a>    ← href, title, aria-label
+ *
+ *    ⚠️ COUNTS AND BARS ARE FILLED WHETHER OR NOT THERE IS A STEP TO RESUME;
+ *    the link, the title and the un-hiding happen only when there is one.
+ *    That split is what lets ONE contract serve both a statistic ("2 / 13",
+ *    true and worth showing at zero) and an offer ("Reprendre — La tour",
+ *    which must not appear until it is true). `ResumeCard.astro` is `hidden`
+ *    by default and therefore stays hidden; a group bar is not and therefore
+ *    always gets its numbers.
+ *
+ * 2. IMPERATIVELY, via `window.MCC_RESUME[id]`, for a surface too bespoke to
+ *    describe in attributes — the home dashboard swaps a card's eyebrow,
+ *    title, bar, secondary tile and stats line. Its binder is a plain inline
+ *    script in `HomePage.astro` that runs AFTER this one; document order is
+ *    the whole of that guarantee, and both being inline is why there is no
+ *    race to lose.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+import type { JourneyStep } from '@lib/journey';
+
+interface Props {
+  /**
+   * id → the ordered steps under it. An empty journey is legal: it resolves
+   * to nothing, which is what a collection with no content should render.
+   */
+  journeys: Record<string, readonly JourneyStep[]>;
+}
+
+const { journeys } = Astro.props;
+const ids = Object.keys(journeys);
+---
+
+{/* `application/json` so each table is DATA rather than code: nothing
+    executes it, and a Content-Security-Policy that forbade inline script
+    would still leave it readable. */}
+{
+  ids.map((id) => (
+    <script
+      type="application/json"
+      data-resume-journey={id}
+      set:html={JSON.stringify(journeys[id])}
+    />
+  ))
+}
+
+{/* ⚠️ Terse on purpose — it ships verbatim. The reasoning is in this file's
+    frontmatter, which is compiled away. Read that before changing anything. */}
+<script is:inline>
+  (function () {
+    try {
+      /* Marked as they go, so a second copy of this script cannot apply
+         anything twice. */
+      var tables = document.querySelectorAll('[data-resume-journey]:not([data-resume-done])');
+      if (!tables.length) return;
+
+      var records = {};
+      try {
+        var raw = window.localStorage.getItem('mcc:progress:v1');
+        var store = raw ? JSON.parse(raw) : null;
+        records = (store && store.exercises) || {};
+      } catch (e) {
+        /* unavailable, or hand-edited. Everything below then reads as
+           "nothing done", which is the server-rendered branch. */
+      }
+
+      function record(key) {
+        var r = records[key];
+        return r && typeof r === 'object' ? r : null;
+      }
+
+      /* Reading is not progress — see the rule in the frontmatter. */
+      function touched(step) {
+        return step.k.some(function (key) {
+          var r = record(key);
+          return !!r && (r.solved === true || r.attempts > 0 || r.hintUsed === true);
+        });
+      }
+
+      function complete(step) {
+        return step.k.every(function (key) {
+          var r = record(key);
+          return !!r && r.solved === true;
+        });
+      }
+
+      /* Store-wide, not journey-wide: "exercices résolus" means all of them. */
+      var solvedTotal = 0;
+      for (var key in records) {
+        if (Object.prototype.hasOwnProperty.call(records, key)) {
+          var r = record(key);
+          if (r && r.solved === true) solvedTotal++;
+        }
+      }
+
+      window.MCC_RESUME = window.MCC_RESUME || {};
+
+      Array.prototype.forEach.call(tables, function (table) {
+        table.setAttribute('data-resume-done', '');
+        var id = table.getAttribute('data-resume-journey');
+        var journey = JSON.parse(table.textContent || '[]');
+
+        var done = 0;
+        var last = -1;
+        var remaining = [];
+        for (var i = 0; i < journey.length; i++) {
+          if (complete(journey[i])) done++;
+          else remaining.push(i);
+          if (touched(journey[i])) last = i;
+        }
+
+        /* Steps 1-4 of the rule, in order. */
+        var target = -1;
+        if (last >= 0) {
+          for (var j = last; j < journey.length; j++) {
+            if (!complete(journey[j])) {
+              target = j;
+              break;
+            }
+          }
+          if (target < 0) {
+            for (var m = 0; m < last; m++) {
+              if (!complete(journey[m])) {
+                target = m;
+                break;
+              }
+            }
+          }
+        }
+
+        var step = target >= 0 ? journey[target] : null;
+        window.MCC_RESUME[id] = {
+          step: step,
+          index: target,
+          done: done,
+          total: journey.length,
+          solved: solvedTotal,
+          /* Indices of every incomplete step, in order. Published so a page
+             showing "what is left" does not need its own copy of complete(). */
+          remaining: remaining,
+          journey: journey,
+        };
+
+        var mounts = document.querySelectorAll('[data-resume-for="' + id + '"]');
+        Array.prototype.forEach.call(mounts, function (mount) {
+          /* ── Statistics: always, step or no step. See the contract note. ── */
+          var count = mount.querySelector('[data-resume-count]');
+          if (count) {
+            var pattern = mount.getAttribute('data-resume-count-pattern') || '%s / %s';
+            count.textContent = pattern
+              .replace('%s', String(done))
+              .replace('%s', String(journey.length));
+          }
+
+          var fill = mount.querySelector('[data-resume-fill]');
+          if (fill) {
+            fill.style.inlineSize = journey.length
+              ? Math.round((done / journey.length) * 100) + '%'
+              : '0%';
+          }
+
+          /* ── The offer: only once there is genuinely something to resume ── */
+          if (!step) return;
+
+          var link = mount.tagName === 'A' ? mount : mount.querySelector('a');
+          if (link) {
+            link.setAttribute('href', step.u);
+            /* The label may stay a bare word (the E5 menu is one line), so the
+               destination is announced rather than printed. */
+            var aria = mount.getAttribute('data-resume-aria');
+            if (aria) link.setAttribute('aria-label', aria.replace('%s', step.t));
+            link.setAttribute('title', step.t);
+          }
+
+          var title = mount.querySelector('[data-resume-title]');
+          if (title) title.textContent = step.t;
+
+          mount.removeAttribute('hidden');
+          mount.setAttribute('data-resolved', 'true');
+        });
+      });
+    } catch (e) {
+      /* A resolver that throws must cost nothing: every surface is already
+         rendered in its "nothing yet" state and stays there. */
+    }
+  })();
+</script>

@@ -189,3 +189,40 @@ export function solvedSlugs(): readonly string[] {
     .filter(([, entry]) => entry.solved)
     .map(([slug]) => slug);
 }
+
+/**
+ * What an index card should say about one slug (M3).
+ *
+ * Three states, and the middle one is the point: an index that only marks
+ * solved work tells a returning reader nothing about where they stopped, which
+ * is the single most useful thing an index can carry.
+ *
+ * ⚠️ `started` means the reader ATTEMPTED something — a move judged, or a hint
+ * opened. Merely opening the page leaves no trace and is deliberately not
+ * progress, exactly as the E5 "Reprendre" resolver defines `touched`. The two
+ * must agree, or a card can say "in progress" for something Reprendre will not
+ * offer to resume.
+ */
+export type ProgressState = 'solved' | 'started' | 'none';
+
+export function progressState(slug: string): ProgressState {
+  const entry = readExercise(slug);
+  if (entry.solved) return 'solved';
+  if (entry.attempts > 0 || entry.hintUsed) return 'started';
+  return 'none';
+}
+
+/**
+ * Every tracked slug's state in one read.
+ *
+ * An index has many cards, and `progressState()` per card would parse the
+ * store once per card. One parse, one map.
+ */
+export function progressStates(): ReadonlyMap<string, ProgressState> {
+  const out = new Map<string, ProgressState>();
+  for (const [slug, entry] of Object.entries(readProgress().exercises)) {
+    if (entry.solved) out.set(slug, 'solved');
+    else if (entry.attempts > 0 || entry.hintUsed) out.set(slug, 'started');
+  }
+  return out;
+}

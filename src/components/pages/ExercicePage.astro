@@ -59,7 +59,7 @@ const whatsappShare = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
         data.themes.length > 0 && (
           <>
             <h2 class="exercise-themes-heading">{t('traps.themes')}</h2>
-            <ul class="exercise-themes">
+            <ul class="chip-list">
               {data.themes.map((theme) => (
                 <li class="chip">{theme}</li>
               ))}
@@ -79,9 +79,19 @@ const whatsappShare = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
       hint={hint}
     />
 
+    {/* The way out, at the end as well as at the top — see the note in
+        TrapPage.astro. Same key as the link above it, so the two can never
+        come to call the same destination by two names. */}
     <footer class="exercise-footer">
       <a class="share" href={whatsappShare} rel="noopener noreferrer" target="_blank">
         {t('exercises.share')}
+      </a>
+      <a
+        class="exercise-footer-back"
+        href={exercisesPath(locale)}
+        data-testid="exercise-back-bottom"
+      >
+        ← {t('exercises.backToIndex')}
       </a>
     </footer>
   </article>
@@ -120,28 +130,29 @@ const whatsappShare = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
     color: var(--mcc-text-secondary);
   }
 
-  .exercise-themes {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.35rem;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  .chip {
-    padding: 0.15rem 0.55rem;
-    background-color: var(--mcc-surface-sunken);
-    border: 1px solid var(--mcc-border-subtle);
-    border-radius: var(--radius-pill);
-    color: var(--mcc-text-secondary);
-    font-size: var(--text-2xs);
-  }
+  /* ⚠️ `.chip` and the row that holds it live in src/styles/cards.css (M3).
+     They were spelled here, in TrapPage and in CardGrid — three copies, two
+     different paddings. Use `class="chip-list"` on the <ul> and `class="chip"`
+     on each item; nothing chip-shaped belongs in a scoped block. */
 
   .exercise-footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 1rem;
     margin-top: 2.5rem;
     padding-top: 1.5rem;
     border-top: 1px solid var(--mcc-border-subtle);
+  }
+
+  .exercise-footer-back {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+    color: var(--mcc-link);
+    font-size: 0.9375rem;
+    text-decoration: underline;
+    text-underline-offset: 0.15em;
   }
 
   .share {

@@ -59,6 +59,42 @@
   display: block;
 }
 
+/* ⚠️ CHESSGROUND LEAVES UP TO 8px OF THE HOST UNUSED, ALL OF IT ON THE RIGHT
+   AND THE BOTTOM. Centre it instead. (M3)
+
+   `updateBounds()` in chessground/src/render.ts sizes the board by flooring the
+   host's width to a whole number of 8 device pixels:
+
+     width = floor(bounds.width * dpr / 8) * 8 / dpr
+
+   so an 8×8 grid always lands on whole device pixels and the squares stay
+   crisp. `cg-container` is then `position: absolute; top: 0` with no `left`,
+   which puts the remainder — anything up to 8px — entirely at the right and
+   the bottom.
+
+   Measured on a tutorial step at 1000px: host 279.44px, board 272px, and the
+   frame's gap was 6.4px on the left and top against 13.8px on the right and
+   bottom. The frame was drawn correctly; it simply was not centred on what it
+   encloses, which is the rule in CLAUDE.md. `inset: 0` plus `margin: auto`
+   centres an absolutely-positioned box that has a definite width and height —
+   which this one does, set inline by the JS above — so the remainder is split
+   and all four gaps agree to within a rounding error.
+
+   ⚠️ SAFE FOR HIT-TESTING, and that is worth stating because it looks risky.
+   Chessground derives every square's position from `bounds`, which is
+   `elements.board.getBoundingClientRect()` — the `cg-board` element itself,
+   not the wrapper. Moving the container moves the board and the bounds with
+   it. `board-pointer.spec.ts` solves a position by tapping in four different
+   contexts, which is what actually proves it.
+
+   This was found as a PRE-EXISTING failure of `board-frame.spec.ts` on `dev`;
+   it is not a consequence of the M3 control compaction, and it fails
+   identically with that work stashed. */
+.cg-wrap cg-container {
+  inset: 0;
+  margin: auto;
+}
+
 /* ---------- Squares ---------- */
 cg-board {
   background-color: var(--mcc-board-light);

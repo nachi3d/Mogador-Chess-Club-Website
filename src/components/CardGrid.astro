@@ -1,11 +1,23 @@
 ---
 /**
- * Generic card grid used by the cours / pièges / exercices index pages.
- * Skeleton — the cards are unstyled beyond the token palette. Real design later.
+ * The card list used by /cours, /pieges and /exercices.
+ *
+ * ⚠️ IT IS A LIST ON A PHONE AND A GRID ON A DESKTOP (M3). Below 768px it is
+ * one full-width column: a two-column grid at 390px gives ~180px cards, which
+ * is narrower than the summary needs and forces the title to wrap twice.
+ *
+ * ⚠️ THE SURFACE VOCABULARY IS NOT HERE. Border, radius, shadow, hover, press,
+ * focus, the stretched link and `.chip` all live in `src/styles/cards.css`,
+ * which is the ONE definition of a card on this site. This block keeps only
+ * what is genuinely local to this layout: the grid, the internal spacing and
+ * the progress row. See the header of cards.css for why the split is drawn
+ * exactly there.
  */
 import type { Locale } from '@config/site';
 import type { LEVEL_KEYS } from '@i18n/ui';
+import { useTranslations } from '@i18n/ui';
 import LevelBadge from '@components/LevelBadge.astro';
+import ProgressStates from '@components/ProgressStates.astro';
 
 export interface CardItem {
   readonly title: string;
@@ -17,22 +29,28 @@ export interface CardItem {
   /** Free tags rendered as chips. Content vocabulary, not translated. */
   readonly themes?: readonly string[] | undefined;
   /**
-   * Content slug this card tracks progress for. When set, the card reserves a
-   * status row and renders a hidden "solved" marker that a client script
-   * reveals — see the note on `.card-status` below.
+   * The progress keys this card stands for. When non-empty the card reserves a
+   * status row that a client script fills in — see `.card-status` below.
+   *
+   * ⚠️ A SET, not a single slug, because a card is not always one exercise. An
+   * exercise card carries one key; a COURSE card carries every exercise key in
+   * every one of its lessons. The aggregation rule is the same one the E5
+   * resolver uses: solved when all keys are solved, started when any is
+   * touched. Keeping one rule means /cours, /exercices and "Reprendre" can
+   * never disagree about what a reader has done.
    */
-  readonly progressKey?: string | undefined;
+  readonly progressKeys?: readonly string[] | undefined;
 }
 
 interface Props {
   locale: Locale;
   items: readonly CardItem[];
   emptyMessage: string;
-  /** Label for the solved marker. Required once any item has a `progressKey`. */
-  solvedLabel?: string | undefined;
 }
 
-const { locale, items, emptyMessage, solvedLabel } = Astro.props;
+const { locale, items, emptyMessage } = Astro.props;
+const t = useTranslations(locale);
+const tracked = items.some((item) => item.progressKeys && item.progressKeys.length > 0);
 ---
 
 {
@@ -44,10 +62,6 @@ const { locale, items, emptyMessage, solvedLabel } = Astro.props;
         <li class:list={['card', { 'card-linked': item.href }]} data-reveal>
           <div class="card-head">
             <h2>
-              {/* The <a> wraps only the title, but is stretched over the whole
-                  card by CSS. That keeps ONE link per card in the a11y tree —
-                  wrapping the summary and chips too would make the accessible
-                  name a paragraph long. */}
               {item.href ? (
                 <a class="card-link" href={item.href}>
                   {item.title}
@@ -60,34 +74,48 @@ const { locale, items, emptyMessage, solvedLabel } = Astro.props;
           </div>
           <p class="card-summary">{item.summary}</p>
           {item.themes && item.themes.length > 0 && (
-            <ul class="card-themes">
+            <ul class="chip-list card-themes">
               {item.themes.map((theme) => (
                 <li class="chip">{theme}</li>
               ))}
             </ul>
           )}
-          {item.meta && <p class="card-meta">{item.meta}</p>}
           {/*
-            PROGRESS. The row is ALWAYS rendered and always reserves its height,
-            so revealing the marker cannot reflow the grid — the card is the
-            same size before and after the script runs.
+            PROGRESS (M3). Three states, not one.
 
-            `hidden` rather than `visibility: hidden`: an unsolved card must not
-            have a stray "Solved" sitting in the accessibility tree waiting to
-            be read out. The whole marker is absent until it is true.
+            ⚠️ THE ROW IS ALWAYS RENDERED AND ALWAYS RESERVES ITS HEIGHT, so
+            filling it in cannot reflow the list — the card is the same size
+            before and after the script runs. That was true of the old
+            solved-only marker and it stays true with three states.
+
+            ⚠️ THE SERVER RENDERS "not started" AND MEANS IT. Progress is
+            device-local, so the server genuinely does not know; "pas encore
+            commencé" is true of a reader with no stored progress, which is
+            every first-time visitor. It is NOT a placeholder that would lie if
+            the script never ran — which is why it is real text rather than an
+            empty box waiting to be filled.
           */}
-          {item.progressKey && (
-            <p class="card-status">
-              <span class="card-solved" data-solved-for={item.progressKey} hidden>
-                <span aria-hidden="true">✓</span> {solvedLabel}
+          {item.progressKeys && item.progressKeys.length > 0 && (
+            <p class="card-status" data-status-for={item.progressKeys.join(' ')} data-state="none">
+              <span class="card-state card-state-none">{t('progress.state.none')}</span>
+              <span class="card-state card-state-started" hidden>
+                {t('progress.state.started')}
+              </span>
+              <span class="card-state card-state-solved" hidden>
+                <span aria-hidden="true">✓</span> {t('progress.state.solved')}
               </span>
             </p>
           )}
+          {item.meta && <p class="card-meta">{item.meta}</p>}
         </li>
       ))}
     </ul>
   )
 }
+
+{/* Emitted only when something on this list actually tracks progress, so
+    /pieges — which tracks none — still ships no script at all. */}
+{tracked && <ProgressStates />}
 
 <style>
   .card-grid {
@@ -99,52 +127,19 @@ const { locale, items, emptyMessage, solvedLabel } = Astro.props;
     list-style: none;
   }
 
+  /* ⚠️ ONE FULL-WIDTH COLUMN BELOW THE BREAKPOINT. `auto-fill` already
+     collapses to one column at 390px, but not at 640px — a large phone in
+     landscape got two ~300px cards, which is the cramped layout M3 exists to
+     remove. Stated rather than left to the arithmetic. */
+  @media (max-width: 767.98px) {
+    .card-grid {
+      grid-template-columns: 1fr;
+      gap: 0.75rem;
+    }
+  }
+
   .card {
     padding: 1.25rem;
-    background-color: var(--mcc-surface-raised);
-    border: 1px solid var(--mcc-border-subtle);
-    border-radius: var(--radius-card);
-    box-shadow: var(--shadow-lift);
-  }
-
-  /* Whole-card click target, single link in the a11y tree. */
-  .card-linked {
-    position: relative;
-    transition:
-      border-color var(--motion-response) var(--ease-response),
-      transform var(--motion-response) var(--ease-response);
-  }
-
-  .card-linked:hover {
-    border-color: var(--mcc-accent);
-    transform: translateY(-2px);
-  }
-
-  .card-link::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: var(--radius-card);
-  }
-
-  .card-link {
-    color: inherit;
-    text-decoration: none;
-  }
-
-  .card-link:hover {
-    text-decoration: underline;
-  }
-
-  /* The stretched pseudo-element carries no outline, so focus is drawn on the
-     card instead — otherwise a keyboard user sees a ring around nothing. */
-  .card-linked:focus-within {
-    outline: 2px solid var(--mcc-focus-ring);
-    outline-offset: 3px;
-  }
-
-  .card-link:focus-visible {
-    outline: none;
   }
 
   .card-head {
@@ -169,22 +164,7 @@ const { locale, items, emptyMessage, solvedLabel } = Astro.props;
   }
 
   .card-themes {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.35rem;
-    margin: 0.85rem 0 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  .chip {
-    padding: 0.15rem 0.55rem;
-    background-color: var(--mcc-surface-sunken);
-    border: 1px solid var(--mcc-border-subtle);
-    border-radius: var(--radius-pill);
-    color: var(--mcc-text-secondary);
-    font-size: var(--text-2xs);
-    letter-spacing: 0.02em;
+    margin-top: 0.85rem;
   }
 
   .card-meta {
@@ -196,29 +176,55 @@ const { locale, items, emptyMessage, solvedLabel } = Astro.props;
     text-transform: uppercase;
   }
 
-  /* Fixed height whether or not the marker inside is shown — this is the whole
-     reason the row exists as its own element. */
+  /* Fixed height whatever state is showing — this is the whole reason the row
+     exists as its own element rather than as a conditional span. */
   .card-status {
     display: flex;
     align-items: center;
     min-height: 1.5rem;
-    margin: 0.75rem 0 0;
+    margin: 0.85rem 0 0;
   }
 
-  .card-solved {
+  .card-state {
     display: inline-flex;
     align-items: center;
     gap: 0.3rem;
-    padding: 0.15rem 0.6rem;
-    /* green-700 fill with the cream label — the same AA-proved pair as the
-       primary CTA. Never the level-badge mid-tones. */
-    background-color: var(--mcc-primary);
-    color: var(--mcc-primary-contrast);
-    border-radius: var(--radius-pill);
     font-size: var(--text-2xs);
     font-weight: 600;
     letter-spacing: 0.04em;
     text-transform: uppercase;
+  }
+
+  /* ⚠️ NOT COLOUR ALONE. Each state differs in WORDING first; the tick and the
+     fill are the second and third signals. "Not started" is deliberately the
+     quietest thing on the card — it is the default, and shouting it at a first
+     visitor would make every index look like a list of failures. */
+  .card-state-none {
+    color: var(--mcc-text-secondary);
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: 0.02em;
+  }
+
+  .card-state-started {
+    padding: 0.15rem 0.6rem;
+    border: 1px solid var(--mcc-accent);
+    border-radius: var(--radius-pill);
+    color: var(--mcc-accent-text);
+  }
+
+  /* green-700 fill with the cream label — the same AA-proved pair as the
+     primary CTA, in all eight theme/mode combinations. Never the level-badge
+     mid-tones, which are proved against ink and not against cream.
+     ⚠️ NO `opacity` ON THIS TEXT. It sits on an audited fill, and an alpha
+     applied on top of a proved pair is invisible to check-contrast.mjs — that
+     is exactly the M1 regression (100 → 96) that the whole Playwright suite
+     passed through. */
+  .card-state-solved {
+    padding: 0.15rem 0.6rem;
+    background-color: var(--mcc-primary);
+    color: var(--mcc-primary-contrast);
+    border-radius: var(--radius-pill);
   }
 
   .empty {

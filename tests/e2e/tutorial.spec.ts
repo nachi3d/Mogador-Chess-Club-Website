@@ -15,10 +15,28 @@ import { settleReveals } from './helpers/reveal';
 const FIRST = '/apprendre-les-bases/lechiquier-et-les-coordonnees/';
 const KNIGHT = '/apprendre-les-bases/le-cavalier/';
 
-/** The board is `client:visible`; on a phone viewport it starts below the fold. */
+/**
+ * The board is `client:visible`; on a phone viewport it starts below the fold.
+ *
+ * ⚠️ `scrollIntoViewIfNeeded()` IS NOT ENOUGH ON ITS OWN, and this file was
+ * getting away with it. It guarantees only that the element is PARTLY visible,
+ * so a board can sit with half its ranks above the fold — and a tap aimed at an
+ * off-screen square is silently dropped. The board then looks dead: `data-ready`
+ * is true, `data-busy` is false, `data-attempts` stays at 0 and the state never
+ * leaves `idle`, because no move was ever produced to judge.
+ *
+ * That is exactly what failed here, on the one step whose solution starts at
+ * g1 — near the bottom edge of the board, and therefore the first square to
+ * fall off. `board-pointer.spec.ts` plays the SAME g1-f3 move on this SAME page
+ * and passed in the same run, because it does the centring scroll below.
+ *
+ * Follow the rule CLAUDE.md already states: centre it.
+ */
 async function openStep(page: Page, path: string) {
   await page.goto(path);
-  await page.locator('[data-testid="chessboard"]').scrollIntoViewIfNeeded();
+  const board = page.locator('[data-testid="chessboard"]');
+  await board.scrollIntoViewIfNeeded();
+  await board.evaluate((el) => el.scrollIntoView({ block: 'center' }));
   await page.locator('[data-testid="chessboard"] cg-board').waitFor({ timeout: 15_000 });
   await expect(page.getByTestId('exercise')).toHaveAttribute('data-ready', 'true', {
     timeout: 20_000,
@@ -35,7 +53,10 @@ test.describe('tutorial — the guided sequence', () => {
       await expect(page.getByRole('heading', { level: 1, name: heading })).toBeVisible();
       await settleReveals(page);
       // 13 steps, in order, each linking to its own route.
-      await expect(page.locator('.step')).toHaveCount(13);
+      /* M3: the tutorial step card and the course lesson card were the same
+         card written twice and are now one component, so both render
+         `.lesson-card`. */
+      await expect(page.locator('.lesson-card')).toHaveCount(13);
     });
   }
 
@@ -128,15 +149,23 @@ test.describe('tutorial — the board', () => {
        RECORD. The persisted fact surfaces as the returning-solver greeting —
        asserting 'data-state=solved' here would be asserting a bug. */
     await page.reload();
-    await page.locator('[data-testid="chessboard"]').scrollIntoViewIfNeeded();
+    await page
+      .locator('[data-testid="chessboard"]')
+      .evaluate((el) => el.scrollIntoView({ block: 'center' }));
     await expect(page.getByTestId('exercise-status')).toContainText('Déjà résolu', {
       timeout: 20_000,
     });
 
-    // And the index shows the tick.
+    /* And the index shows the tick. M3 replaced the bare ✓ with the same
+       three-state row the exercise index uses — the old marker could only say
+       "done", so a step attempted and not solved looked identical to one never
+       opened. */
     await page.goto('/apprendre-les-bases/');
     await settleReveals(page);
-    await expect(page.locator('[data-tutorial-status="tutorial:le-cavalier"]')).toBeVisible();
+    await expect(page.locator('[data-status-for="tutorial:le-cavalier"]')).toHaveAttribute(
+      'data-state',
+      'solved',
+    );
   });
 });
 

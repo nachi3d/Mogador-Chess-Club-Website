@@ -1,0 +1,181 @@
+---
+/**
+ * "Reprendre — <step>" as a card, for the index pages (M3).
+ *
+ * ─────────────────────────────────────────────────────────────────────────
+ * ⚠️ IT IS HIDDEN UNTIL THE RESOLVER PROVES THERE IS SOMETHING TO RESUME,
+ * and that is not a loading state — it is a claim about the reader.
+ * "Reprendre" pointing at a lesson nobody has opened would be the site
+ * telling a student something it does not know, which is the same class of
+ * lie the `onlyMove` rule exists to prevent.
+ *
+ * ⚠️ REVEALING IT MUST NOT MOVE ANYTHING, so it goes at the TOP of the page,
+ * above the card list. An element that appears above content shifts that
+ * content down — unless nothing has painted yet, which is exactly what the
+ * inline resolver guarantees (see `ResumeResolver.astro`). `resume.spec.ts`
+ * measures CLS on these routes for that reason.
+ *
+ * ⚠️ WITH NO JAVASCRIPT IT NEVER APPEARS, and the page is complete without
+ * it: the card list below is the real content and every card is a real link.
+ * The resume card is a shortcut, never the only way in — the same rule as the
+ * E5 menu's sixth entry.
+ * ─────────────────────────────────────────────────────────────────────────
+ *
+ * Everything it renders is filled in by the resolver through the declarative
+ * contract: `data-resume-for` names the journey, `[data-resume-title]` takes
+ * the step's name, `[data-resume-count]` the tally, `[data-resume-fill]` the
+ * bar. No script of its own.
+ */
+import type { Locale } from '@config/site';
+import { useTranslations } from '@i18n/ui';
+
+interface Props {
+  /** Must match the `id` given to the `ResumeResolver` on this page. */
+  id: string;
+  locale: Locale;
+  /** Distinguishes the two cards when a page has more than one. */
+  testId?: string | undefined;
+}
+
+const { id, locale, testId } = Astro.props;
+const t = useTranslations(locale);
+---
+
+<div
+  class="resume-card"
+  data-resume-for={id}
+  data-resume-aria={t('menu.resume.aria')}
+  data-resume-count-pattern={t('progress.countPattern')}
+  data-testid={testId ?? 'resume-card'}
+  hidden
+>
+  <a class="resume-link" href="#">
+    <span class="resume-body">
+      <span class="resume-eyebrow">{t('menu.resume')}</span>
+      {/* Empty until resolved. It is never shown empty: the whole card is
+          `hidden` until the resolver has a step to name. */}
+      <span class="resume-title" data-resume-title></span>
+      <span class="resume-count" data-resume-count></span>
+    </span>
+    <span class="resume-arrow" aria-hidden="true">
+      <svg
+        viewBox="0 0 24 24"
+        width="20"
+        height="20"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M5 12h13"></path>
+        <path d="m12.5 6 6 6-6 6"></path>
+      </svg>
+    </span>
+  </a>
+  <span class="resume-track" aria-hidden="true">
+    <span class="resume-fill" data-resume-fill></span>
+  </span>
+</div>
+
+<style>
+  .resume-card {
+    display: grid;
+    gap: 0.6rem;
+    margin: 0 0 1.5rem;
+    padding: 0.9rem 1rem;
+    background-color: var(--mcc-surface-raised);
+    border: 1px solid var(--mcc-border-subtle);
+    /* The accent edge marks it as the one thing on the page that is about
+       THIS reader rather than about the content. Colour is the last signal —
+       the word "Reprendre" is the first. */
+    border-inline-start: 3px solid var(--mcc-accent-strong);
+    border-radius: var(--radius-card);
+  }
+
+  .resume-link {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    /* ≥44px, like every other primary control on a phone. */
+    min-height: 2.75rem;
+    color: var(--mcc-text-primary);
+    text-decoration: none;
+  }
+
+  .resume-body {
+    display: grid;
+    gap: 0.15rem;
+    min-width: 0;
+  }
+
+  /* ⚠️ NO `opacity` ON ANY OF THIS TEXT. Every colour here is a token pair
+     `check-contrast.mjs` has proved in all eight theme/mode combinations, and
+     an alpha applied on top of a proved pair is invisible to the auditor —
+     that is precisely the M1 Lighthouse regression (100 → 96). Differentiate
+     by size, weight and letter-spacing. */
+  .resume-eyebrow {
+    color: var(--mcc-accent-text);
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .resume-title {
+    font-family: var(--mcc-font-display);
+    font-size: 1.0625rem;
+    font-weight: 600;
+    line-height: 1.2;
+    color: var(--mcc-text-heading);
+  }
+
+  .resume-count {
+    color: var(--mcc-text-secondary);
+    font-size: 0.8125rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .resume-arrow {
+    flex: 0 0 auto;
+    display: flex;
+    color: var(--mcc-accent-text);
+  }
+
+  .resume-track {
+    display: block;
+    block-size: 0.3125rem;
+    border-radius: 999px;
+    background-color: var(--mcc-surface-sunken);
+    overflow: hidden;
+  }
+
+  .resume-fill {
+    display: block;
+    block-size: 100%;
+    inline-size: 0%;
+    border-radius: inherit;
+    background-color: var(--mcc-primary);
+    /* A Transition (E1) — a state change worth watching land. It only ever
+       runs when the bar is updated after first paint, which on these pages is
+       never; it is here so the card behaves like the dashboard's bar if it
+       ever is. */
+    transition: inline-size var(--motion-transition) var(--ease-transition);
+  }
+
+  .resume-card:focus-within {
+    outline: 2px solid var(--mcc-focus-ring);
+    outline-offset: 3px;
+  }
+
+  .resume-link:focus-visible {
+    outline: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .resume-fill {
+      transition: none;
+    }
+  }
+</style>

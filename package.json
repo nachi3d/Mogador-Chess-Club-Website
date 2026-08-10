@@ -1,7 +1,7 @@
 {
   "name": "mogador-chess-club-website",
   "type": "module",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "license": "GPL-3.0-or-later",
   "repository": {
@@ -17,6 +17,8 @@
     "demo": "node scripts/demo.mjs",
     "astro": "astro",
     "check": "astro check",
+    "test:branch": "node scripts/test-branch.mjs",
+    "test:release": "node scripts/test-release.mjs",
     "test:e2e": "playwright test",
     "test:e2e:chromium": "playwright test --project=chromium",
     "quick": "node scripts/quick.mjs"
