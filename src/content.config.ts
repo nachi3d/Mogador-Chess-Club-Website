@@ -225,12 +225,90 @@ const exercices = defineCollection({
  * Boards are placed inline with a `<!--board-->` marker in the body — see
  * `LessonPage.astro`.
  */
+/**
+ * ⚠️ CLAIMS — what the PROSE beside a board says the position does.
+ *
+ * A legal position is not a correct position. `check-content.mjs` proves a FEN
+ * is possible and a solution is legal; it cannot read the sentence next to the
+ * diagram, and that is exactly where authored content goes wrong. Content
+ * batch 3 shipped four boards that passed every mechanical check and each
+ * described a mechanism the position did not contain — a "pin" blocked by an
+ * intervening pawn, a "discovery" whose bishop was not on the line, a "fork"
+ * the defender could simply capture, and a "mate" that could be blocked.
+ *
+ * So the claim is written down as DATA and asserted at build time. Every kind
+ * below is machine-checkable from the position alone:
+ *
+ *   pin        the named piece cannot move, AND removing it exposes its own
+ *              king — which is what distinguishes a pin from a piece that is
+ *              merely blocked in
+ *   fork       the piece on `from` attacks every one of `targets`
+ *   discovery  `by` does NOT attack `target` now, and DOES once `screen` is
+ *              removed — the screen is load-bearing, which is the whole motif
+ *   line       the given moves are legal in sequence and the final position is
+ *              the stated outcome (mate / check / quiet), optionally capturing
+ *              a stated piece type
+ *
+ * `after` replays moves before asserting, because a caption usually describes
+ * the position the diagram is ABOUT to reach ("the knight jumps to c7 …").
+ *
+ * ⚠️ `manual` is the honest escape, NOT a way to silence the check. A claim
+ * that needs a forcing-line search — "the king must step aside and then the
+ * queen falls", "if she recaptures it is mate in two" — is not a property of a
+ * position and cannot be stated here. Those take `kind: 'manual'` with a
+ * `note` saying what a human must verify, and they are PRINTED as a review
+ * queue rather than passing silently. A board with no claims at all is printed
+ * too, for the same reason.
+ */
+const claim = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('pin'),
+    /** Moves to play before asserting, UCI. */
+    after: z.array(uciMove).default([]),
+    /** The square of the pinned piece. */
+    piece: square,
+  }),
+  z.object({
+    kind: z.literal('fork'),
+    after: z.array(uciMove).default([]),
+    /** The square the forking piece stands on. */
+    from: square,
+    /** Every square it must attack. Two or more, or it is not a fork. */
+    targets: z.array(square).min(2),
+  }),
+  z.object({
+    kind: z.literal('discovery'),
+    after: z.array(uciMove).default([]),
+    /** The piece that steps aside. */
+    screen: square,
+    /** The piece that attacks once the screen leaves. */
+    by: square,
+    /** What it then attacks. */
+    target: square,
+  }),
+  z.object({
+    kind: z.literal('line'),
+    after: z.array(uciMove).default([]),
+    /** The sequence, both sides, UCI. */
+    moves: z.array(uciMove).min(1),
+    ends: z.enum(['mate', 'check', 'quiet', 'stalemate']),
+    /** Piece type the LAST move must capture, e.g. "q". */
+    captures: z.enum(['p', 'n', 'b', 'r', 'q']).optional(),
+  }),
+  z.object({
+    kind: z.literal('manual'),
+    /** What a human has to check, and why no machine can. Required. */
+    note: z.string().min(1),
+  }),
+]);
+
 const lessonBoard = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('position'),
     fen: z.string().min(1),
     caption: z.string(),
     orientation: z.enum(['white', 'black']).optional(),
+    claims: z.array(claim).default([]),
   }),
   z.object({
     kind: z.literal('replay'),
@@ -250,6 +328,7 @@ const lessonBoard = z.discriminatedUnion('kind', [
     task: z.string(),
     hint: z.string(),
     orientation: z.enum(['white', 'black']).optional(),
+    claims: z.array(claim).default([]),
   }),
 ]);
 

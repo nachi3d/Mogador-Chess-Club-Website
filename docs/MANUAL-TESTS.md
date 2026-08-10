@@ -423,8 +423,17 @@ not as "unavailable", so the state no longer exists.
 
 Four of this course's eight positions originally described something the board
 did not contain, and **every one of them passed `check-content.mjs`** — legal,
-six fields, solvable. The checker cannot read. This is the check that catches
-that class, so do it slowly, board by board.
+six fields, solvable. Five of those claims are now asserted on every build
+(`claims[]`), so the pin, the fork, the discovery and the surcharge mate cannot
+silently come back. The three on the **manual review queue** cannot be machine-
+stated and are still yours:
+
+- [ ] Run `node scripts/check-content.mjs` and read the *"board(s) a machine
+      cannot vouch for"* list at the end. Every course-3 entry there names what
+      to check; work down it
+- [ ] The list should shrink over time, never grow silently. If a board you
+      just wrote appears as **"no claim declared"**, either declare one or add
+      a `manual` note saying why you cannot
 
 - [ ] **L2, le clouage** — on the diagram, try to move the c6 knight in your
       head: it must be **unable** to move. If a black pawn is sitting on d7, the

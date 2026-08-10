@@ -5,7 +5,7 @@ order: 1
 lang: "en"
 title: "The fork"
 summary: "One piece, two targets — and the knight that hits both from a square nothing defends."
-boards: [{"kind":"position","fen":"r3k3/8/8/1N6/8/8/8/6K1 w - - 0 1","caption":"The family fork. The knight jumps to c7: check to the king on e8, and the rook on a8 is attacked. The king must move, the rook falls."},{"kind":"exercise","fen":"r3k3/8/8/1N6/8/8/8/6K1 w - - 0 1","solution":["b5c7"],"opponentReplies":[],"onlyMove":true,"task":"Win the rook.","hint":"One square, two pieces. And one of them is the king."}]
+boards: [{"kind":"position","fen":"r3k3/8/8/1N6/8/8/8/6K1 w - - 0 1","claims":[{"kind":"fork","after":["b5c7"],"from":"c7","targets":["e8","a8"]}],"caption":"The family fork. The knight jumps to c7: check to the king on e8, and the rook on a8 is attacked. The king must move, the rook falls."},{"kind":"exercise","fen":"r3k3/8/8/1N6/8/8/8/6K1 w - - 0 1","claims":[{"kind":"fork","after":["b5c7"],"from":"c7","targets":["e8","a8"]}],"solution":["b5c7"],"opponentReplies":[],"onlyMove":true,"task":"Win the rook.","hint":"One square, two pieces. And one of them is the king."}]
 draft: false
 ---
 

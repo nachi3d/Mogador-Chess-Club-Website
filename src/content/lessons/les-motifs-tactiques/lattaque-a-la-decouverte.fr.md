@@ -5,7 +5,7 @@ order: 4
 lang: "fr"
 title: "L'attaque à la découverte"
 summary: "La pièce de devant s'écarte et fait ce qu'elle veut pendant que celle de derrière donne l'échec. Et l'échec double, contre lequel il n'y a aucune parade."
-boards: [{"kind":"position","fen":"7k/3q4/8/4N3/8/8/1B6/6K1 w - - 0 1","caption":"La découverte. Le fou en b2 vise le roi h8, mais le cavalier e5 est sur la diagonale. Si le cavalier prend la dame en d7, il découvre l'échec du fou : les Noirs doivent parer l'échec, et le cavalier repart tranquillement au coup suivant."},{"kind":"exercise","fen":"7k/3q4/8/4N3/8/8/1B6/6K1 w - - 0 1","solution":["e5d7"],"opponentReplies":[],"onlyMove":true,"task":"Gagne la dame.","hint":"Prends la dame. L'échec, c'est le fou qui s'en charge."}]
+boards: [{"kind":"position","fen":"7k/3q4/8/4N3/8/8/1B6/6K1 w - - 0 1","claims":[{"kind":"discovery","screen":"e5","by":"b2","target":"h8"}],"caption":"La découverte. Le fou en b2 vise le roi h8, mais le cavalier e5 est sur la diagonale. Si le cavalier prend la dame en d7, il découvre l'échec du fou : les Noirs doivent parer l'échec, et le cavalier repart tranquillement au coup suivant."},{"kind":"exercise","fen":"7k/3q4/8/4N3/8/8/1B6/6K1 w - - 0 1","claims":[{"kind":"discovery","screen":"e5","by":"b2","target":"h8"}],"solution":["e5d7"],"opponentReplies":[],"onlyMove":true,"task":"Gagne la dame.","hint":"Prends la dame. L'échec, c'est le fou qui s'en charge."}]
 draft: false
 ---
 
