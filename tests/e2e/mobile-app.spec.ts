@@ -354,7 +354,7 @@ test.describe('the local progress view', () => {
     await expect(next.first()).toHaveAttribute('href', /apprendre-les-bases/);
   });
 
-  test('the breakdowns count only what exists, and never invent a rank', async ({ page }) => {
+  test('the breakdowns count only what exists, and the rank is computed', async ({ page }) => {
     await seedProgress(page, SEEDED);
     await page.goto('/progres/');
 
@@ -369,9 +369,22 @@ test.describe('the local progress view', () => {
 
     await expect(page.locator('[data-resume-for^="theme-"]').first()).toBeVisible();
 
-    /* ⚠️ Rank and points are E3 and nothing computes one. The page says so
-       rather than printing a number it would be making up. */
-    await expect(page.locator('.progress-soon')).toContainText(/bientôt|soon/i);
+    /**
+     * ⚠️ THIS ASSERTION FLIPPED IN E3, AND THE RULE BEHIND IT DID NOT.
+     *
+     * It used to require the word "bientôt", because nothing computed a rank
+     * and printing one would have been the site inventing a fact. Something
+     * computes one now — a derived total, summed from records that exist — so
+     * the page prints it. What is asserted is the same principle from the other
+     * side: a real rank name and a real number, and NOT the placeholder.
+     *
+     * The deeper coverage (every threshold, the breakdown adding up, no award
+     * on a re-solve) is in `progression.spec.ts`.
+     */
+    await expect(page.locator('.progress-soon')).toHaveCount(0);
+    await expect(page.locator('[data-score-rank]').first()).toHaveText(/\S/);
+    await expect(page.locator('[data-score-rank]').first()).not.toContainText(/bient[oô]t|soon/i);
+    await expect(page.locator('[data-score-points]').first()).toHaveText(/^\d+$/);
   });
 });
 

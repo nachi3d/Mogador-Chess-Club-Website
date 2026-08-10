@@ -395,7 +395,22 @@ look fine to the keyboard. Use fingers only.
 
 - [ ] /cours/ — clicking anywhere on the "Bien ouvrir une partie" card opens it
 - [ ] Tab reaches the card once, with a visible ring; Enter opens it
-- [ ] A course with no lessons yet is NOT clickable (it has no page)
+
+#### ⚠️ Every card opens — on all three indexes
+
+The rule: **a card that renders has a destination.** `/cours/` used to show
+"Les bases : le plateau et les pièces" as a card that did nothing when clicked,
+because that course had no lesson pages. An inert card reads as a broken site,
+not as "unavailable", so the state no longer exists.
+
+- [ ] `/cours/`, `/pieges/`, `/exercices/` — **click every card**. Each opens a
+      real page. None is inert, and none 404s.
+- [ ] Same in English: `/en/cours/`, `/en/pieges/`, `/en/exercices/`
+- [ ] `/cours/` shows **no** "Les bases" card. The tutorial is reached from the
+      prerequisite line at the top ("Jamais joué ? Commence par apprendre les
+      bases."), and from there **only** — one destination, one name on the page
+- [ ] The prerequisite line still goes to `/apprendre-les-bases/`, and the
+      tutorial index still lists its 13 steps
 
 ---
 ## 1d. Which board do I play on?
@@ -872,6 +887,118 @@ cannot judge whether the teaching is correct.
 - [ ] Lesson 4: the diagram shows the finished mate — does it read as such?
 - [ ] Lesson 5 starts the queen on d1 (the brief had her on b3, which made the
       first move impossible) — does the line still read as Philidor to you?
+
+---
+## 6c-bis. After a deploy — the production smoke check
+
+⚠️ **Run this from a machine, not from memory.** These are the failures that
+cannot happen on localhost, so no amount of local testing rules them out.
+
+```sh
+npm run smoke:prod
+```
+
+- [ ] It passes. If everything is unreachable the domain is not attached yet —
+      see CLAUDE.md → Deployment for the one dashboard step
+- [ ] Open `https://mogadorchess.nachi3dlabs.com/` in a real browser: the
+      certificate is valid (no warning), and the padlock is clean
+- [ ] View source on any page: the `<link rel="canonical">` names
+      **mogadorchess.nachi3dlabs.com**, not `mogadorchess.ma` and not localhost
+- [ ] Paste the home URL into WhatsApp: the preview shows the club name and
+      description rather than a bare link. That is `og:url` and `og:image`
+      resolving against a host that exists
+- [ ] DevTools → Application → Manifest: the PWA is installable, icons load
+- [ ] DevTools → Application → Service Workers: registered and activated
+- [ ] DevTools → Network, hard reload with cache disabled: **no request to any
+      origin other than this one.** The engine (`stockfish.*`) must NOT appear
+      until you open `/jouer/` and press start
+- [ ] Install it to a phone home screen and open it offline: the shell loads
+
+---
+## 6d. Progression — rank, points, streak, achievements (E3)
+
+The suite proves the arithmetic. What it cannot prove is whether the ladder
+*feels* earned, which is the only thing that matters here: the direction's
+non-negotiable is that **a rank gained by clicking does not survive two minutes
+with a teenager.**
+
+### ⚠️ The question that decides this feature
+
+- [ ] On a browser that has never used the site, work for **ten minutes** as a
+      beginner would: tutorial steps, in order. Do you reach **Cavalier**? If it
+      takes longer than one sitting, the first threshold is wrong
+- [ ] Does reaching it feel like something, or like a number going up? If it
+      reads as noise, the problem is the moment, not the threshold
+- [ ] Look at what Dame would take. Does it look like *real work* rather than
+      grinding? It should look like finishing nearly everything on the site
+
+### Points, in the solve moment
+
+- [ ] Solve an exercise you have never solved: **"+N points"** appears with the
+      solved badge — as part of the SAME arrival, not as a third thing landing
+      after it
+- [ ] Press "Recommencer" and solve it again: the badge appears and **no points
+      line does.** Not "+0" — nothing at all
+- [ ] Solve a lesson with three boards (Récapitulatif, course 1). The first two
+      boards award nothing; the **last one** awards the lesson
+- [ ] Reveal the hint, then solve: the award is smaller and **never zero**
+- [ ] ⚠️ Does the reward read as quieter than the solve itself? The solve is the
+      event; the points are a footnote to it. If your eye goes to the number
+      first, it is too loud
+
+### `/progres/`
+
+- [ ] Rank, points, and a bar toward the next rank — **no "bientôt" anywhere**
+- [ ] The breakdown's four figures **add up to the total** (do the arithmetic)
+- [ ] Every achievement is listed, earned and unearned. Unearned ones are
+      **named**, not hidden behind "???"
+- [ ] An earned one differs by **more than colour** — weight, border and a
+      filled star as well
+- [ ] In all four themes, light and dark: earned and unearned are still
+      distinguishable, and nothing is washed out
+- [ ] At the top rank the "next rank" line **disappears** rather than leaving a
+      gap
+
+### The session streak
+
+- [ ] Solve two exercises in a row with no mistake: a run appears
+- [ ] Play a wrong move: the run resets **silently**. ⚠️ There must be NO
+      message about losing it — being told twice about one mistake is the thing
+      this rule exists to prevent
+- [ ] Open a new tab: the run is gone. It is a session, not a record
+- [ ] ⚠️ **There is no daily streak, and there must never be one.** If you see
+      anything counting consecutive days, that is a regression — the club meets
+      weekly
+
+### Games
+
+- [ ] Win against Débutant: a **first-win achievement** toasts
+- [ ] Lose several games at any level: **the total does not move**. Not down,
+      not at all
+- [ ] Resign: same — recorded, costs nothing
+- [ ] Win at Avancé and compare with a Débutant win: Avancé is worth
+      substantially more
+- [ ] Win a fourth time at the same level: no further points (the cap)
+
+### The achievement toast
+
+- [ ] It appears **at the moment of earning**, not on a later page load
+- [ ] Reload the page: it does **not** appear again
+- [ ] It clears the bottom bar on a phone and does not cover the move field
+- [ ] With **reduced motion** on (OS setting): it still appears and still
+      announces — it simply arrives without travel. "Reduced motion" is never
+      "no feedback"
+- [ ] With a screen reader: it is announced **politely** — it does not interrupt
+      what is being read
+
+### Guests and broken storage
+
+- [ ] Everything above works with **no account** (there are none)
+- [ ] DevTools → Application → Local Storage → delete `mcc:progress:v1`: the
+      page still renders, rank back to Pion, nothing in the console
+- [ ] Set it to `not json` by hand and reload: same
+- [ ] Disable JavaScript: `/progres/` still renders its structure, and the
+      no-JS note explains why the numbers are not there
 
 ---
 ## 7a. The beginner tutorial — `/apprendre-les-bases/`

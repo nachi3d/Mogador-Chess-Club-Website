@@ -13,6 +13,261 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ---
 
+## [0.8.0] — 2026-08-10
+
+**Progression, and a real address.** The site can now say what a reader has
+earned — ranks, points, session streaks and achievements, all derived from the
+work behind them and never banked — and it has a production hostname,
+`mogadorchess.nachi3dlabs.com`, with the one check the local gate structurally
+cannot do: `npm run smoke:prod`, which asks the deployed origin rather than a
+build on disk.
+
+Also here: the `/cours/` card that rendered fully and did nothing when clicked
+is gone, and `CardItem.href` is required so the state cannot be constructed
+again.
+
+Nothing here changes what the site is: still static, still no account, still no
+in-app communication, and every point is recomputed rather than stored.
+
+### Added — the production domain, and a check that can see it
+
+**`mogadorchess.nachi3dlabs.com`.** A subdomain of the Labs domain, which is
+already a Cloudflare zone — so no registrar, and nothing to wait for. All three
+config touch points moved off the unregistered `mogadorchess.ma`:
+
+- **`src/config/site.ts` → `url`**, which is the one that matters: `BaseLayout`
+  builds the canonical link, every `hreflang` alternate and `og:url` from it. A
+  wrong value here breaks nothing on screen and quietly tells Google and every
+  share preview to use a hostname that may not resolve.
+- **`astro.config.mjs` → `site`**, the same fact in a second file.
+- **`wrangler.jsonc` → `routes[0]`**, with `custom_domain: true`. A bare
+  `routes` pattern attaches a Worker to a hostname that must *already* resolve;
+  `custom_domain` makes wrangler create the DNS record and issue the
+  certificate. Without it the deploy succeeds and the hostname 522s.
+  ⚠️ **Still no `main`** — a Worker with `assets` and no entry script is served
+  entirely by the assets runtime, and that file exists to stop wrangler
+  installing the Cloudflare adapter.
+
+`mogadorchess.ma` stays a separate later option and blocks nothing — including
+custom SMTP, which needs *a domain you control* rather than that specific one.
+
+#### `scripts/smoke-prod.mjs` + `npm run smoke:prod`
+
+**The check the local gate structurally cannot do.** Everything else tests a
+build on disk served by `astro preview` on localhost — right, and blind to a
+whole class of failure: the Worker deployed but the domain never attached;
+`site.url` naming a host that is not the one answering; `sw.js` or the generated
+manifest not reachable, so the PWA silently stops being installable.
+
+Twelve routes across both locales, each asserting HTTP 200, the right `lang`, a
+structural sentinel, the **GPL source link in the footer** (Critical Feature 8),
+canonical and `og:url` agreeing, and **no third-party subresource**. Plus the
+manifest parses and has icons, and `sw.js` is the generated worker with **no
+engine in its precache**. `--url` points it anywhere.
+
+Three things it does deliberately:
+
+- **The origin is parsed from `src/config/site.ts`, not retyped.** A fourth copy
+  of the hostname would be the one that goes stale, and this script would then
+  smoke-test the wrong site and report success. Same reasoning as
+  `check-contrast.mjs` parsing the real stylesheets.
+- **It compares `site.ts` and `astro.config.mjs` before touching the network**,
+  so the two-files-one-fact drift is caught without a deploy. Verified to fail.
+- **Sentinels are structural, never prose** — every one is a `data-testid` or a
+  component class the Playwright suite already relies on. Pinning a sentence
+  would make this fail on a typo fix, which is the tax that gets a check
+  switched off.
+
+⚠️ It is **not** part of `npm run build` and must not become part of it: it needs
+the network and a deployed site.
+
+#### One bug found by testing the checker
+
+The first subresource scan reported the site's **own `canonical` and `hreflang`
+links as third-party subresources on all twelve pages.** A `<link>` is only a
+request for some values of `rel` — `canonical`, `alternate`, `author` and
+`license` are metadata the browser never fetches. It now filters on `rel`, and
+`<a href>` is excluded entirely: the site links out on purpose (the GPL text,
+Chessground, Wikimedia, `wa.me`), and the rule is "no third-party REQUEST
+without an explicit click".
+
+Both halves were then verified to have teeth rather than assumed: a CDN
+`<script>` injected into a built page is caught by origin, and a deliberate
+`site.ts` / `astro.config.mjs` mismatch fails before any fetch.
+
+### Added — E3: ranks, points, session streaks and achievements
+
+Direction: `docs/direction/mcc-direction-esthetique.md` §§ B1–B3. Everything is
+local — `localStorage`, guest-first, and nothing here depends on accounts.
+
+#### Points are DERIVED, never banked
+
+No total is stored anywhere. Every figure is recomputed from the records behind
+it, every time it is read. A stored balance is a number a student types into a
+console in three clicks; a derived one is exactly as good as the work behind it.
+
+Two properties fall out of that with no code at all, which is the point:
+re-solving an exercise awards nothing (the record is a boolean), and a lesson
+with three boards awards on the last one (a lesson is one catalogue entry).
+`ExerciseView` shows the *delta in the total*, so neither case needed a branch.
+
+| Source | Award |
+|---|---|
+| Tutorial step | 5 |
+| Course lesson, all boards solved | 10 |
+| Standalone exercise | 15 / 25 / 40 by level, +5 if the line ends in mate |
+| Hint used | ×0.6, rounded up, never zero |
+| Game won | 5 / 15 / 40 by level, first **two** wins per level counted |
+
+**Losses and draws cost nothing** and are read by no scoring rule. They are
+recorded because the record is worth keeping and v2-S3 will sync it. Losing to a
+2000-strength engine is the normal outcome and must never subtract.
+
+#### The ranks
+
+Pion → Cavalier → Fou → Tour → Dame, at 0 / 20 / 70 / 150 / 220. The full
+reasoning is in CLAUDE.md; the two that carry it are **Cavalier at 20**, which
+is four tutorial steps and therefore inside a beginner's first sitting, and
+**Dame at 220 against a 230 learning ceiling**, which means the top rank cannot
+be reached without doing very nearly all of the teaching. Dame does not require
+playing the engine at all.
+
+#### Session streaks — and no daily streak, permanently
+
+Consecutive exercises solved with no wrong move, in `sessionStorage`, gone when
+the tab closes. **There is no daily streak and there will not be one:** the club
+meets weekly, so a consecutive-day streak would break every week by design for
+every student. Now Critical Feature 34 so it is not re-proposed.
+
+A broken run is never presented as a loss — no message, no zero, simply not
+shown below two. A reader whose move was refused is already being told once.
+
+#### Achievements, announced at the moment they are earned
+
+First mate, ten exercises, a course finished, every elementary mate, five in a
+row, and a first win at each engine level. Earned is derived; **announced** is a
+stored bookmark that stops the toast firing again on every page load for ever.
+
+⚠️ **"A trap mastered" is deliberately not shipped.** A trap page is a replayer
+and records nothing, because stepping through a game someone else played is
+reading rather than competence. Awarding it for scrubbing to the end is exactly
+the "rank earned by clicking" the direction forbids. It lands when a trap
+carries an exercise — BACKLOG.md.
+
+#### Surfaces
+
+- **`/progres/`** — rank with progress to the next, the total with its breakdown
+  by source, every achievement earned and remaining, the current run. Both
+  "bientôt" placeholders are gone.
+- **The home dashboard stats line** — real rank and total, in the first paint.
+- **The solve moment** — the award rides the existing second beat rather than
+  adding a third. Nothing renders at zero: "+0 points" would read as a mark out
+  of ten rather than as the absence of a reward.
+
+#### Where the code lives, and what is duplicated
+
+`points.ts` (policy, pure, island-safe) → `scoreboard.ts` (build time, content →
+award values) → `ScoreResolver.astro` (one computation, inline, first paint) →
+`score.ts` (the islands' accessor, which computes nothing).
+
+⚠️ **No policy is duplicated in the inline script.** Every award value,
+threshold and condition ships as data with the awards already computed, so the
+script sums numbers and knows no rules — the same trick as `MCC_THEMES`. Only
+the two storage keys are duplicated, because an inline script cannot import.
+
+### Changed
+
+- **`progress.ts` gains two namespaces** (`games`, `announced`) plus the session
+  streak. The key stays `v1` by construction: two fields were added and none
+  reinterpreted, so a pre-E3 record normalises to "no games, nothing announced",
+  which is true. Same no-op migration `boardTheme` made in E6.
+- ⚠️ **Its writer now persists the whole record.** The old one spelled
+  `{ exercises: ... }`, which was complete when it was written and would have
+  **silently deleted a game on the next solve**. Every writer goes through one
+  function that knows what a complete record is.
+- **`/jouer/` records results at all.** Nothing did before: a win over Avancé —
+  the strongest single piece of evidence this site can gather about a student —
+  was thrown away the moment the reader pressed "new game".
+- **`check-contrast.mjs`: 275 → 315 assertions.** Three new pairs on the sunken
+  surface (accent as text, primary text, the rank bar's fill), audited in all
+  eight theme/mode combinations.
+
+### Fixed
+
+- **`--mcc-border-strong` on `--mcc-surface-sunken` measured exactly 3.00
+  against a 3.0 floor in Marbre light** — found by the new pair, on the
+  achievement star's first draft. Fixed the way the E6 rule prescribes: the
+  outlier is removed, not excepted. Nothing on the site now draws a strong
+  border on a sunken surface, and the near-miss is recorded in the auditor so
+  anything that starts to knows what to expect.
+- **`board-pointer.spec.ts` still required an unlinked course card** — left over
+  from the index-card work, and only surfaced now because that spec was not in
+  the changed-file mapping last session. It asserts the opposite now.
+
+
+### Fixed — a card on `/cours/` that could not be opened
+
+"Les bases : le plateau et les pièces" rendered the full card — surface, title,
+summary, level badge — and did nothing when clicked. The course had no lesson
+pages, and courses without lessons were deliberately rendered unlinked so the
+card could not point at a 404.
+
+**Unlinked was the wrong trade.** An absent card tells a reader nothing is
+there; a present, inert one, identical to its working neighbours, tells them the
+site is broken. It was also close to invisible to testing — nothing was
+*missing* from the page, only the behaviour.
+
+#### The record was removed, not linked
+
+`src/content/cours/les-bases.json` is deleted. The obvious fix was to point it
+at `/apprendre-les-bases/`, and it is wrong for a specific reason:
+
+- **That content IS the tutorial.** The summary named the board, how each piece
+  moves, castling, en passant and promotion — exactly the thirteen tutorial
+  steps, checked one by one. There was no course waiting to be written; there
+  was a duplicate index record for content that already ships.
+- **`/cours/` already links the tutorial at the top**, deliberately, as the
+  named prerequisite. A card pointing at the same place under a different title
+  puts one destination on one page under two names — the thing Critical Feature
+  20 forbids.
+- **Writing real lessons** would have meant a second, drift-prone copy of
+  thirteen steps of shipped teaching, in both locales, for readers who already
+  have a better route to it.
+
+It also carried `order: 1`, the same as `bien-ouvrir-une-partie`, so the course
+list's sort was already ambiguous. Nobody had maintained it.
+
+### Added — the index rule: a card that renders has a destination
+
+Stated in CLAUDE.md as Critical Feature 32, and enforced twice rather than
+written down once:
+
+- **`CardItem.href` is required** (`string`, not `string | undefined`), and
+  `CardGrid` no longer has a non-link branch. `CardGrid`'s three callers cannot
+  construct the state.
+- **`tests/e2e/index-cards.spec.ts`** — every card on `/cours/`, `/pieges/` and
+  `/exercices/`, both locales, has a `.card-link` whose href **resolves 200**.
+  The type binds this file's callers; the spec binds what a reader can click,
+  and would catch an index that drew its own markup.
+
+Two details the spec is deliberate about: it asserts the destination *resolves*
+rather than merely exists (a dead card pointed at a 404 satisfies the letter and
+nothing else), and it asserts the index is non-empty first, since every
+per-card assertion passes vacuously on a list with no cards.
+
+**A course with no lessons now fails the build**, naming the slug and both ways
+out. Dropping it silently was the other candidate and is worse: content that
+vanishes with no signal sends the next session to debug the index. `draft: true`
+remains the way to park a course that is genuinely being written, so the states
+are "openable" and "deliberately parked", with nothing between them.
+
+Also mapped in `scripts/spec-map.mjs`: content under `traps/`, `exercices/`,
+`cours/` and `lessons/` now runs `index-cards.spec.ts` alongside its own spec —
+adding or removing an entry is exactly when a card can end up with nowhere to
+go.
+
+---
+
 ## [0.7.0] — 2026-08-09
 
 **Mobile density on the internal pages.** v0.6.0 fixed the home screen and the
@@ -2124,7 +2379,8 @@ Foundation only: no real content, no interactive board yet.
   `url()` references unresolved and the fonts silently 404 into a Georgia
   fallback. `scripts/build-fonts.mjs` self-hosts them instead. See CLAUDE.md.
 
-[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.4.0...v0.5.0

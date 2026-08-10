@@ -105,10 +105,23 @@ test.describe('course index cards are links', () => {
     await expect(page).toHaveURL(/\/cours\/bien-ouvrir-une-partie\/$/);
   });
 
-  /* A course with no lessons has no detail route, so linking it would 404. */
-  test('a course with no lessons is not linked', async ({ page }) => {
+  /**
+   * ⚠️ THE OPPOSITE OF WHAT THIS ONCE ASSERTED, AND DELIBERATELY.
+   *
+   * It used to require exactly one UNLINKED card — a course with no lessons,
+   * rendered inert so it could not 404. That state is gone: an index entry with
+   * no destination is a bug, not a state, and `les-bases` (the record that
+   * produced it) was removed because its content ships as the tutorial. See
+   * CLAUDE.md → "a card that renders has a destination".
+   *
+   * Kept here rather than deleted because this file is the POINTER suite, and
+   * "every card on this index can actually be clicked" is exactly its subject.
+   * The full sweep — all three indexes, both locales, hrefs resolving 200 —
+   * lives in `index-cards.spec.ts`.
+   */
+  test('no card on the course index is unlinked', async ({ page }) => {
     await page.goto('/cours/');
-    const unlinked = page.locator('.card:not(.card-linked)');
-    await expect(unlinked).toHaveCount(1);
+    await expect(page.locator('.card-grid > .card')).not.toHaveCount(0);
+    await expect(page.locator('.card-grid > .card:not(.card-linked)')).toHaveCount(0);
   });
 });

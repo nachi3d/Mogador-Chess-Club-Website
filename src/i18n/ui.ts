@@ -114,9 +114,56 @@ const fr = {
   'progress.sections.byTheme': 'Exercices par thème',
   'progress.sections.next': 'La suite',
   'progress.allDone': 'Vous avez tout terminé. Bravo.',
-  /* Labelled as not-yet, never printed as a figure — see the note on the
-     dashboard's rank tile. */
   'progress.rank': 'Rang et points',
+
+  /* ══ E3 — rangs, points, séries, accomplissements ════════════════════════
+     The ranks are the piece values, which is the direction's own proposal
+     (§ B1) and is why the Cours 1 lesson "la valeur des pièces" gains a second
+     meaning. They are NOT translated as words — a "Pion" is a "Pawn" — because
+     these are the pieces, and the English page says so. */
+  'score.rank.pion': 'Pion',
+  'score.rank.cavalier': 'Cavalier',
+  'score.rank.fou': 'Fou',
+  'score.rank.tour': 'Tour',
+  'score.rank.dame': 'Dame',
+
+  'score.title': 'Rang',
+  'score.points': 'points',
+  'score.pointsLabel': 'Points',
+  /* "encore %s points avant Tour" — the gap, never a percentage. A number of
+     points maps onto something the reader can DO; a percentage does not. */
+  'score.next': 'encore %s points avant %s',
+  'score.top': 'Rang le plus élevé atteint.',
+  'score.breakdown': 'D’où viennent les points',
+  'score.source.basics': 'Les bases',
+  'score.source.lessons': 'Leçons',
+  'score.source.exercises': 'Exercices',
+  'score.source.games': 'Parties gagnées',
+  'score.streak.title': 'Série en cours',
+  /* ⚠️ "dans cette session" is load-bearing wording. It tells the reader the
+     number is not a record being kept about them, which is exactly why there
+     is no daily streak — see progress.ts. */
+  'score.streak.value': '%s exercices d’affilée dans cette session',
+  'score.achievements': 'Accomplissements',
+  'score.achievements.count': '%s sur %s',
+  'score.achievements.locked': 'Pas encore',
+  'score.toast.earned': 'Accomplissement',
+
+  'score.ach.firstMate': 'Premier mat',
+  'score.ach.tenExercises': 'Dix exercices résolus',
+  'score.ach.streakFive': 'Cinq d’affilée',
+  'score.ach.allMates': 'Tous les mats élémentaires',
+  'score.ach.courseComplete': 'Un cours terminé',
+  'score.ach.winDebutant': 'Première victoire — Débutant',
+  'score.ach.winIntermediaire': 'Première victoire — Intermédiaire',
+  'score.ach.winAvance': 'Première victoire — Avancé',
+
+  /* ⚠️ THE HONESTY NOTE, AND IT STAYS. Points are derived from local records
+     and localStorage is editable — see CLAUDE.md → anti-cheat. Saying so is
+     cheaper than pretending otherwise, and it is the same posture as
+     `progress.cleared` directly below it. */
+  'score.local':
+    'Rang et points sont calculés sur cet appareil, à partir de ce que vous avez résolu.',
   'progress.noJs':
     "L'affichage de la progression a besoin de JavaScript : elle est lue depuis cet appareil.",
   'progress.cleared':
@@ -218,6 +265,11 @@ const fr = {
     "D'autres coups gagnent peut-être aussi : le site ne sait pas encore les vérifier, et ne les comptera donc jamais comme des fautes.",
   'exercise.solved': 'Exercice résolu',
   'exercise.solved.again': 'Déjà résolu — vous pouvez le refaire.',
+  /* E3. Shown only when there is something to show: a re-solve awards nothing
+     and prints nothing, rather than "+0 points" — which would read as a mark
+     out of ten rather than as the absence of a reward. */
+  'exercise.points': '+%s points',
+  'exercise.streak': '%s d’affilée',
   'exercise.retry': 'Recommencer',
   'exercise.solution.heading': 'La solution',
   'exercise.solution.hint': 'Cliquez un coup pour revoir la position.',
@@ -566,6 +618,41 @@ const en: Record<keyof typeof fr, string> = {
   'progress.sections.next': 'What comes next',
   'progress.allDone': 'You have finished everything. Well played.',
   'progress.rank': 'Rank and points',
+
+  /* E3. The rank names are the PIECES, so they translate as pieces. */
+  'score.rank.pion': 'Pawn',
+  'score.rank.cavalier': 'Knight',
+  'score.rank.fou': 'Bishop',
+  'score.rank.tour': 'Rook',
+  'score.rank.dame': 'Queen',
+
+  'score.title': 'Rank',
+  'score.points': 'points',
+  'score.pointsLabel': 'Points',
+  'score.next': '%s more points to reach %s',
+  'score.top': 'Highest rank reached.',
+  'score.breakdown': 'Where the points come from',
+  'score.source.basics': 'The basics',
+  'score.source.lessons': 'Lessons',
+  'score.source.exercises': 'Exercises',
+  'score.source.games': 'Games won',
+  'score.streak.title': 'Current run',
+  'score.streak.value': '%s exercises in a row this session',
+  'score.achievements': 'Achievements',
+  'score.achievements.count': '%s of %s',
+  'score.achievements.locked': 'Not yet',
+  'score.toast.earned': 'Achievement',
+
+  'score.ach.firstMate': 'First checkmate',
+  'score.ach.tenExercises': 'Ten exercises solved',
+  'score.ach.streakFive': 'Five in a row',
+  'score.ach.allMates': 'Every elementary mate',
+  'score.ach.courseComplete': 'A course finished',
+  'score.ach.winDebutant': 'First win — Beginner',
+  'score.ach.winIntermediaire': 'First win — Intermediate',
+  'score.ach.winAvance': 'First win — Advanced',
+
+  'score.local': 'Rank and points are worked out on this device, from what you have solved.',
   'progress.noJs': 'Showing your progress needs JavaScript: it is read from this device.',
   'progress.cleared':
     'If you clear your browser data this progress disappears. It lives on this device only.',
@@ -647,6 +734,8 @@ const en: Record<keyof typeof fr, string> = {
     'Other moves may well win too: the site cannot check them yet, so it will never count them as mistakes.',
   'exercise.solved': 'Exercise solved',
   'exercise.solved.again': 'Already solved — you can play it again.',
+  'exercise.points': '+%s points',
+  'exercise.streak': '%s in a row',
   'exercise.retry': 'Start again',
   'exercise.solution.heading': 'The solution',
   'exercise.solution.hint': 'Click a move to see the position again.',

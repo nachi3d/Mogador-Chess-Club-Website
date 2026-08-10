@@ -37,6 +37,7 @@ import BaseLayout from '@layouts/BaseLayout.astro';
 import HeroAmbient from '@components/motion/HeroAmbient.astro';
 import Dashboard from '@components/home/Dashboard.astro';
 import ResumeResolver from '@components/progress/ResumeResolver.astro';
+import ScoreResolver from '@components/progress/ScoreResolver.astro';
 
 interface Props {
   locale: Locale;
@@ -219,6 +220,12 @@ const journey = await fullJourney(locale);
       there is an order to keep. Moving either one above the markup it touches
       would leave it binding elements that do not exist yet. */}
   <ResumeResolver journeys={{ home: journey }} />
+
+  {/* E3. Independent of the resume resolver — it reads the same store but
+      answers a different question, and neither needs the other's output. Both
+      are inline and synchronous, so the dashboard's rank and its "Reprendre"
+      card land in the same first paint. */}
+  <ScoreResolver locale={locale} />
 </BaseLayout>
 
 {/*

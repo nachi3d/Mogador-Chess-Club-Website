@@ -8,6 +8,7 @@ with itself.
 
 | Status | Meaning |
 |---|---|
+| `soon` | Agreed, no blocker, and wanted next — ahead of anything marked `backlog` |
 | `backlog` | Agreed, unscheduled, no blocker |
 | `blocked` | Cannot start until something external exists |
 | `conditional` | Only happens if a specific judgement goes a particular way |
@@ -21,12 +22,26 @@ with itself.
 
 | Item | Status | Note |
 |---|---|---|
-| **v2-S2** — Google OAuth, prof-created student accounts, Resend SMTP | `blocked` | SMTP needs the domain. OAuth and prof-created accounts could ship without it, but all three are one coherent "getting people in" session. `handle_new_user()` already clamps the locale for the Google claim. |
+| **v2-S2** — Google OAuth, prof-created student accounts, Resend SMTP | `backlog` | SMTP needs a domain, and `mogadorchess.nachi3dlabs.com` is one — no longer blocked. OAuth and prof-created accounts could ship without it, but all three are one coherent "getting people in" session. `handle_new_user()` already clamps the locale for the Google claim. |
 | **Turn accounts back on** | `blocked` | Set `PUBLIC_AUTH_ENABLED=true` in the Cloudflare build variables. **Blocked on v2-S3**, deliberately: v0.3.0 shipped with accounts switched off because there is nothing to sync yet, and an account that does nothing is a child's email address collected for no reason. One variable, no code. See CLAUDE.md → "Accounts are switched off in production". |
 | **v2-S3** — progress sync + `localStorage` import | `backlog` | The critical path of v2. Schema is already in place (`exercise_progress`, `lesson_progress`), and the tutorial writes under `tutorial:<slug>` in the same store, so it syncs with no special-casing. |
 | **v2-S4** — sessions, attendance, admin dashboard | `backlog` | Tables and RLS exist from migration 0001; nothing renders them. |
 | **v2-S5** — progress charts | `backlog` | Needs S3's data before it can show anything true. |
 | **Student groups** (all profs currently see all students) | `backlog` | Deferred to v2.1 by decision, not oversight. |
+
+## Deployment and domain
+
+| Item | Status | Note |
+|---|---|---|
+| **Attach the custom domain in Cloudflare** | `seàn` | ⚠️ **The one manual step, and the only thing left.** Workers & Pages → `mogador-chess-club-website` → Settings → Domains & Routes → Add → **Custom domain** → `mogadorchess.nachi3dlabs.com`. Cloudflare creates the DNS record and issues the certificate itself — **do not add a CNAME by hand**, that is the usual way to get this wrong. `npx wrangler deploy` also provisions it from `wrangler.jsonc`, so this is belt-and-braces for the first deploy. Verify with `npm run smoke:prod`, which fails loudly and specifically until the certificate is active. |
+| ~~Publish on `mogadorchess.nachi3dlabs.com`~~ | **done** | All four touch points landed: `site.url`, `astro.config.mjs` `site`, `routes[0]` with `custom_domain: true` in `wrangler.jsonc` (**still no `main`**), and `scripts/smoke-prod.mjs` + `npm run smoke:prod`, which did not exist before. See CLAUDE.md → Deployment. |
+
+⚠️ **`mogadorchess.ma` stays a separate, later option and blocks nothing.** It
+needs a Moroccan registrar and can require paperwork; the subdomain needed
+neither. If it ever lands it is the same three config touch points again plus a
+redirect — cheap, and no reason for anything to wait on it. That includes
+**custom SMTP**, which needs *a domain you control* rather than that specific
+one.
 
 ## Accounts and privacy
 
@@ -34,7 +49,7 @@ with itself.
 |---|---|---|
 | **Self-service account deletion** | `backlog` | The privacy policy promises erasure on request and the cascade works; `docs/ADMIN.md` has the SQL. What is missing is a button, and a confirmation flow a child cannot trip over. |
 | **Two-year inactive-account rule** | `backlog` | Stated as policy, enforced by nothing. Needs a scheduled job — most likely a Supabase cron, since this architecture has nowhere else to put one. |
-| **Custom SMTP (Resend)** | `blocked` | Needs `mogadorchess.ma`. Supabase's built-in mailer is rate-limited, sends from an unfamiliar domain, and its template is untranslated — all three matter when the recipient is a parent being asked to click a sign-in link. Verify SPF/DKIM/DMARC when it lands. |
+| **Custom SMTP (Resend)** | `backlog` | Needs **a domain you control**, not specifically `mogadorchess.ma` — `mogadorchess.nachi3dlabs.com` satisfies it, so this is no longer blocked (see Deployment and domain). Supabase's built-in mailer is rate-limited, sends from an unfamiliar domain, and its template is untranslated — all three matter when the recipient is a parent being asked to click a sign-in link. Verify SPF/DKIM/DMARC when it lands. |
 
 ## Design direction
 
@@ -43,10 +58,12 @@ with itself.
 | **Refonte esthétique majeure** — make it feel like a GAME | `in progress` | Direction written and approved: `docs/direction/mcc-direction-esthetique.md`. Sequenced E1 → E4; see below. |
 | **E1 — motion vocabulary + action feedback** | **done** | Three families, the press, the correct-move pulse, the wrong-move reason, the two-beat solve, a second ambient layer. |
 | **E2 — sound** | `backlog` | Synthesised via Web Audio, **off by default**. No audio files, so no new licence and no new request. |
-| **E3 — progression** | `backlog` | Ranks Pion → Cavalier → Fou → Tour → Dame. **Session streaks only — never a daily streak**: the club meets weekly, so a daily streak would punish the normal rhythm of the people it is for. Wants v2-S3's synced progress to mean anything across devices. |
+| **E3 — progression** | **done** | Ranks Pion → Cavalier → Fou → Tour → Dame at 0/20/70/150/220, a derived point ledger, session streaks and seven achievement kinds. **Session streaks only — never a daily streak** (now Critical Feature 34). Still wants v2-S3 to mean anything across devices. |
+| **E3 — "a trap mastered" achievement** | `blocked` | Deferred out of E3 on purpose. A trap page is a *replayer* and records nothing, because stepping through a game someone else played is reading rather than competence. Shipping it today would mean awarding it for scrubbing a replay to the end — the "rank earned by clicking" the direction forbids. **Blocked on a trap carrying an exercise**, which is content work plus a schema field, not progression work. |
+| **E3 — serve the score catalogue as one file** | `backlog` | The resolver inlines a ~3.4 KB catalogue and a ~5 KB script on ~62 of 86 pages (+744 KiB precache, uncompressed). Already trimmed three ways — terse script, no entry ids, shared toast CSS. The remaining win is serving the catalogue as one same-origin JSON and inlining it only on `/` and `/progres/`, where it is needed in the first paint. Costs a request on board pages; judged not worth the complexity yet. |
 | **E5 — retro main menu on the home page** | **done** | Six entries, roving tabindex, "Reprendre" resolving to the furthest incomplete step. |
-| **E6 — complete themes** (background + board + pieces) | `backlog` | Heavy — a dedicated session. Extra piece sets each need their own licence attribution on `/mentions-legales/`, verified set by set. Texture in CSS only, never images, so the zero-request rule and the precache budget hold. Every theme must clear `check-contrast.mjs` on all its pairs in both palettes **at design time**, not at the end. |
-| **E7 — thematic typography** | `backlog` | Depends on E6 (both touch the tokens). Headings follow the theme; **the body family never changes**. One theme loads one display font, never four. |
+| **E6 — complete themes** (background + board + pieces) | **done** | Four themes, each with both palettes, four licence-checked piece sets and a sixth board preset. The constraints it shipped under still bind anything added later: every piece set needs its own attribution on `/mentions-legales/`, verified set by set; texture in CSS only, never images; and every theme clears `check-contrast.mjs` on all its pairs in both modes **at design time**, not at the end. |
+| **E7 — thematic typography** | **done** | Heading face per theme; **the body family never changes** (Critical Feature 23). One theme loads one display font, never four. |
 | **E8 — the shop** | `blocked` | Catalogue display needs nothing; **the points exchange cannot open before v2-S3**. Points live in `localStorage` while accounts are off, so changing phone loses them — and that is a lost *reward*, not lost progress. Once accounts exist the balance must be computed in the database from exercises actually solved, never accepted from the client. **Points are never sold.** |
 | **E4 — vocabulary and atmosphere** | `backlog` | Evocative names on **page titles only**; nav labels stay functional (Cours, Exercices, Jouer). ⚠️ Now constrained by E5 as well: the home menu takes its labels from the same `nav.*` keys, so renaming a nav label renames a menu entry too. May be absorbed by E5 + E7 — see the addendum. |
 
@@ -124,7 +141,7 @@ brief and are **not** done:
 
 | Item | Status | Note |
 |---|---|---|
-| **`mogadorchess.ma` domain** | `seàn` | Blocks custom SMTP, and the site still has no real address. `.ma` needs a Moroccan registrar and can require paperwork. |
+| **`mogadorchess.ma` domain** | `seàn` | ⚠️ **No longer blocks anything.** `mogadorchess.nachi3dlabs.com` gives the site a real address and unblocks custom SMTP with no registrar step (see Deployment and domain). `.ma` remains a separate, later option — a nicer name for a Moroccan club — and needs a Moroccan registrar and possibly paperwork. Decide it on its own merits, not under pressure. |
 | **Club Instagram handle** | `seàn` | Does the club post through the association's account or its own? `site.socials` has the entry, unpublished. |
 | **Brand mark** | `seàn` | The current one is an explicit placeholder — a board in a brass frame. |
 | **Dar Souiri street line** | `seàn` | Which exact address may be published. |
@@ -132,6 +149,6 @@ brief and are **not** done:
 | **FR pedagogy review of the tutorial** | `seàn` | Written this session — see the note in CHANGELOG. The chess is machine-verified; the *teaching* is not. |
 | **Language switcher fails WCAG 2.5.3 (Label in Name)** | `bug` | PRE-EXISTING, found by Lighthouse during M1/M2 and not introduced by it. The switcher shows "English" but its accessible name is "Changer de langue", so the visible text is not in the name — voice control ("click English") cannot reach it. Zero-weight in Lighthouse's score, which is why it never surfaced. One-line fix in `LangSwitcher.astro`, but it touches a component with its own specs, so it was left rather than widened into an unrelated session. |
 | **M3 — density pass on the inner pages** | **done** | Shipped across v0.6.0's M3 and v0.7.0's M3 (suite): one card definition, three-state progress, the compacted exercise controls, the shared resume resolver and `/progres` substance. |
-| **⚠️ `feel.spec.ts` "the destination square pulses" starves on WebKit under load** | `bug` | **A TEST DEFECT, NOT A PRODUCT ONE — and it BLOCKS THE RELEASE GATE.** It failed both v0.7.0 matrix runs on `webkit` **and** `iphone-13`, and was the ONLY failure common to both runs; every other failure in those runs was non-repeating Windows churn. Proved pre-existing by rebuilding with the M3-suite `board.css` change reverted — it fails identically without it. The feature is fine: the same test passes on WebKit at `--workers=1` (`1 passed`), so the pulse really is drawn. What fails is the sampling. Both samplers miss it under load — the rAF loop is starved (already documented) and the MutationObserver, which reads its records specifically to survive that, sees nothing either. **That second half is the unexplained part and the place to start**: an observer reading records cannot be batched past the window, so the likely cause is that it is attached to a `cg-board` that Chessground has since REPLACED (`redrawAll()` → `renderWrap()` does `element.innerHTML = ''`), leaving it watching a detached node. If so the fix is to observe the `.cg-wrap` host, which survives a redraw, rather than `cg-board`. History goes back to the v0.3.0 matrix; see CLAUDE.md → "Never assert a short-lived class with a MutationObserver". |
+| **⚠️ The correct-move pulse is dropped under fan-out load on WebKit** | `bug` | **ANNOTATED `fixme` ON `webkit` AND `iphone-13` ONLY (v0.7.0+).** It still runs with full teeth on chromium, firefox and pixel-5, which exercise the same code path — so a pulse that genuinely stops being drawn still fails the gate. **The feature works**: the test passes on both WebKit projects in isolation (`--workers=1`). ⚠️ **It is NOT a sampling artefact, and two sessions must not be spent proving that again.** Four independent samplers (rAF, `setInterval`, an observer on `cg-board`, an observer on the `.cg-wrap` host) recorded **35 mutation records and zero sightings**, including a `record.oldValue` check; a `data-pulse` probe showed ExerciseView's state committing and clearing normally (`'' → a8 → ''`). The break is therefore **below Preact and above the DOM**. **RULED OUT:** (a) the observer watching a `cg-board` Chessground had replaced — an identity tag proved the node was never replaced; (b) the clear-timer overtaking the apply in the move handler — fixing that did not resolve it. **CONFIRMED BUT INSUFFICIENT:** Chessground's `debounceRedraw` is rAF-scheduled *and* coalescing (`if (redrawing) return`), so a starved frame drops the intermediate state; the rAF gate added to `ExerciseView` moved `iphone-13` from hard failure to flaky but left `webkit` failing. **OPEN QUESTION, and where to start:** does `BoardSurface`'s update effect ever observe a non-empty `pulseSquare` under load, or does Preact's deferred effect flush coalesce the two values so `api.set()` is never called with the pulse at all? A probe for exactly this (`data-pulse-effect-saw` set inside the effect) was written and not run — the machine needed restarting. Answering it decides between a product fix and accepting the drop. |
 | **Does Souiri feel like Essaouira?** | `seàn` | The identity theme, and the only part of E6 no machine can judge. `docs/MANUAL-TESTS.md` § Q3 has the questions; the last one is "show it to someone from Essaouira". |
 | **Is Terminal readable or a gimmick?** | `seàn` | § Q4. The test is reading a whole lesson in it, on a phone, without switching away. If it fails, it is softened or dropped — it is the one theme that exists for fun rather than for legibility. |
