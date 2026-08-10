@@ -395,7 +395,22 @@ look fine to the keyboard. Use fingers only.
 
 - [ ] /cours/ — clicking anywhere on the "Bien ouvrir une partie" card opens it
 - [ ] Tab reaches the card once, with a visible ring; Enter opens it
-- [ ] A course with no lessons yet is NOT clickable (it has no page)
+
+#### ⚠️ Every card opens — on all three indexes
+
+The rule: **a card that renders has a destination.** `/cours/` used to show
+"Les bases : le plateau et les pièces" as a card that did nothing when clicked,
+because that course had no lesson pages. An inert card reads as a broken site,
+not as "unavailable", so the state no longer exists.
+
+- [ ] `/cours/`, `/pieges/`, `/exercices/` — **click every card**. Each opens a
+      real page. None is inert, and none 404s.
+- [ ] Same in English: `/en/cours/`, `/en/pieges/`, `/en/exercices/`
+- [ ] `/cours/` shows **no** "Les bases" card. The tutorial is reached from the
+      prerequisite line at the top ("Jamais joué ? Commence par apprendre les
+      bases."), and from there **only** — one destination, one name on the page
+- [ ] The prerequisite line still goes to `/apprendre-les-bases/`, and the
+      tutorial index still lists its 13 steps
 
 ---
 ## 1d. Which board do I play on?
