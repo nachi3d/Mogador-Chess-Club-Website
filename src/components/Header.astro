@@ -93,6 +93,44 @@ const current = stripLocale(pathname);
             );
           })
         }
+        {/*
+          ⚠️ TOP-LEVEL, NOT IN A GROUP AND NOT IN THE TOOLS CLUSTER.
+
+          `/progres/` was reachable from the mobile bottom bar and from NOWHERE
+          on desktop — a route that existed on one layout only, which is the
+          same defect as an index card with no destination (Critical Feature
+          32): the page is fine, the way in is missing, and nothing errors.
+
+          Three placements were possible and two are wrong:
+
+          - **Inside a nav group.** It is not "Apprendre" (nothing to read) and
+            not "S'entraîner" (nothing to do); it is about the READER. Filing
+            it under a content section is the same category error CLAUDE.md
+            already rejects for putting settings under "Le club".
+          - **In the header-tools cluster.** Those are PREFERENCE controls —
+            theme, language, settings — and they are icon-only. Progress is not
+            a preference, it is a destination you return to and read, and it
+            deserves a name rather than a glyph. See SettingsLink for the
+            reasoning this mirrors.
+          - **Top-level, beside Accueil.** What ships. The nav root already
+            carries one plain link, so this is not a new shape; it is a link
+            rather than a disclosure, so it adds no fourth panel; and it sits
+            last, exactly where the bottom bar puts it.
+
+          The label is `nav.progress` — the SAME key the bar uses. Two names for
+          one destination reads as two different sites (Critical Feature 20),
+          and until now that key had only one caller.
+        */}
+        <li>
+          <a
+            href={localizePath('/progres/', locale)}
+            aria-current={current === '/progres/' ? 'page' : undefined}
+            class:list={['nav-link', { 'is-current': current === '/progres/' }]}
+            data-testid="header-progress"
+          >
+            {t('nav.progress')}
+          </a>
+        </li>
       </ul>
     </nav>
 

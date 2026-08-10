@@ -11,6 +11,73 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### Fixed — `/progres/` was reachable on mobile and nowhere on desktop
+
+M3 added the bottom bar with **Progrès** as its fourth entry, and never added a
+desktop counterpart. The page built, rendered and passed every one of its own
+specs; a desktop reader had no way to reach it short of typing the URL.
+
+Same defect as an index card with no destination (Critical Feature 32),
+inverted — there a way in that leads nowhere, here a page with no way in. Both
+are invisible to a suite full of "this element does the right thing"
+assertions, because **nothing is broken, only absent**.
+
+#### It is a top-level nav entry, not a group item and not a tools icon
+
+Stated because two of the three placements are wrong:
+
+- **Not inside a nav group.** Not "Apprendre" (nothing to read), not
+  "S'entraîner" (nothing to do) — it is about the *reader*. Filing it under a
+  content section repeats the category error CLAUDE.md already rejects for
+  putting settings under "Le club".
+- **Not in the header-tools cluster.** Theme, language and settings are
+  **preference controls**, and icon-only. Progress is a destination you return
+  to and read; it needs a name, not a glyph.
+- **Top-level, last, after the three groups.** The nav root already carries one
+  plain link (Accueil), so this is not a new shape; it is a link rather than a
+  disclosure, so it adds no fourth panel; and it sits where the bar puts it.
+
+Label is `nav.progress`, **the same key the bar uses** (Critical Feature 20).
+That key having exactly one caller was itself the smell: a destination named
+nowhere else is usually reachable from nowhere else.
+
+#### The rule, and a spec that reads the bar rather than a list
+
+New **Critical Feature 36**: no route may exist on one layout only. Every
+bottom-bar destination must be reachable from the desktop header, asserted in
+both locales — and ⚠️ **the list is read off the bar at phone width, never
+hard-coded**, so a fifth entry fails until it has a desktop home. A spec naming
+four known paths would have passed throughout this bug.
+
+Verified to have teeth: with the entry removed the spec fails with *"the bottom
+bar reaches /progres/, but the desktop header has no link to it"* in FR and EN,
+plus the `aria-current` test.
+
+`scripts/spec-map.mjs` mapped `Header.astro` to **nothing at all**, so editing
+the site navigation selected no specs — part of how this survived. It now maps
+to `mobile-app`, `main-menu` and `smoke`.
+
+#### E3 on desktop, in all four themes
+
+Rank, points, session streak and achievements are now asserted to render at a
+desktop viewport in **4 themes × both modes**. The existing axe sweep proved
+those pages were *accessible* in every theme; it could not prove the resolver
+had filled anything in, because a blank rank and a zero total are perfectly
+accessible.
+
+⚠️ One assertion had to be strengthened after it was written: `data-score-rank`
+is **server-rendered with "Pion" as a seed**, so "the rank is non-empty" passes
+with the resolver dead. It now asserts the rank label *agrees with the points
+beside it*, computed from the catalogue on the page — no threshold hardcoded,
+and only the resolver can make it true.
+
+⚠️ **Measured cost: the header wraps to two rows between 768px and 1023px** —
+77px tall becomes 129px. The fifth entry adds 72px of nav width. Verified
+against `dev` that the same header already wraps at 768px without the change,
+so this widens an existing designed behaviour rather than introducing one;
+1024px and up are unchanged. Not fixable by trimming the gap (four gaps hold
+16px at most), so it is accepted and recorded rather than papered over.
+
 ### Added — the checker now asserts the MECHANISM, not just the legality
 
 Course 3 shipped four boards that were legal, six-field, solvable and **wrong**:

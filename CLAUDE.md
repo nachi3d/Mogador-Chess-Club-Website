@@ -278,6 +278,7 @@ it. Tags said one thing and the manifest said another.
 33. **Points are DERIVED, never banked.** No total is ever stored. See the progression section.
 34. **No daily or consecutive-day streak. Ever.** The club meets weekly; a daily streak would punish the normal rhythm of these students.
 35. **A loss costs nothing.** Losses and draws are recorded and read by no scoring rule at all.
+36. **No route may exist on one layout only.** Every destination the mobile bottom bar reaches is reachable from the desktop header, and the spec reads the list off the bar rather than hard-coding it. See the section below.
 
 ---
 
@@ -1611,6 +1612,57 @@ It is the **fourth** duplication of `mcc:progress:v1` in an inline script, after
 the theme head script, `AccountButton` and the home resolver — same trade, same
 reason, and the spec seeds the key directly so a divergence from
 `src/lib/progress.ts` fails there.
+
+### ⚠️ A ROUTE THAT EXISTS ON ONE LAYOUT ONLY IS A BUG
+
+`/progres/` shipped in M3 reachable from the mobile bottom bar and **from
+nothing at all on desktop**. The page built, rendered, and passed every one of
+its own specs; a desktop reader simply had no way to reach it except by typing
+the URL.
+
+This is the same defect as an index card with no destination (Critical Feature
+32), inverted: there, a way in that leads nowhere; here, a page with no way in.
+Both are invisible to testing for the same reason — **nothing is broken, only
+absent**, and absence is what a suite full of "this element does the right
+thing" assertions cannot see.
+
+So the rule is Critical Feature 36: **every destination the bottom bar reaches
+must be reachable from the desktop header.** `mobile-app.spec.ts` reads the
+bar's hrefs at phone width, then demands each one of the desktop header — in
+both locales. ⚠️ **The list is read off the bar, never hard-coded**: that is the
+whole value, because a fifth entry added to the bar then fails until it has a
+desktop home. A spec listing four known paths would have passed throughout the
+bug.
+
+#### Where `/progres/` went, and why not the other two places
+
+**Its own top-level entry in the nav root**, last, after the three groups.
+
+- **Not inside a nav group.** It is not "Apprendre" (nothing to read) and not
+  "S'entraîner" (nothing to do) — it is about the *reader*. Filing it under a
+  content section is the same category error this file already rejects for
+  putting settings under "Le club".
+- **Not in the header-tools cluster.** Those are **preference controls** —
+  theme, language, settings — and they are icon-only. Progress is not a
+  preference; it is a destination you return to and read, and it needs a name
+  rather than a glyph.
+- **Top-level works** because the nav root already carries one plain link
+  (Accueil), so it is not a new shape; it is a link rather than a disclosure,
+  so it adds no fourth panel; and it sits where the bar puts it.
+
+The label is `nav.progress` — **the same key the bar uses**, per Critical
+Feature 20. Until this change that key had exactly one caller, which is a
+smell worth noticing: a destination named nowhere else is usually a destination
+reachable from nowhere else.
+
+⚠️ **Measured cost: the header wraps to two rows between 768px and 1023px.**
+The fifth entry adds 72px of nav width, which pushes `header-inner` past its
+single line at those widths — 77px tall becomes 129px. Verified against `dev`:
+the same header wraps at 768px *without* the change, so wrapping is existing
+designed behaviour (`flex-wrap: wrap` is deliberate) and this widens the band
+rather than introducing it. 1024px and up are unchanged. Not fixable by
+trimming the gap — the four gaps only hold 16px at 0.25rem — so it was accepted
+rather than papered over. In BACKLOG.
 
 ### Settings in the desktop header — beside the tools, not in a nav group
 

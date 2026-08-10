@@ -89,6 +89,13 @@ export const SPEC_MAP = [
 
   [/^src\/layouts\//, ['smoke.spec.ts', 'mobile-app.spec.ts', 'pwa.spec.ts', 'mobile-fit.spec.ts']],
   [/^src\/components\/MobileNav\./, ['mobile-app.spec.ts']],
+  /* ⚠️ The site header mapped to NOTHING until the desktop-progress-nav
+     session, so editing the navigation selected no specs at all — which is
+     part of how `/progres/` came to be reachable on one layout only. Both
+     files matter: mobile-app owns the breakpoint divergence and the
+     bar-vs-header reachability rule, main-menu owns the shared `nav.*`
+     labels the home menu reuses. */
+  [/^src\/components\/(Header|SettingsLink|AccountButton)\./, ['mobile-app.spec.ts', 'main-menu.spec.ts', 'smoke.spec.ts']],
   [/^src\/components\/(CardGrid|NumberedCard|ProgressStates|LevelBadge)\./, ['exercise.spec.ts', 'tutorial.spec.ts', 'lessons.spec.ts', 'index-cards.spec.ts']],
   [/^src\/components\/home\//, ['main-menu.spec.ts', 'mobile-app.spec.ts', 'progression.spec.ts']],
   [/^src\/components\/pages\/HomePage\./, ['main-menu.spec.ts', 'mobile-app.spec.ts', 'resume.spec.ts']],
@@ -113,6 +120,20 @@ export const SPEC_MAP = [
 export function specsFor(files, root) {
   const specs = new Set(['smoke.spec.ts']);
   for (const file of files) {
+    /**
+     * ⚠️ A SPEC YOU EDITED RUNS. This was missing until the
+     * desktop-progress-nav session, which added eight tests to
+     * `progression.spec.ts` and watched `test:branch` select three other
+     * files and not that one. Writing a test the gate then declines to run is
+     * the worst possible outcome: it looks like coverage and is not.
+     *
+     * Only top-level `tests/e2e/*.spec.ts` — a change under `helpers/` has no
+     * single owning spec, and guessing one would be worse than the existing
+     * behaviour of falling through to the source-path rules.
+     */
+    const own = /^tests\/e2e\/([^/]+\.spec\.ts)$/.exec(file.replace(/\\/g, '/'));
+    if (own) specs.add(own[1]);
+
     for (const [pattern, list] of SPEC_MAP) {
       if (pattern.test(file)) for (const spec of list) specs.add(spec);
     }
