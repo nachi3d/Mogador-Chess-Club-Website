@@ -180,7 +180,40 @@ repo on 4477`, and the port was free afterwards.
 
 `npm run test:branch --all` — **446 passed, 0 failed**, 18 skipped (auth, off by
 default). Two new spec files: `resume.spec.ts` and `mobile-fit.spec.ts`, both
-mapped in `scripts/spec-map.mjs`. The full matrix ran at this promotion.
+mapped in `scripts/spec-map.mjs`.
+
+#### ⚠️ The release matrix was NOT green, and this release shipped anyway
+
+Stated plainly because a release note that implied a clean gate would be worse
+than the red gate itself.
+
+| run | failed | flaky | passed |
+|---|---|---|---|
+| 1 | 9 | 12 | 2 190 |
+| 2 | 5 | 10 | 2 196 |
+
+**Exactly one failure appears in both runs**: `feel.spec.ts:263` — the
+correct-move pulse — on `webkit` and `iphone-13`. Everything else differed
+between the two, which is the signature of the documented Windows
+browser flakiness (Firefox's `RenderCompositorSWGL` crash appears verbatim in
+run 1's log). All of those re-ran clean serially: firefox 90 passed,
+iphone-13 43 passed, webkit passed on retry.
+
+The repeating one was **proved pre-existing**, by running both WebKit projects
+with the M3-suite `board.css` change reverted:
+
+| | webkit | iphone-13 |
+|---|---|---|
+| with the change | fail | fail |
+| reverted | **fail** | **fail** |
+
+And it is a **test** defect rather than a product one: the same test passes on
+WebKit at `--workers=1`, so the pulse is genuinely drawn. Under load both of
+its samplers miss it. Logged in BACKLOG.md with the likely cause and the fix to
+try — the MutationObserver is probably watching a `cg-board` that Chessground
+has since replaced.
+
+Promotion was Seàn's explicit call on that evidence, not an automated pass.
 
 Lighthouse mobile, five routes, on the built site:
 
