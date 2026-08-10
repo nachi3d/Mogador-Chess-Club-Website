@@ -889,6 +889,32 @@ cannot judge whether the teaching is correct.
       first move impossible) — does the line still read as Philidor to you?
 
 ---
+## 6c-bis. After a deploy — the production smoke check
+
+⚠️ **Run this from a machine, not from memory.** These are the failures that
+cannot happen on localhost, so no amount of local testing rules them out.
+
+```sh
+npm run smoke:prod
+```
+
+- [ ] It passes. If everything is unreachable the domain is not attached yet —
+      see CLAUDE.md → Deployment for the one dashboard step
+- [ ] Open `https://mogadorchess.nachi3dlabs.com/` in a real browser: the
+      certificate is valid (no warning), and the padlock is clean
+- [ ] View source on any page: the `<link rel="canonical">` names
+      **mogadorchess.nachi3dlabs.com**, not `mogadorchess.ma` and not localhost
+- [ ] Paste the home URL into WhatsApp: the preview shows the club name and
+      description rather than a bare link. That is `og:url` and `og:image`
+      resolving against a host that exists
+- [ ] DevTools → Application → Manifest: the PWA is installable, icons load
+- [ ] DevTools → Application → Service Workers: registered and activated
+- [ ] DevTools → Network, hard reload with cache disabled: **no request to any
+      origin other than this one.** The engine (`stockfish.*`) must NOT appear
+      until you open `/jouer/` and press start
+- [ ] Install it to a phone home screen and open it offline: the shell loads
+
+---
 ## 6d. Progression — rank, points, streak, achievements (E3)
 
 The suite proves the arithmetic. What it cannot prove is whether the ladder

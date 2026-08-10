@@ -11,6 +11,72 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### Added — the production domain, and a check that can see it
+
+**`mogadorchess.nachi3dlabs.com`.** A subdomain of the Labs domain, which is
+already a Cloudflare zone — so no registrar, and nothing to wait for. All three
+config touch points moved off the unregistered `mogadorchess.ma`:
+
+- **`src/config/site.ts` → `url`**, which is the one that matters: `BaseLayout`
+  builds the canonical link, every `hreflang` alternate and `og:url` from it. A
+  wrong value here breaks nothing on screen and quietly tells Google and every
+  share preview to use a hostname that may not resolve.
+- **`astro.config.mjs` → `site`**, the same fact in a second file.
+- **`wrangler.jsonc` → `routes[0]`**, with `custom_domain: true`. A bare
+  `routes` pattern attaches a Worker to a hostname that must *already* resolve;
+  `custom_domain` makes wrangler create the DNS record and issue the
+  certificate. Without it the deploy succeeds and the hostname 522s.
+  ⚠️ **Still no `main`** — a Worker with `assets` and no entry script is served
+  entirely by the assets runtime, and that file exists to stop wrangler
+  installing the Cloudflare adapter.
+
+`mogadorchess.ma` stays a separate later option and blocks nothing — including
+custom SMTP, which needs *a domain you control* rather than that specific one.
+
+#### `scripts/smoke-prod.mjs` + `npm run smoke:prod`
+
+**The check the local gate structurally cannot do.** Everything else tests a
+build on disk served by `astro preview` on localhost — right, and blind to a
+whole class of failure: the Worker deployed but the domain never attached;
+`site.url` naming a host that is not the one answering; `sw.js` or the generated
+manifest not reachable, so the PWA silently stops being installable.
+
+Twelve routes across both locales, each asserting HTTP 200, the right `lang`, a
+structural sentinel, the **GPL source link in the footer** (Critical Feature 8),
+canonical and `og:url` agreeing, and **no third-party subresource**. Plus the
+manifest parses and has icons, and `sw.js` is the generated worker with **no
+engine in its precache**. `--url` points it anywhere.
+
+Three things it does deliberately:
+
+- **The origin is parsed from `src/config/site.ts`, not retyped.** A fourth copy
+  of the hostname would be the one that goes stale, and this script would then
+  smoke-test the wrong site and report success. Same reasoning as
+  `check-contrast.mjs` parsing the real stylesheets.
+- **It compares `site.ts` and `astro.config.mjs` before touching the network**,
+  so the two-files-one-fact drift is caught without a deploy. Verified to fail.
+- **Sentinels are structural, never prose** — every one is a `data-testid` or a
+  component class the Playwright suite already relies on. Pinning a sentence
+  would make this fail on a typo fix, which is the tax that gets a check
+  switched off.
+
+⚠️ It is **not** part of `npm run build` and must not become part of it: it needs
+the network and a deployed site.
+
+#### One bug found by testing the checker
+
+The first subresource scan reported the site's **own `canonical` and `hreflang`
+links as third-party subresources on all twelve pages.** A `<link>` is only a
+request for some values of `rel` — `canonical`, `alternate`, `author` and
+`license` are metadata the browser never fetches. It now filters on `rel`, and
+`<a href>` is excluded entirely: the site links out on purpose (the GPL text,
+Chessground, Wikimedia, `wa.me`), and the rule is "no third-party REQUEST
+without an explicit click".
+
+Both halves were then verified to have teeth rather than assumed: a CDN
+`<script>` injected into a built page is caught by origin, and a deliberate
+`site.ts` / `astro.config.mjs` mismatch fails before any fetch.
+
 ### Added — E3: ranks, points, session streaks and achievements
 
 Direction: `docs/direction/mcc-direction-esthetique.md` §§ B1–B3. Everything is
