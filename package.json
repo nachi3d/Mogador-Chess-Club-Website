@@ -21,7 +21,8 @@
     "test:release": "node scripts/test-release.mjs",
     "test:e2e": "playwright test",
     "test:e2e:chromium": "playwright test --project=chromium",
-    "quick": "node scripts/quick.mjs"
+    "quick": "node scripts/quick.mjs",
+    "smoke:prod": "node scripts/smoke-prod.mjs"
   },
   "engines": {
     "node": ">=22.12.0"

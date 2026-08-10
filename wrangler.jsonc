@@ -19,6 +19,36 @@
   // reference would never resolve.
   "name": "mogador-chess-club-website",
   "compatibility_date": "2026-08-06",
+
+  // The production domain — a subdomain of the Labs domain, which is already a
+  // zone on this Cloudflare account, so there was no registrar step.
+  //
+  // ⚠️ `custom_domain: true` IS WHAT MAKES THIS A DOMAIN RATHER THAN A ROUTE.
+  // A bare `routes` pattern attaches a Worker to a hostname that must ALREADY
+  // resolve through Cloudflare; `custom_domain` makes wrangler create the DNS
+  // record and issue the certificate itself. For a hostname that does not exist
+  // yet, the bare form deploys "successfully" and then 522s, because nothing
+  // ever pointed at it.
+  //
+  // ⚠️ STILL NO `main`, AND ADDING A DOMAIN MUST NOT INTRODUCE ONE. A Worker
+  // with `assets` and no entry script is served entirely by the assets runtime;
+  // adding `main` would make this a script deployment and change what is
+  // served. The header above explains why this file exists at all — deleting or
+  // hollowing it out reinstates the `astro add cloudflare` trap.
+  //
+  // ⚠️ THE HOSTNAME IS DUPLICATED — it is also `site.url` in src/config/site.ts
+  // and `site` in astro.config.mjs. It cannot be imported here (this is config
+  // wrangler reads without running the project), so the three are kept in step
+  // by hand and `npm run smoke:prod` is what proves they agree, by fetching the
+  // deployed pages and comparing their canonical against the host that served
+  // them.
+  "routes": [
+    {
+      "pattern": "mogadorchess.nachi3dlabs.com",
+      "custom_domain": true
+    }
+  ],
+
   "assets": {
     "directory": "./dist",
     // No 404 page exists yet. When one lands at `src/pages/404.astro`, this

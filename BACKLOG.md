@@ -33,38 +33,15 @@ with itself.
 
 | Item | Status | Note |
 |---|---|---|
-| **Publish on `mogadorchess.nachi3dlabs.com`** | `soon` | A subdomain of the Labs domain, which is **already on Cloudflare — so there is no registrar step and nothing to wait for.** This is what unblocks having a real address at all; see the four touch points below. |
+| **Attach the custom domain in Cloudflare** | `seàn` | ⚠️ **The one manual step, and the only thing left.** Workers & Pages → `mogador-chess-club-website` → Settings → Domains & Routes → Add → **Custom domain** → `mogadorchess.nachi3dlabs.com`. Cloudflare creates the DNS record and issues the certificate itself — **do not add a CNAME by hand**, that is the usual way to get this wrong. `npx wrangler deploy` also provisions it from `wrangler.jsonc`, so this is belt-and-braces for the first deploy. Verify with `npm run smoke:prod`, which fails loudly and specifically until the certificate is active. |
+| ~~Publish on `mogadorchess.nachi3dlabs.com`~~ | **done** | All four touch points landed: `site.url`, `astro.config.mjs` `site`, `routes[0]` with `custom_domain: true` in `wrangler.jsonc` (**still no `main`**), and `scripts/smoke-prod.mjs` + `npm run smoke:prod`, which did not exist before. See CLAUDE.md → Deployment. |
 
-### The four touch points, and one that does not exist yet
-
-1. **`src/config/site.ts` → `url`** — currently `https://mogadorchess.ma` behind a
-   `TODO(domain)`. This is the one that matters most: `BaseLayout` builds the
-   **canonical link, every `hreflang` alternate and `og:url`** from it, so until
-   it is right every page advertises a hostname that does not resolve.
-2. **`astro.config.mjs` → `site`** — the same literal, with its own `TODO(domain)`
-   and a note to keep the two in sync. They are two files and one fact; changing
-   one and not the other is the failure to expect.
-3. **`wrangler.jsonc`** — add the custom domain to the Worker. The file currently
-   declares only `name`, `compatibility_date` and `assets`, deliberately (it
-   exists to stop wrangler installing the Cloudflare adapter — see CLAUDE.md →
-   Deployment). Adding a domain must not turn into adding a `main`.
-4. **A production smoke target** — ⚠️ **there is none today.** Nothing in
-   `scripts/`, `playwright.config.ts` or `package.json` points at a deployed
-   URL; the whole suite runs against `astro preview` on localhost, by design.
-   So this is a small piece of work to *create*, not a value to update: a
-   handful of checks against the live origin (the two locales render, the
-   canonical matches the host it was served from, `sw.js` is served, no
-   third-party request). Worth having precisely because it is the one thing the
-   local gate structurally cannot catch — a build that is perfect on disk and
-   misconfigured at the edge.
-
-⚠️ **`mogadorchess.ma` stays a separate, later option and is NOT a blocker for
-any of this.** It needs a Moroccan registrar and can require paperwork; the
-subdomain needs neither. When and if `.ma` lands it is the same four touch
-points again plus a redirect, which is cheap — so nothing should wait for it.
-That includes **custom SMTP**, whose entry below said "needs
-`mogadorchess.ma`": what it actually needs is *a domain you control*, and the
-subdomain is one.
+⚠️ **`mogadorchess.ma` stays a separate, later option and blocks nothing.** It
+needs a Moroccan registrar and can require paperwork; the subdomain needed
+neither. If it ever lands it is the same three config touch points again plus a
+redirect — cheap, and no reason for anything to wait on it. That includes
+**custom SMTP**, which needs *a domain you control* rather than that specific
+one.
 
 ## Accounts and privacy
 

@@ -31,9 +31,11 @@ export default defineConfig({
    * See CLAUDE.md → "Architecture rule — ONE board island".
    */
   integrations: [preact()],
-  // TODO(domain): mogadorchess.ma is planned, not yet registered. Keep in sync
-  // with `site.url` in src/config/site.ts.
-  site: 'https://mogadorchess.ma',
+  // ⚠️ KEEP IN SYNC WITH `site.url` IN src/config/site.ts, which carries the
+  // full note. Two files, one fact — and the mismatch is invisible locally,
+  // because nothing on localhost ever compares them. `npm run smoke:prod`
+  // does, against the deployed origin.
+  site: 'https://mogadorchess.nachi3dlabs.com',
 
   // Fully static output — Cloudflare Workers serves `dist/` as static assets and
   // nothing else. No SSR, no adapter: v1 has no server-side state.

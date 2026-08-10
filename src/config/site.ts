@@ -71,9 +71,27 @@ export const site = {
     en: 'The Mogador chess club: progressive courses, an opening-trap library, interactive exercises and games against the computer. In French and English.',
   } satisfies Localized,
 
-  // TODO(domain): mogadorchess.ma is planned, not yet registered.
-  // Keep in sync with `site` in astro.config.mjs.
-  url: 'https://mogadorchess.ma',
+  /**
+   * The production origin.
+   *
+   * ⚠️ THIS IS THE ONE THAT MATTERS MOST OF THE FOUR DOMAIN TOUCH POINTS.
+   * `BaseLayout` builds the canonical link, EVERY `hreflang` alternate and
+   * `og:url` from it — so a wrong value here does not break the site visibly,
+   * it quietly tells Google and every share preview to use a hostname that may
+   * not resolve. Nothing local catches that, which is why
+   * `scripts/smoke-prod.mjs` checks the deployed pages agree with the host
+   * that served them.
+   *
+   * ⚠️ KEEP IN SYNC WITH `site` IN astro.config.mjs. Two files, one fact;
+   * changing one and not the other is the failure to expect. `smoke:prod`
+   * catches the mismatch, but only after a deploy.
+   *
+   * `mogadorchess.ma` remains a separate, later option — a nicer name for a
+   * Moroccan club — and blocks nothing: it needs a Moroccan registrar and
+   * possibly paperwork, where this subdomain of the Labs domain needed neither.
+   * If it ever lands it is these same touch points again plus a redirect.
+   */
+  url: 'https://mogadorchess.nachi3dlabs.com',
 
   locales: LOCALES,
   defaultLocale: DEFAULT_LOCALE,

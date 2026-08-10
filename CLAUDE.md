@@ -12,7 +12,7 @@ This file is the operational reference for working on this codebase with Claude 
 **Venue:** Dar Souiri — **held in config, never in components** (see the portability rule below)
 **Association:** Association Essaouira Mogador (`@associationessaouiramogador`), credited in the footer
 **Project root:** `N:\Nachi3D-Labs\Mogador-Chess-Club-Website`
-**Domain (planned):** `mogadorchess.ma` — not yet registered
+**Domain:** `mogadorchess.nachi3dlabs.com` — a subdomain of the Labs domain, already a Cloudflare zone, so no registrar step. `mogadorchess.ma` is a separate, later option and blocks nothing. See "Deployment".
 **Hosting:** Cloudflare Workers static assets, fully static output — see "Deployment"
 **Staging:** Cloudflare preview deployments on `dev`
 **Languages:** FR (default, at the root) + EN (under `/en/...`)
@@ -2689,6 +2689,96 @@ is ever wanted.
 
 For the same reason `wrangler.jsonc` carries no `$schema` key: the conventional
 value points into `node_modules/wrangler/`, which does not exist here.
+
+### The production domain — `mogadorchess.nachi3dlabs.com`
+
+A subdomain of the Labs domain, which is **already a zone on the Cloudflare
+account**, so there was no registrar step and nothing to wait for. `.ma` needs a
+Moroccan registrar and possibly paperwork; it remains a separate later option
+and blocks nothing.
+
+**The hostname exists in three files and cannot be imported into any of them
+from the others:**
+
+| File | Field | What it feeds |
+|---|---|---|
+| `src/config/site.ts` | `url` | **canonical, every `hreflang` alternate, `og:url`** — via BaseLayout |
+| `astro.config.mjs` | `site` | `Astro.site`, and anything built on it |
+| `wrangler.jsonc` | `routes[0].pattern` | which hostname the Worker answers on |
+
+⚠️ **Two of those are one fact in two files, and nothing local has ever compared
+them.** A mismatch produces a site that works perfectly while telling Google and
+every share preview to use a hostname that may not resolve — no error, no
+visible symptom. `npm run smoke:prod` compares them **before it touches the
+network**, so that half is caught without a deploy.
+
+⚠️ **`routes` carries `custom_domain: true`, and that word is doing the work.**
+A bare `routes` pattern attaches a Worker to a hostname that must ALREADY
+resolve through Cloudflare; `custom_domain` makes wrangler create the DNS record
+and issue the certificate. Without it the deploy succeeds and the hostname
+522s, because nothing ever pointed at it.
+
+⚠️ **ADDING A DOMAIN MUST NOT ADD A `main`.** A Worker with `assets` and no
+entry script is served entirely by the assets runtime. The whole reason
+`wrangler.jsonc` exists is to stop wrangler helping (see above); adding `main`
+turns this into a script deployment and changes what is served.
+
+#### What Seàn does in the Cloudflare dashboard
+
+Only one thing is genuinely manual, and only once:
+
+1. **Workers & Pages → `mogador-chess-club-website` → Settings → Domains &
+   Routes → Add → Custom domain**, enter `mogadorchess.nachi3dlabs.com`, save.
+   Cloudflare creates the DNS record and issues the certificate itself —
+   there is no DNS record to add by hand, and adding a CNAME manually is the
+   common way to get this wrong.
+2. Wait for the certificate (usually a minute or two; the row says *Active*).
+3. `npm run smoke:prod` — it fails loudly and specifically until step 2 lands.
+
+`npx wrangler deploy` will also provision it from `wrangler.jsonc`, so the
+dashboard step is belt-and-braces for the first deploy rather than a
+prerequisite for every one. **Whoever does it, the config file stays the source
+of truth** — a domain attached only in the dashboard is a domain the next
+`wrangler deploy` knows nothing about.
+
+⚠️ **`PUBLIC_AUTH_ENABLED` stays unset.** Accounts are off (v0.3.0) and a domain
+does not change that.
+
+### Production smoke — `npm run smoke:prod`
+
+```sh
+npm run smoke:prod                              # the configured origin
+npm run smoke:prod -- --url https://staging...  # anywhere else
+```
+
+**This is the one check the local gate structurally cannot do.** Everything else
+tests a build on disk served by `astro preview` on localhost, which is right —
+and leaves a whole class of failure invisible until a reader meets it: the
+Worker deployed but the domain never attached; `site.url` naming a host that is
+not the one answering; `sw.js` or the generated manifest not reachable at its
+URL, so the PWA quietly stops being installable.
+
+It asserts, per route: HTTP 200, the right `lang`, a structural sentinel, the
+**GPL source link in the footer** (Critical Feature 8), canonical and `og:url`
+agreeing with the origin the page was built for, and **no third-party
+subresource**. Plus the manifest parses and has icons, and `sw.js` is the
+generated worker with **no engine in its precache**.
+
+⚠️ **Sentinels are structural, never prose.** Every one is a `data-testid` or a
+component class the Playwright suite already relies on. Pinning a sentence would
+make this fail on a typo fix, which is the tax that gets a check switched off.
+
+⚠️ **`<a href>` IS NOT A SUBRESOURCE.** The site links out on purpose — the GPL
+text, Chessground, Wikimedia, Instagram, `wa.me`, nachi3dlabs.com. The rule is
+"no third-party REQUEST without an explicit click", so only fetching tags count,
+and a `<link>` only counts for fetching `rel` values. The first version flagged
+the site's own `canonical` and `hreflang` links as third-party on all twelve
+pages — wrong, and backwards, since those pointing at production is what the
+canonical check wants to see.
+
+⚠️ **It is NOT part of `npm run build` and must not become part of it.** It needs
+the network and a deployed site; wiring it in would make every local build
+depend on production being up.
 
 ### `not_found_handling` tracks whether a 404 page exists
 
