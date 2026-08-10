@@ -679,6 +679,41 @@ The script checks that PGNs parse, that note plies exist, that solutions and opp
 - **the FEN has all six fields** — a four-field FEN parses in chess.js and silently assumes White, quietly changing whose puzzle it is.
 - **no duplicate slugs**, and **no half-translated hints** (same rule as `moveComments`).
 
+#### ⚠️ A LEGAL POSITION IS NOT A CORRECT ONE — verify the CLAIM, not the chess
+
+`check-content.mjs` proves a position is *possible* and a line is *legal*. It
+cannot read the sentence next to the board, and that is where content actually
+goes wrong.
+
+Content batch 3 (course 3) shipped **four** positions that passed every check —
+legal, six fields, solution legal, plies in range — and each described a
+mechanism the position did not contain:
+
+| Lesson | The prose said | The board had |
+|---|---|---|
+| le clouage | the c6 knight "cannot move" | a **d7 pawn** blocking the diagonal; the knight had 5 legal moves |
+| la découverte | `Bb3` aims at h8 through `Ne5` | b3–h8 is not a diagonal, and e5 was not on the bishop's line |
+| l'attraction | `Ng6+` forks king and queen | `2...fxg6` — a pawn on f7 simply takes the knight |
+| la surcharge | the recapture allows `Re8#` | the recapture came **with check**, and a queen on c5 covers f8 anyway |
+
+Two of those are the classic beginner misconceptions they were meant to teach
+*against* — a "pin" that is blocked by the d7 pawn is the single most common
+wrong idea about the Ruy Lopez, and it would have shipped as fact.
+
+**So the authoring rule is: assert the specific claim.** Not "does this parse",
+but *is the knight actually unable to move; does the bishop actually reach h8
+once the screen leaves; can anything capture the forking piece; is that
+actually mate.* A dozen lines against chess.js in a scratch script, once, per
+board. Batch 3 was done that way and every one of the four was found before a
+file was written.
+
+⚠️ **Do not try to grow the checker into this.** "The prose matches the board"
+is not decidable from the frontmatter, and a checker that appears to cover it
+without doing so is worse than one that admits the gap. The two error classes
+that ARE mechanical — a `[SetUp]` FEN contradicting the PGN's first move, and a
+position whose side-not-to-move is in check — are both caught, and both were
+re-proved with throwaway fixtures at the start of batch 3 rather than trusted.
+
 ---
 
 ## The beginner tutorial — `/apprendre-les-bases/`

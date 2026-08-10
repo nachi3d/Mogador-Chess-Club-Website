@@ -412,6 +412,56 @@ not as "unavailable", so the state no longer exists.
 - [ ] The prerequisite line still goes to `/apprendre-les-bases/`, and the
       tutorial index still lists its 13 steps
 
+### Course 3 — "Les motifs tactiques" (7 lessons)
+
+- [ ] `/cours/` lists three courses, in order: Bien ouvrir une partie, Les mats
+      élémentaires, **Les motifs tactiques** (badge *intermédiaire*)
+- [ ] `/cours/les-motifs-tactiques/` lists seven lessons, 1–7, and each opens
+- [ ] Same in English at `/en/cours/les-motifs-tactiques/`
+
+#### ⚠️ Read each board against the sentence next to it
+
+Four of this course's eight positions originally described something the board
+did not contain, and **every one of them passed `check-content.mjs`** — legal,
+six fields, solvable. The checker cannot read. This is the check that catches
+that class, so do it slowly, board by board.
+
+- [ ] **L2, le clouage** — on the diagram, try to move the c6 knight in your
+      head: it must be **unable** to move. If a black pawn is sitting on d7, the
+      pin is fake and this is the bug coming back
+- [ ] **L4, la découverte** — the bishop must be on **b2**, on the same diagonal
+      as the knight on e5. Take the knight away mentally: the bishop must then
+      hit h8
+- [ ] **L6, l'attraction** — there must be **no black pawn on f7**. If there is,
+      `2...fxg6` just wins a knight and the whole demonstration is refuted
+- [ ] **L7, la surcharge** — the knight is on **g5**, the white king on **h1**.
+      Play it out: `Bxg5 Qxg5` must **not** be check, and `Re8` must be mate
+
+#### The lesson 6 replayer — step through it, do not skim
+
+- [ ] Step forward one ply at a time. The commentary appears on moves **1, 3
+      and 5 of the list** (plies 0, 2, 4 — White's moves), never on Black's
+- [ ] Ply 0 (`Rh8+`): the comment names f8, g7, f7 and h7 as the king's four
+      unavailable squares. Check all four on the board — f7 is covered by the
+      **knight on e5**, h7 by the rook that just arrived
+- [ ] Ply 2 (`Ng6+`): the knight on g6 visibly attacks **both** the king on h8
+      and the queen on e7
+- [ ] Ply 4 (`Nxe7+`): the queen is gone and it is check
+- [ ] Jump to the end, then back to the start: the white rook returns to **h1**
+      and the black queen to e7
+
+#### The exercises
+
+- [ ] Each of the seven "Essaie toi-même" boards solves with the intended move,
+      by **tapping** as well as by typing
+- [ ] **L5, la déviation** is the one exercise with `onlyMove: false`. Play
+      `Ra8+` instead of `Rxd7` (it forces mate in two). It must say *"ce n'est
+      pas la ligne que nous avions en tête"* — **never** "incorrect". If it ever
+      calls that move wrong, that is a regression, not a copy change
+- [ ] Cross-links open: L1 → the knight-fork exercise, L4 → `/pieges/legal/`,
+      L6 → le mat étouffé, L7 → le mat du couloir. In English they must carry
+      the `/en/` prefix
+
 ---
 ## 1d. Which board do I play on?
 
