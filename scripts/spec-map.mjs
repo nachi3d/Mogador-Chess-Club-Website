@@ -21,9 +21,12 @@ import { join } from 'node:path';
  * still render and the switcher still works" net, and it is cheap.
  */
 export const SPEC_MAP = [
-  [/^src\/content\/traps\//, ['replayer.spec.ts']],
-  [/^src\/content\/exercices\//, ['exercise.spec.ts']],
-  [/^src\/content\/(cours|lessons)\//, ['lessons.spec.ts']],
+  /* Content that an index draws a card for maps to `index-cards.spec.ts` as
+     well as to its own spec: adding or removing an entry is exactly when a
+     card can end up on a page with nowhere to go. */
+  [/^src\/content\/traps\//, ['replayer.spec.ts', 'index-cards.spec.ts']],
+  [/^src\/content\/exercices\//, ['exercise.spec.ts', 'index-cards.spec.ts']],
+  [/^src\/content\/(cours|lessons)\//, ['lessons.spec.ts', 'index-cards.spec.ts']],
   [/^src\/content\/tutoriel\//, ['tutorial.spec.ts']],
   [/^src\/content\/agenda\//, ['smoke.spec.ts']],
   [/^src\/i18n\/ui\./, ['smoke.spec.ts', 'nav-coords.spec.ts', 'main-menu.spec.ts']],
@@ -80,14 +83,14 @@ export const SPEC_MAP = [
 
   [/^src\/layouts\//, ['smoke.spec.ts', 'mobile-app.spec.ts', 'pwa.spec.ts', 'mobile-fit.spec.ts']],
   [/^src\/components\/MobileNav\./, ['mobile-app.spec.ts']],
-  [/^src\/components\/(CardGrid|NumberedCard|ProgressStates|LevelBadge)\./, ['exercise.spec.ts', 'tutorial.spec.ts', 'lessons.spec.ts']],
+  [/^src\/components\/(CardGrid|NumberedCard|ProgressStates|LevelBadge)\./, ['exercise.spec.ts', 'tutorial.spec.ts', 'lessons.spec.ts', 'index-cards.spec.ts']],
   [/^src\/components\/home\//, ['main-menu.spec.ts', 'mobile-app.spec.ts']],
   [/^src\/components\/pages\/HomePage\./, ['main-menu.spec.ts', 'mobile-app.spec.ts', 'resume.spec.ts']],
   [/^src\/components\/pages\/(Trap|Exercice)Page\./, ['mobile-fit.spec.ts']],
   [/^src\/components\/pages\/SettingsPage\./, ['theme.spec.ts', 'themes.spec.ts']],
   [/^src\/components\/pages\/LegalPage\./, ['legal.spec.ts']],
   [/^src\/components\/pages\/ProgressPage\./, ['mobile-app.spec.ts', 'resume.spec.ts']],
-  [/^src\/components\/pages\/(Cours|Exercices|Pieges|TutorialIndex)Page\./, ['exercise.spec.ts', 'tutorial.spec.ts', 'lessons.spec.ts', 'resume.spec.ts']],
+  [/^src\/components\/pages\/(Cours|Exercices|Pieges|TutorialIndex)Page\./, ['exercise.spec.ts', 'tutorial.spec.ts', 'lessons.spec.ts', 'resume.spec.ts', 'index-cards.spec.ts']],
   [/^src\/components\/pages\/(Lesson|CourseDetail|TutorialStep)Page\./, ['lessons.spec.ts', 'tutorial.spec.ts', 'board-pointer.spec.ts']],
   [/^src\/components\//, ['smoke.spec.ts']],
 

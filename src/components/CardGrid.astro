@@ -24,8 +24,25 @@ export interface CardItem {
   readonly summary: string;
   readonly level: keyof typeof LEVEL_KEYS;
   readonly meta?: string | undefined;
-  /** When set, the whole card becomes a link to the detail page. */
-  readonly href?: string | undefined;
+  /**
+   * The card's destination. **REQUIRED — a card that renders must be openable.**
+   *
+   * ⚠️ IT USED TO BE OPTIONAL, AND THE OPTIONALITY WAS THE BUG. A card built
+   * without one still rendered: title as plain text, summary, level badge, the
+   * full card surface — and nothing happened when a reader clicked it. It looks
+   * like every other card, so it reads as broken rather than as "unavailable",
+   * and no test caught it because nothing was missing from the page.
+   *
+   * `/cours/` shipped exactly that for `les-bases`. The fix is not a nicer
+   * unlinked state: an index entry with no destination is a bug, not a state,
+   * so it is now impossible to construct one. A thing with nowhere to go does
+   * not belong on an index — park it with `draft: true` or give it a route.
+   *
+   * `tests/e2e/index-cards.spec.ts` asserts it on the rendered page too, across
+   * all three indexes and both locales, because the type only binds this file's
+   * callers and the guarantee is about what a reader can click.
+   */
+  readonly href: string;
   /** Free tags rendered as chips. Content vocabulary, not translated. */
   readonly themes?: readonly string[] | undefined;
   /**
@@ -59,16 +76,12 @@ const tracked = items.some((item) => item.progressKeys && item.progressKeys.leng
   ) : (
     <ul class="card-grid" data-reveal-stagger>
       {items.map((item) => (
-        <li class:list={['card', { 'card-linked': item.href }]} data-reveal>
+        <li class="card card-linked" data-reveal>
           <div class="card-head">
             <h2>
-              {item.href ? (
-                <a class="card-link" href={item.href}>
-                  {item.title}
-                </a>
-              ) : (
-                item.title
-              )}
+              <a class="card-link" href={item.href}>
+                {item.title}
+              </a>
             </h2>
             <LevelBadge locale={locale} level={item.level} />
           </div>

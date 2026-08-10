@@ -22,19 +22,36 @@ const entries = (await getCollection('cours', ({ data }) => !data.draft)).sort(
 );
 
 /**
- * ⚠️ A course is only linked if it HAS lessons in this locale.
+ * ⚠️ A COURSE WITH NO LESSONS FAILS THE BUILD. It is not rendered unlinked, and
+ * it is not silently dropped either.
  *
- * The detail route is generated from the lessons collection and skips a course
- * with none, so linking every card would send a reader to a 404. `les-bases` is
- * exactly that case today: a course record with no lessons written yet.
+ * The detail route is generated from the lessons collection, so a course with
+ * none has no page to open. There were three ways to handle that and only one
+ * is honest:
  *
- * The cards carried no href at all until now — the course-1 session added the
- * detail routes and never came back to link the index to them, so the only way
- * in was to type the URL.
+ *   - render it unlinked — what shipped, and the bug. A card that looks exactly
+ *     like its neighbours and does nothing when clicked reads as broken.
+ *   - drop it from the list — content that vanishes with no signal. The next
+ *     session writes a course, sees no card, and debugs the index.
+ *   - say so at build time — this. The person who can fix it is the person
+ *     running the build, and they find out before a reader does.
+ *
+ * `draft: true` is the way to park a course that is genuinely being written; it
+ * is filtered out above and never reaches this check. So the states are
+ * "openable" and "deliberately parked", with nothing in between.
  */
 const lessonEntries = await getCollection('lessons', ({ data }) => !data.draft);
 const localeLessons = lessonEntries.filter((l) => l.data.lang === locale);
 const coursesWithLessons = new Set(localeLessons.map((l) => l.data.course));
+
+const orphans = entries.filter(({ data }) => !coursesWithLessons.has(data.slug));
+if (orphans.length > 0) {
+  throw new Error(
+    `cours: no ${locale} lessons for ${orphans.map((o) => o.data.slug).join(', ')}. ` +
+      'A course card must be openable — write src/content/lessons/<slug>/*.' +
+      `${locale}.md, or set "draft": true to park the course until they exist.`,
+  );
+}
 
 /**
  * Every exercise-board key inside a course, so the card can say whether the
@@ -63,9 +80,7 @@ const items: CardItem[] = entries.map(({ data }) => {
     title: locale === 'fr' ? data.title_fr : data.title_en,
     summary: locale === 'fr' ? data.summary_fr : data.summary_en,
     level: data.level,
-    ...(coursesWithLessons.has(data.slug)
-      ? { href: localizePath(`/cours/${data.slug}/`, locale) }
-      : {}),
+    href: localizePath(`/cours/${data.slug}/`, locale),
     ...(keys.length > 0 ? { progressKeys: keys } : {}),
   };
 });

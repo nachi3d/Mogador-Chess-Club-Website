@@ -274,6 +274,7 @@ it. Tags said one thing and the manifest said another.
 29. **There is ONE resume rule, in `ResumeResolver.astro`, and ONE key scheme, in `src/lib/journey.ts`.** Four surfaces read them. A second copy of either is how two pages come to disagree about what a reader has done.
 30. **The progress page never prints a number nothing computed.** Rank and points say "bientôt".
 31. **Every long route ends with a way onward**, clear of the bottom bar.
+32. **A card that renders has a destination.** `CardItem.href` is required and every card's link resolves 200. See the index rule below.
 
 ---
 
@@ -636,7 +637,7 @@ Piece letters in the notation stay English (`N`, `B`, `Q`) — that is what "sta
 src/content.config.ts   # ⚠️ Astro 7 location — NOT src/content/config.ts
 src/content/
   traps/        legal.json
-  cours/        les-bases.json
+  cours/        bien-ouvrir-une-partie.json
   exercices/    mat-de-l-escalier.json
   agenda/       2026-09-12.json
 ```
@@ -656,7 +657,7 @@ Astro 7 deltas to remember: config lives at `src/content.config.ts`, each collec
 
 ### `cours` long-form bodies → per-locale Markdown (DECIDED, not yet implemented)
 
-Decided in Session 2. Course *bodies* will be **per-locale Markdown pairs** — `les-bases.fr.md` and `les-bases.en.md` — not more `*_fr` / `*_en` frontmatter fields.
+Decided in Session 2. Course *bodies* will be **per-locale Markdown pairs** — `roquer-tot.fr.md` and `roquer-tot.en.md` — not more `*_fr` / `*_en` frontmatter fields.
 
 A lesson is prose: headings, lists, diagrams, worked examples. That is what Markdown is for, and a `summary_fr`-style string field is the wrong shape for three screens of teaching. One file per language keeps each body in exactly one language, which is the same reason the rest of the content is JSON — the constraint is honoured, just at file granularity instead of field granularity.
 
@@ -772,6 +773,72 @@ Each route file is a two-line shell that renders a shared component from `src/co
 Detail routes take their URL from the content's **`slug` field, not the filename**, so renaming a file can never silently move a published URL. `/cours/[slug]/` is still to come.
 
 ⚠️ **The EN legal notice is `/en/mentions-legales/`, not `/en/legal-notice/`.** The Session 3 brief asked for the translated segment; it is deliberately not implemented that way, because the no-translated-segments rule above is what makes the switcher a pure prefix swap that *cannot* fail to find its counterpart. A translated segment needs a lookup map, and a missing entry 404s a reader mid-visit — on the one page whose whole job is to be findable. The visible link label **is** translated ("Mentions légales" / "Legal notice"); the URL is structural. Flagged for Seàn: it is a one-line change in `paths.ts` plus a map if he wants the English URL, and the site is unlaunched so it is still cheap to reverse.
+
+---
+
+## ⚠️ A CARD THAT RENDERS HAS A DESTINATION — an index entry with no href is a bug
+
+`CardItem.href` on `src/components/CardGrid.astro` is **required**. There is no
+unlinked card state on `/cours/`, `/pieges/` or `/exercices/`, and there is not
+going to be one.
+
+`/cours/` shipped one. "Les bases : le plateau et les pièces" rendered the full
+card — surface, title, summary, level badge — and did nothing when clicked,
+because the course had no lesson pages and `href` was optional. **That is worse
+than the card being absent.** An absent card tells a reader nothing is there; a
+present, inert one tells them the site is broken. It is also close to invisible
+to testing: nothing is *missing* from the page, so only an absence of behaviour
+gives it away.
+
+Two halves hold it now, and both are needed:
+
+- **The type** — `href: string`, not `string | undefined`. `CardGrid`'s three
+  callers cannot construct the state.
+- **`tests/e2e/index-cards.spec.ts`** — every card on all three indexes, both
+  locales, has a `.card-link` whose href **resolves 200**. The type binds this
+  file's callers; the spec binds what a reader can click, and would catch an
+  index that drew its own markup. It asserts the link resolves rather than
+  merely exists, because pointing a dead card at a 404 satisfies the letter and
+  nothing else. It also asserts the index is non-empty first — every assertion
+  below that passes vacuously on a list with no cards, which is how this class
+  of bug survives.
+
+### A course with no lessons FAILS THE BUILD
+
+`CoursPage.astro` throws, naming the slug and both ways out. The three options
+were "render it unlinked" (the bug), "drop it silently" (content that vanishes
+with no signal — the next session writes a course, sees no card, and debugs the
+index) and "say so at build time". Only the last one tells the person who can
+fix it, before a reader sees it.
+
+`draft: true` is the way to park a course that is genuinely being written. It is
+filtered out before the check, so the states are **openable** and **deliberately
+parked**, with nothing in between.
+
+### The `les-bases` record was removed, not linked
+
+Deleted (`src/content/cours/les-bases.json`), and the reasoning matters because
+the obvious fix was to point it at `/apprendre-les-bases/`:
+
+- **That content IS the tutorial.** The summary named the board, how each piece
+  moves, castling, en passant and promotion — which is exactly the thirteen
+  steps of `/apprendre-les-bases/`, verified step by step. There was never a
+  course to write; there was a duplicate index record for content that ships.
+- **Linking it would put one destination on one page under two names.**
+  `/cours/` already links the tutorial at the TOP, deliberately, as the named
+  prerequisite (`tutorial.prerequisite`). A card titled "Les bases : le plateau
+  et les pièces" pointing at the same place is the exact thing Critical Feature
+  20 forbids — two names for one destination reads as two different sites.
+- **Writing real lessons for it** would have meant a second, parallel copy of
+  thirteen steps of shipped teaching in both locales, free to drift from the
+  original, for readers who already have a better route to it.
+
+Corroborating detail, in case anyone is tempted to restore it: it carried
+`order: 1`, the same as `bien-ouvrir-une-partie`, so the course list's sort was
+already ambiguous. It was a record nobody had maintained.
+
+The tutorial keeps its own entry points — the prerequisite line here, the home
+CTA and the dashboard tile — and gains nothing from a course card.
 
 ---
 

@@ -11,6 +11,67 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### Fixed — a card on `/cours/` that could not be opened
+
+"Les bases : le plateau et les pièces" rendered the full card — surface, title,
+summary, level badge — and did nothing when clicked. The course had no lesson
+pages, and courses without lessons were deliberately rendered unlinked so the
+card could not point at a 404.
+
+**Unlinked was the wrong trade.** An absent card tells a reader nothing is
+there; a present, inert one, identical to its working neighbours, tells them the
+site is broken. It was also close to invisible to testing — nothing was
+*missing* from the page, only the behaviour.
+
+#### The record was removed, not linked
+
+`src/content/cours/les-bases.json` is deleted. The obvious fix was to point it
+at `/apprendre-les-bases/`, and it is wrong for a specific reason:
+
+- **That content IS the tutorial.** The summary named the board, how each piece
+  moves, castling, en passant and promotion — exactly the thirteen tutorial
+  steps, checked one by one. There was no course waiting to be written; there
+  was a duplicate index record for content that already ships.
+- **`/cours/` already links the tutorial at the top**, deliberately, as the
+  named prerequisite. A card pointing at the same place under a different title
+  puts one destination on one page under two names — the thing Critical Feature
+  20 forbids.
+- **Writing real lessons** would have meant a second, drift-prone copy of
+  thirteen steps of shipped teaching, in both locales, for readers who already
+  have a better route to it.
+
+It also carried `order: 1`, the same as `bien-ouvrir-une-partie`, so the course
+list's sort was already ambiguous. Nobody had maintained it.
+
+### Added — the index rule: a card that renders has a destination
+
+Stated in CLAUDE.md as Critical Feature 32, and enforced twice rather than
+written down once:
+
+- **`CardItem.href` is required** (`string`, not `string | undefined`), and
+  `CardGrid` no longer has a non-link branch. `CardGrid`'s three callers cannot
+  construct the state.
+- **`tests/e2e/index-cards.spec.ts`** — every card on `/cours/`, `/pieges/` and
+  `/exercices/`, both locales, has a `.card-link` whose href **resolves 200**.
+  The type binds this file's callers; the spec binds what a reader can click,
+  and would catch an index that drew its own markup.
+
+Two details the spec is deliberate about: it asserts the destination *resolves*
+rather than merely exists (a dead card pointed at a 404 satisfies the letter and
+nothing else), and it asserts the index is non-empty first, since every
+per-card assertion passes vacuously on a list with no cards.
+
+**A course with no lessons now fails the build**, naming the slug and both ways
+out. Dropping it silently was the other candidate and is worse: content that
+vanishes with no signal sends the next session to debug the index. `draft: true`
+remains the way to park a course that is genuinely being written, so the states
+are "openable" and "deliberately parked", with nothing between them.
+
+Also mapped in `scripts/spec-map.mjs`: content under `traps/`, `exercices/`,
+`cours/` and `lessons/` now runs `index-cards.spec.ts` alongside its own spec —
+adding or removing an entry is exactly when a card can end up with nowhere to
+go.
+
 ---
 
 ## [0.7.0] — 2026-08-09

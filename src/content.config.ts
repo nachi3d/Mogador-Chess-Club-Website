@@ -145,7 +145,7 @@ const traps = defineCollection({
  * Deliberately minimal, and staying that way for now.
  *
  * DECIDED (Session 2), NOT YET IMPLEMENTED: course long-form bodies will move
- * to **per-locale Markdown pairs** — `les-bases.fr.md` / `les-bases.en.md` —
+ * to **per-locale Markdown pairs** — `roquer-tot.fr.md` / `roquer-tot.en.md` —
  * rather than growing more `*_fr` / `*_en` frontmatter fields. A lesson is
  * prose with headings, diagrams and lists; that is what Markdown is for, and
  * one file per language keeps a body in exactly one language (the reason the
