@@ -8,6 +8,7 @@ with itself.
 
 | Status | Meaning |
 |---|---|
+| `soon` | Agreed, no blocker, and wanted next — ahead of anything marked `backlog` |
 | `backlog` | Agreed, unscheduled, no blocker |
 | `blocked` | Cannot start until something external exists |
 | `conditional` | Only happens if a specific judgement goes a particular way |
@@ -21,12 +22,49 @@ with itself.
 
 | Item | Status | Note |
 |---|---|---|
-| **v2-S2** — Google OAuth, prof-created student accounts, Resend SMTP | `blocked` | SMTP needs the domain. OAuth and prof-created accounts could ship without it, but all three are one coherent "getting people in" session. `handle_new_user()` already clamps the locale for the Google claim. |
+| **v2-S2** — Google OAuth, prof-created student accounts, Resend SMTP | `backlog` | SMTP needs a domain, and `mogadorchess.nachi3dlabs.com` is one — no longer blocked. OAuth and prof-created accounts could ship without it, but all three are one coherent "getting people in" session. `handle_new_user()` already clamps the locale for the Google claim. |
 | **Turn accounts back on** | `blocked` | Set `PUBLIC_AUTH_ENABLED=true` in the Cloudflare build variables. **Blocked on v2-S3**, deliberately: v0.3.0 shipped with accounts switched off because there is nothing to sync yet, and an account that does nothing is a child's email address collected for no reason. One variable, no code. See CLAUDE.md → "Accounts are switched off in production". |
 | **v2-S3** — progress sync + `localStorage` import | `backlog` | The critical path of v2. Schema is already in place (`exercise_progress`, `lesson_progress`), and the tutorial writes under `tutorial:<slug>` in the same store, so it syncs with no special-casing. |
 | **v2-S4** — sessions, attendance, admin dashboard | `backlog` | Tables and RLS exist from migration 0001; nothing renders them. |
 | **v2-S5** — progress charts | `backlog` | Needs S3's data before it can show anything true. |
 | **Student groups** (all profs currently see all students) | `backlog` | Deferred to v2.1 by decision, not oversight. |
+
+## Deployment and domain
+
+| Item | Status | Note |
+|---|---|---|
+| **Publish on `mogadorchess.nachi3dlabs.com`** | `soon` | A subdomain of the Labs domain, which is **already on Cloudflare — so there is no registrar step and nothing to wait for.** This is what unblocks having a real address at all; see the four touch points below. |
+
+### The four touch points, and one that does not exist yet
+
+1. **`src/config/site.ts` → `url`** — currently `https://mogadorchess.ma` behind a
+   `TODO(domain)`. This is the one that matters most: `BaseLayout` builds the
+   **canonical link, every `hreflang` alternate and `og:url`** from it, so until
+   it is right every page advertises a hostname that does not resolve.
+2. **`astro.config.mjs` → `site`** — the same literal, with its own `TODO(domain)`
+   and a note to keep the two in sync. They are two files and one fact; changing
+   one and not the other is the failure to expect.
+3. **`wrangler.jsonc`** — add the custom domain to the Worker. The file currently
+   declares only `name`, `compatibility_date` and `assets`, deliberately (it
+   exists to stop wrangler installing the Cloudflare adapter — see CLAUDE.md →
+   Deployment). Adding a domain must not turn into adding a `main`.
+4. **A production smoke target** — ⚠️ **there is none today.** Nothing in
+   `scripts/`, `playwright.config.ts` or `package.json` points at a deployed
+   URL; the whole suite runs against `astro preview` on localhost, by design.
+   So this is a small piece of work to *create*, not a value to update: a
+   handful of checks against the live origin (the two locales render, the
+   canonical matches the host it was served from, `sw.js` is served, no
+   third-party request). Worth having precisely because it is the one thing the
+   local gate structurally cannot catch — a build that is perfect on disk and
+   misconfigured at the edge.
+
+⚠️ **`mogadorchess.ma` stays a separate, later option and is NOT a blocker for
+any of this.** It needs a Moroccan registrar and can require paperwork; the
+subdomain needs neither. When and if `.ma` lands it is the same four touch
+points again plus a redirect, which is cheap — so nothing should wait for it.
+That includes **custom SMTP**, whose entry below said "needs
+`mogadorchess.ma`": what it actually needs is *a domain you control*, and the
+subdomain is one.
 
 ## Accounts and privacy
 
@@ -34,7 +72,7 @@ with itself.
 |---|---|---|
 | **Self-service account deletion** | `backlog` | The privacy policy promises erasure on request and the cascade works; `docs/ADMIN.md` has the SQL. What is missing is a button, and a confirmation flow a child cannot trip over. |
 | **Two-year inactive-account rule** | `backlog` | Stated as policy, enforced by nothing. Needs a scheduled job — most likely a Supabase cron, since this architecture has nowhere else to put one. |
-| **Custom SMTP (Resend)** | `blocked` | Needs `mogadorchess.ma`. Supabase's built-in mailer is rate-limited, sends from an unfamiliar domain, and its template is untranslated — all three matter when the recipient is a parent being asked to click a sign-in link. Verify SPF/DKIM/DMARC when it lands. |
+| **Custom SMTP (Resend)** | `backlog` | Needs **a domain you control**, not specifically `mogadorchess.ma` — `mogadorchess.nachi3dlabs.com` satisfies it, so this is no longer blocked (see Deployment and domain). Supabase's built-in mailer is rate-limited, sends from an unfamiliar domain, and its template is untranslated — all three matter when the recipient is a parent being asked to click a sign-in link. Verify SPF/DKIM/DMARC when it lands. |
 
 ## Design direction
 
@@ -47,8 +85,8 @@ with itself.
 | **E3 — "a trap mastered" achievement** | `blocked` | Deferred out of E3 on purpose. A trap page is a *replayer* and records nothing, because stepping through a game someone else played is reading rather than competence. Shipping it today would mean awarding it for scrubbing a replay to the end — the "rank earned by clicking" the direction forbids. **Blocked on a trap carrying an exercise**, which is content work plus a schema field, not progression work. |
 | **E3 — serve the score catalogue as one file** | `backlog` | The resolver inlines a ~3.4 KB catalogue and a ~5 KB script on ~62 of 86 pages (+744 KiB precache, uncompressed). Already trimmed three ways — terse script, no entry ids, shared toast CSS. The remaining win is serving the catalogue as one same-origin JSON and inlining it only on `/` and `/progres/`, where it is needed in the first paint. Costs a request on board pages; judged not worth the complexity yet. |
 | **E5 — retro main menu on the home page** | **done** | Six entries, roving tabindex, "Reprendre" resolving to the furthest incomplete step. |
-| **E6 — complete themes** (background + board + pieces) | `backlog` | Heavy — a dedicated session. Extra piece sets each need their own licence attribution on `/mentions-legales/`, verified set by set. Texture in CSS only, never images, so the zero-request rule and the precache budget hold. Every theme must clear `check-contrast.mjs` on all its pairs in both palettes **at design time**, not at the end. |
-| **E7 — thematic typography** | `backlog` | Depends on E6 (both touch the tokens). Headings follow the theme; **the body family never changes**. One theme loads one display font, never four. |
+| **E6 — complete themes** (background + board + pieces) | **done** | Four themes, each with both palettes, four licence-checked piece sets and a sixth board preset. The constraints it shipped under still bind anything added later: every piece set needs its own attribution on `/mentions-legales/`, verified set by set; texture in CSS only, never images; and every theme clears `check-contrast.mjs` on all its pairs in both modes **at design time**, not at the end. |
+| **E7 — thematic typography** | **done** | Heading face per theme; **the body family never changes** (Critical Feature 23). One theme loads one display font, never four. |
 | **E8 — the shop** | `blocked` | Catalogue display needs nothing; **the points exchange cannot open before v2-S3**. Points live in `localStorage` while accounts are off, so changing phone loses them — and that is a lost *reward*, not lost progress. Once accounts exist the balance must be computed in the database from exercises actually solved, never accepted from the client. **Points are never sold.** |
 | **E4 — vocabulary and atmosphere** | `backlog` | Evocative names on **page titles only**; nav labels stay functional (Cours, Exercices, Jouer). ⚠️ Now constrained by E5 as well: the home menu takes its labels from the same `nav.*` keys, so renaming a nav label renames a menu entry too. May be absorbed by E5 + E7 — see the addendum. |
 
@@ -126,7 +164,7 @@ brief and are **not** done:
 
 | Item | Status | Note |
 |---|---|---|
-| **`mogadorchess.ma` domain** | `seàn` | Blocks custom SMTP, and the site still has no real address. `.ma` needs a Moroccan registrar and can require paperwork. |
+| **`mogadorchess.ma` domain** | `seàn` | ⚠️ **No longer blocks anything.** `mogadorchess.nachi3dlabs.com` gives the site a real address and unblocks custom SMTP with no registrar step (see Deployment and domain). `.ma` remains a separate, later option — a nicer name for a Moroccan club — and needs a Moroccan registrar and possibly paperwork. Decide it on its own merits, not under pressure. |
 | **Club Instagram handle** | `seàn` | Does the club post through the association's account or its own? `site.socials` has the entry, unpublished. |
 | **Brand mark** | `seàn` | The current one is an explicit placeholder — a board in a brass frame. |
 | **Dar Souiri street line** | `seàn` | Which exact address may be published. |
