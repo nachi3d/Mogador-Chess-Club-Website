@@ -32,6 +32,8 @@ import { delay, remainingFloorMs, thinkingFloorMs } from '@lib/motion';
 import type { MoveProvider } from '@lib/chess/opponent';
 import type { EngineLevel, LevelId } from '@lib/engine/stockfish';
 import type { MoveTextResult } from '@lib/chess/notation';
+import { type GameOutcome, recordGame } from '@lib/progress';
+import { refreshScore } from '@lib/score';
 import './replayer.css';
 import './play.css';
 
@@ -185,6 +187,44 @@ export default function PlayView(props: PlayViewProps) {
     [colour, labels],
   );
 
+  /**
+   * A game ended. Announce it, record it, and re-score (E3).
+   *
+   * ─────────────────────────────────────────────────────────────────────────
+   * ⚠️ NOTHING RECORDED A RESULT BEFORE E3. `/jouer/` printed a sentence and
+   * forgot the game the moment the reader pressed "new game" — so a win over
+   * Avancé, the single strongest piece of evidence this site can gather about a
+   * student, was thrown away. `recordGame` is the new namespace in
+   * `progress.ts`; the ledger reads only the wins from it.
+   *
+   * ⚠️ A LOSS IS RECORDED AND COSTS NOTHING. It is written because a record of
+   * what happened is worth keeping and v2-S3 will sync it, and it is read by no
+   * scoring rule at all. This is a teaching tool: losing to a 2000-strength
+   * engine is the normal outcome and must never subtract from anything.
+   * ─────────────────────────────────────────────────────────────────────────
+   *
+   * Both call sites go through here, so the "did the reader win" question is
+   * answered once. Getting it inverted in one of two copies would silently
+   * award points for losing.
+   */
+  const finish = useCallback(
+    (game: import('chess.js').Chess) => {
+      setResult(describeEnd(game));
+      setPhase('over');
+
+      const outcome: GameOutcome = game.isCheckmate()
+        ? (game.turn() === 'w' ? 'white' : 'black') === colour
+          ? 'loss'
+          : 'win'
+        : 'draw';
+      recordGame(levelId, outcome);
+      /* Recompute and announce — a first win at this level is an achievement,
+         and it must land now rather than on the reader's next page load. */
+      refreshScore();
+    },
+    [colour, describeEnd, levelId],
+  );
+
   /** Ask the opponent for a move and play it. */
   const opponentMove = useCallback(async () => {
     const game = gameRef.current;
@@ -240,14 +280,13 @@ export default function PlayView(props: PlayViewProps) {
     }
     setSnapshot(snapshotOf(game));
     if (game.isGameOver()) {
-      setResult(describeEnd(game));
-      setPhase('over');
+      finish(game);
       return;
     }
     /* Back to the reader. Focus returns to the field only if they TYPED the
        move that provoked this reply — see useMoveSource.ts. */
     if (moveSource.lastWasText()) setFocusSignal((prev) => prev + 1);
-  }, [describeEnd, snapshotOf]);
+  }, [finish, snapshotOf]);
 
   /**
    * A move by the reader — from a drag OR from the text field. Both arrive here.
@@ -268,13 +307,12 @@ export default function PlayView(props: PlayViewProps) {
 
       setSnapshot(snapshotOf(game));
       if (game.isGameOver()) {
-        setResult(describeEnd(game));
-        setPhase('over');
+        finish(game);
         return;
       }
       void opponentMove();
     },
-    [colour, describeEnd, opponentMove, snapshotOf, thinking],
+    [colour, finish, opponentMove, snapshotOf, thinking],
   );
 
   /** Start: this is the click that is allowed to fetch 3.6 MB. */
@@ -329,7 +367,11 @@ export default function PlayView(props: PlayViewProps) {
     setThinking(false);
     setResult(`${labels.resigned} ${labels.youLose}`);
     setPhase('over');
-  }, [labels]);
+    /* Recorded as a loss, which costs nothing — see `finish`. It does NOT go
+       through `finish`: there is no finished position to describe, and asking
+       chess.js who was mated in a game nobody mated would be wrong. */
+    recordGame(levelId, 'loss');
+  }, [labels, levelId]);
 
   const newGame = useCallback(() => {
     generation.current += 1;

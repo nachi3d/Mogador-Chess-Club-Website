@@ -34,11 +34,14 @@ import type { ExerciseDefinition, ExerciseMove, ResolvedExercise } from '@lib/ch
 import type { MoveTextResult } from '@lib/chess/notation';
 import {
   readExercise,
+  extendStreak,
   recordAttempt,
   recordHintUsed,
   recordSolved,
+  resetStreak,
   resetAttempts,
 } from '@lib/progress';
+import { readScore, refreshScore } from '@lib/score';
 /* `.mcc-side-heading` and `.mcc-move` are defined in replayer.css and reused
    here — same controls, same look, one definition. Imported EXPLICITLY rather
    than relying on ReplayView happening to be in the same chunk: that is true
@@ -78,6 +81,10 @@ export interface ExerciseLabels {
   readonly offLineNote: string;
   readonly solved: string;
   readonly solvedAgain: string;
+  /** "+%s points" — the award, in the solve moment (E3). */
+  readonly points: string;
+  /** "%s d'affilée" — the session run, shown from two upward (E3). */
+  readonly streak: string;
   readonly retry: string;
   readonly solutionHeading: string;
   readonly solutionHint: string;
@@ -183,6 +190,16 @@ export default function ExerciseView(props: ExerciseViewProps) {
   const [solved, setSolved] = useState(false);
   /** True only when the reader had already solved this on a previous visit. */
   const [solvedBefore, setSolvedBefore] = useState(false);
+  /**
+   * Points this solve added to the total, or 0 (E3).
+   *
+   * ⚠️ ZERO IS A REAL AND COMMON ANSWER — a re-solve, or a lesson board that is
+   * not the last one of its lesson. It renders NOTHING rather than "+0 points",
+   * which would read as a mark out of ten.
+   */
+  const [awarded, setAwarded] = useState(0);
+  /** The session run, for the small indicator beside the solve. */
+  const [streak, setStreak] = useState(0);
   /** A move being shown AHEAD of the current step's position, or null. */
   const [shown, setShown] = useState<ExerciseMove | null>(null);
   /** Bumped to push the board back to a position it has drifted from. */
@@ -319,6 +336,12 @@ export default function ExerciseView(props: ExerciseViewProps) {
         setShaking(true);
         setBusy(true);
         setAttempts(recordAttempt(slug).attempts);
+        /* The run ends here (E3).
+           ⚠️ SILENTLY. There is no "streak lost" message and there must not be
+           — the reader is already being told their move was refused, and
+           announcing a forfeited streak on top of it charges twice for one
+           mistake. The counter simply stops being shown below two. */
+        resetStreak();
         after(SHAKE_MS, () => {
           setShaking(false);
           setBusy(false);
@@ -358,7 +381,33 @@ export default function ExerciseView(props: ExerciseViewProps) {
         }
         setSolved(true);
         setReviewIndex(engine.line.length - 1);
+
+        /**
+         * ⚠️ THE AWARD IS THE DELTA IN THE TOTAL, NOT A NUMBER THIS FILE KNOWS.
+         *
+         * Read the total, record the solve, recompute, subtract. That is the
+         * only way to be right in all three cases at once, and each of them
+         * would need its own rule if the award were passed in as a prop:
+         *
+         *   - a RE-SOLVE awards nothing, because the record is already `solved`
+         *     and the ledger is derived from it — no "have they done this
+         *     before" branch needed here (the no-farming rule, for free);
+         *   - a LESSON board awards nothing until the LAST board of that lesson
+         *     is solved, because a lesson is one catalogue entry;
+         *   - a hint reduces the award, and the reduction is already in the
+         *     catalogue value the resolver picked.
+         *
+         * It also means the number shown here and the number on `/progres/`
+         * cannot disagree: they are the same computation, one subtraction
+         * apart. See `ScoreResolver.astro`.
+         */
+        const before = readScore()?.points ?? null;
         recordSolved(slug);
+        /* Extended BEFORE the recompute, so a fifth consecutive solve can fire
+           `streak-five` in the same pass that awards the points. */
+        setStreak(extendStreak());
+        const after = refreshScore();
+        setAwarded(before !== null && after ? Math.max(0, after.points - before) : 0);
       };
 
       if (reply) {
@@ -541,6 +590,26 @@ export default function ExerciseView(props: ExerciseViewProps) {
             <>
               <p class="mcc-exercise-solved" data-testid="exercise-solved">{labels.solved}</p>
               {engine?.endsInMate && <p class="mcc-exercise-mate">{labels.checkmate}</p>}
+              {/* ⚠️ PART OF THE EXISTING TWO-BEAT SOLVE, NOT A THIRD BEAT.
+                  It renders inside the panel that already arrives on the second
+                  beat, so the reward lands WITH the verdict rather than
+                  interrupting it with a new thing to look at. E1's rule holds:
+                  a solve is two Transitions, and this does not add one.
+                  ⚠️ Nothing renders at zero — see `awarded`. */}
+              {(awarded > 0 || streak >= 2) && (
+                <p class="mcc-exercise-reward" data-testid="exercise-reward">
+                  {awarded > 0 && (
+                    <span class="mcc-exercise-points" data-testid="exercise-points">
+                      {labels.points.replace('%s', String(awarded))}
+                    </span>
+                  )}
+                  {streak >= 2 && (
+                    <span class="mcc-exercise-streak" data-testid="exercise-streak">
+                      {labels.streak.replace('%s', String(streak))}
+                    </span>
+                  )}
+                </p>
+              )}
             </>
           ) : message ? (
             <>

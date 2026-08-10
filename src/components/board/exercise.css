@@ -306,6 +306,49 @@
   font-weight: 600;
 }
 
+/* ── The reward, in the solve moment (E3) ────────────────────────────────
+   ⚠️ IT RIDES THE EXISTING SECOND BEAT. `.mcc-exercise-solved` already
+   animates in on a `var(--motion-transition)` delay; this sits in the same
+   panel and arrives with it. Giving it its own delay would make the solve a
+   THREE-beat event, and E1 is explicit that a solve is two.
+
+   ⚠️ NO `opacity` ANYWHERE HERE. The points sit on `--mcc-surface-sunken` in
+   `--mcc-accent-text`, a pair `check-contrast.mjs` now proves in all eight
+   theme/mode combinations — and an alpha on top of a proved pair is invisible
+   to the auditor (the M1 regression, Lighthouse 100 → 96). Differentiate by
+   size and weight instead. */
+.mcc-exercise-reward {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.5rem 0 0;
+}
+
+.mcc-exercise-points,
+.mcc-exercise-streak {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.55rem;
+  border-radius: var(--radius-pill);
+  background-color: var(--mcc-surface-sunken);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.mcc-exercise-points {
+  color: var(--mcc-accent-text);
+}
+
+/* The run is the quieter of the two: it is a fact about the session, not a
+   reward, and it must never compete with the points for attention. */
+.mcc-exercise-streak {
+  color: var(--mcc-text-secondary);
+  font-weight: 500;
+}
+
 .mcc-exercise-mate {
   color: var(--mcc-accent-text); /* brass-700 — the deep variant, see tokens.css */
   font-weight: 600;
