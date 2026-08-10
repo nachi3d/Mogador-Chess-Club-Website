@@ -5,7 +5,7 @@ order: 3
 lang: "fr"
 title: "L'enfilade"
 summary: "Un clouage à l'envers : la grande pièce devant, la petite derrière, et le motif qui gagne le plus de dames en finale."
-boards: [{"kind":"position","fen":"4k2q/8/8/8/8/8/8/R5K1 w - - 0 1","caption":"L'enfilade. La tour arrive en a8 : échec. Le roi noir doit s'écarter de la rangée 8 — c'est obligatoire. Et la dame en h8, qui était derrière lui, se retrouve seule face à la tour."},{"kind":"exercise","fen":"4k2q/8/8/8/8/8/8/R5K1 w - - 0 1","solution":["a1a8"],"opponentReplies":[],"onlyMove":true,"task":"Gagne la dame.","hint":"Donne l'échec sur la rangée où ils sont tous les deux."}]
+boards: [{"kind":"position","fen":"4k2q/8/8/8/8/8/8/R5K1 w - - 0 1","claims":[{"kind":"manual","note":"skewer: proving the queen falls means proving EVERY legal king reply loses her, which is a forcing-line search, not a property of the position."}],"caption":"L'enfilade. La tour arrive en a8 : échec. Le roi noir doit s'écarter de la rangée 8 — c'est obligatoire. Et la dame en h8, qui était derrière lui, se retrouve seule face à la tour."},{"kind":"exercise","fen":"4k2q/8/8/8/8/8/8/R5K1 w - - 0 1","claims":[{"kind":"manual","note":"skewer: proving the queen falls means proving EVERY legal king reply loses her, which is a forcing-line search, not a property of the position."}],"solution":["a1a8"],"opponentReplies":[],"onlyMove":true,"task":"Gagne la dame.","hint":"Donne l'échec sur la rangée où ils sont tous les deux."}]
 draft: false
 ---
 

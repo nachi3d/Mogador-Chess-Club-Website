@@ -5,7 +5,7 @@ order: 1
 lang: "fr"
 title: "La fourchette"
 summary: "Une pièce, deux cibles — et le cavalier qui les attaque toutes les deux depuis une case que rien ne défend."
-boards: [{"kind":"position","fen":"r3k3/8/8/1N6/8/8/8/6K1 w - - 0 1","caption":"La fourchette royale. Le cavalier saute en c7 : échec au roi en e8, et la tour en a8 est attaquée. Le roi doit bouger, la tour tombe."},{"kind":"exercise","fen":"r3k3/8/8/1N6/8/8/8/6K1 w - - 0 1","solution":["b5c7"],"opponentReplies":[],"onlyMove":true,"task":"Gagne la tour.","hint":"Une case, deux pièces. Et l'une des deux est le roi."}]
+boards: [{"kind":"position","fen":"r3k3/8/8/1N6/8/8/8/6K1 w - - 0 1","claims":[{"kind":"fork","after":["b5c7"],"from":"c7","targets":["e8","a8"]}],"caption":"La fourchette royale. Le cavalier saute en c7 : échec au roi en e8, et la tour en a8 est attaquée. Le roi doit bouger, la tour tombe."},{"kind":"exercise","fen":"r3k3/8/8/1N6/8/8/8/6K1 w - - 0 1","claims":[{"kind":"fork","after":["b5c7"],"from":"c7","targets":["e8","a8"]}],"solution":["b5c7"],"opponentReplies":[],"onlyMove":true,"task":"Gagne la tour.","hint":"Une case, deux pièces. Et l'une des deux est le roi."}]
 draft: false
 ---
 

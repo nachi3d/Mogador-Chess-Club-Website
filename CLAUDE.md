@@ -700,19 +700,53 @@ Two of those are the classic beginner misconceptions they were meant to teach
 *against* — a "pin" that is blocked by the d7 pawn is the single most common
 wrong idea about the Ruy Lopez, and it would have shipped as fact.
 
-**So the authoring rule is: assert the specific claim.** Not "does this parse",
-but *is the knight actually unable to move; does the bishop actually reach h8
-once the screen leaves; can anything capture the forking piece; is that
-actually mate.* A dozen lines against chess.js in a scratch script, once, per
-board. Batch 3 was done that way and every one of the four was found before a
-file was written.
+Two of those are the classic beginner misconceptions they were meant to teach
+*against*. A "pin" blocked by the d7 pawn is the single most common wrong idea
+about the Ruy Lopez, and it would have shipped as fact.
 
-⚠️ **Do not try to grow the checker into this.** "The prose matches the board"
-is not decidable from the frontmatter, and a checker that appears to cover it
-without doing so is worse than one that admits the gap. The two error classes
-that ARE mechanical — a `[SetUp]` FEN contradicting the PGN's first move, and a
-position whose side-not-to-move is in check — are both caught, and both were
-re-proved with throwaway fixtures at the start of batch 3 rather than trusted.
+#### THE RULE — every diagram is replayed and its claim asserted BEFORE merge
+
+**No board merges on "it parses".** For each one, replay the position and
+assert the specific thing the sentence beside it says: *is the knight actually
+unable to move; does the bishop actually reach h8 once the screen leaves; can
+anything capture the forking piece; is that actually mate.* If the sentence
+makes a claim you have not asserted, you have not checked the board.
+
+Since batch 3 that is **data, not discipline**: a `position` or `exercise`
+board carries a `claims[]` array, and `check-content.mjs` proves each one on
+every build. The claim is language-neutral, so the fr/en pair must agree on it.
+
+| kind | what is asserted |
+|---|---|
+| `pin` | the named piece has **zero** legal moves, **and** removing it exposes its own king — the second half is what separates a pin from a piece that is merely blocked in |
+| `fork` | the piece on `from` attacks **every** square in `targets`, and each holds an enemy piece |
+| `discovery` | `by` does **not** attack `target` now, and **does** once `screen` is lifted — so the screen is load-bearing |
+| `line` | the moves are legal in sequence and the final position is the stated `ends` (`mate`/`check`/`quiet`/`stalemate`), optionally capturing a stated piece |
+
+`after: [...]` replays moves first, because a caption usually describes the
+position the diagram is *about* to reach ("le cavalier saute en c7 …").
+
+⚠️ **`kind: 'manual'` is the honest escape and REQUIRES a `note`.** Some claims
+genuinely are not properties of a position — "the king must step aside and then
+the queen falls", "if she recaptures it is mate in two" need a forcing-line
+search over every legal reply. Those are **not** machine-stated, and pretending
+otherwise would be worse than the gap. They declare `manual` with a note saying
+what a human must verify, and `check-content.mjs` prints them as a **review
+queue**. A board with **no** claims at all is printed there too — the point is
+that nothing passes silently, not that everything passes.
+
+⚠️ **The queue does not fail the build, deliberately.** Most of it is content
+written before claims existed (17 boards across courses 1 and 2 at the time of
+writing). Failing would force either a retrofit in one sitting or switching the
+check off, and a visible list that shrinks is worth more than a red build
+somebody disables. Retrofit opportunistically, when touching a lesson anyway.
+
+⚠️ **Each assertion was verified to FAIL on the real broken position** before
+being trusted — the original Ruy Lopez FEN, the b3 bishop, a wrong fork target,
+and the g1-king overload. The two older mechanical classes (`[SetUp]` FEN
+contradicting the PGN's first move; side-not-to-move in check) were re-proved
+the same way. Anything added to `assertClaim` gets the same treatment: **write
+the fixture that must fail, watch it fail, then delete it.**
 
 ---
 

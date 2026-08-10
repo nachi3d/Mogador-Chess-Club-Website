@@ -11,6 +11,55 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### Added — the checker now asserts the MECHANISM, not just the legality
+
+Course 3 shipped four boards that were legal, six-field, solvable and **wrong**:
+they described a mechanism the position did not contain. Every one passed
+`check-content.mjs`. They were caught by replaying each position by hand and
+asserting the specific claim its caption makes — so that by-hand pass is now
+part of the build.
+
+A `position` or `exercise` board may declare `claims[]`, and each is proved:
+
+| kind | what is asserted |
+|---|---|
+| `pin` | the named piece has **zero** legal moves, **and** removing it exposes its own king — the second half is what separates a pin from a piece merely blocked in |
+| `fork` | the piece on `from` attacks **every** `target`, and each holds an enemy piece |
+| `discovery` | `by` does **not** attack `target` now and **does** once `screen` is lifted, so the screen is load-bearing |
+| `line` | the moves are legal in sequence and the position ends `mate`/`check`/`quiet`/`stalemate`, optionally capturing a stated piece |
+
+`after: [...]` replays moves before asserting, because a caption usually
+describes the position the diagram is *about* to reach ("le cavalier saute en
+c7 …"). Claims are language-neutral, so the fr/en pair must agree — `claims`
+joined the `NEUTRAL` list.
+
+**Each assertion was verified to FAIL on the real broken position before being
+trusted**, using throwaway fixtures carrying the original values: the Ruy Lopez
+FEN (*"the piece on c6 has 5 legal move(s) (Nb8 Nce7 Nd4 Nb4 Na5) — it is NOT
+pinned"*), the b3 bishop (*"with e5 removed, the piece on b3 still does not
+attack h8"*), a wrong fork target, and the g1-king overload (*"move[2] 'e1e8'
+is not legal"*). Fixtures deleted.
+
+#### ⚠️ `manual` is the honest escape, and it is PRINTED
+
+Some claims are genuinely not properties of a position. "The king must step
+aside and then the queen falls" and "if she recaptures it is mate in two" need
+a forcing-line search over every legal reply — a small engine, not an
+assertion. Inventing a check that appears to cover them would be worse than the
+gap, so those declare `kind: 'manual'` with a **required** `note` saying what a
+human must verify, and the checker prints them as a **review queue**. A board
+with no claims at all is printed there too: the goal is that nothing passes
+silently, not that everything passes.
+
+Course 3 lands 5 machine-checked claims (both clouage boards, la fourchette, la
+découverte, la surcharge) and 3 manual ones (l'enfilade, la déviation,
+l'attraction) whose notes name exactly what to look at.
+
+⚠️ **The queue does not fail the build, deliberately.** 17 of its entries are
+boards from courses 1 and 2 that predate claims. Failing would force either a
+retrofit in one sitting or switching the check off, and a visible list that
+shrinks is worth more than a red build somebody disables.
+
 ### Added — course 3, "Les motifs tactiques" (content batch 3)
 
 Seven lessons, both locales, `intermediaire`, `order: 3`: la fourchette, le

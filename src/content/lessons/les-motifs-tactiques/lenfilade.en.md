@@ -5,7 +5,7 @@ order: 3
 lang: "en"
 title: "The skewer"
 summary: "A pin in reverse: the big piece in front, the small one behind — the motif that wins the most queens in endgames."
-boards: [{"kind":"position","fen":"4k2q/8/8/8/8/8/8/R5K1 w - - 0 1","caption":"The skewer. The rook arrives on a8: check. The black king has to step off the 8th rank — he has no choice. And the queen on h8, who was behind him, is left alone facing the rook."},{"kind":"exercise","fen":"4k2q/8/8/8/8/8/8/R5K1 w - - 0 1","solution":["a1a8"],"opponentReplies":[],"onlyMove":true,"task":"Win the queen.","hint":"Give check on the rank they are both standing on."}]
+boards: [{"kind":"position","fen":"4k2q/8/8/8/8/8/8/R5K1 w - - 0 1","claims":[{"kind":"manual","note":"skewer: proving the queen falls means proving EVERY legal king reply loses her, which is a forcing-line search, not a property of the position."}],"caption":"The skewer. The rook arrives on a8: check. The black king has to step off the 8th rank — he has no choice. And the queen on h8, who was behind him, is left alone facing the rook."},{"kind":"exercise","fen":"4k2q/8/8/8/8/8/8/R5K1 w - - 0 1","claims":[{"kind":"manual","note":"skewer: proving the queen falls means proving EVERY legal king reply loses her, which is a forcing-line search, not a property of the position."}],"solution":["a1a8"],"opponentReplies":[],"onlyMove":true,"task":"Win the queen.","hint":"Give check on the rank they are both standing on."}]
 draft: false
 ---
 

@@ -5,7 +5,7 @@ order: 2
 lang: "fr"
 title: "Le clouage"
 summary: "Clouage absolu, clouage relatif, et le vrai profit : une pièce clouée est un mauvais défenseur."
-boards: [{"kind":"position","fen":"r1bqkbnr/ppp2ppp/2np4/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 4","caption":"Le clouage absolu. Le fou en b5 cloue le cavalier c6 contre le roi e8. Ce cavalier ne défend plus rien : s'il bouge, le roi est en échec, donc il ne peut pas bouger."},{"kind":"exercise","fen":"r1bqkbnr/ppp2ppp/2np4/4p3/4P3/2N2N2/PPPP1PPP/R1BQKB1R w KQkq - 0 4","solution":["f1b5"],"opponentReplies":[],"onlyMove":true,"task":"Cloue le cavalier.","hint":"Ton fou, sur la diagonale qui mène au roi noir."}]
+boards: [{"kind":"position","fen":"r1bqkbnr/ppp2ppp/2np4/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 4","claims":[{"kind":"pin","piece":"c6"}],"caption":"Le clouage absolu. Le fou en b5 cloue le cavalier c6 contre le roi e8. Ce cavalier ne défend plus rien : s'il bouge, le roi est en échec, donc il ne peut pas bouger."},{"kind":"exercise","fen":"r1bqkbnr/ppp2ppp/2np4/4p3/4P3/2N2N2/PPPP1PPP/R1BQKB1R w KQkq - 0 4","claims":[{"kind":"pin","after":["f1b5"],"piece":"c6"}],"solution":["f1b5"],"opponentReplies":[],"onlyMove":true,"task":"Cloue le cavalier.","hint":"Ton fou, sur la diagonale qui mène au roi noir."}]
 draft: false
 ---
 

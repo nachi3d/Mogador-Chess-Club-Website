@@ -5,7 +5,7 @@ order: 7
 lang: "en"
 title: "Overloading"
 summary: "One piece, two jobs — the quietest of the seven motifs, and the most common in real games."
-boards: [{"kind":"position","fen":"6k1/4qppp/8/6n1/8/8/3B4/4R2K w - - 0 1","caption":"The queen has two jobs. She defends the knight on g5, and the e8 square that guards the back rank. White takes the knight. If the queen recaptures she leaves the e-file — and the rook arrives on e8 with mate."},{"kind":"exercise","fen":"6k1/4qppp/8/6n1/8/8/3B4/4R2K w - - 0 1","solution":["d2g5"],"opponentReplies":[],"onlyMove":true,"task":"Win the knight.","hint":"Take it. If the queen recaptures, look at what she leaves behind."}]
+boards: [{"kind":"position","fen":"6k1/4qppp/8/6n1/8/8/3B4/4R2K w - - 0 1","claims":[{"kind":"line","moves":["d2g5","e7g5","e1e8"],"ends":"mate"}],"caption":"The queen has two jobs. She defends the knight on g5, and the e8 square that guards the back rank. White takes the knight. If the queen recaptures she leaves the e-file — and the rook arrives on e8 with mate."},{"kind":"exercise","fen":"6k1/4qppp/8/6n1/8/8/3B4/4R2K w - - 0 1","claims":[{"kind":"line","moves":["d2g5","e7g5","e1e8"],"ends":"mate"}],"solution":["d2g5"],"opponentReplies":[],"onlyMove":true,"task":"Win the knight.","hint":"Take it. If the queen recaptures, look at what she leaves behind."}]
 draft: false
 ---
 

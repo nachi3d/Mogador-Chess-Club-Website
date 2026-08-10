@@ -5,7 +5,7 @@ order: 4
 lang: "en"
 title: "The discovered attack"
 summary: "The front piece steps aside and does as it pleases while the piece behind gives check. And double check, against which there is no defence at all."
-boards: [{"kind":"position","fen":"7k/3q4/8/4N3/8/8/1B6/6K1 w - - 0 1","caption":"The discovery. The bishop on b2 is aiming at the king on h8, but the knight on e5 stands on the diagonal. If the knight takes the queen on d7 it uncovers the bishop's check: Black has to answer the check, and the knight walks away next move."},{"kind":"exercise","fen":"7k/3q4/8/4N3/8/8/1B6/6K1 w - - 0 1","solution":["e5d7"],"opponentReplies":[],"onlyMove":true,"task":"Win the queen.","hint":"Take the queen. The bishop takes care of the check."}]
+boards: [{"kind":"position","fen":"7k/3q4/8/4N3/8/8/1B6/6K1 w - - 0 1","claims":[{"kind":"discovery","screen":"e5","by":"b2","target":"h8"}],"caption":"The discovery. The bishop on b2 is aiming at the king on h8, but the knight on e5 stands on the diagonal. If the knight takes the queen on d7 it uncovers the bishop's check: Black has to answer the check, and the knight walks away next move."},{"kind":"exercise","fen":"7k/3q4/8/4N3/8/8/1B6/6K1 w - - 0 1","claims":[{"kind":"discovery","screen":"e5","by":"b2","target":"h8"}],"solution":["e5d7"],"opponentReplies":[],"onlyMove":true,"task":"Win the queen.","hint":"Take the queen. The bishop takes care of the check."}]
 draft: false
 ---
 
