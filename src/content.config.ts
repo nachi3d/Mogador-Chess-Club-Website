@@ -106,6 +106,121 @@ const youtubeId = z
   .regex(/^[A-Za-z0-9_-]{11}$/, 'expected an 11-character YouTube video ID, not a URL')
   .optional();
 
+/**
+ * ⚠️ CLAIMS — what the PROSE beside a board says the position does.
+ *
+ * A legal position is not a correct position. `check-content.mjs` proves a FEN
+ * is possible and a solution is legal; it cannot read the sentence next to the
+ * diagram, and that is exactly where authored content goes wrong. Content
+ * batch 3 shipped four boards that passed every mechanical check and each
+ * described a mechanism the position did not contain — a "pin" blocked by an
+ * intervening pawn, a "discovery" whose bishop was not on the line, a "fork"
+ * the defender could simply capture, and a "mate" that could be blocked.
+ *
+ * So the claim is written down as DATA and asserted at build time. Every kind
+ * below is machine-checkable from the position alone:
+ *
+ *   pin        the named piece cannot move, AND removing it exposes its own
+ *              king — which is what distinguishes a pin from a piece that is
+ *              merely blocked in
+ *   fork       the piece on `from` attacks every one of `targets`
+ *   discovery  `by` does NOT attack `target` now, and DOES once `screen` is
+ *              removed — the screen is load-bearing, which is the whole motif
+ *   line       the given moves are legal in sequence and the final position is
+ *              the stated outcome (mate / check / quiet), optionally capturing
+ *              a stated piece type
+ *
+ * `after` replays moves before asserting, because a caption usually describes
+ * the position the diagram is ABOUT to reach ("the knight jumps to c7 …").
+ *
+ * ⚠️ `manual` is the honest escape, NOT a way to silence the check. A claim
+ * that needs a forcing-line search — "the king must step aside and then the
+ * queen falls", "if she recaptures it is mate in two" — is not a property of a
+ * position and cannot be stated here. Those take `kind: 'manual'` with a
+ * `note` saying what a human must verify, and they are PRINTED as a review
+ * queue rather than passing silently. A board with no claims at all is printed
+ * too, for the same reason.
+ */
+const claim = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('pin'),
+    /** TRAPS ONLY: the ply whose position this is about. See `trapClaim`. */
+    ply: z.number().int().min(-1).optional(),
+    /** Moves to play before asserting, UCI. */
+    after: z.array(uciMove).default([]),
+    /** The square of the pinned piece. */
+    piece: square,
+  }),
+  z.object({
+    kind: z.literal('fork'),
+    ply: z.number().int().min(-1).optional(),
+    after: z.array(uciMove).default([]),
+    /** The square the forking piece stands on. */
+    from: square,
+    /** Every square it must attack. Two or more, or it is not a fork. */
+    targets: z.array(square).min(2),
+  }),
+  z.object({
+    kind: z.literal('discovery'),
+    ply: z.number().int().min(-1).optional(),
+    after: z.array(uciMove).default([]),
+    /** The piece that steps aside. */
+    screen: square,
+    /** The piece that attacks once the screen leaves. */
+    by: square,
+    /** What it then attacks. */
+    target: square,
+  }),
+  z.object({
+    kind: z.literal('line'),
+    ply: z.number().int().min(-1).optional(),
+    after: z.array(uciMove).default([]),
+    /** The sequence, both sides, UCI. */
+    moves: z.array(uciMove).min(1),
+    ends: z.enum(['mate', 'check', 'quiet', 'stalemate']),
+    /** Piece type the LAST move must capture, e.g. "q". */
+    captures: z.enum(['p', 'n', 'b', 'r', 'q']).optional(),
+  }),
+  z.object({
+    kind: z.literal('manual'),
+    ply: z.number().int().min(-1).optional(),
+    /** What a human has to check, and why no machine can. Required. */
+    note: z.string().min(1),
+  }),
+]);
+
+/**
+ * A claim on a TRAP, which has a PGN rather than a FEN.
+ *
+ * `ply` names the position the claim is about, on the SAME 0-based scheme as
+ * `moveComments` and `shapes`: the position AFTER that half-move, with `-1`
+ * meaning the start. `after`/`moves` then continue from there — which is what
+ * lets a claim prove a REFUTATION that is not in the PGN at all ("at this
+ * point 3...Qe7 holds, and 4.Qxe5 loses the queen").
+ *
+ * ⚠️ `ply` is REQUIRED here and forbidden on a lesson board. A lesson board
+ * carries its own FEN, so a ply would have nothing to index; a trap has no FEN,
+ * so a claim without a ply would silently pick some default position and prove
+ * something about the wrong move. `check-content.mjs` rejects both mistakes.
+ */
+const trapClaim = claim;
+
+/**
+ * ⚠️ `ply` IS STRUCTURALLY OPTIONAL AND SEMANTICALLY REQUIRED ON A TRAP.
+ *
+ * Zod cannot express "required here, forbidden there" across two collections
+ * sharing one union without duplicating the union, so the rule is enforced in
+ * `check-content.mjs`, which fails the build both ways:
+ *
+ *   trap claim with no `ply`      → it would silently pick a base position and
+ *                                   prove something true about the wrong move
+ *   lesson claim WITH a `ply`     → the board carries its own FEN; a ply there
+ *                                   indexes nothing and means the author
+ *                                   believed something that is not happening
+ *
+ * Both were verified to fail before this shipped.
+ */
+
 /* ────────────────────────────── traps ────────────────────────────── */
 
 const traps = defineCollection({
@@ -131,6 +246,11 @@ const traps = defineCollection({
     moveComments: z.array(moveComment).default([]),
     /** Optional board annotations, keyed to the same plies. */
     shapes: z.array(plyShapes).default([]),
+    /**
+     * What the prose beside this trap CLAIMS the line does — proved at build
+     * time. See the `claim` block above; a trap's claims carry a `ply`.
+     */
+    claims: z.array(trapClaim).default([]),
     summary_fr: z.string(),
     summary_en: z.string(),
     youtube: youtubeId,
@@ -225,82 +345,6 @@ const exercices = defineCollection({
  * Boards are placed inline with a `<!--board-->` marker in the body — see
  * `LessonPage.astro`.
  */
-/**
- * ⚠️ CLAIMS — what the PROSE beside a board says the position does.
- *
- * A legal position is not a correct position. `check-content.mjs` proves a FEN
- * is possible and a solution is legal; it cannot read the sentence next to the
- * diagram, and that is exactly where authored content goes wrong. Content
- * batch 3 shipped four boards that passed every mechanical check and each
- * described a mechanism the position did not contain — a "pin" blocked by an
- * intervening pawn, a "discovery" whose bishop was not on the line, a "fork"
- * the defender could simply capture, and a "mate" that could be blocked.
- *
- * So the claim is written down as DATA and asserted at build time. Every kind
- * below is machine-checkable from the position alone:
- *
- *   pin        the named piece cannot move, AND removing it exposes its own
- *              king — which is what distinguishes a pin from a piece that is
- *              merely blocked in
- *   fork       the piece on `from` attacks every one of `targets`
- *   discovery  `by` does NOT attack `target` now, and DOES once `screen` is
- *              removed — the screen is load-bearing, which is the whole motif
- *   line       the given moves are legal in sequence and the final position is
- *              the stated outcome (mate / check / quiet), optionally capturing
- *              a stated piece type
- *
- * `after` replays moves before asserting, because a caption usually describes
- * the position the diagram is ABOUT to reach ("the knight jumps to c7 …").
- *
- * ⚠️ `manual` is the honest escape, NOT a way to silence the check. A claim
- * that needs a forcing-line search — "the king must step aside and then the
- * queen falls", "if she recaptures it is mate in two" — is not a property of a
- * position and cannot be stated here. Those take `kind: 'manual'` with a
- * `note` saying what a human must verify, and they are PRINTED as a review
- * queue rather than passing silently. A board with no claims at all is printed
- * too, for the same reason.
- */
-const claim = z.discriminatedUnion('kind', [
-  z.object({
-    kind: z.literal('pin'),
-    /** Moves to play before asserting, UCI. */
-    after: z.array(uciMove).default([]),
-    /** The square of the pinned piece. */
-    piece: square,
-  }),
-  z.object({
-    kind: z.literal('fork'),
-    after: z.array(uciMove).default([]),
-    /** The square the forking piece stands on. */
-    from: square,
-    /** Every square it must attack. Two or more, or it is not a fork. */
-    targets: z.array(square).min(2),
-  }),
-  z.object({
-    kind: z.literal('discovery'),
-    after: z.array(uciMove).default([]),
-    /** The piece that steps aside. */
-    screen: square,
-    /** The piece that attacks once the screen leaves. */
-    by: square,
-    /** What it then attacks. */
-    target: square,
-  }),
-  z.object({
-    kind: z.literal('line'),
-    after: z.array(uciMove).default([]),
-    /** The sequence, both sides, UCI. */
-    moves: z.array(uciMove).min(1),
-    ends: z.enum(['mate', 'check', 'quiet', 'stalemate']),
-    /** Piece type the LAST move must capture, e.g. "q". */
-    captures: z.enum(['p', 'n', 'b', 'r', 'q']).optional(),
-  }),
-  z.object({
-    kind: z.literal('manual'),
-    /** What a human has to check, and why no machine can. Required. */
-    note: z.string().min(1),
-  }),
-]);
 
 const lessonBoard = z.discriminatedUnion('kind', [
   z.object({

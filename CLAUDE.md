@@ -727,6 +727,28 @@ every build. The claim is language-neutral, so the fr/en pair must agree on it.
 `after: [...]` replays moves first, because a caption usually describes the
 position the diagram is *about* to reach ("le cavalier saute en c7 …").
 
+#### ⚠️ A TRAP'S CLAIMS CARRY A `ply`; A LESSON BOARD'S MUST NOT
+
+A trap has a PGN, not a FEN, so a claim has to say **which position** it is
+about — on the same 0-based scheme as `moveComments`: the position AFTER that
+half-move, with `-1` for the start. `after`/`moves` continue from there, and
+that is what lets a claim prove a **refutation the PGN does not contain** —
+`mat-du-berger` asserts that at ply 4 the line `3...Qe7 4.Qxe5?? Qxe5` wins the
+queen, which is the lesson rather than the trap.
+
+Both mistakes fail the build, and both were verified to:
+
+| | |
+|---|---|
+| trap claim with no `ply` | it would silently pick a base position and prove something true about the **wrong move** |
+| lesson claim **with** a `ply` | the board has its own FEN, so the ply indexes nothing and the author believes an anchor that does not exist |
+
+⚠️ **Zod cannot express "required here, forbidden there"** across two
+collections sharing one union without duplicating the union, so `ply` is
+structurally optional and the rule lives in `check-content.mjs`. A claim
+anchored one ply off fails loudly — verified with a fixture whose `line` claim
+was anchored at ply 4 instead of 5 (*"move[0] 'h5f7' is not legal in …"*).
+
 ⚠️ **`kind: 'manual'` is the honest escape and REQUIRES a `note`.** Some claims
 genuinely are not properties of a position — "the king must step aside and then
 the queen falls", "if she recaptures it is mate in two" need a forcing-line

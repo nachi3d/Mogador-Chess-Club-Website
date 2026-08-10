@@ -1,0 +1,46 @@
+{
+  "title_fr": "Le mat du berger",
+  "title_en": "Scholar's Mate",
+  "slug": "mat-du-berger",
+  "eco": "C23",
+  "level": "debutant",
+  "themes": ["mat", "ouverture"],
+  "pgn": "1. e4 e5 2. Bc4 Bc5 3. Qh5 Nf6 4. Qxf7#",
+  "moveComments": [
+    {
+      "ply": 4,
+      "fr": "Voilà la menace. La dame et le fou visent tous les deux f7 — et f7 n'est défendu que par le roi. Si les Noirs ne font rien, c'est mat au coup suivant.",
+      "en": "There is the threat. The queen and the bishop both aim at f7 — and f7 is defended by the king alone. If Black does nothing, it is mate next move."
+    },
+    {
+      "ply": 5,
+      "fr": "Le coup qui perd. Cf6 développe une pièce et attaque la dame, donc il a l'air très bien. Mais il ne défend pas f7, et une menace de mat passe avant tout le reste. Il fallait jouer De7, qui défend f7, ou g6, qui chasse la dame.",
+      "en": "The losing move. Nf6 develops a piece and attacks the queen, so it looks excellent. But it does not defend f7, and a mate threat comes before everything else. Black had to play Qe7, defending f7, or g6, driving the queen away."
+    },
+    {
+      "ply": 6,
+      "fr": "Mat. Le roi ne peut pas prendre la dame : le fou c4 la défend. Et il n'a aucune case. Quatre coups.",
+      "en": "Mate. The king cannot take the queen — the bishop on c4 defends her. And he has no square. Four moves."
+    }
+  ],
+  "shapes": [
+    { "ply": 4, "arrows": [["h5", "f7"], ["c4", "f7"]], "circles": ["f7"] }
+  ],
+  "claims": [
+    { "kind": "line", "ply": 5, "moves": ["h5f7"], "ends": "mate" },
+    {
+      "kind": "line",
+      "ply": 4,
+      "moves": ["d8e7", "h5e5", "e7e5"],
+      "ends": "quiet",
+      "captures": "q"
+    },
+    {
+      "kind": "manual",
+      "ply": 4,
+      "note": "mat du berger: that 3...g6 also refutes (it attacks the queen while developing), and that White's queen is badly placed afterwards, are judgements about a whole line rather than properties of one position. The mate itself and the 3...Qe7 4.Qxe5?? Qxe5 refutation ARE asserted above."
+    }
+  ],
+  "summary_fr": "Le piège que tout débutant rencontre une fois. Il marche exactement une fois — et voici comment il ne marchera plus jamais sur toi. La leçon n'est pas le piège, c'est la parade : quand l'adversaire menace mat, on répond à la menace avant de développer. C'est aussi l'exemple parfait de la leçon « Ne pas sortir la dame trop tôt » du premier cours : après la parade, la dame blanche est mal placée et les Noirs développent en la chassant.",
+  "summary_en": "The trap every beginner meets once. It works exactly once — and here is how it never works on you again. The lesson is not the trap, it is the answer to it: when your opponent threatens mate, you deal with the threat before you develop. It is also the perfect illustration of \"Don't bring the queen out early\" from course 1: after the refutation White's queen is badly placed and Black develops by chasing her."
+}

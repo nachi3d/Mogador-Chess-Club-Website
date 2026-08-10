@@ -1,0 +1,51 @@
+{
+  "title_fr": "Le piège de l'éléphant",
+  "title_en": "The Elephant Trap",
+  "slug": "piege-de-l-elephant",
+  "eco": "D51",
+  "level": "intermediaire",
+  "themes": ["clouage", "ouverture", "gambit-dame"],
+  "pgn": "1. d4 d5 2. c4 e6 3. Nc3 Nf6 4. Bg5 Nbd7 5. cxd5 exd5 6. Nxd5 Nxd5 7. Bxd8 Bb4+ 8. Qd2 Bxd2+ 9. Kxd2 Kxd8",
+  "moveComments": [
+    {
+      "ply": 6,
+      "fr": "Le fou vient clouer le cavalier f6 contre la dame d8. Retiens bien ce mot : contre la DAME, pas contre le roi. C'est un clouage relatif — le cavalier a parfaitement le droit de bouger.",
+      "en": "The bishop pins the f6 knight against the queen on d8. Note the word carefully: against the QUEEN, not the king. This is a relative pin — the knight is perfectly entitled to move."
+    },
+    {
+      "ply": 10,
+      "fr": "Et voilà l'erreur. Les Blancs prennent le pion d5 en se disant que le cavalier f6 est cloué et ne peut pas reprendre. C'est faux : un clouage contre la dame n'interdit rien du tout.",
+      "en": "And there is the mistake. White takes the d5 pawn, reasoning that the f6 knight is pinned and cannot recapture. That is simply wrong: a pin against the queen forbids nothing at all."
+    },
+    {
+      "ply": 11,
+      "fr": "Le cavalier prend quand même. Oui, la dame tombe au coup suivant — mais regarde ce qui vient après.",
+      "en": "The knight takes anyway. Yes, the queen falls next move — but look at what comes after that."
+    },
+    {
+      "ply": 13,
+      "fr": "Le coup du piège. Échec, et les Blancs doivent y répondre avant de sauver quoi que ce soit. C'est l'échec qui rend tout possible : sans lui, les Noirs auraient juste perdu leur dame.",
+      "en": "The point of the trap. Check, and White must answer it before saving anything. The check is what makes it all work: without it Black has simply lost the queen."
+    },
+    {
+      "ply": 17,
+      "fr": "Le roi noir récupère le fou, et on compte. Les Noirs ont gagné un cavalier, une dame et un fou ; les Blancs ont gagné un pion, une dame et un fou. Il reste donc, net, un cavalier contre un pion : les Noirs ont une pièce pour un pion. La partie est stratégiquement gagnée.",
+      "en": "The black king collects the bishop, and we count. Black has won a knight, a bishop and a queen; White has won a pawn, a queen and a bishop. Net: Black is a knight up for a pawn — a piece for a pawn. Strategically the game is won."
+    }
+  ],
+  "shapes": [
+    { "ply": 6, "arrows": [["g5", "d8"]], "circles": ["f6"] },
+    { "ply": 13, "arrows": [["b4", "e1"]] }
+  ],
+  "claims": [
+    { "kind": "line", "ply": 10, "moves": ["f6d5"], "ends": "quiet", "captures": "n" },
+    { "kind": "line", "ply": 12, "moves": ["f8b4"], "ends": "check" },
+    {
+      "kind": "manual",
+      "ply": 17,
+      "note": "elephant trap: the final material count. Verified by hand with chess.js — white 23, black 25, so Black is +2, a knight for a pawn. Stated that way in the copy rather than as \"a piece up\", which would overstate it by a pawn. A material total is an evaluation, not a property a claim kind can assert."
+    }
+  ],
+  "summary_fr": "L'illustration la plus claire de tout le site de la différence entre clouage absolu et clouage relatif — et c'est un piège pour les BLANCS, ce qui est plus rare et plus utile. Le fou en g5 cloue le cavalier f6 contre la dame. Contre la dame, pas contre le roi : le cavalier peut donc bouger, et ici il le doit. Les Blancs prennent un pion en croyant le cavalier paralysé et se retrouvent une pièce en moins. Relis la leçon « Le clouage » du cours 3 avant celui-ci.",
+  "summary_en": "The clearest illustration on the whole site of the difference between an absolute and a relative pin — and it is a trap for WHITE, which is rarer and more useful. The bishop on g5 pins the f6 knight against the queen. Against the queen, not the king: so the knight may move, and here it must. White grabs a pawn believing the knight is paralysed and ends up a piece down. Read \"The pin\" in course 3 before this one."
+}
