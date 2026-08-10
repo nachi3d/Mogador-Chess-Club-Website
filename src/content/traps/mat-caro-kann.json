@@ -1,0 +1,42 @@
+{
+  "title_fr": "Le mat étouffé de la Caro-Kann",
+  "title_en": "The Caro-Kann Smothered Mate",
+  "slug": "mat-caro-kann",
+  "eco": "B17",
+  "level": "debutant",
+  "themes": ["mat", "mat-etouffe", "clouage", "ouverture"],
+  "pgn": "1. e4 c6 2. d4 d5 3. Nc3 dxe4 4. Nxe4 Nd7 5. Qe2 Ngf6 6. Nd6#",
+  "moveComments": [
+    {
+      "ply": 7,
+      "fr": "Cd7 est un bon coup, joué par les meilleurs joueurs du monde. Rien ne va mal ici — c'est justement ce qui rend la suite dangereuse.",
+      "en": "Nd7 is a good move, played by the best players in the world. Nothing has gone wrong yet — which is exactly what makes what follows dangerous."
+    },
+    {
+      "ply": 8,
+      "fr": "Le coup qu'on ne voit pas. La dame se met en e2, derrière son propre cavalier, et ne menace rien du tout pour l'instant. Elle attend que le cavalier s'écarte.",
+      "en": "The move nobody sees. The queen steps to e2, behind her own knight, threatening precisely nothing for the moment. She is waiting for the knight to move away."
+    },
+    {
+      "ply": 9,
+      "fr": "Le coup le plus naturel de la position — développer le cavalier — et il perd sur-le-champ. Il fallait jouer Cdf6, en développant l'autre cavalier, pour garder la case d6 sous contrôle.",
+      "en": "The most natural move in the position — develop the knight — and it loses on the spot. Black had to play Ndf6, developing the other knight, to keep the d6 square covered."
+    },
+    {
+      "ply": 10,
+      "fr": "Mat, au sixième coup. Le roi est étouffé par ses propres pièces, et surtout : le pion e7 ne peut PAS prendre le cavalier, parce qu'en s'écartant il découvrirait la dame e2 sur son propre roi. Le cavalier qui part de e4 ouvre la colonne — c'est une découverte, et c'est elle qui cloue le pion.",
+      "en": "Mate, on move six. The king is smothered by his own pieces, and above all: the e7 pawn CANNOT take the knight, because stepping aside would uncover the queen on e2 against its own king. The knight leaving e4 opens the file — that is a discovery, and it is what pins the pawn."
+    }
+  ],
+  "shapes": [
+    { "ply": 8, "circles": ["e4", "e7"] },
+    { "ply": 10, "arrows": [["e2", "e7"]], "circles": ["d6"] }
+  ],
+  "claims": [
+    { "kind": "line", "ply": 9, "moves": ["e4d6"], "ends": "mate" },
+    { "kind": "discovery", "ply": 9, "screen": "e4", "by": "e2", "target": "e7" },
+    { "kind": "pin", "ply": 10, "piece": "e7" }
+  ],
+  "summary_fr": "Six coups, et c'est fini — dans une ouverture que beaucoup de débutants jouent vraiment. Tout tient à un coup tranquille : la dame se place en e2 derrière son propre cavalier et attend. Quand le cavalier s'écarte en d6, il donne échec et découvre la dame, qui cloue le pion e7 : ce pion ne peut donc pas capturer le cavalier, et le roi est étouffé par ses propres pièces. La parade est un seul coup — Cdf6 au lieu de Cgf6. C'est le mat étouffé du cours 2, rendu possible par le clouage du cours 3.",
+  "summary_en": "Six moves and it is over — in an opening plenty of beginners really play. It all hangs on one quiet move: the queen goes to e2 behind her own knight and waits. When the knight steps to d6 it gives check and uncovers the queen, which pins the e7 pawn: that pawn therefore cannot capture the knight, and the king is smothered by his own pieces. The answer is a single move — Ndf6 instead of Ngf6. This is the smothered mate from course 2, made possible by the pin from course 3."
+}

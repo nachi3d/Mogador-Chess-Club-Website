@@ -1,0 +1,46 @@
+{
+  "title_fr": "Le piège de l'Arche de Noé",
+  "title_en": "The Noah's Ark Trap",
+  "slug": "arche-de-noe",
+  "eco": "C71",
+  "level": "intermediaire",
+  "themes": ["piece-piegee", "ouverture", "espagnole"],
+  "pgn": "1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 d6 5. d4 b5 6. Bb3 Nxd4 7. Nxd4 exd4 8. Qxd4 c5 9. Qd5 Be6 10. Qc6+ Bd7 11. Qd5 c4",
+  "moveComments": [
+    {
+      "ply": 10,
+      "fr": "Le fou est chassé une deuxième fois et se réfugie en b3. Regarde bien où il est : loin de chez lui, sur une case que trois pions noirs peuvent atteindre. Retiens la position de ce fou, c'est toute l'histoire.",
+      "en": "The bishop is chased a second time and retreats to b3. Look at where it is: far from home, on a square three black pawns can reach. Remember where that bishop is standing — it is the whole story."
+    },
+    {
+      "ply": 14,
+      "fr": "L'erreur. Reprendre le pion avec la dame a l'air évident, mais la dame va se faire pousser dans tous les sens et les Blancs vont perdre les coups dont ils ont besoin. Il fallait jouer c3 ou Fd5 et s'occuper d'abord du fou.",
+      "en": "The mistake. Recapturing with the queen looks obvious, but the queen is about to be shoved around and White will lose exactly the moves they need. The move was c3 or Bd5, dealing with the bishop first."
+    },
+    {
+      "ply": 15,
+      "fr": "Le premier pion arrive avec tempo : la dame est attaquée et doit bouger. Chaque fois que les Noirs gagnent un temps comme celui-ci, le filet se resserre d'un cran.",
+      "en": "The first pawn arrives with tempo: the queen is attacked and must move. Every time Black gains a move like this, the net closes one notch."
+    },
+    {
+      "ply": 21,
+      "fr": "Le filet est fermé. Le fou en b3 n'a que deux cases : a4, où le pion b5 le prend, et c4, où le pion b5 le reprend. Ses autres diagonales sont bouchées par les pions blancs a2 et c2 — ses propres pions. Il tombe.",
+      "en": "The net is closed. The bishop on b3 has exactly two squares: a4, where the b5 pawn takes it, and c4, where the b5 pawn takes it back. Its other diagonals are blocked by the white pawns on a2 and c2 — its own pawns. It falls."
+    }
+  ],
+  "shapes": [
+    { "ply": 10, "circles": ["b3"] },
+    { "ply": 21, "arrows": [["c4", "b3"], ["b5", "a4"]], "circles": ["a4", "b3"] }
+  ],
+  "claims": [
+    { "kind": "line", "ply": 17, "moves": ["d5c6"], "ends": "check" },
+    { "kind": "line", "ply": 21, "moves": ["b3c4", "b5c4"], "ends": "quiet", "captures": "b" },
+    {
+      "kind": "manual",
+      "ply": 21,
+      "note": "arche de Noé: that the bishop is TRAPPED is a statement about every square it could go to, which is a search rather than a property of the position. Verified by hand with chess.js: its only legal moves are Ba4 and Bxc4, and Black attacks both destinations (bxa4 / bxc4). The Bxc4 bxc4 line IS asserted above; the exhaustiveness is not."
+    }
+  ],
+  "summary_fr": "Une pièce ne se perd pas seulement en se faisant capturer : elle peut se faire enfermer. Ici le fou blanc part à la chasse au pion, se fait repousser deux fois, et finit dans un coin où les pions noirs lui prennent toutes ses cases une par une — d'où le nom, les pions qui se referment comme une arche. La leçon est une habitude à prendre : avant d'envoyer une pièce loin dans le camp adverse, compte ses cases de retraite.",
+  "summary_en": "A piece is not only lost by being captured — it can be shut in. Here the white bishop goes pawn-hunting, gets pushed back twice, and ends up in a corner where the black pawns take away its squares one at a time — hence the name, the pawns closing around it like an ark. The lesson is a habit worth forming: before sending a piece deep into enemy territory, count the squares it can come back to."
+}

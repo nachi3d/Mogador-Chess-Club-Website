@@ -412,6 +412,31 @@ not as "unavailable", so the state no longer exists.
 - [ ] The prerequisite line still goes to `/apprendre-les-bases/`, and the
       tutorial index still lists its 13 steps
 
+### Batch 4 — the six new opening traps
+
+`/pieges/` now lists **seven**. The chess is machine-verified and every declared
+mechanism is asserted on each build; what a machine cannot check is whether the
+words land on the right move and whether the teaching is honest.
+
+- [ ] `/pieges/` lists seven traps, and every card opens (both locales)
+- [ ] Step through **each** replayer with the arrow keys. On every commented
+      ply, read the comment against the move that just played — the checker
+      proves a ply is in range, never that the sentence matches the move
+- [ ] The three mates really are mate on the board: `mat-du-berger` (Qxf7#),
+      `blackburne-shilling` (Nf3#), `mat-caro-kann` (Nd6#)
+- [ ] `blackburne-shilling` says in its **summary** that the trap is unsound.
+      That sentence is not decoration — if it ever disappears, the site is
+      teaching a losing line as a winning trick
+- [ ] `fegatello` says Black survives with best play. Same rule
+- [ ] `piege-de-l-elephant` states the final count as **a knight for a pawn**,
+      not "a piece". Walk the count in the last comment and check it
+- [ ] `arche-de-noe`: at the end, confirm on the board that the b3 bishop
+      really has only a4 and c4, and that a black pawn covers both
+- [ ] Arrows and circles point at something real on each commented ply, and no
+      arrow starts from an empty square
+- [ ] Read `node scripts/check-content.mjs`'s manual-review queue: six trap
+      entries, each naming what a human has to confirm
+
 ### ⚠️ No route may exist on one layout only
 
 `/progres/` shipped reachable from the mobile bottom bar and from **nothing**

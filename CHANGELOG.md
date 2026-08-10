@@ -11,6 +11,68 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### Added — six opening traps (content batch 4), built from notation
+
+`/pieges/` goes from one trap to seven: **le mat du berger**, **l'attaque
+Fegatello**, **le piège de l'éléphant**, **le gambit Blackburne-Shilling**,
+**le piège de l'Arche de Noé** and **le mat étouffé de la Caro-Kann**.
+
+⚠️ **The brief supplied no FENs, deliberately** — batch 3 shipped four
+positions that were legal and wrong. Every line here was built from algebraic
+notation, replayed through chess.js, and each mechanism the copy asserts was
+checked before a file existed. **All six lines verified sound as given.**
+
+#### Two corrections
+
+- **The QGD trap is the Elephant Trap, not the Lasker Trap.** The brief called
+  it `piege-de-lasker`. The line — `1.d4 d5 2.c4 e6 3.Nc3 Nf6 4.Bg5 Nbd7 5.cxd5
+  exd5 6.Nxd5?? Nxd5!` — is universally the **Elephant Trap**; the *Lasker
+  Trap* is a different thing entirely, in the Albin Counter-Gambit
+  (`1.d4 d5 2.c4 e5 3.dxe5 d4 4.e3?? Bb4+`), and is famous for an
+  under-promotion. Shipped as `piege-de-l-elephant`. The line itself is correct
+  and unchanged.
+- **"Black emerges a piece up" overstates it by a pawn.** Counted with
+  chess.js: white 23, black 25 — Black is **+2, a knight for a pawn**. The copy
+  says that, and walks the reader through the count, rather than rounding it up.
+
+#### The sixth trap: the Caro-Kann smothered mate
+
+`1.e4 c6 2.d4 d5 3.Nc3 dxe4 4.Nxe4 Nd7 5.Qe2 Ngf6?? 6.Nd6#`
+
+Chosen over the Englund and Scandinavian candidates because of what it teaches
+rather than what it is: the mate happens because **5.Qe2 is a quiet move that
+sets up a discovery** — when the knight leaves e4 the queen's line opens onto
+e7, pinning that pawn so it cannot capture on d6. So it ties course 2's
+smothered mate to course 3's pin in six moves, in an opening beginners really
+play, and its refutation is a single move (`5...Ndf6`). The gap it fills: it is
+the only trap in the batch whose mate is *enabled by a pin*, and the mechanism
+is asserted three ways (`line`, `discovery`, `pin`) rather than described.
+
+#### Claims on traps — anchored to a ply
+
+The trap schema gained `claims[]`, and a trap's claims carry a **`ply`**: the
+position after that half-move, same 0-based scheme as `moveComments`, `-1` for
+the start. `after`/`moves` continue from there, which is what lets a claim prove
+a **refutation the PGN does not contain** — `mat-du-berger` asserts that at
+ply 4, `3...Qe7 4.Qxe5?? Qxe5` wins the queen.
+
+18 claims across the six: **7 `line`**, **2 `pin`**, **1 `discovery`**,
+**6 `manual`**. Every `manual` note says what a human must check and why no
+machine can — a trapped bishop's exhaustiveness, modern theory's verdict on a
+defence, a material total, an evaluation of alternatives.
+
+Both new rules were verified to fail: a trap claim with **no** `ply`, one with
+an **out-of-range** ply, one anchored **one ply off** (*"move[0] 'h5f7' is not
+legal in …"*), a false `pin`, and a lesson claim that wrongly carried a `ply`.
+
+#### Verification
+
+`check-content` green. **Every one of the six replayers was stepped through in
+a browser**, ply by ply, with each move printed beside the commentary that
+renders on it — the check the brief asks for and the checker structurally
+cannot do. All 24 comments land on the move they describe. One French notation
+typo found that way and fixed (`Dé7` → `De7`).
+
 ### Fixed — `/progres/` was reachable on mobile and nowhere on desktop
 
 M3 added the bottom bar with **Progrès** as its fourth entry, and never added a
