@@ -11,6 +11,24 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+---
+
+## [0.8.0] — 2026-08-10
+
+**Progression, and a real address.** The site can now say what a reader has
+earned — ranks, points, session streaks and achievements, all derived from the
+work behind them and never banked — and it has a production hostname,
+`mogadorchess.nachi3dlabs.com`, with the one check the local gate structurally
+cannot do: `npm run smoke:prod`, which asks the deployed origin rather than a
+build on disk.
+
+Also here: the `/cours/` card that rendered fully and did nothing when clicked
+is gone, and `CardItem.href` is required so the state cannot be constructed
+again.
+
+Nothing here changes what the site is: still static, still no account, still no
+in-app communication, and every point is recomputed rather than stored.
+
 ### Added — the production domain, and a check that can see it
 
 **`mogadorchess.nachi3dlabs.com`.** A subdomain of the Labs domain, which is
@@ -2361,7 +2379,8 @@ Foundation only: no real content, no interactive board yet.
   `url()` references unresolved and the fonts silently 404 into a Georgia
   fallback. `scripts/build-fonts.mjs` self-hosts them instead. See CLAUDE.md.
 
-[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.4.0...v0.5.0
