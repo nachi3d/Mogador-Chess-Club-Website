@@ -1,0 +1,95 @@
+/**
+* The achievement toast (E3).
+*
+* ⚠️ IT LIVES IN THE SHARED SHEET RATHER THAN IN `ScoreResolver.astro`'s scoped
+* <style>, AND THAT IS A SIZE DECISION. The resolver is mounted on ~62 of the
+* site's 86 pages, and Astro inlines a small scoped block into every document
+* that uses it — measured at 1.4-4.5 KB per page, precached, on top of the
+* catalogue and the script. Here it is one rule set in one cached stylesheet.
+*
+* Same reasoning as the inline script being kept terse; same trap CLAUDE.md
+* records for the theme head script.
+*
+* ⚠️ NO `opacity` ON THE TEXT. It sits on `--mcc-surface-inverse`, a pair
+* `check-contrast.mjs` proves in all eight theme/mode combinations — and an
+* alpha applied on top of a proved pair is invisible to the auditor. That is
+* exactly the M1 regression (Lighthouse 100 → 96). The ENTRANCE animates
+* opacity on the whole element, which is a different thing: it is transient
+* and it ends at 1.
+*/
+.score-toast {
+  position: fixed;
+  z-index: 60;
+  inset-block-end: calc(var(--mcc-bottom-nav, 0px) + 1rem + env(safe-area-inset-bottom));
+  inset-inline: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  max-inline-size: 26rem;
+  margin-inline: auto;
+  padding: 0.75rem 1rem;
+  background-color: var(--mcc-surface-inverse);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-raised, 0 8px 24px rgb(0 0 0 / 0.25));
+  color: var(--mcc-text-inverse);
+  /* A Transition (E1): a state change the reader should watch land. */
+  opacity: 0;
+  transform: translateY(0.5rem);
+  transition:
+  opacity var(--motion-transition) var(--ease-transition),
+  transform var(--motion-transition) var(--ease-transition);
+}
+
+.score-toast[data-shown] {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (min-width: 768px) {
+  .score-toast {
+    /* No bottom bar above the breakpoint, so it sits on the page edge. */
+    inset-block-end: 1.5rem;
+    inset-inline-start: auto;
+    inset-inline-end: 1.5rem;
+    margin-inline: 0;
+  }
+}
+
+.score-toast-mark {
+  color: var(--mcc-accent-on-inverse);
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.score-toast-body {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.score-toast-eyebrow {
+  color: var(--mcc-text-on-inverse-muted);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.score-toast-name {
+  font-family: var(--mcc-font-display);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+/* ⚠️ REDUCED MOTION MEANS THE NEWS ARRIVES INSTANTLY, NOT THAT IT IS
+WITHHELD. The travel goes; the toast still appears, still announces, and
+still leaves on its own. "Reduced motion" is never "no feedback" (E1). */
+@media (prefers-reduced-motion: reduce) {
+  .score-toast {
+    transform: none;
+    transition: opacity 1ms linear;
+  }
+
+  .score-toast[data-shown] {
+    transform: none;
+  }
+}

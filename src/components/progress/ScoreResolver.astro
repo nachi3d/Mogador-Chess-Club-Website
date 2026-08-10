@@ -1,0 +1,394 @@
+---
+/**
+ * THE SCORE RESOLVER — one computation, every surface that shows a score (E3).
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * WHAT IT IS. The catalogue is built at BUILD time (`scoreboard.ts`) with every
+ * award value already worked out. What the reader has actually done lives in
+ * their own `localStorage` and cannot be known until the browser runs. So this
+ * ships the catalogue as data and sums it in place.
+ *
+ * It is deliberately the same shape as `ResumeResolver.astro`, for the same
+ * reason: three surfaces need the total (the home stats line, `/progres/`, and
+ * the two board islands), and three answers to "how many points does this
+ * reader have" is two too many. The failure would be silent — each surface
+ * renders a plausible number and no two agree.
+ *
+ * ── WHY IT IS `is:inline` ───────────────────────────────────────────────
+ * ⚠️ DO NOT MAKE THIS A MODULE, AND DO NOT ADD `src`, `defer` OR `async`.
+ * Same rule, same reason as the resume resolver: it runs while the document is
+ * parsing, so the rank and the total are in the FIRST paint. A deferred script
+ * would paint "Pion · 0" and then swap in "Tour · 187" a frame later — not a
+ * layout shift (the line reserves its size) but a flash of a WRONG value, which
+ * on a progression display is worse. `resume.spec.ts`'s CLS assertion covers
+ * the shift; `progression.spec.ts` covers the attributes.
+ *
+ * ⚠️ AN `is:inline` SCRIPT SHIPS VERBATIM, COMMENTS AND ALL. The rationale
+ * lives here in frontmatter, which is compiled away; the script keeps short
+ * pointers back. Same rule as the theme head script in BaseLayout.
+ *
+ * ── WHAT IS DUPLICATED, AND WHAT IS NOT ─────────────────────────────────
+ * ⚠️ NO POLICY IS DUPLICATED HERE. Every award value, every rank threshold and
+ * every achievement condition arrives as DATA from `points.ts` via
+ * `scoreboard.ts`. The script sums numbers and compares them; it contains no
+ * award rule, no threshold and no notion of what a mate is worth. That is the
+ * whole reason the catalogue ships pre-computed — see the header of
+ * `scoreboard.ts`.
+ *
+ * What IS duplicated is the two storage keys, `mcc:progress:v1` and
+ * `mcc:streak:v1`, because an inline script cannot import a bare specifier.
+ * That is the same trade the theme script, `AccountButton` and the resume
+ * resolver already make, and the specs seed both keys directly so a divergence
+ * from `src/lib/progress.ts` fails there rather than in production.
+ *
+ * ── THE SURFACE CONTRACT ────────────────────────────────────────────────
+ * Declaratively, on any element in the document:
+ *
+ *   [data-score-points]            ← the total
+ *   [data-score-source="<id>"]     ← that bucket's subtotal
+ *   [data-score-rank]              ← the current rank's label
+ *   [data-score-next]              ← the next rank's label
+ *   [data-score-remaining]         ← points still needed for it
+ *   [data-score-rank-fill]         ← `inline-size` through the current band
+ *   [data-score-streak]            ← the run, shown only from 2 upward
+ *   [data-score-achievement="<id>"]← gains `data-earned` when earned
+ *   [data-score-earned]            ← how many are earned
+ *
+ * Imperatively, `window.MCC_SCORE` — `{ points, sources, rank, next,
+ * remaining, progress, streak, earned, refresh() }`. `refresh()` recomputes,
+ * re-binds, announces anything newly earned, and returns the new state. The
+ * two islands call exactly that after a solve or a win; NEITHER of them
+ * computes a total.
+ *
+ * ── THE TOAST ───────────────────────────────────────────────────────────
+ * ⚠️ IT ANNOUNCES AT THE MOMENT OF EARNING, which is the whole point (§ B3 of
+ * the direction: *ils apparaissent au moment où ils sont gagnés, pas dans une
+ * liste qu'il faut aller chercher*). `announced` in the store is what stops it
+ * firing again on every page load for ever — a UI bookmark, never the
+ * achievement itself. See `progress.ts`.
+ *
+ * ⚠️ `role="status"` AND `aria-live="polite"`, never `alert`. An achievement is
+ * good news arriving while the reader is mid-thought about a position; it must
+ * not interrupt a screen reader's current utterance.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+import type { Locale } from '@config/site';
+import { useTranslations } from '@i18n/ui';
+import { scoreCatalogue } from '@lib/scoreboard';
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const t = useTranslations(locale);
+const catalogue = await scoreCatalogue(locale);
+
+/**
+ * Labels the SCRIPT needs, handed over as data — it contains no FR/EN, the
+ * same rule every other inline script on this site follows.
+ *
+ * ⚠️ `course-complete:<slug>` IS DYNAMIC, so it cannot have its own string.
+ * The lookup falls back to the `course-complete` generic, which is why the map
+ * is consulted by prefix before exact id. One course finished reads the same
+ * whichever course it was, and inventing a per-course string would mean a new
+ * translation every time a course is written.
+ */
+const achievementLabels: Record<string, string> = {
+  'first-mate': t('score.ach.firstMate'),
+  'ten-exercises': t('score.ach.tenExercises'),
+  'streak-five': t('score.ach.streakFive'),
+  'all-elementary-mates': t('score.ach.allMates'),
+  'course-complete': t('score.ach.courseComplete'),
+  'first-win-debutant': t('score.ach.winDebutant'),
+  'first-win-intermediaire': t('score.ach.winIntermediaire'),
+  'first-win-avance': t('score.ach.winAvance'),
+};
+
+const rankLabels: Record<string, string> = {
+  pion: t('score.rank.pion'),
+  cavalier: t('score.rank.cavalier'),
+  fou: t('score.rank.fou'),
+  tour: t('score.rank.tour'),
+  dame: t('score.rank.dame'),
+};
+---
+
+{/* `application/json` so the catalogue is DATA rather than code: nothing
+    executes it, and a Content-Security-Policy forbidding inline script would
+    still leave it readable. Same choice as the resume journeys. */}
+<script
+  type="application/json"
+  data-score-catalogue
+  set:html={JSON.stringify({ ...catalogue, labels: achievementLabels, rankLabels })}
+/>
+
+{/* The toast. Always in the DOM, `hidden` until something is earned — a
+    element created on demand cannot be announced by a live region that did not
+    exist when the page loaded. */}
+<div
+  class="score-toast"
+  data-score-toast
+  role="status"
+  aria-live="polite"
+  hidden
+>
+  <span class="score-toast-mark" aria-hidden="true">★</span>
+  <span class="score-toast-body">
+    <span class="score-toast-eyebrow">{t('score.toast.earned')}</span>
+    <span class="score-toast-name" data-score-toast-name></span>
+  </span>
+</div>
+
+{/* ⚠️ TERSE ON PURPOSE — IT SHIPS VERBATIM, ON EVERY PAGE THAT SCORES.
+    Written in this codebase's usual commented style it measured 9.5 KB per
+    page across ~62 documents, before a paint it blocks. That is the trap
+    CLAUDE.md records for the theme head script (8.4 KB → 5.7 KB), walked into
+    a second time. The reasoning lives in this file's frontmatter, which is
+    compiled away; what is left here is pointers. Read that first. */}
+<script is:inline>
+  (function () {
+    var node = document.querySelector('[data-score-catalogue]');
+    if (!node) return;
+
+    var cat;
+    try {
+      cat = JSON.parse(node.textContent || '{}');
+    } catch (e) {
+      return;
+    }
+    if (!cat || !cat.entries) return;
+
+    /* Duplicated keys — frontmatter. */
+    var PKEY = 'mcc:progress:v1';
+    var SKEY = 'mcc:streak:v1';
+
+    function store() {
+      try {
+        var raw = window.localStorage.getItem(PKEY);
+        var parsed = raw ? JSON.parse(raw) : null;
+        return parsed && typeof parsed === 'object' ? parsed : {};
+      } catch (e) {
+        return {};
+      }
+    }
+
+    function streak() {
+      try {
+        var v = Number(window.sessionStorage.getItem(SKEY));
+        return isFinite(v) && v > 0 ? Math.floor(v) : 0;
+      } catch (e) {
+        return 0;
+      }
+    }
+
+    function compute() {
+      var s = store();
+      var ex = s.exercises || {};
+      var games = s.games || {};
+      var announced = s.announced || [];
+
+      function solved(key) {
+        var r = ex[key];
+        return !!r && typeof r === 'object' && r.solved === true;
+      }
+      function hinted(key) {
+        var r = ex[key];
+        return !!r && typeof r === 'object' && r.hintUsed === true;
+      }
+
+      /* Sums values the build computed. No award rule lives here. */
+      var sources = { basics: 0, lessons: 0, exercises: 0, games: 0 };
+      var done = {};
+      var count = 0;
+      var mate = false;
+
+      for (var i = 0; i < cat.entries.length; i++) {
+        var e = cat.entries[i];
+        var all = true;
+        var usedHint = false;
+        for (var k = 0; k < e.k.length; k++) {
+          if (!solved(e.k[k])) all = false;
+          if (hinted(e.k[k])) usedHint = true;
+        }
+        done[i] = all;
+        if (!all) continue;
+        count++;
+        if (e.m) mate = true;
+        sources[e.s] += usedHint ? e.h : e.p;
+      }
+
+      /* Wins only. Losses and draws cost nothing — ever. */
+      var levels = ['debutant', 'intermediaire', 'avance'];
+      for (var g = 0; g < levels.length; g++) {
+        var rec = games[levels[g]];
+        var wins = rec && typeof rec.wins === 'number' ? Math.max(0, Math.floor(rec.wins)) : 0;
+        sources.games += Math.min(wins, cat.winCap) * cat.wins[levels[g]];
+      }
+
+      var points = sources.basics + sources.lessons + sources.exercises + sources.games;
+
+      var idx = 0;
+      for (var r = 0; r < cat.ranks.length; r++) {
+        if (points >= cat.ranks[r].min) idx = r;
+      }
+      var rank = cat.ranks[idx];
+      var next = cat.ranks[idx + 1] || null;
+      var span = next ? next.min - rank.min : 0;
+
+      /* Five condition shapes, no meanings attached. */
+      var run = streak();
+      var earned = [];
+      for (var a = 0; a < cat.achievements.length; a++) {
+        var ach = cat.achievements[a];
+        var c = ach.condition;
+        var ok = false;
+        if (c.kind === 'solved') ok = count >= c.n;
+        else if (c.kind === 'mate') ok = mate;
+        else if (c.kind === 'streak') ok = run >= c.n;
+        else if (c.kind === 'wins') {
+          var w = games[c.level];
+          ok = !!w && typeof w.wins === 'number' && w.wins >= 1;
+        } else if (c.kind === 'entries') {
+          ok = true;
+          for (var d = 0; d < c.ids.length; d++) if (!done[c.ids[d]]) ok = false;
+        }
+        if (ok) earned.push(ach.id);
+      }
+
+      return {
+        points: points,
+        sources: sources,
+        rank: rank.id,
+        rankLabel: cat.rankLabels[rank.id] || rank.id,
+        next: next ? next.id : null,
+        nextLabel: next ? cat.rankLabels[next.id] || next.id : null,
+        remaining: next ? Math.max(0, next.min - points) : 0,
+        progress: next && span > 0 ? Math.min(1, (points - rank.min) / span) : 1,
+        streak: run,
+        earned: earned,
+        announced: announced,
+      };
+    }
+
+    function text(sel, value) {
+      var nodes = document.querySelectorAll(sel);
+      for (var i = 0; i < nodes.length; i++) nodes[i].textContent = String(value);
+    }
+
+    function bind(s) {
+      text('[data-score-points]', s.points);
+      text('[data-score-rank]', s.rankLabel);
+      text('[data-score-next]', s.nextLabel === null ? '' : s.nextLabel);
+      text('[data-score-remaining]', s.remaining);
+      text('[data-score-earned]', s.earned.length);
+
+      var keys = ['basics', 'lessons', 'exercises', 'games'];
+      for (var i = 0; i < keys.length; i++) {
+        text('[data-score-source="' + keys[i] + '"]', s.sources[keys[i]]);
+      }
+
+      var fills = document.querySelectorAll('[data-score-rank-fill]');
+      for (var f = 0; f < fills.length; f++) {
+        fills[f].style.inlineSize = Math.round(s.progress * 100) + '%';
+      }
+
+      /* Whole sentences from a pattern — frontmatter. */
+      var nexts = document.querySelectorAll('[data-score-next-wrap]');
+      for (var n = 0; n < nexts.length; n++) {
+        if (!s.next) {
+          nexts[n].setAttribute('hidden', '');
+          continue;
+        }
+        nexts[n].removeAttribute('hidden');
+        var np = nexts[n].getAttribute('data-score-next-pattern');
+        if (np) {
+          nexts[n].textContent = np
+            .replace('%s', String(s.remaining))
+            .replace('%s', String(s.nextLabel));
+        }
+      }
+
+      /* A run of one is not a run; below two it is not shown at all. */
+      var runs = document.querySelectorAll('[data-score-streak-wrap]');
+      for (var w = 0; w < runs.length; w++) {
+        if (s.streak < 2) {
+          runs[w].setAttribute('hidden', '');
+          continue;
+        }
+        runs[w].removeAttribute('hidden');
+        var sp = runs[w].getAttribute('data-score-streak-pattern');
+        if (sp) runs[w].textContent = sp.replace('%s', String(s.streak));
+      }
+      text('[data-score-streak]', s.streak);
+
+      var marks = document.querySelectorAll('[data-score-achievement]');
+      for (var m = 0; m < marks.length; m++) {
+        var id = marks[m].getAttribute('data-score-achievement');
+        if (s.earned.indexOf(id) >= 0) marks[m].setAttribute('data-earned', 'true');
+        else marks[m].removeAttribute('data-earned');
+      }
+    }
+
+    var toastTimer = null;
+
+    function announce(ids) {
+      var toast = document.querySelector('[data-score-toast]');
+      if (!toast || !ids.length) return;
+      var name = document.querySelector('[data-score-toast-name]');
+      var id = ids[0];
+      var label = cat.labels[id] || cat.labels[id.split(':')[0]] || id;
+      if (name) name.textContent = label;
+      toast.removeAttribute('hidden');
+      /* Reflow, so the transition runs rather than collapsing into one frame. */
+      void toast.offsetWidth;
+      toast.setAttribute('data-shown', 'true');
+      if (toastTimer) clearTimeout(toastTimer);
+      toastTimer = setTimeout(function () {
+        toast.removeAttribute('data-shown');
+        toastTimer = setTimeout(function () {
+          toast.setAttribute('hidden', '');
+        }, 400);
+      }, 4000);
+    }
+
+    function persistAnnounced(ids) {
+      try {
+        var raw = window.localStorage.getItem(PKEY);
+        var s = raw ? JSON.parse(raw) : {};
+        if (!s || typeof s !== 'object') s = {};
+        if (!s.exercises) s.exercises = {};
+        var seen = s.announced || [];
+        for (var i = 0; i < ids.length; i++) {
+          if (seen.indexOf(ids[i]) < 0) seen.push(ids[i]);
+        }
+        s.announced = seen;
+        window.localStorage.setItem(PKEY, JSON.stringify(s));
+      } catch (e) {
+        /* Unavailable or full — the toast may simply appear once more later. */
+      }
+    }
+
+    function run(shouldAnnounce) {
+      var s = compute();
+      bind(s);
+      var fresh = [];
+      for (var i = 0; i < s.earned.length; i++) {
+        if (s.announced.indexOf(s.earned[i]) < 0) fresh.push(s.earned[i]);
+      }
+      if (fresh.length) {
+        persistAnnounced(fresh);
+        if (shouldAnnounce) announce(fresh);
+      }
+      s.fresh = fresh;
+      window.MCC_SCORE = s;
+      window.MCC_SCORE.refresh = function () {
+        return run(true);
+      };
+      return s;
+    }
+
+    /* No toast on load — old news. The islands call refresh(), which announces. */
+    run(false);
+  })();
+</script>

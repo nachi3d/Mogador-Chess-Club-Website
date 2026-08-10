@@ -275,6 +275,39 @@ const MUST_PASS = [
      and a theme where they vanish loses a real affordance. */
   ['--mcc-accent-strong', '--mcc-surface-page', UI, 'active-board accent mark (non-text)'],
 
+  /* ── E3: the progression surfaces ──────────────────────────────────────
+     Rank, points, the session run and the achievement rows all sit on the
+     SUNKEN surface — pills, rows and a track — and only `--mcc-text-secondary`
+     had ever been audited against it. Each of these is a real new
+     relationship rather than a restatement:
+
+       - the points figure and the streak pill are the ACCENT as text, and the
+         accent is the one token whose readable step differs per surface (that
+         is the whole reason `--mcc-accent-text` exists);
+       - an EARNED achievement is primary text where a locked one is secondary,
+         so the row has two text colours on one background and both must clear;
+       - the rank bar's fill is primary INSIDE a sunken track, which is a
+         different pair from the CTA-on-page one already listed above.
+
+     ⚠️ `--mcc-border-strong` ON `--mcc-surface-sunken` IS DELIBERATELY ABSENT,
+     AND THE REASON IS WORTH KEEPING. The locked achievement star was that pair
+     on its first draft, and Marbre in light mode measured it at exactly
+     **3.00 against a 3.0 floor** — the tightest thing this script has ever
+     been asked to judge, and a rounding hair from failing. The fix is the one
+     the E6 rule prescribes: remove the outlier rather than grant it an
+     exception. The star is `--mcc-text-secondary` now, which is already proved
+     on that surface at the stricter TEXT bar.
+
+     So: nothing on this site draws a strong border on a sunken surface, and
+     anything that starts to must re-add this pair and expect Marbre to argue.
+
+     ⚠️ NONE OF THESE MAY EVER CARRY AN `opacity`. Every one is a pair this
+     script proves, and an alpha applied on top of a proved pair is invisible
+     to it — the M1 regression, which the whole Playwright suite passed. */
+  ['--mcc-text-primary', '--mcc-surface-sunken', TEXT, 'earned achievement on sunken row'],
+  ['--mcc-accent-text', '--mcc-surface-sunken', TEXT, 'points / streak pill on sunken'],
+  ['--mcc-primary', '--mcc-surface-sunken', UI, 'rank bar fill in its track (non-text)'],
+
   // Fills carry their own labels and are identical in both palettes — see the
   // unlayered rules in tokens.css.
   ['--color-ink-950', '--color-brass-300', TEXT, 'ink label on brass fill'],

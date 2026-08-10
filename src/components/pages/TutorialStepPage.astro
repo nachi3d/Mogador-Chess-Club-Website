@@ -21,6 +21,7 @@ import { localizePath } from '@i18n/paths';
 import { useTranslations } from '@i18n/ui';
 import BaseLayout from '@layouts/BaseLayout.astro';
 import ExerciseBoard from '@components/board/ExerciseBoard.astro';
+import ScoreResolver from '@components/progress/ScoreResolver.astro';
 
 interface Props {
   locale: Locale;
@@ -149,6 +150,12 @@ const indexPath = localizePath('/apprendre-les-bases/', locale);
       </p>
     </nav>
   </article>
+
+  {/* E3 — the board islands call `refreshScore()` after a solve or a win, and
+      this is what publishes the function and owns the achievement toast. A page
+      with a judged board and no resolver still works: `src/lib/score.ts`
+      returns null and the board simply shows no award. */}
+  <ScoreResolver locale={locale} />
 </BaseLayout>
 
 <style>

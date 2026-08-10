@@ -50,6 +50,8 @@ import BaseLayout from '@layouts/BaseLayout.astro';
 import PageIntro from '@components/PageIntro.astro';
 import ResumeResolver from '@components/progress/ResumeResolver.astro';
 import ResumeCard from '@components/progress/ResumeCard.astro';
+import ScoreResolver from '@components/progress/ScoreResolver.astro';
+import { scoreCatalogue } from '@lib/scoreboard';
 
 interface Props {
   locale: Locale;
@@ -129,6 +131,43 @@ const groups = [
  */
 const NEXT_COUNT = 3;
 const nextSeed = everything.slice(0, NEXT_COUNT);
+
+/* ── Rank, points and achievements (E3) ──────────────────────────────────
+   The catalogue is content, so it is built here; what the READER has done is
+   filled in by `ScoreResolver`'s inline script. Same split as every other
+   number on this page. */
+const catalogue = await scoreCatalogue(locale);
+const achievements = catalogue.achievements;
+
+/** The server's honest starting point: nobody has any points, so Pion. */
+const rankSeed = t('score.rank.pion');
+
+const SOURCES = [
+  { id: 'basics', key: 'score.source.basics' },
+  { id: 'lessons', key: 'score.source.lessons' },
+  { id: 'exercises', key: 'score.source.exercises' },
+  { id: 'games', key: 'score.source.games' },
+] as const;
+
+/**
+ * ⚠️ PREFIX BEFORE EXACT ID — `course-complete:<slug>` is dynamic and has no
+ * string of its own. Mirrors the same fallback in `ScoreResolver.astro`; the
+ * two must agree, and a spec asserts the page and the toast name a completed
+ * course identically.
+ */
+function achievementLabel(id: string): string {
+  const keys: Record<string, string> = {
+    'first-mate': t('score.ach.firstMate'),
+    'ten-exercises': t('score.ach.tenExercises'),
+    'streak-five': t('score.ach.streakFive'),
+    'all-elementary-mates': t('score.ach.allMates'),
+    'course-complete': t('score.ach.courseComplete'),
+    'first-win-debutant': t('score.ach.winDebutant'),
+    'first-win-intermediaire': t('score.ach.winIntermediaire'),
+    'first-win-avance': t('score.ach.winAvance'),
+  };
+  return keys[id] ?? keys[id.split(':')[0] ?? ''] ?? id;
+}
 ---
 
 <BaseLayout locale={locale} title={t('progress.title')} description={t('progress.intro')}>
@@ -234,19 +273,107 @@ const nextSeed = everything.slice(0, NEXT_COUNT);
       <p class="progress-done" data-progress-done hidden>{t('progress.allDone')}</p>
     </section>
 
-    {/* ── Not yet ────────────────────────────────────────────────────── */}
-    {/* ⚠️ A PLACEHOLDER, AND LABELLED AS ONE — the same treatment the mobile
-        dashboard's rank tile gets. Ranks and points are E3 and nothing
-        computes one. It says "bientôt" rather than inventing a number.
-        ⚠️ No `opacity` on this text: it is `--mcc-text-secondary` on the page
-        surface, which sits AT the 4.5 floor in some themes, so any alpha on
-        top of it fails an audit that cannot see it (the M1 regression). */}
-    <p class="progress-soon">
-      {t('progress.rank')} · <i>{t('home.dash.stats.soon')}</i>
-    </p>
+    {/* ── Rank and points (E3) ───────────────────────────────────────── */}
+    {/* ⚠️ THIS REPLACES A "bientôt" PLACEHOLDER, AND THE OLD RULE STILL HOLDS:
+        the page never prints a number nothing computed. It prints one now
+        because something computes one — `ScoreResolver` sums a catalogue whose
+        award values were worked out at build time. Every figure here is
+        derived from records that exist; none of it is stored as a balance.
+        See `src/lib/points.ts` → derived, never banked. */}
+    <section class="progress-block" aria-labelledby="progress-rank">
+      <h2 class="progress-block-title" id="progress-rank">{t('progress.rank')}</h2>
 
+      <div class="score-head">
+        <p class="score-rank" data-score-rank>{rankSeed}</p>
+        <p class="score-points">
+          <b data-score-points>0</b> {t('score.points')}
+        </p>
+      </div>
+
+      <span class="progress-track" aria-hidden="true">
+        <span class="progress-fill" data-score-rank-fill></span>
+      </span>
+
+      {/* ⚠️ THE WHOLE SENTENCE IS A PATTERN. FR puts the number first and EN
+          puts it first too, but the words in between and after are nothing
+          alike — a sentence assembled from spans is right in one language and
+          broken in the other. The server hands over its translated pattern and
+          the resolver fills the blanks.
+          Server-rendered against the first threshold, which is exactly true of
+          a reader with no progress: they are Pion, and Cavalier is 20 away. */}
+      <p
+        class="score-to-next"
+        data-score-next-wrap
+        data-score-next-pattern={t('score.next')}
+      >
+        {t('score.next')
+          .replace('%s', String(catalogue.ranks[1]?.min ?? 0))
+          .replace('%s', t('score.rank.cavalier'))}
+      </p>
+
+      {/* A run of one is not a run: hidden below two, and never shown as a
+          loss when it resets. See `resetStreak()` in progress.ts. */}
+      <p
+        class="score-streak"
+        data-score-streak-wrap
+        data-score-streak-pattern={t('score.streak.value')}
+        hidden
+      >
+        <span data-score-streak>0</span>
+      </p>
+    </section>
+
+    {/* ── Where the points come from ─────────────────────────────────── */}
+    <section class="progress-block" aria-labelledby="progress-breakdown">
+      <h2 class="progress-block-title" id="progress-breakdown">{t('score.breakdown')}</h2>
+      <ul class="progress-rows">
+        {
+          SOURCES.map((source) => (
+            <li class="progress-row">
+              <span class="progress-row-label">{t(source.key)}</span>
+              <span class="progress-row-count">
+                <b data-score-source={source.id}>0</b> {t('score.points')}
+              </span>
+            </li>
+          ))
+        }
+      </ul>
+    </section>
+
+    {/* ── Achievements ───────────────────────────────────────────────── */}
+    {/* ⚠️ EARNED AND REMAINING, BOTH VISIBLE. A list of only what you have
+        says nothing about what is next; a list of only what you lack reads as
+        a list of failures. Locked entries are named rather than hidden behind
+        "???" — this is a teaching site, and a student should be able to see
+        that finishing a course is a thing worth doing. */}
+    <section class="progress-block" aria-labelledby="progress-achievements">
+      <h2 class="progress-block-title" id="progress-achievements">
+        {t('score.achievements')}
+        <span class="score-tally">
+          <b data-score-earned>0</b> / {achievements.length}
+        </span>
+      </h2>
+      <ul class="score-achievements">
+        {
+          achievements.map((achievement) => (
+            <li
+              class="score-achievement"
+              data-score-achievement={achievement.id}
+              data-testid={`achievement-${achievement.id}`}
+            >
+              <span class="score-achievement-mark" aria-hidden="true">★</span>
+              <span class="score-achievement-name">{achievementLabel(achievement.id)}</span>
+            </li>
+          ))
+        }
+      </ul>
+    </section>
+
+    <p class="progress-note">{t('score.local')}</p>
     <p class="progress-note">{t('progress.cleared')}</p>
   </div>
+
+  <ScoreResolver locale={locale} />
 
   {/* ⚠️ THE RESOLVER GOES LAST, AND THE "WHAT IS LEFT" BINDER AFTER IT. Both
       are inline and synchronous, so document order is the whole of the
@@ -440,11 +567,119 @@ const nextSeed = everything.slice(0, NEXT_COUNT);
     font-weight: 600;
   }
 
-  /* ── Not yet ──────────────────────────────────────────────────────── */
-  .progress-soon {
+  /* ══ Rank, points, streak, achievements (E3) ═══════════════════════════
+     ⚠️ NO `opacity` ON ANY TEXT IN THIS BLOCK. Several of these pairs sit on
+     `--mcc-surface-sunken`, which `check-contrast.mjs` now proves in all eight
+     theme/mode combinations — and an alpha applied over a proved pair is
+     invisible to the auditor. That is the M1 regression (Lighthouse 100 → 96)
+     and it passed the whole Playwright suite. Differentiate by size, weight
+     and letter-spacing. */
+  .score-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-block-end: 0.25rem;
+  }
+
+  .score-rank {
+    margin: 0;
+    font-family: var(--mcc-font-display);
+    font-size: 1.5rem;
+    font-weight: 600;
+    line-height: 1.1;
+    color: var(--mcc-text-heading);
+  }
+
+  .score-points {
     margin: 0;
     color: var(--mcc-text-secondary);
+    font-size: 0.9375rem;
+  }
+
+  .score-points b {
+    color: var(--mcc-accent-text);
+    font-size: 1.25rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .score-to-next {
+    margin: 0.5rem 0 0;
+    color: var(--mcc-text-secondary);
     font-size: 0.875rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .score-streak {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin: 0.5rem 0 0;
+    padding: 0.25rem 0.7rem;
+    border-radius: var(--radius-pill);
+    background-color: var(--mcc-surface-sunken);
+    color: var(--mcc-accent-text);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .score-tally {
+    float: inline-end;
+    color: var(--mcc-text-secondary);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .score-achievements {
+    display: grid;
+    gap: 0.35rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  /* ⚠️ LOCKED ENTRIES ARE NAMED, NOT HIDDEN BEHIND "???". A student should be
+     able to see that finishing a course is worth doing; a mystery box is a
+     game-shop mechanic and this is a teaching site. */
+  .score-achievement {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.5rem 0.75rem;
+    background-color: var(--mcc-surface-sunken);
+    border: 1px solid transparent;
+    border-radius: var(--radius-card);
+    color: var(--mcc-text-secondary);
+    font-size: 0.9375rem;
+  }
+
+  /* ⚠️ NOT COLOUR ALONE. An earned entry differs by its WEIGHT and by a filled
+     star as well as by colour and border — the same three-signal rule the card
+     states follow. */
+  .score-achievement[data-earned] {
+    border-color: var(--mcc-accent);
+    color: var(--mcc-text-primary);
+    font-weight: 600;
+  }
+
+  /* ⚠️ `--mcc-text-secondary`, NOT `--mcc-border-strong`. The first draft used
+     the border token and Marbre in light mode measured it at exactly 3.00
+     against a 3.0 floor — see the note in check-contrast.mjs. This token is
+     already proved on this surface at the stricter TEXT bar. */
+  .score-achievement-mark {
+    color: var(--mcc-text-secondary);
+    font-size: 1rem;
+    line-height: 1;
+  }
+
+  .score-achievement[data-earned] .score-achievement-mark {
+    color: var(--mcc-accent-text);
+  }
+
+  @media (max-width: 767.98px) {
+    .score-rank {
+      font-size: 1.375rem;
+    }
   }
 
   .progress-note {

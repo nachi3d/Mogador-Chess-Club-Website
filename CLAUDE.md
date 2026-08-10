@@ -272,9 +272,12 @@ it. Tags said one thing and the manifest said another.
 27. **The bottom bar has exactly four entries and never hides on scroll**, and no page may hide content behind it.
 28. **Below 768px the exercise controls compact; the board never does.** See the M3 section — the board is the thing being taught with.
 29. **There is ONE resume rule, in `ResumeResolver.astro`, and ONE key scheme, in `src/lib/journey.ts`.** Four surfaces read them. A second copy of either is how two pages come to disagree about what a reader has done.
-30. **The progress page never prints a number nothing computed.** Rank and points say "bientôt".
+30. **The progress page never prints a number nothing computed.** Since E3 something computes rank and points, so it prints them — derived, never banked. See the progression section.
 31. **Every long route ends with a way onward**, clear of the bottom bar.
 32. **A card that renders has a destination.** `CardItem.href` is required and every card's link resolves 200. See the index rule below.
+33. **Points are DERIVED, never banked.** No total is ever stored. See the progression section.
+34. **No daily or consecutive-day streak. Ever.** The club meets weekly; a daily streak would punish the normal rhythm of these students.
+35. **A loss costs nothing.** Losses and draws are recorded and read by no scoring rule at all.
 
 ---
 
@@ -776,6 +779,166 @@ Detail routes take their URL from the content's **`slug` field, not the filename
 
 ---
 
+## Progression — ranks, points, streaks, achievements (E3)
+
+Direction: `docs/direction/mcc-direction-esthetique.md` §§ B1–B3, and the
+addendum § E8 for the anti-cheat note. Everything is LOCAL: `localStorage`,
+guest-first, no account anywhere in it.
+
+| File | What it owns |
+|---|---|
+| `src/lib/points.ts` | **Policy.** Award values, rank thresholds, achievement shapes. Pure — an island may import it |
+| `src/lib/scoreboard.ts` | **Build time.** Content → a catalogue with every award already computed. Imports `astro:content` + chess.js, so no island may touch it |
+| `src/components/progress/ScoreResolver.astro` | The one computation, inline, in the first paint. Publishes `window.MCC_SCORE` and owns the toast |
+| `src/lib/score.ts` | The islands' typed accessor. **It computes nothing** |
+| `src/styles/score.css` | The toast, in the shared sheet rather than scoped — see the size note below |
+
+### ⚠️ POINTS ARE DERIVED, NEVER BANKED — the rule of the whole feature
+
+There is no `points` number in `localStorage` and there must never be one. A
+total is recomputed from the work behind it every time it is read.
+
+A stored balance is a number a student types into a console in three clicks, and
+once stored the site cannot tell an earned 400 from a typed one. A derived total
+is exactly as good as the records behind it: to fake it you have to fake the
+solves.
+
+Two consequences that fall out for free, and are worth knowing before anyone
+"optimises" this into a cached balance:
+
+- **No farming, with no anti-farming code.** Re-solving awards nothing because
+  `solved` is a boolean. There is no "have they done this before" branch
+  anywhere — `ExerciseView` shows the *delta in the total*, which is 0.
+- **A multi-board lesson awards on its LAST board**, for the same reason: a
+  lesson is one catalogue entry, and the delta is 0 until every key is solved.
+
+### ⚠️ NO POLICY LIVES IN THE INLINE SCRIPT
+
+`ScoreResolver`'s script sums numbers and compares them. Every award value,
+threshold and achievement condition arrives as **data**, computed at build time
+by `scoreboard.ts` from `points.ts`. The script contains no award rule and no
+notion of what a mate is worth — so the policy cannot drift from what a reader
+is shown, because there is no second copy of it. Same trick as `MCC_THEMES`.
+
+What IS duplicated is the two storage keys (`mcc:progress:v1`,
+`mcc:streak:v1`), because an inline script cannot import a bare specifier —
+the fourth such duplication, same trade, and `progression.spec.ts` seeds both
+keys directly so a divergence fails there.
+
+### The thresholds, and why these numbers
+
+Content today, at full marks and no hints: 13 tutorial steps × 5 = 65, 11
+lessons × 10 = 110, 3 standalone exercises = 55. **230 of learning**, plus 120
+from games (two counted wins at each of 5/15/40) = a 350 ceiling.
+
+| Rank | Points | What it takes |
+|---|---|---|
+| Pion | 0 | arriving |
+| Cavalier | 20 | four tutorial steps — ten minutes, inside the first sitting |
+| Fou | 70 | the whole tutorial (65) **plus one lesson** |
+| Tour | 150 | the tutorial and most of a course |
+| Dame | 220 | essentially all the teaching content |
+
+- **Cavalier at 20** is the brief's "achievable in one session" taken literally.
+  It has to land in the first sitting or the ladder is invisible to the reader
+  it is for.
+- **Fou at 70 sits deliberately just ABOVE the finished tutorial (65).**
+  Finishing the basics is the prerequisite, not a destination; one lesson
+  completes the step, which says "now start learning" at the moment it is true.
+- **Dame at 220 against a 230 learning ceiling** is the direction's
+  non-negotiable — *un rang gagné en cliquant ne dure pas deux minutes face à un
+  ado*. The 10-point gap is slack for a couple of hints, and games can cover it.
+- **Dame does not require games** (230 > 220). A student who only wants to study
+  can still reach the top rank.
+
+⚠️ **These are absolute numbers and the content will grow**, so every threshold
+silently gets easier. Re-tuning is expected — but it may only move in the
+direction that does **not demote** anyone who already holds a rank. A rank taken
+back is worse than a rank that was slightly cheap.
+
+### ⚠️ NO DAILY STREAK. NOT NOW, NOT LATER.
+
+**The club meets weekly.** A consecutive-day streak would break every week by
+design, for every student, through no fault of theirs — it would punish exactly
+the rhythm of the people it is meant to motivate. The direction doc raises the
+same worry (§ B2) and this is the answer to it.
+
+The session streak is the honest version: consecutive exercises solved with no
+wrong move, in `sessionStorage` under `mcc:streak:v1`, gone when the tab closes.
+
+- **It is never presented as a loss.** There is no "streak lost" message and
+  there must not be — a reader whose move was refused is already being told;
+  charging twice for one mistake teaches a beginner that trying is expensive.
+  Below two it is simply not shown.
+- **A re-solve extends it.** It measures this session's accuracy, not new
+  ground. With sixteen solvable things on the site a streak that counted only
+  firsts would be unreachable for a returning student.
+- **It is never synced.** A session streak is meaningless on another device,
+  which is why it lives in a store that does not outlive the tab.
+
+### Achievements — computed, with one stored bookmark
+
+Earned is **derived** from progress; **announced** is stored (`announced` in
+`mcc:progress:v1`). Without the bookmark the toast fires again on every page
+load for ever. Clearing it re-announces, which is harmless; it can never grant
+anything, because it is not consulted when deciding what is earned.
+
+The toast is `role="status"` / `aria-live="polite"` — never `alert`. Good news
+arriving while a reader is mid-thought about a position must not interrupt.
+
+⚠️ **"A trap mastered" is DELIBERATELY NOT SHIPPED.** A trap page is a
+*replayer*: nothing on it records anything, because stepping through a game
+someone else played is reading, not competence — and the resolver's own rule is
+that opening a page leaves no trace. The only way to ship it today would be to
+award it for scrubbing a replay to the end, which is precisely the "rank earned
+by clicking" the direction forbids. It lands when a trap carries an exercise.
+In BACKLOG.md.
+
+### ⚠️ ANTI-CHEAT — what changes when accounts land
+
+`localStorage` is editable in three clicks. **While points are local they are
+declarative**, and the site says so on `/progres/` rather than pretending
+otherwise.
+
+> **Once accounts land (v2-S3), the balance must be computed SERVER-SIDE from
+> actually-solved exercises, and never accepted from the client.** No endpoint
+> may take a total, a rank or an achievement list as input. The client may send
+> *what it solved*; the server decides what that is worth.
+
+Nothing in `points.ts` may become a wire format for a client-supplied total.
+This matters more than it looks: E8's shop turns points into real objects
+produced by Nachi3D, and a declarative balance that buys a physical keyring is
+a different problem from one that colours a badge.
+
+The ledger already carries `origin` and `source` per entry so **teacher-awarded
+points (v2-S4) are a new producer rather than a migration.** They are NOT built.
+
+### ⚠️ An inline script on 62 pages is a size decision, not a detail
+
+The resolver is mounted on the home page, `/progres/`, and every page with a
+judged board or the engine — ~62 of 86 documents. Written in this codebase's
+usual commented style the script measured **9.5 KB per page** and the catalogue
+5.2 KB, for +1033 KiB of precache. That is the trap CLAUDE.md already records
+for the theme head script (8.4 KB → 5.7 KB), walked into a second time.
+
+Three things brought it to +744 KiB, and each is worth keeping:
+
+- **the script is terse** — rationale in frontmatter, which compiles away;
+- **catalogue entries carry no `i` field** and achievement conditions reference
+  entries **by index**. Both alternatives (repeating progress keys inside
+  conditions; giving each entry a string id) duplicated the very keys sitting
+  beside them;
+- **the toast CSS is in `src/styles/score.css`, not a scoped `<style>`**. Astro
+  inlines a small scoped block into every document that uses it — measured at
+  1.4–4.5 KB per page.
+
+Still on the table if it needs to shrink further: serve the catalogue as one
+same-origin JSON file and inline it only on the two pages that need it in the
+first paint. It costs a request on board pages and was judged not worth the
+complexity yet. In BACKLOG.md.
+
+---
+
 ## ⚠️ A CARD THAT RENDERS HAS A DESTINATION — an index entry with no href is a bug
 
 `CardItem.href` on `src/components/CardGrid.astro` is **required**. There is no
@@ -1238,8 +1401,8 @@ The drift periods were **47–71s before E1**, which is slow enough that a reade
 ### Decisions taken in E1 (recorded, not re-litigated)
 
 - **Nav labels stay functional** — Cours, Exercices, Jouer. Evocative names go on **page titles only**, in E4.
-- **Ranks will be Pion → Cavalier → Fou → Tour → Dame.** E3, not built.
-- **NO daily or consecutive-day streak.** The club meets *weekly*, so a daily streak would punish the normal rhythm of the people it is for. Session streaks only, in E3.
+- **Ranks are Pion → Cavalier → Fou → Tour → Dame.** ✅ Built in E3 — see the progression section for the thresholds and the reasoning.
+- **NO daily or consecutive-day streak.** The club meets *weekly*, so a daily streak would punish the normal rhythm of the people it is for. Session streaks only. ✅ Built in E3, and the rule is now Critical Feature 34.
 - **Sound is synthesised via Web Audio and off by default.** E2, not built.
 - **No confetti on a solve.** Precision is the reward, not visual noise.
 

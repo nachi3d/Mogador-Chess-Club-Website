@@ -65,10 +65,16 @@ export const SPEC_MAP = [
   [/^src\/lib\/chess\/replay\./, ['replayer.spec.ts']],
   [/^src\/lib\/chess\//, ['exercise.spec.ts', 'replayer.spec.ts']],
   [/^src\/lib\/engine\//, ['play.spec.ts', 'engine-levels.spec.ts']],
-  [/^src\/lib\/progress\./, ['exercise.spec.ts', 'tutorial.spec.ts', 'main-menu.spec.ts', 'mobile-app.spec.ts', 'resume.spec.ts']],
+  [/^src\/lib\/progress\./, ['exercise.spec.ts', 'tutorial.spec.ts', 'main-menu.spec.ts', 'mobile-app.spec.ts', 'resume.spec.ts', 'progression.spec.ts']],
   /* The journey table and the shared resolver (M3). Everything that reads
      `mcc:progress:v1` on a page now goes through these two. */
   [/^src\/lib\/journey\./, ['resume.spec.ts', 'main-menu.spec.ts', 'mobile-app.spec.ts']],
+  /* E3 — the ledger, the ranks, the streak and the achievements. The policy
+     and the catalogue builder are one feature with one spec; the surfaces that
+     display them are mapped alongside their own specs below. */
+  [/^src\/lib\/(points|scoreboard|score)\./, ['progression.spec.ts']],
+  [/^src\/components\/progress\/ScoreResolver\./, ['progression.spec.ts', 'resume.spec.ts']],
+  [/^src\/styles\/score\./, ['progression.spec.ts', 'themes.spec.ts']],
   [/^src\/components\/progress\//, ['resume.spec.ts', 'main-menu.spec.ts', 'mobile-app.spec.ts']],
   [/^src\/lib\/theme\./, ['theme.spec.ts', 'themes.spec.ts']],
   [/^src\/lib\/motion\./, ['feel.spec.ts', 'motion.spec.ts']],
@@ -84,12 +90,12 @@ export const SPEC_MAP = [
   [/^src\/layouts\//, ['smoke.spec.ts', 'mobile-app.spec.ts', 'pwa.spec.ts', 'mobile-fit.spec.ts']],
   [/^src\/components\/MobileNav\./, ['mobile-app.spec.ts']],
   [/^src\/components\/(CardGrid|NumberedCard|ProgressStates|LevelBadge)\./, ['exercise.spec.ts', 'tutorial.spec.ts', 'lessons.spec.ts', 'index-cards.spec.ts']],
-  [/^src\/components\/home\//, ['main-menu.spec.ts', 'mobile-app.spec.ts']],
+  [/^src\/components\/home\//, ['main-menu.spec.ts', 'mobile-app.spec.ts', 'progression.spec.ts']],
   [/^src\/components\/pages\/HomePage\./, ['main-menu.spec.ts', 'mobile-app.spec.ts', 'resume.spec.ts']],
   [/^src\/components\/pages\/(Trap|Exercice)Page\./, ['mobile-fit.spec.ts']],
   [/^src\/components\/pages\/SettingsPage\./, ['theme.spec.ts', 'themes.spec.ts']],
   [/^src\/components\/pages\/LegalPage\./, ['legal.spec.ts']],
-  [/^src\/components\/pages\/ProgressPage\./, ['mobile-app.spec.ts', 'resume.spec.ts']],
+  [/^src\/components\/pages\/ProgressPage\./, ['mobile-app.spec.ts', 'resume.spec.ts', 'progression.spec.ts']],
   [/^src\/components\/pages\/(Cours|Exercices|Pieges|TutorialIndex)Page\./, ['exercise.spec.ts', 'tutorial.spec.ts', 'lessons.spec.ts', 'resume.spec.ts', 'index-cards.spec.ts']],
   [/^src\/components\/pages\/(Lesson|CourseDetail|TutorialStep)Page\./, ['lessons.spec.ts', 'tutorial.spec.ts', 'board-pointer.spec.ts']],
   [/^src\/components\//, ['smoke.spec.ts']],

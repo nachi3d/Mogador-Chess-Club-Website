@@ -38,6 +38,10 @@
    owns its whole definition in one file. */
 @import './cards.css';
 
+/* The achievement toast (E3). Shared rather than scoped: the resolver that
+   renders it is on ~62 pages, and a scoped block is inlined into each one. */
+@import './score.css';
+
 @layer base {
   html {
     background-color: var(--mcc-surface-page);

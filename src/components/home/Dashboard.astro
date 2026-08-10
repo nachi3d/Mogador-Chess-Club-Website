@@ -148,12 +148,18 @@ const sessionVenue = nextSession ? (nextSession.data.venue ?? site.venue.name) :
     <span class="dash-stat">
       <b data-dash-lessons>0</b> {t('home.dash.stats.lessons')}
     </span>
-    {/* ⚠️ A PLACEHOLDER, AND LABELLED AS ONE. Ranks are E3 and nothing
-        computes one yet. Printing an invented rank would be the site telling
-        a student something it does not know — the same class of lie the
-        `onlyMove` rule exists to prevent. It says "soon" instead. */}
-    <span class="dash-stat dash-stat-soon">
-      {t('home.dash.stats.rank')} · {t('home.dash.stats.soon')}
+    {/* ⚠️ REAL VALUES SINCE E3 — this was "Rang · bientôt", and the reason it
+        said so was that nothing computed a rank. Something does now, and the
+        rule it was honouring is unchanged: the page prints a figure only when
+        a figure exists behind it. `ScoreResolver` (mounted by HomePage) fills
+        both, in the FIRST paint — a deferred fill would flash "Pion · 0" at a
+        reader who is a Tour, which on a progression display is worse than a
+        placeholder ever was.
+        The server seeds Pion and 0, which is exactly true of a first visit. */}
+    <span class="dash-stat dash-stat-rank" data-testid="dash-rank">
+      <b data-score-rank>{t('score.rank.pion')}</b>
+      <span aria-hidden="true"> · </span>
+      <b data-score-points>0</b> {t('score.points')}
     </span>
   </p>
 
@@ -406,9 +412,11 @@ const sessionVenue = nextSession ? (nextSession.data.venue ?? site.venue.name) :
 
   /* No opacity here either, for the same reason — `--mcc-text-secondary` on
      the page surface sits AT the 4.5 floor in some themes, so any alpha on top
-     of it fails. The word "bientôt" is what marks this as a placeholder. */
-  .dash-stat-soon {
-    font-style: italic;
+     of it fails.
+     The rank is the one stat that is a NAME rather than a count, so it takes
+     the accent that the numbers beside it do not. */
+  .dash-stat-rank b:first-child {
+    color: var(--mcc-accent-text);
   }
 
   /* ── 4. Next session ────────────────────────────────────────────────── */
