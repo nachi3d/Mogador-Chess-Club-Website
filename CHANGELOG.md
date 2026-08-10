@@ -11,6 +11,91 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### Added — course 3, "Les motifs tactiques" (content batch 3)
+
+Seven lessons, both locales, `intermediaire`, `order: 3`: la fourchette, le
+clouage, l'enfilade, l'attaque à la découverte, la déviation, l'attraction, la
+surcharge. Fourteen Markdown files plus the course index record, in the shape
+courses 1 and 2 already use — no schema change, no new component, no new route.
+
+Six lessons carry a still diagram plus a judged exercise; lesson 6 carries the
+replayer (`1. Rh8+ Kxh8 2. Ng6+ Kg8 3. Nxe7+`) plus its exercise. Cross-links
+to `/exercices/fourchette-de-cavalier/`, `/pieges/legal/` and two course-2
+lessons, locale-correct on both sides.
+
+#### ⚠️ FOUR OF THE EIGHT POSITIONS DID NOT DO WHAT THE PROSE SAID
+
+The brief warned about the two error classes batch 2 shipped, and **not one of
+this batch's errors was either of them.** Every position was legal, parsed, had
+six fields and a legal solution — `check-content.mjs` passed all eight without
+complaint. They were wrong in the one way no checker can see: **the prose
+described a mechanism the position did not contain.** Found by replaying each
+one through chess.js and asserting the specific claim the sentence makes.
+
+- **Lesson 2, le clouage — there was no pin.** The FEN was the Ruy Lopez after
+  `1.e4 e5 2.Nf3 Nc6 3.Bb5`, and the lesson said the c6 knight "ne peut pas
+  bouger". The black **d7 pawn** stands on the b5–e8 diagonal, so the knight
+  had **five** legal moves. This is the single most common beginner
+  misconception about that opening, and the lesson would have taught it as
+  fact. Both boards moved to positions where d7 is empty and the pin is real —
+  the Steinitz (`3...d6`) for the diagram, and `1.e4 e5 2.Nf3 Nc6 3.Nc3 d6` for
+  the exercise, where `Bb5` is the **unique** pinning move. A short paragraph
+  was added to both locales naming the d7 pawn, because the trap is worth
+  teaching once the position is honest.
+- **Lesson 4, la découverte — the bishop was on the wrong square.** `Bb3` does
+  not see h8 (b3–g8 is the diagonal), and `Ne5` was not on its line either, so
+  `Nxd7` discovered nothing. Bishop to **b2** puts the knight on the a1–h8
+  diagonal, where removing it uncovers check exactly as described. Verified by
+  deleting the knight and asserting the bishop then reaches h8.
+- **Lesson 6, l'attraction — the combination was refuted by `2...fxg6`.** With
+  a black pawn on f7, `Ng6+` is simply captured, and White has thrown away a
+  rook and a knight. The f7 pawn is **removed**: `Ne5` already covers f7, so
+  the king is still sealed on g8 and `Rh8+` still forces `Kxh8`. Asserted:
+  after `Rh8+` Black has exactly one legal reply, and after `Ng6+` nothing can
+  take the knight. The ply-0 comment changed with it — f7 is now named as
+  covered by the knight rather than occupied by a pawn, which is a better
+  teaching point anyway.
+- **Lesson 7, la surcharge — the mate did not exist, twice over.** With the
+  white king on g1 the recapture `Qxc5` arrived **with check**, so White never
+  got the free move; and even without that, a queen on c5 covers f8 along the
+  a3–f8 diagonal and simply blocks `Re8+`. The deflection square has to be one
+  the queen cannot bounce back from: the knight moved to **g5**, the bishop to
+  **d2**, the white king to **h1**. `Bxg5` is now the unique knight-winning
+  move, `Qxg5` is not check, and `Re8` is mate — all three asserted.
+
+#### One `onlyMove` flipped to `false`
+
+**Lesson 5, la déviation.** `Ra8+` forces mate in two (`Ra8+ Qd8 Rxd8#`, and
+`Qc8` loses the same way), so `Rxd7` is not the only right answer — it is not
+even the best one. Under `onlyMove: true` a student who found the **mate**
+would have been told they were wrong, which is precisely what the rule in
+CLAUDE.md forbids. Flipped to `false`, so that reader now gets "not the line we
+had in mind".
+
+⚠️ The position cannot be repaired without destroying the lesson: the mate
+exists *because* the back rank is weak and the queen is the only blocker, which
+is the very thing the lesson teaches. Flagged for Seàn in BACKLOG.md rather
+than papered over.
+
+#### The checker's teeth were re-proved, not assumed
+
+Both batch-2 classes were re-tested with throwaway fixtures before anything was
+written, and both were rejected: a `[SetUp]` FEN contradicting the first move
+(*"PGN rejected — Invalid move in PGN: Qb3+"*) and a finished mate written with
+the wrong side to move (*"the side NOT to move is in check — impossible
+position"*). The fixtures were removed; `git status` confirmed nothing was left
+behind.
+
+#### Verification
+
+`check-content.mjs` green on all seven pairs. The **lesson 6 replayer was
+stepped through in a browser** on the built site: each of the five plies renders
+the expected position (read back off Chessground's own transforms), and the
+three comments land on `Rh8+`, `Ng6+` and `Nxe7+` — plies 0, 2 and 4, the
+0-indexed numbering the brief insisted on. `npm run test:branch` selected
+`index-cards`, `lessons` and `smoke`: **48 passed**, including the check that
+the new course card on `/cours/` resolves.
+
 ---
 
 ## [0.8.0] — 2026-08-10
