@@ -11,6 +11,28 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+---
+
+## [0.9.0] — 2026-08-10
+
+**The teaching release.** v0.8.0 gave the site something to say about the
+reader; this one gives it something to teach them. Course 3 adds seven lessons
+on the tactical motifs, `/pieges/` goes from one trap to seven, and every one
+of those traps teaches its refutation rather than just its trick.
+
+Underneath both: **claim-level content checking.** A board or a trap now
+declares what its prose asserts — a pin, a fork, a discovery, a line — and the
+build proves it. That exists because course 3 shipped four positions that were
+legal, solvable, passed every check, and described a mechanism the board did
+not contain. Two of them were the exact beginner misconceptions the lessons
+were written to correct.
+
+And `/progres/` is reachable on desktop, which it had not been since M3 put it
+in the mobile bottom bar and nowhere else.
+
+Nothing here changes what the site is: still static, still no account, still no
+in-app communication.
+
 ### Added — six opening traps (content batch 4), built from notation
 
 `/pieges/` goes from one trap to seven: **le mat du berger**, **l'attaque
@@ -2642,7 +2664,8 @@ Foundation only: no real content, no interactive board yet.
   `url()` references unresolved and the fonts silently 404 into a Georgia
   fallback. `scripts/build-fonts.mjs` self-hosts them instead. See CLAUDE.md.
 
-[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.5.0...v0.6.0
