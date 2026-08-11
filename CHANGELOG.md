@@ -11,6 +11,41 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### Fixed — `npm run demo` now sweeps orphaned Playwright browsers too
+
+A killed `test:release` leaves its browsers running, and neither existing probe
+could see them: an orphaned browser holds no port and its command line says
+nothing about this repo. **~60 of them accumulated on the machine** during the
+v0.10.0 promotion, and the next full matrix failed on five unrelated specs
+across four projects — all of which passed when re-run serially once the machine
+was clear. Three red gates in a row, none of them a defect.
+
+`orphanedBrowsers()` lives in the **same `sweep()`** as the preview cleanup, so
+it runs on startup and on Ctrl+C with no second routine to remember.
+
+Four rules hold it, and each was verified against a live machine rather than
+reasoned about:
+
+- ⚠️ **Match on the executable path, never on the process name.** `chrome.exe`
+  is also Seàn's own browser. The Windows filter is `ExecutablePath` — the real
+  image path, which `Name` and `CommandLine` are not — and it must sit under a
+  directory Playwright installs into. **25 browser-named processes outside the
+  cache were spared** while the orphan was taken.
+- ⚠️ **`PLAYWRIGHT_BROWSERS_PATH` first.** On this machine it is
+  `D:\AppData\ms-playwright`, nowhere near the documented `%LOCALAPPDATA%`
+  default — a sweep that assumed the default would search an empty directory,
+  find nothing, and report success.
+- ⚠️ **Orphans only.** A live launcher means a run in progress, possibly another
+  project's, since the cache is machine-wide. With the launcher alive **3
+  browsers were spared**; once it was gone, the same shape was swept.
+- ⚠️ **Tree roots only, `taskkill /T`.** Chromium is a process tree; killing the
+  top alone leaves renderers reparented and running. One orphan reported, **four
+  processes gone**.
+
+Known limit, erring the safe way: Windows reuses pids, so a dead launcher's pid
+may belong to something live, and the orphan is then left alone. Under-killing
+is the right direction for a routine that runs unattended.
+
 ---
 
 ## [0.10.0] — 2026-08-11

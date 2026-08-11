@@ -196,6 +196,47 @@ to quote correctly through two layers of shell.
 `npm run demo` doing this on startup is a safety net rather than a substitute:
 it protects the next session, not this one.
 
+#### ⚠️ AND THE BROWSERS. A KILLED MATRIX LEAVES ITS BROWSERS RUNNING.
+
+Neither probe above can see them: an orphaned Playwright browser holds no port
+and its command line says nothing about this repo. **~60 of them were found on
+this machine** during the v0.10.0 promotion, left by a killed `test:release`,
+and the next full matrix then failed on five unrelated specs across four
+projects — every one of which passed when re-run serially on a clear machine.
+Three red gates in a row, and none of them a defect.
+
+`orphanedBrowsers()` in `scripts/demo.mjs` sweeps them, in the same `sweep()`
+the previews use — so it runs on startup and on Ctrl+C, with no second routine
+to remember.
+
+- ⚠️ **MATCH ON THE EXECUTABLE PATH, NEVER ON THE PROCESS NAME.** `chrome.exe`
+  is also the name of Seàn's own browser; killing that would be a far worse bug
+  than the one this fixes. On Windows the filter is `ExecutablePath` — the real
+  image path, which `Name` and `CommandLine` are not — and it must sit under a
+  directory Playwright itself installs into. Verified against a live machine:
+  **25 browser-named processes outside the cache were spared** while the
+  orphan was taken.
+- ⚠️ **`PLAYWRIGHT_BROWSERS_PATH` FIRST — the documented default is often
+  wrong.** On this machine it is `D:\AppData\ms-playwright`, nowhere near
+  `%LOCALAPPDATA%`. A sweep that assumed the default would search an empty
+  directory, find nothing and report success. The bare `ms-playwright` path
+  segment is the fallback for a shell where the variable is not exported.
+- ⚠️ **ORPHANS ONLY.** A browser whose launcher is still alive belongs to a run
+  IN PROGRESS — possibly this repo's own matrix in another terminal, possibly
+  another project's, since the browser cache is machine-wide and nothing about
+  it is per-repo. Verified: with the launcher alive, **3 browsers were spared**;
+  once it was gone, the same shape was swept.
+- ⚠️ **Tree roots only, killed with `taskkill /T`.** Chromium is a process tree
+  — a renderer, a GPU process and a utility process per browser. Killing the
+  top alone leaves the children reparented and running, and listing them
+  separately would report sixty kills for six browsers. Verified: one orphan
+  reported, **four processes gone**.
+
+Known limit, and it errs the safe way: Windows reuses pids, so a dead
+launcher's pid may belong to something live by the time this runs. The orphan
+then looks parented and is **left alone**. Under-killing is the right direction
+for a routine that runs unattended.
+
 #### Promotion routine — `dev` → `main`
 
 Every promotion does all four, and the version bump is **part of the release
