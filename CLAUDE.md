@@ -2782,6 +2782,47 @@ client may send what it *did*; the server decides what that is worth.
 
 `supabase/migrations/`, numbered, **never edited after merge** — a fix is 0002.
 
+#### ⚠️ THE CHECKLIST FOR A MIGRATION THAT ADDS A TABLE
+
+Four lines, and the last one has been forgotten twice. Work down it before a
+migration ships:
+
+```sql
+create table public.<t> (...);              -- 1. the table
+alter table public.<t> enable row level security;   -- 2. RLS ON
+create policy ... on public.<t> ...;                -- 3. the policies
+grant select, insert, update, delete on public.<t> to authenticated;
+grant select, insert, update, delete on public.<t> to service_role;  -- ⚠️ 4
+```
+
+⚠️ **EVERY NEW TABLE MUST GRANT `service_role` DML EXPLICITLY.** Default
+privileges in this project do **not** hand `service_role` DML on a new table in
+`public` — migration 0002 exists solely because that arrangement was replaced
+once and every table ended up with `service_role` holding only `REFERENCES`,
+`TRIGGER` and `TRUNCATE`.
+
+⚠️ **RLS BEING CORRECT DOES NOT MEAN THE TABLE IS REACHABLE.** They are two
+different mechanisms and they fail independently: `GRANT` decides whether a role
+may touch the table at all, RLS decides which rows. A table can have perfect,
+audited policies and still answer `42501 permission denied` to a trusted caller,
+because the grant was never made — which is precisely what a missing
+`service_role` grant looks like.
+
+⚠️ **It has now bitten twice.** 0002 was written to repair it across every
+existing table, and **0003 reproduced it on `game_results`** anyway: the RLS
+audit passed in full, and the e2e admin client then failed on a plain `select`.
+The tell is a `42501` from a caller that is supposed to bypass RLS entirely —
+`service_role` never hits a policy, so a permission error from it is *always* a
+missing grant and never a policy bug.
+
+⚠️ **`anon` gets nothing**, and that is a deliberate line rather than an
+omission: a guest writes progress to their own device only, which is the whole
+of the guest-first promise.
+
+And the audit that catches it: **exercise the table with a real trusted client
+after pushing**, not by re-reading the migration. See the live RLS audit under
+v2-S3 — reading the file is what produced the bug both times.
+
 ⚠️ **Slugs are free text, deliberately not foreign keys.** Content lives in git,
 so there is nothing to point at. Orphaned progress after a lesson is renamed is
 harmless; the alternative makes the database a second, lagging source of truth
