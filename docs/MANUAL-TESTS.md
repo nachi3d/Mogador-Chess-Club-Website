@@ -412,6 +412,23 @@ not as "unavailable", so the state no longer exists.
 - [ ] The prerequisite line still goes to `/apprendre-les-bases/`, and the
       tutorial index still lists its 13 steps
 
+### v2-S4 — the role boundary (no UI yet)
+
+The surfaces are not built, so there is nothing to click. What is checkable by
+hand is that nothing LEAKED into the site while accounts are off.
+
+- [ ] With the flag off, nothing about admin, attendance or teacher points is
+      visible or reachable anywhere on the site
+- [ ] `/agenda` still renders from the git collection, unchanged
+
+When part 2 lands, the check that matters is the one only a real room can
+answer:
+
+- [ ] ⚠️ **Mark a full class on a phone, at Dar Souiri, during a real session.
+      How long does it take?** Twenty teenagers, one tap each, standing up. If
+      it needs a modal per student or a save button per row it has failed,
+      however correct it is
+
 ### v2-S3 — progress sync (only once `PUBLIC_AUTH_ENABLED` is on)
 
 ⚠️ **THE CHECK THAT MATTERS IS THE FIRST ONE, AND IT IS THE ONLY ONE THAT

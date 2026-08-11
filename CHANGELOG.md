@@ -11,6 +11,53 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### Added — v2-S4 (part 1): the role boundary, proven
+
+⚠️ **FOUNDATION ONLY. The admin surfaces are NOT built** — `/admin`,
+`/admin/eleves`, `/admin/seances`, the attendance marker and the award form are
+a follow-up session. Nothing was half-built: a present-but-inert admin page is
+worse than an absent one. `PUBLIC_AUTH_ENABLED` remains OFF.
+
+**Migration 0004 — `point_awards`.** Teacher-awarded points for what the
+software cannot see: effort, attendance, helping another student. E3 built
+`PointEntry` with `origin` and `source` so a second producer could arrive
+without a migration, and this is that producer. One row per award; still no
+balance stored anywhere.
+
+Three rules live in the **database**, not in a form, because a form is the half
+a future admin script skips:
+
+- `reason` is **required**, checked on the trimmed length — points that appear
+  with no explanation destroy trust faster than no points at all;
+- points are **positive and capped at 50** — a prof who could award −50 would
+  turn the ledger into a disciplinary instrument, and the cap sits under the
+  tutorial's own 65 so no award outweighs the work;
+- a student has **no INSERT policy at all** — the one table where a client write
+  would mint points directly.
+
+**Live RLS/GRANT audit, 22 assertions, clean.** Exercised with a real student, a
+real prof and a real anon client against the running database — not read from
+the migration, which is what produced the `service_role` bug twice. `anon` sees
+only published sessions and cannot create one; a student cannot mark attendance,
+create a session, mint points, read another student's progress, change their
+role by table **or** by `admin_set_role`; a prof can do the job and **cannot
+promote anyone**; `service_role` can reach all five tables.
+
+Both `profiles.role` protections re-verified live: `authenticated` holds
+`UPDATE` on `display_name` and `locale` only, and `admin_set_role` is execute-
+granted to `service_role` alone.
+
+**`role-separation.spec.ts`** (8 tests) asserts the same boundaries through
+PostgREST with each user's own token — deliberately not through the UI, because
+a spec that drove admin pages would only prove the buttons are hidden, and a
+student who opens devtools does not use the buttons.
+
+**Decisions recorded ahead of the build:** the admin UI is **French only** (a
+single-operator context — a future session must not add i18n scaffolding), and
+the agenda will move to the database as a **build-time read**, because with
+accounts off there is no Supabase client in the bundle and `/agenda` must still
+render.
+
 ### Added — v2-S3: progress sync, and the first-sign-in merge
 
 ⚠️ **`PUBLIC_AUTH_ENABLED` IS STILL OFF.** All of this is built, migrated and
