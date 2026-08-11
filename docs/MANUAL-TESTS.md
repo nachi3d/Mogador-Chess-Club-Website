@@ -412,6 +412,21 @@ not as "unavailable", so the state no longer exists.
 - [ ] The prerequisite line still goes to `/apprendre-les-bases/`, and the
       tutorial index still lists its 13 steps
 
+### The sweep, before a release run
+
+`npm run demo` clears stale preview servers **and** orphaned test browsers. The
+second half exists because ~60 leftover browsers corrupted three release gates
+in a row.
+
+- [ ] After any interrupted `test:release`, run `npm run demo` (or just let it
+      run before the next matrix). Step 1 should name anything it killed
+- [ ] ⚠️ **Your own browser must still be open.** The sweep matches on the
+      executable path under Playwright's cache, never on the process name —
+      if Chrome or Edge ever closes when this runs, that is a serious bug, not
+      a tidy-up
+- [ ] If a `test:release` is running in another terminal, `npm run demo` must
+      **not** disturb it: browsers with a live launcher are deliberately spared
+
 ### E2 — sound
 
 The suite proves the plumbing: no `AudioContext` before a gesture, off by
