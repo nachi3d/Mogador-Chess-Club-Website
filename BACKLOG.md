@@ -23,7 +23,8 @@ with itself.
 | Item | Status | Note |
 |---|---|---|
 | **v2-S2** — Google OAuth, prof-created student accounts, Resend SMTP | `backlog` | SMTP needs a domain, and `mogadorchess.nachi3dlabs.com` is one — no longer blocked. OAuth and prof-created accounts could ship without it, but all three are one coherent "getting people in" session. `handle_new_user()` already clamps the locale for the Google claim. |
-| **Turn accounts back on** | `seàn` | Set `PUBLIC_AUTH_ENABLED=true` in the Cloudflare build variables. ⚠️ **No longer blocked — v2-S3 shipped, so there is now something to sync.** The reason accounts were off (an account that does nothing is a child's email address collected for no reason) has gone. One variable, no code, and the database is already ahead of the site, which is the safe ordering. Seàn's call. See CLAUDE.md → "Accounts are switched off in production". |
+| **Turn accounts back on** | `seàn` | Set `PUBLIC_AUTH_ENABLED=true` in the Cloudflare build variables. ⚠️ **No longer blocked — v2-S3 shipped, so there is now something to sync.** The reason accounts were off (an account that does nothing is a child's email address collected for no reason) has gone. One variable, no code, and the database is already ahead of the site, which is the safe ordering. Seàn's call. ⚠️ **But decide the parent/child model first if the club signs families up** — see "Modèle parent + profils enfants" below: `profiles.id` is `auth.users.id` today, so every account opened before that decision is keyed to a login and would have to be migrated. See CLAUDE.md → "Accounts are switched off in production". |
+| **Modèle parent + profils enfants** | `seàn` | ⚠️ **A DESIGN DECISION NEEDED BEFORE ACCOUNTS GO LIVE, and it blocks turning them on for family use.** A parent holds the account; each child is a profile beneath it with no credentials of its own. ⚠️ **Today `profiles.id` IS `auth.users.id`, so a child profile cannot exist at all** — every profile created before this is decided is keyed to a login. See the note below the table. |
 | ~~**v2-S3** — progress sync + `localStorage` import~~ | **done** | Migration 0003 (`kind` discriminator + `game_results`), RLS audited live against the running database, `progress-sync.ts` behind `progress.ts`, an idempotent merge, a bounded offline queue, and the `/compte` + `/progres` surfaces. ⚠️ `PUBLIC_AUTH_ENABLED` is still OFF and is now the only thing between this and accounts being live. |
 | **v2-S4 (part 1)** — the role boundary | **done** | Migration 0004 (`point_awards`), a 22-assertion live RLS/GRANT audit, and `role-separation.spec.ts`. The boundary is proven; the surfaces are not built. |
 | **v2-S4 (part 2)** — the admin surfaces | `soon` | ⚠️ **The boundary underneath them is already proven, so this is UI work on a verified base.** Needs: `/admin` dashboard, `/admin/eleves` (sortable class table → student detail with the student's own charts plus attendance), `/admin/seances` (session CRUD + attendance marking). **FR only** — see CLAUDE.md, and do not add i18n scaffolding. **Mobile-first**: attendance is marked in a room at Dar Souiri with twenty teenagers, one tap per student, no modal and no save button per row. Also the award form (reason required — the DB already refuses a blank one) and the student-facing split between "gagnés" and "attribués par ton prof". |
@@ -31,6 +32,51 @@ with itself.
 | **Guest attendance** | `backlog` | Attendance assumes a student with an account, so a teenager who has never signed in cannot be marked. BabyClub solved the same shape with **guest bookings** — a row keyed by a name rather than a profile — and that is the reference to look at when this is wanted. Not built here: it means attendance rows without a `profile_id`, which changes the FK and the RLS on a table that currently has a clean owner rule. |
 | **v2-S5** — progress charts | `backlog` | Needs S3's data before it can show anything true. |
 | **Student groups** (all profs currently see all students) | `backlog` | Deferred to v2.1 by decision, not oversight. |
+
+### Modèle parent + profils enfants — decide BEFORE accounts go live
+
+**A parent holds the account.** `auth.users` is the parent: they sign in, they
+receive the email, they enrol children in sessions. Each **child is a profile
+beneath it**, with no credentials of its own, carrying progress, points, rank
+and attendance. The same shape as BabyClub's `profiles → children`.
+
+⚠️ **THIS IS WHY IT CANNOT WAIT.** Today `profiles.id` **is**
+`auth.users.id` — identity and person are one row, so a child with no login has
+nowhere to live. Deciding after accounts are on means migrating real profiles
+that are already keyed to a parent's credentials, with real progress hanging off
+them. Deciding first makes it a schema shape rather than a rescue.
+
+- **Profile picker on app open — "Qui joue ?", Netflix-style.** A choice, not a
+  password: a twelve-year-old should not be managing credentials, and the parent
+  keeps oversight without standing over them. **Remembered per device**, so a
+  child's own phone asks once and then stops asking.
+- **One purse per child.** Individual merit stays visible — a child can see what
+  *they* earned, which is the whole point of the ledger. ⚠️ **Do NOT invent a
+  shared family wallet**: it blurs who earned what, which is exactly what E3's
+  derived-not-banked rule exists to keep legible. A purchase may draw from
+  **several purses**, with the split recorded on the order.
+- **Attendance and exercises attach to the CHILD profile, not the parent.** A
+  prof marks children, not accounts.
+- ⚠️ **The open question, and the one to answer first: a sixteen-year-old will
+  not want to go through their mother's account.** A child profile must be able
+  to graduate into its own account **carrying its progress with it**. Design the
+  schema so that graduation is **a migration of one FK, not a data rescue** —
+  which in practice means a child profile needs its own primary key and a
+  *nullable* link to the account that currently holds it, rather than being
+  keyed on `auth.users.id` as profiles are today.
+
+**Interacts with:**
+
+| | |
+|---|---|
+| v2-S4 attendance | marks children, not accounts — the FK moves |
+| E8 shop | one purse per child; an order records the split across purses |
+| The minors privacy paragraph | already models a **guardian** email, so the policy is closer to this than the schema is |
+
+**Blocked on Seàn's decision. Blocks turning accounts on for family use** — a
+club of teenagers signing up with their own email addresses is a different
+product from a club where parents enrol, and the schema cannot straddle both
+after the fact.
 
 ## Deployment and domain
 
