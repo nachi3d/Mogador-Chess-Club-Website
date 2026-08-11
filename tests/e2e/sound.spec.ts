@@ -61,6 +61,31 @@ async function countContexts(page: Page) {
 
 const contexts = (page: Page) => page.evaluate(() => (window as unknown as { __ctx: number }).__ctx);
 
+/**
+ * ⚠️ NOT EVERY BROWSER BUILD IN THIS MATRIX HAS WEB AUDIO.
+ *
+ * Playwright's headless **WebKit** ships with neither `AudioContext` nor
+ * `webkitAudioContext` — both are `undefined`, and constructing one reports
+ * "no constructor". Verified with a probe, on `webkit` and `iphone-13`.
+ *
+ * That is a limitation of the test build, NOT of Safari: real Safari has had
+ * unprefixed Web Audio since 14.1 and the prefixed form long before. And it is
+ * not a product bug either — `audio()` returns null, `play()` gives up quietly,
+ * and the exercise carries on, which is exactly the designed behaviour and is
+ * asserted below in "a browser with no Web Audio".
+ *
+ * So the tests that need a context to EXIST skip here, visibly and with the
+ * reason attached. A test that cannot run must say so rather than pass
+ * vacuously — the same rule the auth specs follow when `.env.test` is absent.
+ */
+const hasWebAudio = (page: Page) =>
+  page.evaluate(
+    () =>
+      typeof (window as unknown as { AudioContext?: unknown }).AudioContext !== 'undefined' ||
+      typeof (window as unknown as { webkitAudioContext?: unknown }).webkitAudioContext !==
+        'undefined',
+  );
+
 async function seedSound(page: Page, value: unknown) {
   await page.addInitScript(
     ([key, raw]) => {
@@ -181,6 +206,8 @@ test.describe('the toggle persists', () => {
 test.describe('exactly one AudioContext is ever built', () => {
   test('four moves on a live board build one context in total', async ({ page }) => {
     await countContexts(page);
+    await page.goto('/');
+    test.skip(!(await hasWebAudio(page)), 'this browser build ships no Web Audio at all');
     await seedSound(page, { enabled: true, volume: 'moyen', invited: true });
     /* Two player moves and a scripted reply between them. */
     await openExercise(page, '/exercices/opposition-et-mat/');
@@ -233,6 +260,8 @@ const oscillators = (page: Page) =>
 test.describe('sound is synthesised, not merely wired up', () => {
   test('with sound ON a solve builds oscillators; with it OFF it builds none', async ({ page }) => {
     await countOscillators(page);
+    await page.goto('/');
+    test.skip(!(await hasWebAudio(page)), 'this browser build ships no Web Audio at all');
     await seedSound(page, { enabled: true, volume: 'moyen', invited: true });
     await openExercise(page);
     await movePiece(page, 'a1', 'a8');
@@ -266,6 +295,10 @@ test.describe('sound is synthesised, not merely wired up', () => {
 
   test('a hidden tab makes no sound', async ({ page }) => {
     await countOscillators(page);
+    await page.goto('/');
+    /* Skipped rather than passed vacuously: with no Web Audio the count is
+       zero for a reason that has nothing to do with visibility. */
+    test.skip(!(await hasWebAudio(page)), 'this browser build ships no Web Audio at all');
     await seedSound(page, { enabled: true, volume: 'moyen', invited: true });
     /* Pin `visibilityState` before any script runs — a sound from a tab the
        reader is not looking at is unattributable noise. */
@@ -282,6 +315,38 @@ test.describe('sound is synthesised, not merely wired up', () => {
     });
     expect(await oscillators(page), 'a hidden tab played something').toBe(0);
   });
+});
+
+/* ═══ Graceful degradation ══════════════════════════════════════════════ */
+
+/**
+ * ⚠️ THE CASE PLAYWRIGHT'S WEBKIT FOUND FOR US, MADE DELIBERATE.
+ *
+ * Some browsers have no Web Audio, and some devices have no audio output at
+ * all. `play()` must give up quietly — never throw, never block the move, never
+ * leave the board half-judged. That is safe precisely because sound is never
+ * the only signal.
+ *
+ * Simulated rather than left to one project, so it runs on all five and cannot
+ * silently stop being covered when a browser build changes.
+ */
+test('a browser with no Web Audio still solves, silently and without errors', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+
+  await page.addInitScript(() => {
+    delete (window as unknown as Record<string, unknown>)['AudioContext'];
+    delete (window as unknown as Record<string, unknown>)['webkitAudioContext'];
+  });
+  /* Sound ON, so the code really does try to play and really does have to cope. */
+  await seedSound(page, { enabled: true, volume: 'fort', invited: true });
+
+  await openExercise(page);
+  await movePiece(page, 'a1', 'a8');
+  await expect(page.locator('.mcc-exercise').first()).toHaveAttribute('data-state', 'solved', {
+    timeout: 15_000,
+  });
+  expect(errors, 'a missing AudioContext threw instead of degrading').toEqual([]);
 });
 
 /* ═══ The one-time invitation ════════════════════════════════════════════ */

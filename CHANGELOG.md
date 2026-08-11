@@ -103,6 +103,22 @@ point is at the edge of run-to-run noise rather than a clear regression;
 `/parametres/` went 92 → 90 on single runs. Both stay well above the ≥90 floor,
 and accessibility, best-practices and SEO are 100 throughout.
 
+#### ⚠️ Playwright's headless WebKit has no Web Audio at all
+
+Found by the release matrix, which went red on `webkit` and `iphone-13`. Probed:
+`AudioContext` and `webkitAudioContext` are **both `undefined`** in that build,
+and constructing one reports "no constructor".
+
+Not a Safari fact — real Safari has had unprefixed Web Audio since 14.1 — and
+not a product bug: the site degrades exactly as designed, giving up quietly and
+carrying on. The three tests that need a context to exist now **skip on those
+projects, visibly and with the reason**, rather than passing vacuously.
+
+The limitation became coverage instead: a new test deletes both constructors
+and asserts an exercise still solves with no `pageerror`, on **all five**
+projects — so the degradation path cannot stop being covered when a browser
+build changes.
+
 #### What no machine verified
 
 `sound.spec.ts` (24 tests) asserts the contract — no context before a gesture,

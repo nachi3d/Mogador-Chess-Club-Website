@@ -1543,6 +1543,32 @@ context, and it is why a reader on silent loses nothing.
 ⚠️ **Suppressed when the tab is hidden** — a sound from a tab nobody is looking
 at is unattributable noise.
 
+### ⚠️ PLAYWRIGHT'S HEADLESS WEBKIT HAS NO WEB AUDIO AT ALL
+
+Not a Safari fact and not a product bug — a fact about the **test build**.
+Probed on `webkit` and `iphone-13`:
+
+```
+typeof window.AudioContext        → "undefined"
+typeof window.webkitAudioContext  → "undefined"
+new (AudioContext || webkit…)     → "no constructor"
+```
+
+Real Safari has had unprefixed Web Audio since 14.1 and the prefixed form for
+years before that. The site degrades exactly as designed: `audio()` returns
+null, `play()` gives up quietly, the exercise carries on.
+
+⚠️ **The three tests that need a context to EXIST therefore skip on those two
+projects, visibly and with the reason attached** — a test that cannot run must
+say so rather than pass vacuously, the same rule the auth specs follow when
+`.env.test` is absent. The zero-assertion tests still run everywhere.
+
+⚠️ **And the limitation was turned into coverage:** "a browser with no Web Audio
+still solves, silently and without errors" deletes both constructors via
+`addInitScript` and asserts the solve completes with no `pageerror`. That runs
+on **all five** projects, so the degradation path cannot quietly stop being
+covered when a browser build changes.
+
 ### The achievement event
 
 `ScoreResolver`'s script is `is:inline` and cannot import a bare specifier, so it
