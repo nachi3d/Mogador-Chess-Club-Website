@@ -34,6 +34,8 @@ import type { EngineLevel, LevelId } from '@lib/engine/stockfish';
 import type { MoveTextResult } from '@lib/chess/notation';
 import { type GameOutcome, recordGame } from '@lib/progress';
 import { refreshScore } from '@lib/score';
+/* ⚠️ The one sound module. No oscillator is built here — see src/lib/sound.ts. */
+import { initSound, play as playSound, voiceForMove } from '@lib/sound';
 import './replayer.css';
 import './play.css';
 
@@ -138,6 +140,12 @@ export default function PlayView(props: PlayViewProps) {
    * board.
    */
   const generation = useRef(0);
+
+  /* Arms the gesture latch and the achievement listener. Creates no
+     `AudioContext` — see the note on the same call in ExerciseView. */
+  useEffect(() => {
+    initSound();
+  }, []);
 
   /* The engine is a Worker with a WASM heap. Leaving one running after the
      reader has navigated away costs a phone real battery. */
@@ -278,6 +286,9 @@ export default function PlayView(props: PlayViewProps) {
     } catch {
       return;
     }
+    /* The engine's move gets the same voices as the reader's — an opponent you
+       cannot hear is half a game. `voiceForMove` owns the priority. */
+    playSound(voiceForMove({ san: game.history().at(-1), isCheck: game.isCheck() }));
     setSnapshot(snapshotOf(game));
     if (game.isGameOver()) {
       finish(game);
@@ -305,6 +316,7 @@ export default function PlayView(props: PlayViewProps) {
         return;
       }
 
+      playSound(voiceForMove({ san: game.history().at(-1), isCheck: game.isCheck() }));
       setSnapshot(snapshotOf(game));
       if (game.isGameOver()) {
         finish(game);

@@ -89,6 +89,11 @@ export const SPEC_MAP = [
 
   [/^src\/layouts\//, ['smoke.spec.ts', 'mobile-app.spec.ts', 'pwa.spec.ts', 'mobile-fit.spec.ts']],
   [/^src\/components\/MobileNav\./, ['mobile-app.spec.ts']],
+  /* E2 — the sound module and everything that can make one. `feel.spec.ts`
+     rides along on the board views because a sound call sits next to the
+     motion it accompanies. */
+  [/^src\/lib\/sound\./, ['sound.spec.ts', 'exercise.spec.ts', 'play.spec.ts', 'theme.spec.ts']],
+  [/^src\/components\/board\/(Exercise|Play)View\./, ['sound.spec.ts']],
   /* ⚠️ The site header mapped to NOTHING until the desktop-progress-nav
      session, so editing the navigation selected no specs at all — which is
      part of how `/progres/` came to be reachable on one layout only. Both
@@ -100,7 +105,7 @@ export const SPEC_MAP = [
   [/^src\/components\/home\//, ['main-menu.spec.ts', 'mobile-app.spec.ts', 'progression.spec.ts']],
   [/^src\/components\/pages\/HomePage\./, ['main-menu.spec.ts', 'mobile-app.spec.ts', 'resume.spec.ts']],
   [/^src\/components\/pages\/(Trap|Exercice)Page\./, ['mobile-fit.spec.ts']],
-  [/^src\/components\/pages\/SettingsPage\./, ['theme.spec.ts', 'themes.spec.ts']],
+  [/^src\/components\/pages\/SettingsPage\./, ['theme.spec.ts', 'themes.spec.ts', 'sound.spec.ts']],
   [/^src\/components\/pages\/LegalPage\./, ['legal.spec.ts']],
   [/^src\/components\/pages\/ProgressPage\./, ['mobile-app.spec.ts', 'resume.spec.ts', 'progression.spec.ts']],
   [/^src\/components\/pages\/(Cours|Exercices|Pieges|TutorialIndex)Page\./, ['exercise.spec.ts', 'tutorial.spec.ts', 'lessons.spec.ts', 'resume.spec.ts', 'index-cards.spec.ts']],

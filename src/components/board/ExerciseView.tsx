@@ -42,6 +42,19 @@ import {
   resetAttempts,
 } from '@lib/progress';
 import { readScore, refreshScore } from '@lib/score';
+/**
+ * ⚠️ EVERY SOUND ON THE SITE COMES FROM THIS ONE MODULE — no oscillator is
+ * built here or anywhere else. `play` is a no-op unless the reader switched
+ * sound on, so the calls below cost nothing in the default case.
+ */
+import {
+  acceptInvitation,
+  declineInvitation,
+  initSound,
+  play as playSound,
+  shouldInvite,
+  voiceForMove,
+} from '@lib/sound';
 /* `.mcc-side-heading` and `.mcc-move` are defined in replayer.css and reused
    here — same controls, same look, one definition. Imported EXPLICITLY rather
    than relying on ReplayView happening to be in the same chunk: that is true
@@ -90,6 +103,16 @@ export interface ExerciseLabels {
   readonly solutionHint: string;
   readonly checkmate: string;
   readonly move: MoveInputLabels;
+  /** The one-time sound invitation (E2). Resolved on the server like the rest. */
+  readonly sound: SoundInviteLabels;
+}
+
+export interface SoundInviteLabels {
+  readonly question: string;
+  readonly detail: string;
+  readonly accept: string;
+  readonly decline: string;
+  readonly accepted: string;
 }
 
 export interface ExerciseViewProps {
@@ -212,6 +235,17 @@ export default function ExerciseView(props: ExerciseViewProps) {
    * survive into the next step and sit there as a second highlight.
    */
   const [pulse, setPulse] = useState<string | null>(null);
+  /**
+   * The one-time sound invitation (E2), shown beside the solve.
+   *
+   * ⚠️ Local state, not derived on render: `shouldInvite()` reads
+   * `localStorage`, and reading storage during render is the hydration-mismatch
+   * bug this file already documents for progress. It is consulted once, in the
+   * solve handler, which is an event.
+   */
+  const [inviting, setInviting] = useState(false);
+  /** Set when the reader accepts, so the panel can confirm rather than vanish. */
+  const [inviteAccepted, setInviteAccepted] = useState(false);
 
   /* Pending timers, cleared on unmount and on retry so nothing fires late into
      a state it was not scheduled for. */
@@ -282,6 +316,18 @@ export default function ExerciseView(props: ExerciseViewProps) {
     };
   }, [pulse]);
 
+  /**
+   * ⚠️ ARMS THE GESTURE LATCH — IT DOES NOT CREATE AN AudioContext.
+   *
+   * `initSound` only attaches two one-shot passive listeners and subscribes to
+   * the achievement event. The context is built on the first `play()` that
+   * follows a real gesture, and never before: a spec asserts that loading an
+   * exercise page constructs no `AudioContext` at all.
+   */
+  useEffect(() => {
+    initSound();
+  }, []);
+
   /* ── Lazy engine, and the stored progress ──────────────────────────────── */
   useEffect(() => {
     let live = true;
@@ -329,6 +375,12 @@ export default function ExerciseView(props: ExerciseViewProps) {
       }
 
       if (verdict.kind !== 'correct') {
+        /* ⚠️ ONE VOICE FOR BOTH VERDICTS, exactly as one message colour serves
+           both: under `onlyMove: false` we do not KNOW the reader was wrong, so
+           we must not sound as though we do. See the rule at the top of this
+           file — a harsher tone for `wrong` would say in sound what the copy
+           is careful not to say in words. */
+        playSound('wrong');
         /* Wrong, or merely off our line. Both count an attempt and both reset
            the board; ONLY THE WORDING differs, and that is the `onlyMove` rule
            (CLAUDE.md). Nothing below this line branches on which it was. */
@@ -359,6 +411,10 @@ export default function ExerciseView(props: ExerciseViewProps) {
       setFeedback('correct');
       setBusy(true);
       setShown(verdict.move);
+      /* The reader's own move. `voiceForMove` owns the priority — a capture
+         that gives check sounds as a check, because that is the more urgent
+         fact and stacking both reads as a mistake. */
+      playSound(voiceForMove(verdict.move));
       /* The board's share of the feedback: one Transition on the square the
          piece landed on. Cleared by the effect near the top of this component
          rather than here — the clock must not start until the pulse has been
@@ -381,6 +437,15 @@ export default function ExerciseView(props: ExerciseViewProps) {
         }
         setSolved(true);
         setReviewIndex(engine.line.length - 1);
+        /* ⚠️ The solve voice REPLACES the move voice here rather than stacking
+           on it: the last correct move already sounded, and a second sound
+           50ms later reads as a stutter. `playSound` is a no-op when sound is
+           off, so the ordering below costs nothing in the default case. */
+        playSound('solved');
+        /* The one-time offer, at the moment the direction doc names: the first
+           solve. `shouldInvite` owns every condition — already on, already
+           asked, or reduced motion requested. */
+        if (shouldInvite()) setInviting(true);
 
         /**
          * ⚠️ THE AWARD IS THE DELTA IN THE TOTAL, NOT A NUMBER THIS FILE KNOWS.
@@ -416,6 +481,10 @@ export default function ExerciseView(props: ExerciseViewProps) {
         // Each leg draws its own delay, so the pair does not beat in time.
         after(replyDelayMs(), () => {
           setShown(reply);
+          /* The opponent's move gets the same voices as the reader's. A silent
+             opponent would make the board feel one-sided — and a capture the
+             reader did not make is exactly the event worth hearing. */
+          playSound(voiceForMove(reply));
           after(replyDelayMs(), advance);
         });
         return;
@@ -638,6 +707,61 @@ export default function ExerciseView(props: ExerciseViewProps) {
             </p>
           )}
         </div>
+
+        {/* ── The one-time sound invitation (E2) ──────────────────────────
+            ⚠️ OUTSIDE the status region above, deliberately. That region is
+            `aria-live="polite"`, and putting buttons inside a live region gets
+            them re-announced on every update and makes the whole panel a
+            moving target for anyone tabbing. This is a small offer that follows
+            the verdict; it is not part of it.
+
+            ⚠️ It renders only after a solve, only once ever, and never for a
+            reader who has asked for reduced motion — every one of those
+            conditions lives in `shouldInvite()`, not here. */}
+        {inviting && (
+          <div class="mcc-sound-invite" data-testid="sound-invite">
+            {inviteAccepted ? (
+              <p class="mcc-sound-invite-done" data-testid="sound-invite-accepted">
+                {labels.sound.accepted}
+              </p>
+            ) : (
+              <>
+                <p class="mcc-sound-invite-question">{labels.sound.question}</p>
+                <p class="mcc-sound-invite-detail">{labels.sound.detail}</p>
+                <div class="mcc-sound-invite-actions">
+                  <button
+                    type="button"
+                    class="mcc-exercise-button"
+                    data-testid="sound-invite-accept"
+                    onClick={() => {
+                      acceptInvitation();
+                      setInviteAccepted(true);
+                      /* Answering IS the gesture, so the reader hears the thing
+                         they just agreed to instead of having to solve another
+                         exercise to find out what they said yes to. */
+                      playSound('solved');
+                    }}
+                  >
+                    {labels.sound.accept}
+                  </button>
+                  <button
+                    type="button"
+                    class="mcc-exercise-button"
+                    data-testid="sound-invite-decline"
+                    onClick={() => {
+                      /* Records that it was ASKED. That is what makes it
+                         one-time — see `declineInvitation`. */
+                      declineInvitation();
+                      setInviting(false);
+                    }}
+                  >
+                    {labels.sound.decline}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
 
         {/* The other way in. Hidden once solved — there is nothing left to
             play — but present and enabled for every move before that. */}

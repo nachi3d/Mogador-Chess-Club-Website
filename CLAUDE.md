@@ -279,6 +279,9 @@ it. Tags said one thing and the manifest said another.
 34. **No daily or consecutive-day streak. Ever.** The club meets weekly; a daily streak would punish the normal rhythm of these students.
 35. **A loss costs nothing.** Losses and draws are recorded and read by no scoring rule at all.
 36. **No route may exist on one layout only.** Every destination the mobile bottom bar reaches is reachable from the desktop header, and the spec reads the list off the bar rather than hard-coding it. See the section below.
+37. **Sound is OFF by default, and `src/lib/sound.ts` is the only file that may make one.** No other module constructs an `AudioContext`, an oscillator or a gain node. See "Sound".
+38. **No `AudioContext` before a user gesture**, and exactly one for the life of the page. Asserted against a patched constructor, not assumed.
+39. **Sound is never the only signal.** Every voice accompanies a visual that fires independently — a reader on silent, or with no audio device, loses nothing.
 
 ---
 
@@ -1422,6 +1425,156 @@ two cannot differ in background.
 the feedback telling the reader which move they just made.
 
 ---
+
+## Sound — SYNTHESISED, OFF BY DEFAULT (E2)
+
+Direction: `docs/direction/mcc-direction-esthetique.md` § C3. **`src/lib/sound.ts`
+is the single source**, exactly as `motion.ts` is for durations and for the same
+reason: these numbers only mean anything relative to each other. A capture must
+read heavier than a placement and a wrong move softer than either, and scattered
+oscillators drift out of that relationship one commit at a time.
+
+⚠️ **NO OTHER FILE MAY BUILD AN `AudioContext`, AN OSCILLATOR OR A GAIN NODE.**
+Islands call `play(event)`; the settings page calls it for a preview. That is
+the whole public surface.
+
+### No audio files — three decisions at once
+
+0 bytes in the precache and 0 requests, so a phone on Essaouira mobile data pays
+nothing for a feature it may never switch on; no licence question in a GPL repo,
+because a synthesised waveform has no author to credit; and every parameter is
+tunable from one file, so "the capture is too harsh" is a one-line change rather
+than a re-recording.
+
+### The palette — six voices, and deliberately no more
+
+| voice | shape | why |
+|---|---|---|
+| `place` | triangle 240→170 Hz, 45ms, lowpass 2.2k | a piece meeting wood: fast fall, no sustain |
+| `capture` | sawtooth 150→90 Hz, 75ms, lowpass 900 | heavier and lower; the low corner makes it a thud, not a rasp |
+| `check` | triangle 440 + 622 Hz, 70ms | a tritone — the most unstable interval there is. A warning, not an alarm |
+| `solved` | sine 587 → 880 Hz, 70+80ms | a rising fifth. Open and resolved **without** being a fanfare |
+| `wrong` | sine 175→150 Hz, 150ms, 18ms attack | see below |
+| `achievement` | the solve plus a third note (1175 Hz) and a faint octave | "that, but more" — recognisably the solve, since it is rarer |
+
+⚠️ **THE WRONG-MOVE VOICE IS THE ONE TO GET RIGHT.** A synth makes a buzzer
+trivially easy and that would be the wrong instrument entirely: this is a
+teaching tool for children, and an error must inform rather than scold. So it is
+a pure sine (no harmonics to bite), the lowest gain in the palette, and the only
+voice that fades **in** rather than striking. Both refused verdicts share it —
+under `onlyMove: false` we do not know the reader was wrong, so we must not
+sound as though we do, which is the `onlyMove` rule applied to a second sense.
+
+⚠️ **Nothing sounds for navigation, hover, scroll or page load.** A site that
+chirps as you scroll is a site you mute — and then the sounds that carry meaning
+are muted too.
+
+⚠️ **Every tone is 20–80ms except `wrong`.** The two SEQUENCES are longer only
+because they are several short tones in a row — the same distinction motion.ts
+draws between a family duration and a composite built from one. `wrong` is the
+deliberate exception at 150ms because softness is an **envelope**, and an
+envelope needs time; a 60ms sine is a blip, and a blip reads as a buzzer however
+quiet it is.
+
+⚠️ **One sound per move.** `voiceForMove()` owns the priority — check beats
+capture beats place — so the two islands cannot disagree. A capture that gives
+check is a check: the more urgent fact, and stacking both reads as a bug.
+
+### `mcc:sound:v1` — its own key, and why not the theme record
+
+Considered and rejected. The theme record is parsed by the **blocking inline
+head script** before first paint; sound cannot possibly matter before first
+paint, because it cannot exist before a gesture. Putting it there would grow the
+parse surface of the one script that runs before anything is on screen, to carry
+a value it will never read. Two keys also version independently — a change to
+the sound shape must not force a theme migration on readers who never turned it
+on.
+
+Everything else follows `theme.ts` and `progress.ts`: versioned key, guarded
+access, normalised field by field, single migration point. ⚠️ **Any doubt
+resolves to OFF** — a corrupt record must never make a silent site start making
+noise, so the parser is biased towards silence rather than towards preserving
+intent.
+
+### The context: one, and never before a gesture
+
+Browsers refuse to start an `AudioContext` without user activation and leave it
+`suspended`, so building one earlier buys a broken object — and it is the
+project's standing "nothing before a click" rule, the same one that keeps
+Stockfish's 3.6 MB behind a button. `initSound()` only arms two one-shot passive
+listeners.
+
+⚠️ **ONE context for the life of the page, not one per sound.** An
+`AudioContext` is backed by a real audio device; creating one per move exhausts
+the browser's limit inside a single exercise and then every later sound fails
+silently. `sound.spec.ts` patches the constructor and counts.
+
+### `prefers-reduced-motion` DOES NOT SILENCE THE SITE
+
+⚠️ **This departs from the direction doc**, which lists *"aucun son"* under
+`prefers-reduced-motion` (§ Contraintes 2). The E2 brief overrules it, and the
+reason is that the two are different senses: the preference exists for
+vestibular discomfort, not for hearing, and switching sound off for those
+readers decides something they did not ask about.
+
+⚠️ **But it does suppress the OFFER**, which is a different judgement. A reader
+who has told their OS they want things calmer has said something about being
+interrupted, and an unprompted invitation is an interruption. `/parametres/`
+stays exactly as reachable for them as for anyone. Both halves have specs.
+
+### The one-time invitation
+
+Offered once, at the first solve, and retired by **either** answer — declining
+writes `invited: true` too. An invitation that returns after a "no thanks" is
+not an invitation, it is nagging.
+
+⚠️ It renders **outside** the verdict's `aria-live` region. Buttons inside a
+live region are re-announced on every update and make the panel a moving target
+for anyone tabbing; the offer follows the verdict, it is not part of it.
+
+### Sound is never the only signal
+
+Every voice accompanies a visual that fires independently — the piece moves, the
+piece disappears, Chessground paints the check highlight, the verdict text
+changes, the board shakes, the toast appears. That is what makes it safe for
+`play()` to give up quietly on a hidden tab, a missing audio device or a refused
+context, and it is why a reader on silent loses nothing.
+
+⚠️ **Suppressed when the tab is hidden** — a sound from a tab nobody is looking
+at is unattributable noise.
+
+### ⚠️ PLAYWRIGHT'S HEADLESS WEBKIT HAS NO WEB AUDIO AT ALL
+
+Not a Safari fact and not a product bug — a fact about the **test build**.
+Probed on `webkit` and `iphone-13`:
+
+```
+typeof window.AudioContext        → "undefined"
+typeof window.webkitAudioContext  → "undefined"
+new (AudioContext || webkit…)     → "no constructor"
+```
+
+Real Safari has had unprefixed Web Audio since 14.1 and the prefixed form for
+years before that. The site degrades exactly as designed: `audio()` returns
+null, `play()` gives up quietly, the exercise carries on.
+
+⚠️ **The three tests that need a context to EXIST therefore skip on those two
+projects, visibly and with the reason attached** — a test that cannot run must
+say so rather than pass vacuously, the same rule the auth specs follow when
+`.env.test` is absent. The zero-assertion tests still run everywhere.
+
+⚠️ **And the limitation was turned into coverage:** "a browser with no Web Audio
+still solves, silently and without errors" deletes both constructors via
+`addInitScript` and asserts the solve completes with no `pageerror`. That runs
+on **all five** projects, so the degradation path cannot quietly stop being
+covered when a browser build changes.
+
+### The achievement event
+
+`ScoreResolver`'s script is `is:inline` and cannot import a bare specifier, so it
+**dispatches** `mcc:achievement` and the sound module listens. The name is
+duplicated there in one string — the same trade the storage keys get — and
+`sound.spec.ts` pins the pair.
 
 ## Motion — THE THREE FAMILIES (E1)
 

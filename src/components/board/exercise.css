@@ -556,3 +556,44 @@
     padding: 0.8rem 0.9rem;
   }
 }
+
+/* ── The one-time sound invitation (E2) ───────────────────────────────────
+   Discreet by construction: a bordered note, secondary text, no colour of its
+   own and no icon. It appears once beside a solve and is gone for good after
+   either answer, so it must not read as a banner or as something that will be
+   back tomorrow.
+
+   ⚠️ It is NOT inside the verdict's live region — see the note at its call
+   site in ExerciseView. */
+.mcc-sound-invite {
+  margin-block-start: 0.9rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--mcc-border-subtle);
+  border-radius: var(--radius-card);
+  background-color: var(--mcc-surface-raised);
+}
+
+.mcc-sound-invite-question {
+  margin: 0;
+  font-weight: 600;
+  font-size: 0.9375rem;
+  color: var(--mcc-text-primary);
+}
+
+.mcc-sound-invite-detail,
+.mcc-sound-invite-done {
+  margin: 0.3rem 0 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--mcc-text-secondary);
+}
+
+.mcc-sound-invite-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-block-start: 0.7rem;
+}
+
+/* The buttons reuse `.mcc-exercise-button`, so they inherit the 44px target
+   and the press feedback with them. Nothing new to keep in sync. */
