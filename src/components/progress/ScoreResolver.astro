@@ -339,6 +339,19 @@ const rankLabels: Record<string, string> = {
       var id = ids[0];
       var label = cat.labels[id] || cat.labels[id.split(':')[0]] || id;
       if (name) name.textContent = label;
+      /* E2: anything that can make a sound listens for this. Dispatched, not
+         called, because this script is `is:inline` and cannot import a bare
+         specifier — importing would reintroduce the module fetch it exists to
+         avoid. The name is duplicated in src/lib/sound.ts (ACHIEVEMENT_EVENT),
+         one string, for the same reason the storage keys are; sound.spec.ts
+         pins the pair. Firing it costs nothing when nothing is listening, and
+         nothing listens until an island has loaded the sound module. */
+      try {
+        window.dispatchEvent(new CustomEvent('mcc:achievement', { detail: { id: id } }));
+      } catch (e) {
+        /* No CustomEvent constructor: the toast still shows, which is the
+           signal that matters. Sound is never the only one. */
+      }
       toast.removeAttribute('hidden');
       /* Reflow, so the transition runs rather than collapsing into one frame. */
       void toast.offsetWidth;

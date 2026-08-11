@@ -265,6 +265,16 @@ const fr = {
     "D'autres coups gagnent peut-être aussi : le site ne sait pas encore les vérifier, et ne les comptera donc jamais comme des fautes.",
   'exercise.solved': 'Exercice résolu',
   'exercise.solved.again': 'Déjà résolu — vous pouvez le refaire.',
+  /* ── The one-time sound invitation (E2) ───────────────────────────────
+     Offered once, at the first solve, and never again whichever button is
+     pressed. The wording says what it costs ("courts") and where to undo it,
+     because an offer that hides its off switch is not discreet, it is sly. */
+  'sound.invite.question': 'Activer les sons ?',
+  'sound.invite.detail':
+    "Des sons courts pendant les exercices. Vous pouvez les couper à tout moment dans Paramètres.",
+  'sound.invite.accept': 'Activer',
+  'sound.invite.decline': 'Non merci',
+  'sound.invite.accepted': 'Son activé. Réglable dans Paramètres.',
   /* E3. Shown only when there is something to show: a re-solve awards nothing
      and prints nothing, rather than "+0 points" — which would read as a mark
      out of ten rather than as the absence of a reward. */
@@ -340,6 +350,19 @@ const fr = {
   'settings.mode.dark': 'Sombre',
   'settings.mode.system': 'Comme le système',
   'settings.mode.systemHint': "Suit le réglage de votre téléphone ou de votre ordinateur.",
+  /* ── Son (E2) ─────────────────────────────────────────────────────────
+     Désactivé par défaut. Le libellé du réglage dit ce que le son fait —
+     des sons courts sur les coups — pour qu'on sache ce qu'on active. */
+  'settings.sound.heading': 'Son',
+  'settings.sound.toggle': 'Sons courts pendant les exercices',
+  'settings.sound.hint':
+    "Un petit son quand une pièce se pose, quand une prise a lieu, et quand un exercice est réussi. Rien pendant la navigation. Désactivé par défaut.",
+  'settings.sound.volume': 'Volume',
+  'settings.sound.volume.doux': 'Doux',
+  'settings.sound.volume.moyen': 'Moyen',
+  'settings.sound.volume.fort': 'Fort',
+  'settings.sound.on': 'Son activé.',
+  'settings.sound.off': 'Son désactivé.',
   /* ── Level 2 and 3, behind one disclosure ─────────────────────────────
      "Personnaliser" is deliberately ONE control hiding TWO sections. The
      hierarchy is about how many decisions a reader is offered at once, and
@@ -734,6 +757,13 @@ const en: Record<keyof typeof fr, string> = {
     'Other moves may well win too: the site cannot check them yet, so it will never count them as mistakes.',
   'exercise.solved': 'Exercise solved',
   'exercise.solved.again': 'Already solved — you can play it again.',
+  /* ── The one-time sound invitation (E2). See the FR note above. */
+  'sound.invite.question': 'Turn sound on?',
+  'sound.invite.detail':
+    'Short sounds during exercises. You can switch them off at any time in Settings.',
+  'sound.invite.accept': 'Turn on',
+  'sound.invite.decline': 'No thanks',
+  'sound.invite.accepted': 'Sound on. Adjustable in Settings.',
   'exercise.points': '+%s points',
   'exercise.streak': '%s in a row',
   'exercise.retry': 'Start again',
@@ -802,6 +832,17 @@ const en: Record<keyof typeof fr, string> = {
   'settings.mode.dark': 'Dark',
   'settings.mode.system': 'Match the system',
   'settings.mode.systemHint': 'Follows the setting on your phone or computer.',
+  /* ── Sound (E2) — off by default. See the FR note above. */
+  'settings.sound.heading': 'Sound',
+  'settings.sound.toggle': 'Short sounds during exercises',
+  'settings.sound.hint':
+    'A small sound when a piece lands, when something is captured, and when an exercise is solved. Nothing while you browse. Off by default.',
+  'settings.sound.volume': 'Volume',
+  'settings.sound.volume.doux': 'Soft',
+  'settings.sound.volume.moyen': 'Medium',
+  'settings.sound.volume.fort': 'Loud',
+  'settings.sound.on': 'Sound on.',
+  'settings.sound.off': 'Sound off.',
   'settings.advanced.heading': 'Customise',
   'settings.advanced.hint':
     'The theme already picks a board. Open this only if you want your own.',

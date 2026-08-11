@@ -120,6 +120,45 @@ const FOLLOW = 'follow';
       </fieldset>
     </section>
 
+    {/* ── SOUND (E2) ───────────────────────────────────────────────────────
+        ⚠️ OFF BY DEFAULT, and the markup says so before any script runs: the
+        checkbox is rendered UNCHECKED on the server and only ticked by the
+        script if the stored record says so. A reader with no JavaScript, or
+        one whose storage throws, therefore sees the true state — silent —
+        rather than a control that claims something the site is not doing.
+
+        Top level rather than inside "Personnaliser": sound is not a refinement
+        of the board, it is a different sense, and it is the one preference here
+        a reader may specifically have come to switch off. */}
+    <section>
+      <fieldset class="settings-fieldset">
+        <legend>{t('settings.sound.heading')}</legend>
+        <label class="settings-switch">
+          <input type="checkbox" data-sound-toggle />
+          <span>{t('settings.sound.toggle')}</span>
+        </label>
+        <p class="settings-hint">{t('settings.sound.hint')}</p>
+
+        {/* Three steps, not a slider. Disabled while sound is off — a volume
+            control that changes nothing audible is a control that lies. */}
+        <div class="settings-volume" data-sound-volume-group>
+          <span class="settings-volume-label" id="mcc-volume-label">
+            {t('settings.sound.volume')}
+          </span>
+          <div class="settings-options" role="group" aria-labelledby="mcc-volume-label">
+            {
+              (['doux', 'moyen', 'fort'] as const).map((step) => (
+                <label class="settings-option">
+                  <input type="radio" name="mcc-volume" value={step} data-volume-input disabled />
+                  <span>{t(`settings.sound.volume.${step}`)}</span>
+                </label>
+              ))
+            }
+          </div>
+        </div>
+      </fieldset>
+    </section>
+
     {/* ── LEVEL 3 — one disclosure, two sections ──────────────────────────
         `<details>` rather than a scripted panel: it discloses without JS, it
         is keyboard-operable and correctly announced by every screen reader
@@ -230,6 +269,8 @@ const FOLLOW = 'follow';
     aria-live="polite"
     data-settings-status
     data-saved={t('settings.saved')}
+    data-sound-on={t('settings.sound.on')}
+    data-sound-off={t('settings.sound.off')}
   >
   </p>
 </BaseLayout>
@@ -249,6 +290,9 @@ const FOLLOW = 'follow';
   } from '@lib/theme';
   import { isBoardThemeId } from '@config/board-themes';
   import { isSiteThemeId } from '@config/site-themes';
+  /* ⚠️ Sound is read and written ONLY through this module — it owns the key
+     `mcc:sound:v1` and every parameter. See src/lib/sound.ts. */
+  import { isSoundVolume, play, readSound, writeSound } from '@lib/sound';
 
   const root = document.documentElement;
   const status = document.querySelector<HTMLElement>('[data-settings-status]');
@@ -439,6 +483,45 @@ const FOLLOW = 'follow';
   } catch {
     /* the previews are simply not live on that browser; everything else works */
   }
+
+  /* ── SOUND (E2) ──────────────────────────────────────────────────────────
+     ⚠️ The markup ships UNCHECKED and the volume radios ship DISABLED, so the
+     off-by-default state is true before this script runs and stays true if it
+     never does. Everything below only ever moves the controls TOWARDS what is
+     stored. */
+  const soundToggle = document.querySelector<HTMLInputElement>('[data-sound-toggle]');
+  const volumeInputs = [...document.querySelectorAll<HTMLInputElement>('[data-volume-input]')];
+  const SOUND_ON = status?.dataset['soundOn'] ?? '';
+  const SOUND_OFF = status?.dataset['soundOff'] ?? '';
+
+  if (soundToggle) {
+    const sound = readSound();
+    soundToggle.checked = sound.enabled;
+    for (const input of volumeInputs) {
+      input.checked = input.value === sound.volume;
+      input.disabled = !sound.enabled;
+    }
+
+    soundToggle.addEventListener('change', () => {
+      const next = writeSound({ enabled: soundToggle.checked });
+      for (const input of volumeInputs) input.disabled = !next.enabled;
+      if (status) status.textContent = next.enabled ? SOUND_ON : SOUND_OFF;
+      /* Turning it ON is itself a gesture, so the reader hears what they just
+         asked for instead of having to go and find an exercise. Turning it off
+         is silent, which is the whole point of turning it off. */
+      if (next.enabled) play('place');
+    });
+
+    for (const input of volumeInputs) {
+      input.addEventListener('change', () => {
+        if (!input.checked || !isSoundVolume(input.value)) return;
+        writeSound({ volume: input.value });
+        announce();
+        /* A volume you cannot hear while setting it is a volume you set twice. */
+        play('place');
+      });
+    }
+  }
 </script>
 
 <style>
@@ -487,6 +570,45 @@ const FOLLOW = 'follow';
     display: flex;
     flex-wrap: wrap;
     gap: 0.5rem 1.5rem;
+  }
+
+  /* ── Sound (E2) ── A plain checkbox, not a bespoke switch widget: a native
+     control is announced correctly, keyboard-operable and 44px without any
+     help, and this is a preference page rather than a place to be clever. */
+  .settings-switch {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    min-height: 2.75rem;
+    cursor: pointer;
+  }
+
+  .settings-switch input {
+    inline-size: 1.15rem;
+    block-size: 1.15rem;
+    accent-color: var(--mcc-primary);
+    cursor: pointer;
+  }
+
+  .settings-volume {
+    margin-block-start: 1rem;
+  }
+
+  .settings-volume-label {
+    display: block;
+    margin-block-end: 0.5rem;
+    font-size: 0.9375rem;
+    color: var(--mcc-text-secondary);
+  }
+
+  /* Disabled while sound is off — present rather than hidden, so the choice is
+     visible and the section does not change height when sound is switched on.
+     ⚠️ NO `opacity` ON THE TEXT. Dimming a label is the documented way to drop
+     an audited pair below AA without any check noticing (CLAUDE.md — it cost a
+     Lighthouse regression the whole Playwright suite passed). The native
+     disabled radio already reads as disabled; the cursor confirms it. */
+  .settings-option:has(input:disabled) {
+    cursor: default;
   }
 
   .settings-option {
