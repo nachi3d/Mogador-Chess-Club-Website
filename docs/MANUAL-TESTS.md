@@ -412,6 +412,32 @@ not as "unavailable", so the state no longer exists.
 - [ ] The prerequisite line still goes to `/apprendre-les-bases/`, and the
       tutorial index still lists its 13 steps
 
+### v2-S3 — progress sync (only once `PUBLIC_AUTH_ENABLED` is on)
+
+⚠️ **THE CHECK THAT MATTERS IS THE FIRST ONE, AND IT IS THE ONLY ONE THAT
+CANNOT BE UNDONE.** A student who worked as a guest for a month and signs in on
+their phone must lose nothing. The suite covers the merge with conflicting state
+on both sides; this is the same thing on a real device, which is where a student
+will actually do it.
+
+- [ ] ⚠️ **On a real phone**, as a guest: solve several exercises, finish a
+      tutorial step or two, play a game against the engine. Note roughly what
+      you did. Then sign in
+- [ ] Everything is still there — `/progres/` shows the same counts, the same
+      rank, the same points. **Nothing went backwards**
+- [ ] `/compte/` says what was recovered ("12 exercices et 3 leçons récupérés").
+      If it says your progress is up to date when you know you brought a
+      month's work, stop — that is the failure that looks like success
+- [ ] Sign in on a SECOND device with no history. Everything arrives
+- [ ] Do one exercise on each device, then reload both. Both have both
+- [ ] **Sign out.** Your progress is still there and still works — you are a
+      guest again, with your work
+- [ ] Turn wifi off, do a whole session, lock the phone, unlock it, turn wifi
+      back on and open `/progres/`. Everything arrives. This is the classroom
+      case and it is why the queue survives a reload
+- [ ] `/progres/` shows one discreet sync line and does not become a page about
+      syncing. As a guest it shows nothing at all
+
 ### The sweep, before a release run
 
 `npm run demo` clears stale preview servers **and** orphaned test browsers. The

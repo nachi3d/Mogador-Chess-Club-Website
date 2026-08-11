@@ -2669,6 +2669,115 @@ redirects — the reader's locale comes from their profile. The
 no-translated-segments rule is about pages a reader navigates to; this is
 machinery.
 
+### v2-S3 — progress sync (BUILT, and the flag is still OFF)
+
+⚠️ **`PUBLIC_AUTH_ENABLED` IS READY TO FLIP AND WAS NOT FLIPPED.** Everything
+below is built, migrated and verified against the TEST project with the flag on
+locally. Turning accounts public is a release decision and Seàn's call, not a
+side effect of a session. When it happens: set the variable in the Cloudflare
+build vars, and nothing else changes — the database is already ahead of the
+site, which is the safe ordering.
+
+#### The schema decision: a `kind` discriminator, not three tables
+
+Migration **0003**. The local store has exactly ONE map for every judged board —
+a standalone exercise, a tutorial step and a lesson board all produce the same
+`{solved, attempts, hintUsed, solvedAt}`, keyed by a namespaced slug. So one
+local map maps to one table and the sync is a **mirror rather than a
+translation**. Three tables would have meant the same four columns declared
+three times, and a merge that branches on namespace — and this merge runs once,
+on real student work, with no undo.
+
+`kind` is stored (not derived in SQL) so v2-S4's teacher dashboard can count
+tutorial steps without the database parsing slug prefixes. **The client
+classifies**, because the client owns the convention.
+
+`game_results` is a **row per game, not a counter**, and that is forced: two
+counters cannot be merged. A guest with 3 wins and a cloud with 2 might mean 5
+games or 3, and neither `sum` nor `max` is right in both cases. Rows with ids
+can be unioned, which is the only operation that is idempotent.
+
+⚠️ **`lesson_progress` from 0001 is DEPRECATED and deliberately not dropped.**
+It has `completed_at` and nothing else, so it cannot hold a lesson board's
+attempts or hint flag; and "this lesson is complete" is DERIVED from its boards,
+exactly as points are. Storing it would be a second source of truth. Dropping it
+is irreversible and buys nothing.
+
+⚠️ **THE `service_role` GRANT IS THE TRAP 0002 EXISTS FOR, AND 0003 WALKED INTO
+IT AGAIN.** Default privileges here do NOT give `service_role` DML on a *new*
+table in `public`, so every new table must say so explicitly or trusted callers
+get `42501 permission denied` on a table whose RLS is perfect. It cost a red
+test run. Any future migration adding a table must include the grant.
+
+#### The sync model
+
+⚠️ **`progress.ts` IS STILL THE SINGLE READER**, and no component gained a
+Supabase call. `progress-sync.ts` is a backend it writes through to; the two
+surfaces that show sync state import `progress.ts`, which re-exports.
+
+- **Signed out → `localStorage` only**, exactly as before. `hasAuthFlag()` gates
+  every path, so a guest's write never reaches any Supabase code.
+- **Signed in → `localStorage` is still the source of truth for the UI**, and
+  the cloud is the durable copy. ⚠️ **Reads never touch the network.** A dead
+  Supabase or a captive-portal wifi can never block a board.
+- **Writes go local first, then queue.** A failed cloud write cannot lose the
+  local record, because the local record is already written.
+
+⚠️ **NO STATIC `@lib/supabase` IMPORT IN `progress-sync.ts`.** Every touch is
+`await import()`. One static import would pull 207 KB of client into every page
+with a board; `auth.spec.ts` asserts against the network log that a guest fetches
+none of it.
+
+#### The offline queue
+
+`mcc:sync:v1`, bounded at 500 entries, surviving reload. **One entry per row**,
+so the queue holds STATE rather than a history to replay — a later write of the
+same row supersedes the earlier, which is what makes both a dropped entry and a
+repeated flush survivable. Retries on `online` and on the tab becoming visible;
+⚠️ **no polling and no spinner** — nobody is waiting on it.
+
+⚠️ **The flush RE-READS before clearing.** A write that happened while the flush
+was in flight is in the queue now, and clearing the whole thing is how an
+offline session loses its last few moves.
+
+#### ⚠️ Timestamps: Postgres and JavaScript disagree about the STRING
+
+`timestamptz` comes back as `2026-01-01T10:00:00+00:00`; JavaScript writes
+`...000Z`. Same instant, different string — and comparing them lexicographically
+is **wrong**, not merely untidy: `+` (0x2B) sorts before `.` (0x2E), so a cloud
+value would always win an "earliest" test whatever date it held, and a student's
+first-solved date would drift to whatever the cloud last returned. Everything is
+canonicalised through `Date.parse` → `toISOString` before comparison or storage.
+
+Found by the idempotency test, which is exactly what that test is for.
+
+#### ⚠️ ANTI-CHEAT — what is true now, and what a fix would need
+
+**While progress is written from the client, a determined student can edit it.**
+`localStorage` is three clicks away in a console, and so is a `PATCH` to
+PostgREST with their own token. This is stated rather than defended against,
+because the plausible defences are worse than the problem.
+
+The mitigation is **not client-side validation** — the student controls that
+too. It is that the database records **what was done**, and points are derived
+from it. `game_results` holds a result, never a score; `exercise_progress` holds
+solves and attempts, never a total. So a **server-side recomputation is possible
+later with no migration**: the raw material is already there in the right shape.
+
+⚠️ **Do not build server-side validation now.** What it would need, when it is
+wanted: a Postgres function or Edge Function that recomputes the ledger from
+`exercise_progress` + `game_results` using the same award table as `points.ts`
+(which means that table moving to a place both can read, or being duplicated
+with a test that pins them equal); a way to distinguish a *plausible* solve from
+a typed one, which needs something the client cannot forge — a server-checked
+move sequence, or a timing envelope — and that is a much larger feature than it
+looks. Until then the honest position is the one `/progres/` already takes:
+these numbers are local and declarative.
+
+⚠️ **Nothing in `points.ts` may become a wire format for a client-supplied
+total.** No endpoint may accept a total, a rank or an achievement list. The
+client may send what it *did*; the server decides what that is worth.
+
 ### Schema and RLS
 
 `supabase/migrations/`, numbered, **never edited after merge** — a fix is 0002.
