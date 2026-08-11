@@ -15,6 +15,7 @@ import { localizePath } from '@i18n/paths';
 import { useTranslations } from '@i18n/ui';
 import BaseLayout from '@layouts/BaseLayout.astro';
 import PageIntro from '@components/PageIntro.astro';
+import ChildPicker from '@components/account/ChildPicker.astro';
 
 interface Props {
   locale: Locale;
@@ -78,6 +79,8 @@ const t = useTranslations(locale);
         </button>
         <p class="account-status" role="status" data-testid="account-status"></p>
       </form>
+
+      <ChildPicker locale={locale} />
 
       {/* ── v2-S3 — the real progress section ────────────────────────────
           ⚠️ EVERY NUMBER HERE IS DERIVED, NOT STORED. The counts come from the

@@ -1,0 +1,203 @@
+---
+/**
+ * "Qui joue ?" — the child picker.
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️ A CHOICE, NOT A PASSWORD. There is no PIN, no lock and no "are you sure".
+ * These are children in the same room as the parent who signed in; a lock would
+ * buy nothing and would put a credential in front of an eight-year-old who
+ * wants to solve a mate in one. The account is the security boundary. Which
+ * child is playing is a preference, exactly like the board theme.
+ *
+ * ⚠️ REMEMBERED PER DEVICE. A child's own phone answers this once, ever. The
+ * family tablet asks when the answer is genuinely unknown — which is why the
+ * picker is a section of `/compte/` rather than a modal that interrupts a board.
+ *
+ * ⚠️ AN ACCOUNT WITH ONE CHILD NEVER SEES IT. `resolveChild()` adopts a single
+ * child silently, so the autonomous-teenager case is the family case with a
+ * list of one — one code path, as the migration's own comment insists. The
+ * section is `hidden` until the script decides there is something to ask.
+ *
+ * ⚠️ UNREACHABLE WITH THE FLAG OFF. `/compte/` is not emitted at all when
+ * `PUBLIC_AUTH_ENABLED` is unset, so a guest never renders a byte of this.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+import type { Locale } from '@config/site';
+import { useTranslations } from '@i18n/ui';
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const t = useTranslations(locale);
+---
+
+<section
+  class="child-picker"
+  data-testid="child-picker"
+  data-msg-error={t('child.addError')}
+  hidden
+>
+  <h2>{t('child.heading')}</h2>
+  <p class="child-intro">{t('child.intro')}</p>
+
+  <ul class="child-list" data-testid="child-list"></ul>
+
+  <form class="child-add" data-testid="child-add">
+    <label for="child-name">{t('child.addLabel')}</label>
+    <input id="child-name" type="text" maxlength="40" autocomplete="off" data-testid="child-name" />
+    <button type="submit" class="btn-ghost" data-testid="child-add-submit">{t('child.add')}</button>
+  </form>
+  <p class="child-status" role="status" data-testid="child-status"></p>
+</section>
+
+<script>
+  /* ⚠️ Through `@lib/child` only. This surface never queries Supabase for a
+     child itself — the resolution rule lives in one file, exactly as the resume
+     rule lives in `ResumeResolver`. A second copy is how two surfaces come to
+     disagree about who is playing. */
+  import {
+    CHILD_EVENT,
+    activeChild,
+    chooseChild,
+    pendingChoices,
+    resolveChild,
+    type Child,
+  } from '@lib/child';
+
+  const root = document.querySelector('[data-testid="child-picker"]') as HTMLElement | null;
+  const list = document.querySelector('[data-testid="child-list"]') as HTMLElement | null;
+  const form = document.querySelector('[data-testid="child-add"]') as HTMLFormElement | null;
+  const input = document.querySelector('[data-testid="child-name"]') as HTMLInputElement | null;
+  const status = document.querySelector('[data-testid="child-status"]') as HTMLElement | null;
+
+  let accountId = '';
+
+  function paint(children: readonly Child[], active: Child | null) {
+    if (!root || !list) return;
+    /* One child and it is already the active one: there is nothing to ask, so
+       the picker stays out of the way rather than rendering a list of one. */
+    if (children.length <= 1 && active) {
+      root.hidden = true;
+      return;
+    }
+    root.hidden = false;
+    list.replaceChildren(
+      ...children.map((child) => {
+        const li = document.createElement('li');
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'child-choice';
+        btn.textContent = child.name;
+        btn.dataset['childId'] = child.id;
+        /* ⚠️ `aria-pressed`, not a class alone — "which one is chosen" has to
+           reach someone who cannot see the highlight. */
+        btn.setAttribute('aria-pressed', String(active?.id === child.id));
+        btn.addEventListener('click', () => {
+          chooseChild(accountId, child);
+          paint(children, child);
+        });
+        li.append(btn);
+        return li;
+      }),
+    );
+  }
+
+  async function load() {
+    const { getUser, getSupabase } = await import('@lib/supabase');
+    const user = await getUser();
+    if (!user) return;
+    accountId = user.id;
+
+    /* Resolution decides silently where it can; only what it could not decide
+       comes back in `pendingChoices()`. */
+    const active = (await resolveChild()) ?? activeChild();
+    const supabase = await getSupabase();
+    const { data } = await supabase
+      .from('child_profiles')
+      .select('id,display_name')
+      .eq('account_id', user.id)
+      .order('created_at');
+    const children: Child[] = (data ?? []).map((row) => ({
+      id: String(row['id']),
+      name: String(row['display_name'] ?? ''),
+    }));
+    paint(children.length > 0 ? children : pendingChoices(), active);
+  }
+
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const name = (input?.value ?? '').trim();
+    if (!name) return;
+    const { getSupabase } = await import('@lib/supabase');
+    const supabase = await getSupabase();
+    const { error } = await supabase
+      .from('child_profiles')
+      .insert([{ account_id: accountId, display_name: name }]);
+    if (error) {
+      if (status) status.textContent = root?.dataset['msgError'] ?? '';
+      return;
+    }
+    if (input) input.value = '';
+    if (status) status.textContent = '';
+    await load();
+  });
+
+  window.addEventListener(CHILD_EVENT, () => void load());
+  void load();
+</script>
+
+<style>
+  .child-picker {
+    margin-block: 2rem;
+    padding: 1.25rem;
+    border-left: 3px solid var(--mcc-border-subtle);
+  }
+
+  .child-intro {
+    color: var(--mcc-text-muted);
+  }
+
+  .child-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    padding: 0;
+    margin-block: 1rem;
+    list-style: none;
+  }
+
+  .child-choice {
+    min-height: 2.75rem;
+    padding-inline: 1.25rem;
+    border: 2px solid var(--mcc-border-subtle);
+    border-radius: 0.5rem;
+    background: var(--mcc-surface-raised);
+    color: var(--mcc-text);
+    font: inherit;
+    cursor: pointer;
+    transition: transform var(--motion-response) var(--ease-response);
+  }
+
+  .child-choice:active {
+    transform: translateY(1px);
+  }
+
+  /* The chosen one is marked by weight AND border, never colour alone. */
+  .child-choice[aria-pressed='true'] {
+    border-color: var(--mcc-accent-strong);
+    font-weight: 600;
+  }
+
+  .child-add {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: end;
+  }
+
+  .child-add label {
+    flex-basis: 100%;
+  }
+</style>

@@ -1404,6 +1404,27 @@ the template and a link opened from a real inbox are only ever checked here.
 - [ ] Switch the language on `/compte/` → reload → it stuck
 - [ ] Progress and Attendance sections are visible and marked **À venir** / **Coming soon**
 
+### "Qui joue ?" — the child picker (0005)
+
+⚠️ **Only reachable with `PUBLIC_AUTH_ENABLED=true`.** With the flag off,
+`/compte/` is not emitted at all and none of this exists — which is itself the
+first check below.
+
+- [ ] With the flag **off**: `/compte/` returns 404, and DevTools → Application →
+      Local Storage has **no `mcc:child:v1`** after browsing the whole site
+- [ ] First sign-in on a fresh account: **no picker appears**, and a board you
+      solve syncs. One child was created silently — this is the autonomous-
+      teenager path, and seeing a picker here would be the bug
+- [ ] `/compte/` → **Ajouter un élève** → add a second name. The picker now
+      appears with both, one of them marked as chosen
+- [ ] Solve an exercise, switch to the other child on `/compte/`, open
+      `/progres/` — the second child's progress is **separate**, not shared
+- [ ] **Reload.** The chosen child is still the chosen one (remembered per device)
+- [ ] Open the site on a **second device** with the same account: it asks again,
+      because that device has never been told
+- [ ] Keyboard only: Tab to each name, Space selects it, and a screen reader
+      announces which is pressed
+
 ### Sign out
 
 - [ ] **Se déconnecter** returns you to the home page
