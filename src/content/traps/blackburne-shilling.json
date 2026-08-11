@@ -1,0 +1,51 @@
+{
+  "title_fr": "Le gambit Blackburne-Shilling",
+  "title_en": "The Blackburne-Shilling Gambit",
+  "slug": "blackburne-shilling",
+  "eco": "C50",
+  "level": "debutant",
+  "themes": ["mat", "ouverture", "piege"],
+  "pgn": "1. e4 e5 2. Nf3 Nc6 3. Bc4 Nd4 4. Nxe5 Qg5 5. Nxf7 Qxg2 6. Rf1 Qxe4+ 7. Be2 Nf3#",
+  "moveComments": [
+    {
+      "ply": 5,
+      "fr": "Disons-le tout de suite : ce coup n'est pas bon. Les Noirs déplacent une deuxième fois la même pièce, ignorent le centre et offrent le pion e5. Contre 4.Cxd4 ou 4.O-O, les Noirs sont simplement moins bien. Ce piège ne marche que sur un adversaire gourmand.",
+      "en": "Let us say it straight away: this move is not good. Black moves the same piece twice, ignores the centre and offers the e5 pawn. Against 4.Nxd4 or 4.O-O Black is simply worse. This trap only works on a greedy opponent."
+    },
+    {
+      "ply": 6,
+      "fr": "Et voilà la gourmandise. Le pion e5 avait l'air gratuit. En ouverture, un pion gratuit est presque toujours un hameçon — demande-toi pourquoi on te le donne avant de le prendre.",
+      "en": "And there is the greed. The e5 pawn looked free. In the opening a free pawn is nearly always a hook — ask why it is being offered before you take it."
+    },
+    {
+      "ply": 7,
+      "fr": "La dame sort et attaque deux choses à la fois : le cavalier e5 et le pion g2. Les Blancs ne peuvent pas répondre aux deux.",
+      "en": "The queen comes out and attacks two things at once: the knight on e5 and the g2 pawn. White cannot answer both."
+    },
+    {
+      "ply": 12,
+      "fr": "Le seul coup pour parer l'échec. Mais regarde bien ce fou : il est maintenant sur la colonne e, entre la dame noire et son propre roi. Il est cloué. Il ne peut plus rien capturer.",
+      "en": "The only move that answers the check. But look closely at that bishop: it now sits on the e-file, between the black queen and its own king. It is pinned. It can no longer capture anything."
+    },
+    {
+      "ply": 13,
+      "fr": "Mat. Le cavalier arrive en f3 et le roi est entouré de ses propres pièces. Le fou e2 pourrait prendre le cavalier — sauf qu'il est cloué. C'est le clouage qui fait le mat.",
+      "en": "Mate. The knight lands on f3 and the king is surrounded by his own pieces. The bishop on e2 could capture the knight — except that it is pinned. The pin is what makes the mate."
+    }
+  ],
+  "shapes": [
+    { "ply": 12, "arrows": [["e4", "e1"]], "circles": ["e2"] },
+    { "ply": 13, "arrows": [["f3", "e1"]], "circles": ["e2"] }
+  ],
+  "claims": [
+    { "kind": "line", "ply": 12, "moves": ["d4f3"], "ends": "mate" },
+    { "kind": "pin", "ply": 12, "piece": "e2" },
+    {
+      "kind": "manual",
+      "ply": 5,
+      "note": "blackburne-shilling: that 3...Nd4 is OBJECTIVELY BAD, and that 4.Nxd4 or 4.O-O leaves Black worse, is an evaluation of alternatives — not something any claim kind can assert. It is stated plainly in the summary because teaching a losing line as a winning trick would be a lie. Seàn to confirm the assessment."
+    }
+  ],
+  "summary_fr": "⚠️ Ce piège n'est pas sain, et il faut le dire. Le coup 3...Cd4 est objectivement mauvais : contre 4.Cxd4 ou 4.O-O, les Noirs sont simplement moins bien. Il ne fonctionne que contre un adversaire gourmand qui prend le pion e5. On le garde pour deux raisons : le mat final est un très beau motif, et la vraie leçon tient en une phrase — en ouverture, un pion gratuit est presque toujours un hameçon. Remarque aussi pourquoi c'est mat : le fou qui pourrait sauver les Blancs est cloué.",
+  "summary_en": "⚠️ This trap is unsound, and that has to be said. 3...Nd4 is objectively bad: against 4.Nxd4 or 4.O-O Black is simply worse. It only works against a greedy opponent who grabs the e5 pawn. It is here for two reasons: the final mate is a beautiful pattern, and the real lesson fits in one sentence — in the opening, a free pawn is nearly always a hook. Notice too why it is mate: the bishop that could save White is pinned."
+}

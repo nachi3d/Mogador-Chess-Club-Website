@@ -412,6 +412,117 @@ not as "unavailable", so the state no longer exists.
 - [ ] The prerequisite line still goes to `/apprendre-les-bases/`, and the
       tutorial index still lists its 13 steps
 
+### Batch 4 — the six new opening traps
+
+`/pieges/` now lists **seven**. The chess is machine-verified and every declared
+mechanism is asserted on each build; what a machine cannot check is whether the
+words land on the right move and whether the teaching is honest.
+
+- [ ] `/pieges/` lists seven traps, and every card opens (both locales)
+- [ ] Step through **each** replayer with the arrow keys. On every commented
+      ply, read the comment against the move that just played — the checker
+      proves a ply is in range, never that the sentence matches the move
+- [ ] The three mates really are mate on the board: `mat-du-berger` (Qxf7#),
+      `blackburne-shilling` (Nf3#), `mat-caro-kann` (Nd6#)
+- [ ] `blackburne-shilling` says in its **summary** that the trap is unsound.
+      That sentence is not decoration — if it ever disappears, the site is
+      teaching a losing line as a winning trick
+- [ ] `fegatello` says Black survives with best play. Same rule
+- [ ] `piege-de-l-elephant` states the final count as **a knight for a pawn**,
+      not "a piece". Walk the count in the last comment and check it
+- [ ] `arche-de-noe`: at the end, confirm on the board that the b3 bishop
+      really has only a4 and c4, and that a black pawn covers both
+- [ ] Arrows and circles point at something real on each commented ply, and no
+      arrow starts from an empty square
+- [ ] Read `node scripts/check-content.mjs`'s manual-review queue: six trap
+      entries, each naming what a human has to confirm
+
+### ⚠️ No route may exist on one layout only
+
+`/progres/` shipped reachable from the mobile bottom bar and from **nothing**
+on desktop. Nothing was broken; a way in was simply absent, which is the class
+of defect a checklist catches and a suite does not.
+
+- [ ] On a **desktop** window, from the home page: reach `/progres/` using only
+      what is on screen. It is a top-level nav entry — **Progrès**, after
+      "Le club" — not inside a group and not an icon in the tools cluster
+- [ ] It marks itself current when you are on it (colour **and** underline)
+- [ ] Its label is the same word the phone's bottom bar uses. One destination,
+      one name
+- [ ] Do the same walk in English at `/en/`
+- [ ] Narrow the window to about **900px**: the header wraps to two rows —
+      nav on the first, settings/theme/language on the second. Known and
+      recorded (BACKLOG); check it still reads as deliberate rather than broken
+- [ ] Widen past **1024px**: back to one row
+- [ ] On a phone the "Progrès" nav entry must **not** appear in the header —
+      the bar is the navigation there, and two navigations would be read out
+      twice by a screen reader
+
+- [ ] On desktop, `/progres/` shows a **rank**, a **points** total, the
+      **streak** (once you have solved two in a row in this tab) and the
+      **achievements** list. Check in all four themes — the theme changes the
+      surfaces, and this page had been looked at far more on a phone than on a
+      wide screen
+
+### Course 3 — "Les motifs tactiques" (7 lessons)
+
+- [ ] `/cours/` lists three courses, in order: Bien ouvrir une partie, Les mats
+      élémentaires, **Les motifs tactiques** (badge *intermédiaire*)
+- [ ] `/cours/les-motifs-tactiques/` lists seven lessons, 1–7, and each opens
+- [ ] Same in English at `/en/cours/les-motifs-tactiques/`
+
+#### ⚠️ Read each board against the sentence next to it
+
+Four of this course's eight positions originally described something the board
+did not contain, and **every one of them passed `check-content.mjs`** — legal,
+six fields, solvable. Five of those claims are now asserted on every build
+(`claims[]`), so the pin, the fork, the discovery and the surcharge mate cannot
+silently come back. The three on the **manual review queue** cannot be machine-
+stated and are still yours:
+
+- [ ] Run `node scripts/check-content.mjs` and read the *"board(s) a machine
+      cannot vouch for"* list at the end. Every course-3 entry there names what
+      to check; work down it
+- [ ] The list should shrink over time, never grow silently. If a board you
+      just wrote appears as **"no claim declared"**, either declare one or add
+      a `manual` note saying why you cannot
+
+- [ ] **L2, le clouage** — on the diagram, try to move the c6 knight in your
+      head: it must be **unable** to move. If a black pawn is sitting on d7, the
+      pin is fake and this is the bug coming back
+- [ ] **L4, la découverte** — the bishop must be on **b2**, on the same diagonal
+      as the knight on e5. Take the knight away mentally: the bishop must then
+      hit h8
+- [ ] **L6, l'attraction** — there must be **no black pawn on f7**. If there is,
+      `2...fxg6` just wins a knight and the whole demonstration is refuted
+- [ ] **L7, la surcharge** — the knight is on **g5**, the white king on **h1**.
+      Play it out: `Bxg5 Qxg5` must **not** be check, and `Re8` must be mate
+
+#### The lesson 6 replayer — step through it, do not skim
+
+- [ ] Step forward one ply at a time. The commentary appears on moves **1, 3
+      and 5 of the list** (plies 0, 2, 4 — White's moves), never on Black's
+- [ ] Ply 0 (`Rh8+`): the comment names f8, g7, f7 and h7 as the king's four
+      unavailable squares. Check all four on the board — f7 is covered by the
+      **knight on e5**, h7 by the rook that just arrived
+- [ ] Ply 2 (`Ng6+`): the knight on g6 visibly attacks **both** the king on h8
+      and the queen on e7
+- [ ] Ply 4 (`Nxe7+`): the queen is gone and it is check
+- [ ] Jump to the end, then back to the start: the white rook returns to **h1**
+      and the black queen to e7
+
+#### The exercises
+
+- [ ] Each of the seven "Essaie toi-même" boards solves with the intended move,
+      by **tapping** as well as by typing
+- [ ] **L5, la déviation** is the one exercise with `onlyMove: false`. Play
+      `Ra8+` instead of `Rxd7` (it forces mate in two). It must say *"ce n'est
+      pas la ligne que nous avions en tête"* — **never** "incorrect". If it ever
+      calls that move wrong, that is a regression, not a copy change
+- [ ] Cross-links open: L1 → the knight-fork exercise, L4 → `/pieges/legal/`,
+      L6 → le mat étouffé, L7 → le mat du couloir. In English they must carry
+      the `/en/` prefix
+
 ---
 ## 1d. Which board do I play on?
 

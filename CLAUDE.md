@@ -278,6 +278,7 @@ it. Tags said one thing and the manifest said another.
 33. **Points are DERIVED, never banked.** No total is ever stored. See the progression section.
 34. **No daily or consecutive-day streak. Ever.** The club meets weekly; a daily streak would punish the normal rhythm of these students.
 35. **A loss costs nothing.** Losses and draws are recorded and read by no scoring rule at all.
+36. **No route may exist on one layout only.** Every destination the mobile bottom bar reaches is reachable from the desktop header, and the spec reads the list off the bar rather than hard-coding it. See the section below.
 
 ---
 
@@ -678,6 +679,97 @@ The script checks that PGNs parse, that note plies exist, that solutions and opp
 - **the student always plays the same colour** — if `solution` and `opponentReplies` fall out of step, the moves stay individually legal while the board hands the student their opponent's pieces to move.
 - **the FEN has all six fields** — a four-field FEN parses in chess.js and silently assumes White, quietly changing whose puzzle it is.
 - **no duplicate slugs**, and **no half-translated hints** (same rule as `moveComments`).
+
+#### ⚠️ A LEGAL POSITION IS NOT A CORRECT ONE — verify the CLAIM, not the chess
+
+`check-content.mjs` proves a position is *possible* and a line is *legal*. It
+cannot read the sentence next to the board, and that is where content actually
+goes wrong.
+
+Content batch 3 (course 3) shipped **four** positions that passed every check —
+legal, six fields, solution legal, plies in range — and each described a
+mechanism the position did not contain:
+
+| Lesson | The prose said | The board had |
+|---|---|---|
+| le clouage | the c6 knight "cannot move" | a **d7 pawn** blocking the diagonal; the knight had 5 legal moves |
+| la découverte | `Bb3` aims at h8 through `Ne5` | b3–h8 is not a diagonal, and e5 was not on the bishop's line |
+| l'attraction | `Ng6+` forks king and queen | `2...fxg6` — a pawn on f7 simply takes the knight |
+| la surcharge | the recapture allows `Re8#` | the recapture came **with check**, and a queen on c5 covers f8 anyway |
+
+Two of those are the classic beginner misconceptions they were meant to teach
+*against* — a "pin" that is blocked by the d7 pawn is the single most common
+wrong idea about the Ruy Lopez, and it would have shipped as fact.
+
+Two of those are the classic beginner misconceptions they were meant to teach
+*against*. A "pin" blocked by the d7 pawn is the single most common wrong idea
+about the Ruy Lopez, and it would have shipped as fact.
+
+#### THE RULE — every diagram is replayed and its claim asserted BEFORE merge
+
+**No board merges on "it parses".** For each one, replay the position and
+assert the specific thing the sentence beside it says: *is the knight actually
+unable to move; does the bishop actually reach h8 once the screen leaves; can
+anything capture the forking piece; is that actually mate.* If the sentence
+makes a claim you have not asserted, you have not checked the board.
+
+Since batch 3 that is **data, not discipline**: a `position` or `exercise`
+board carries a `claims[]` array, and `check-content.mjs` proves each one on
+every build. The claim is language-neutral, so the fr/en pair must agree on it.
+
+| kind | what is asserted |
+|---|---|
+| `pin` | the named piece has **zero** legal moves, **and** removing it exposes its own king — the second half is what separates a pin from a piece that is merely blocked in |
+| `fork` | the piece on `from` attacks **every** square in `targets`, and each holds an enemy piece |
+| `discovery` | `by` does **not** attack `target` now, and **does** once `screen` is lifted — so the screen is load-bearing |
+| `line` | the moves are legal in sequence and the final position is the stated `ends` (`mate`/`check`/`quiet`/`stalemate`), optionally capturing a stated piece |
+
+`after: [...]` replays moves first, because a caption usually describes the
+position the diagram is *about* to reach ("le cavalier saute en c7 …").
+
+#### ⚠️ A TRAP'S CLAIMS CARRY A `ply`; A LESSON BOARD'S MUST NOT
+
+A trap has a PGN, not a FEN, so a claim has to say **which position** it is
+about — on the same 0-based scheme as `moveComments`: the position AFTER that
+half-move, with `-1` for the start. `after`/`moves` continue from there, and
+that is what lets a claim prove a **refutation the PGN does not contain** —
+`mat-du-berger` asserts that at ply 4 the line `3...Qe7 4.Qxe5?? Qxe5` wins the
+queen, which is the lesson rather than the trap.
+
+Both mistakes fail the build, and both were verified to:
+
+| | |
+|---|---|
+| trap claim with no `ply` | it would silently pick a base position and prove something true about the **wrong move** |
+| lesson claim **with** a `ply` | the board has its own FEN, so the ply indexes nothing and the author believes an anchor that does not exist |
+
+⚠️ **Zod cannot express "required here, forbidden there"** across two
+collections sharing one union without duplicating the union, so `ply` is
+structurally optional and the rule lives in `check-content.mjs`. A claim
+anchored one ply off fails loudly — verified with a fixture whose `line` claim
+was anchored at ply 4 instead of 5 (*"move[0] 'h5f7' is not legal in …"*).
+
+⚠️ **`kind: 'manual'` is the honest escape and REQUIRES a `note`.** Some claims
+genuinely are not properties of a position — "the king must step aside and then
+the queen falls", "if she recaptures it is mate in two" need a forcing-line
+search over every legal reply. Those are **not** machine-stated, and pretending
+otherwise would be worse than the gap. They declare `manual` with a note saying
+what a human must verify, and `check-content.mjs` prints them as a **review
+queue**. A board with **no** claims at all is printed there too — the point is
+that nothing passes silently, not that everything passes.
+
+⚠️ **The queue does not fail the build, deliberately.** Most of it is content
+written before claims existed (17 boards across courses 1 and 2 at the time of
+writing). Failing would force either a retrofit in one sitting or switching the
+check off, and a visible list that shrinks is worth more than a red build
+somebody disables. Retrofit opportunistically, when touching a lesson anyway.
+
+⚠️ **Each assertion was verified to FAIL on the real broken position** before
+being trusted — the original Ruy Lopez FEN, the b3 bishop, a wrong fork target,
+and the g1-king overload. The two older mechanical classes (`[SetUp]` FEN
+contradicting the PGN's first move; side-not-to-move in check) were re-proved
+the same way. Anything added to `assertClaim` gets the same treatment: **write
+the fixture that must fail, watch it fail, then delete it.**
 
 ---
 
@@ -1542,6 +1634,57 @@ It is the **fourth** duplication of `mcc:progress:v1` in an inline script, after
 the theme head script, `AccountButton` and the home resolver — same trade, same
 reason, and the spec seeds the key directly so a divergence from
 `src/lib/progress.ts` fails there.
+
+### ⚠️ A ROUTE THAT EXISTS ON ONE LAYOUT ONLY IS A BUG
+
+`/progres/` shipped in M3 reachable from the mobile bottom bar and **from
+nothing at all on desktop**. The page built, rendered, and passed every one of
+its own specs; a desktop reader simply had no way to reach it except by typing
+the URL.
+
+This is the same defect as an index card with no destination (Critical Feature
+32), inverted: there, a way in that leads nowhere; here, a page with no way in.
+Both are invisible to testing for the same reason — **nothing is broken, only
+absent**, and absence is what a suite full of "this element does the right
+thing" assertions cannot see.
+
+So the rule is Critical Feature 36: **every destination the bottom bar reaches
+must be reachable from the desktop header.** `mobile-app.spec.ts` reads the
+bar's hrefs at phone width, then demands each one of the desktop header — in
+both locales. ⚠️ **The list is read off the bar, never hard-coded**: that is the
+whole value, because a fifth entry added to the bar then fails until it has a
+desktop home. A spec listing four known paths would have passed throughout the
+bug.
+
+#### Where `/progres/` went, and why not the other two places
+
+**Its own top-level entry in the nav root**, last, after the three groups.
+
+- **Not inside a nav group.** It is not "Apprendre" (nothing to read) and not
+  "S'entraîner" (nothing to do) — it is about the *reader*. Filing it under a
+  content section is the same category error this file already rejects for
+  putting settings under "Le club".
+- **Not in the header-tools cluster.** Those are **preference controls** —
+  theme, language, settings — and they are icon-only. Progress is not a
+  preference; it is a destination you return to and read, and it needs a name
+  rather than a glyph.
+- **Top-level works** because the nav root already carries one plain link
+  (Accueil), so it is not a new shape; it is a link rather than a disclosure,
+  so it adds no fourth panel; and it sits where the bar puts it.
+
+The label is `nav.progress` — **the same key the bar uses**, per Critical
+Feature 20. Until this change that key had exactly one caller, which is a
+smell worth noticing: a destination named nowhere else is usually a destination
+reachable from nowhere else.
+
+⚠️ **Measured cost: the header wraps to two rows between 768px and 1023px.**
+The fifth entry adds 72px of nav width, which pushes `header-inner` past its
+single line at those widths — 77px tall becomes 129px. Verified against `dev`:
+the same header wraps at 768px *without* the change, so wrapping is existing
+designed behaviour (`flex-wrap: wrap` is deliberate) and this widens the band
+rather than introducing it. 1024px and up are unchanged. Not fixable by
+trimming the gap — the four gaps only hold 16px at 0.25rem — so it was accepted
+rather than papered over. In BACKLOG.
 
 ### Settings in the desktop header — beside the tools, not in a nav group
 
@@ -3050,6 +3193,38 @@ projects rather than being deterministic on one.
 Chessground marks a drag as *started* inside a `requestAnimationFrame` loop (`processDrag` in `drag.ts`), and its `end()` only emits a move when that flag is set. Playwright dispatches `mouse.move(..., { steps })` back to back with no delay, so an entire synthetic drag can begin and finish **inside a single frame**. Chessground then reads it as a click-select: the piece sits there selected with its legal-move dots showing, no move is emitted, and nothing errors.
 
 **So specs TAP instead: `movePiece()` clicks the piece, then clicks the square.** That goes through `selectSquare` on plain mousedown/mouseup with no rAF anywhere, lands in the same `userMove` → `onMove` handler, and is what people actually do on a phone. Same code under test, none of the fragility. `dragPiece()` still exists and is exercised, but only on desktop Chromium — the drag is a real user path worth covering, just not one a synthetic instantaneous drag can cover reliably under load.
+
+#### ⚠️ A PRESS NEEDS A DURATION — `click()` with no `delay` is not a tap
+
+Same mechanism as the drag above, and it cost a red release gate to find.
+
+`click()` with no `delay` sends `mousedown` and `mouseup` with nothing between
+them, so both land in **one animation frame**. Chessground does its drag
+bookkeeping inside a `requestAnimationFrame` loop, and a press already released
+before that frame runs is not a press it can act on — it emits **no move, no
+error, and no attempt**. The board looks dead.
+
+Measured on `/apprendre-les-bases/le-cavalier/`, 8 fresh contexts each:
+
+```
+click delay = 0ms   → solved 1/8
+click delay = 60ms  → solved 8/8
+```
+
+So `movePiece()` presses for `PRESS_MS` (60ms). ⚠️ **`tap()` takes no `delay`**
+and the touch projects have never shown this, so the touch path is unchanged.
+
+⚠️ **THIS WAS NEVER A PRODUCT BUG, and the distinction is the whole point.**
+Driven at any human pace the same board picks up and solves every time —
+verified by hand, twice, before a line of harness code was touched. A 0ms press
+is not something a person can produce. The failure presented as *"the tutorial
+board refuses every pointer move"*, which is indistinguishable from a real
+regression until you drive it yourself.
+
+⚠️ **It also bisected clean to a tree that had already shipped green** — the
+v0.8.0 tag failed the same way — which is the tell that a harness assumption
+has become false rather than the app breaking. If a board spec starts failing
+on a tree you did not touch: **drive the page by hand before believing it.**
 
 Two more things `tests/e2e/helpers/board.ts` gets right, both learned the hard way:
 

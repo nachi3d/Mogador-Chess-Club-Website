@@ -73,6 +73,207 @@ const readLessons = () => {
   return out;
 };
 
+/* ─────────────────────────── exercices ─────────────────────────── */
+
+/** UCI → the {from,to,promotion} object chess.js wants. */
+const uci = (m) => ({
+  from: m.slice(0, 2),
+  to: m.slice(2, 4),
+  ...(m.length > 4 ? { promotion: m[4] } : {}),
+});
+
+/**
+ * Every first move that forces mate in `depth` of the side-to-move's own moves.
+ *
+ * Used to police `onlyMove: true`. Depth is capped by the caller because this
+ * is a plain minimax over legal moves — fine at depth 2 for the puzzle-sized
+ * positions we ship, and not something to point at a middlegame.
+ */
+function forcedMateMoves(fen, depth) {
+  const game = new Chess(fen);
+  const winners = [];
+  for (const move of game.moves({ verbose: true })) {
+    const after = new Chess(fen);
+    after.move(move.san);
+
+    if (after.isCheckmate()) {
+      if (depth === 1) winners.push(move.san);
+      continue;
+    }
+    if (depth === 1 || after.isStalemate() || after.isDraw()) continue;
+
+    const defences = after.moves({ verbose: true });
+    if (defences.length === 0) continue;
+    const everyDefenceLoses = defences.every((defence) => {
+      const next = new Chess(after.fen());
+      next.move(defence.san);
+      return forcedMateMoves(next.fen(), depth - 1).length > 0;
+    });
+    if (everyDefenceLoses) winners.push(move.san);
+  }
+  return winners;
+}
+
+/* ─────────────────────────── claims ───────────────────────────── */
+
+/**
+ * ⚠️ ASSERT THE MECHANISM THE PROSE CLAIMS — see CLAUDE.md → content authoring.
+ *
+ * Everything above proves a position is POSSIBLE and a line is LEGAL. None of
+ * it can read the sentence printed beside the board, and that is where authored
+ * content actually goes wrong. Content batch 3 shipped four boards that passed
+ * every check here and each described a mechanism the position did not contain:
+ *
+ *   le clouage     "the knight cannot move" — a pawn on d7 blocked the pinning
+ *                  diagonal and the knight had five legal moves. That is the
+ *                  commonest wrong idea about the Ruy Lopez, about to ship as
+ *                  fact to beginners.
+ *   la découverte  the bishop was on b3, which does not see h8 at all, and the
+ *                  "screen" knight was not on its diagonal either.
+ *   l'attraction   the forking knight could simply be captured by a pawn.
+ *   la surcharge   the recapture came with check, and the recaptured queen
+ *                  covered the mating square anyway.
+ *
+ * So a board may declare what it claims, and the claim is checked. Each
+ * assertion is a property OF THE POSITION — no search, no evaluation.
+ *
+ * Returns an array of human-readable problems; empty means the claim holds.
+ */
+function assertClaim(fen, claim) {
+  const bad = [];
+  let game;
+  try {
+    game = new Chess(fen);
+  } catch (error) {
+    return [`FEN rejected before the claim could be checked — ${error.message}`];
+  }
+
+  /* `after` lets a caption describe the position it is ABOUT to reach. */
+  for (const [i, move] of (claim.after ?? []).entries()) {
+    try {
+      game.move(uci(move));
+    } catch {
+      return [`claim.after[${i}] "${move}" is not legal in ${game.fen()}`];
+    }
+  }
+  const at = game.fen();
+
+  /** Does anything of `colour` attack `sq`? Works for kings and empty squares. */
+  const attackedFrom = (position, sq, colour) => new Chess(position).attackers(sq, colour);
+
+  if (claim.kind === 'pin') {
+    const piece = game.get(claim.piece);
+    if (!piece) return [`claim pin: no piece on ${claim.piece}`];
+
+    /* Mobility has to be judged as the OWNER of the pinned piece, which is
+       usually not the side to move in a diagram. */
+    const owned = at.replace(/ (w|b) /, ` ${piece.color} `);
+    let mobile;
+    try {
+      mobile = new Chess(owned).moves({ verbose: true }).filter((m) => m.from === claim.piece);
+    } catch (error) {
+      return [`claim pin: could not evaluate ${claim.piece} — ${error.message}`];
+    }
+    if (mobile.length > 0) {
+      bad.push(
+        `claim pin: the piece on ${claim.piece} has ${mobile.length} legal move(s) ` +
+          `(${mobile.map((m) => m.san).join(' ')}) — it is NOT pinned. An intervening ` +
+          'pawn on the pinning line is the usual cause, and is exactly the mistake ' +
+          'this check exists to catch.',
+      );
+    }
+
+    /* A piece with no moves might merely be blocked in. What makes it a PIN is
+       that removing it exposes its own king. */
+    const exposed = new Chess(owned);
+    exposed.remove(claim.piece);
+    const king = exposed
+      .board()
+      .flat()
+      .find((s) => s && s.type === 'k' && s.color === piece.color);
+    if (!king) {
+      bad.push(`claim pin: no ${piece.color} king on the board`);
+    } else if (attackedFrom(exposed.fen(), king.square, piece.color === 'w' ? 'b' : 'w').length === 0) {
+      bad.push(
+        `claim pin: removing the piece on ${claim.piece} leaves the ${piece.color} king ` +
+          'unattacked, so nothing is pinned — the piece is merely blocked in.',
+      );
+    }
+  }
+
+  if (claim.kind === 'fork') {
+    const forker = game.get(claim.from);
+    if (!forker) return [`claim fork: no piece on ${claim.from}`];
+    for (const target of claim.targets) {
+      const hits = attackedFrom(at, target, forker.color);
+      if (!hits.includes(claim.from)) {
+        bad.push(
+          `claim fork: the piece on ${claim.from} does NOT attack ${target} ` +
+            `(attackers of ${target}: ${hits.join(', ') || 'none'})`,
+        );
+        continue;
+      }
+      const victim = game.get(target);
+      if (!victim) {
+        bad.push(`claim fork: ${target} is empty — a fork attacks two PIECES`);
+      } else if (victim.color === forker.color) {
+        bad.push(`claim fork: the piece on ${target} is the forker's own`);
+      }
+    }
+  }
+
+  if (claim.kind === 'discovery') {
+    const by = game.get(claim.by);
+    if (!by) return [`claim discovery: no piece on ${claim.by}`];
+    if (!game.get(claim.screen)) return [`claim discovery: no piece on ${claim.screen}`];
+
+    if (attackedFrom(at, claim.target, by.color).includes(claim.by)) {
+      bad.push(
+        `claim discovery: the piece on ${claim.by} ALREADY attacks ${claim.target} ` +
+          'with the screen still there — nothing is discovered.',
+      );
+    }
+    const lifted = new Chess(at);
+    lifted.remove(claim.screen);
+    if (!attackedFrom(lifted.fen(), claim.target, by.color).includes(claim.by)) {
+      bad.push(
+        `claim discovery: with ${claim.screen} removed, the piece on ${claim.by} still ` +
+          `does not attack ${claim.target} — it is not on that line at all.`,
+      );
+    }
+  }
+
+  if (claim.kind === 'line') {
+    let last;
+    for (const [i, move] of claim.moves.entries()) {
+      try {
+        last = game.move(uci(move));
+      } catch {
+        bad.push(`claim line: move[${i}] "${move}" is not legal in ${game.fen()}`);
+        return bad;
+      }
+    }
+    const ends =
+      game.isCheckmate() ? 'mate'
+      : game.isStalemate() ? 'stalemate'
+      : game.isCheck() ? 'check'
+      : 'quiet';
+    if (ends !== claim.ends) {
+      bad.push(`claim line: the line ends "${ends}", not "${claim.ends}"`);
+    }
+    if (claim.captures && last?.captured !== claim.captures) {
+      bad.push(
+        `claim line: the last move captures ${last?.captured ?? 'nothing'}, not ` +
+          `"${claim.captures}"`,
+      );
+    }
+  }
+
+  return bad;
+}
+
+/** Boards a machine could not vouch for. Printed, never silently skipped. */
+const manualReview = [];
 /* ───────────────────────────── traps ───────────────────────────── */
 
 for (const { file, data } of readCollection('traps')) {
@@ -159,51 +360,52 @@ for (const { file, data } of readCollection('traps')) {
     }
   }
 
+  /**
+   * ⚠️ TRAP CLAIMS ARE ANCHORED TO A PLY.
+   *
+   * A trap has a PGN, not a FEN, so a claim has to say WHICH position it is
+   * about — on the same 0-based scheme as `moveComments`, meaning the position
+   * AFTER that half-move, with -1 for the start. `after`/`moves` then continue
+   * from there, which is what lets a claim prove a refutation the PGN does not
+   * contain.
+   *
+   * A claim with no `ply` is rejected rather than defaulted: guessing a base
+   * position would prove something true about the wrong move, which is the
+   * exact failure mode claims exist to remove.
+   */
+  for (const claim of data.claims ?? []) {
+    if (claim.kind === 'manual') {
+      if (!String(claim.note ?? '').trim()) {
+        fail(file, 'a manual claim needs a note saying what a human must check');
+      } else {
+        manualReview.push(`${file} (trap) — ${claim.note}`);
+      }
+      continue;
+    }
+    if (!Number.isInteger(claim.ply)) {
+      fail(file, `claim ${claim.kind}: needs a "ply" naming the position it is about`);
+      continue;
+    }
+    if (claim.ply < -1 || claim.ply >= plies) {
+      fail(
+        file,
+        `claim ${claim.kind}: ply ${claim.ply} is outside the game (0..${plies - 1}, or -1 for the start)`,
+      );
+      continue;
+    }
+    const base = claim.ply === -1 ? new Chess().fen() : history[claim.ply].after;
+    for (const problem of assertClaim(base, claim)) {
+      fail(file, `claim at ply ${claim.ply}: ${problem}`);
+    }
+  }
+
+  const claimCount = (data.claims ?? []).length;
   console.log(
-    `  ok  ${file} — ${plies} plies, ${comments.length} comment(s), ${shapes.length} shape group(s)`,
+    `  ok  ${file} — ${plies} plies, ${comments.length} comment(s), ${shapes.length} shape group(s)` +
+      (claimCount ? `, ${claimCount} claim(s)` : ''),
   );
 }
 
-/* ─────────────────────────── exercices ─────────────────────────── */
-
-/** UCI → the {from,to,promotion} object chess.js wants. */
-const uci = (m) => ({
-  from: m.slice(0, 2),
-  to: m.slice(2, 4),
-  ...(m.length > 4 ? { promotion: m[4] } : {}),
-});
-
-/**
- * Every first move that forces mate in `depth` of the side-to-move's own moves.
- *
- * Used to police `onlyMove: true`. Depth is capped by the caller because this
- * is a plain minimax over legal moves — fine at depth 2 for the puzzle-sized
- * positions we ship, and not something to point at a middlegame.
- */
-function forcedMateMoves(fen, depth) {
-  const game = new Chess(fen);
-  const winners = [];
-  for (const move of game.moves({ verbose: true })) {
-    const after = new Chess(fen);
-    after.move(move.san);
-
-    if (after.isCheckmate()) {
-      if (depth === 1) winners.push(move.san);
-      continue;
-    }
-    if (depth === 1 || after.isStalemate() || after.isDraw()) continue;
-
-    const defences = after.moves({ verbose: true });
-    if (defences.length === 0) continue;
-    const everyDefenceLoses = defences.every((defence) => {
-      const next = new Chess(after.fen());
-      next.move(defence.san);
-      return forcedMateMoves(next.fen(), depth - 1).length > 0;
-    });
-    if (everyDefenceLoses) winners.push(move.san);
-  }
-  return winners;
-}
 
 const exerciseSlugs = new Map();
 
@@ -361,6 +563,40 @@ for (const { file, data } of lessonFiles) {
   for (const [i, board] of (data.boards ?? []).entries()) {
     const where = `board ${i} (${board.kind})`;
 
+    /**
+     * ⚠️ The claim check runs on the FR file only. The claims are
+     * language-neutral and the pair check below proves the two agree, so
+     * running both would double every message for one fact.
+     */
+    if (board.kind === 'position' || board.kind === 'exercise') {
+      const claims = board.claims ?? [];
+      if (data.lang === 'fr') {
+        if (claims.length === 0) {
+          manualReview.push(`${file} ${where} — no claim declared`);
+        }
+        for (const claim of claims) {
+          /* A lesson board has its own FEN, so a ply indexes nothing. Silently
+             ignoring it would leave the author believing a claim was anchored
+             somewhere it was not. */
+          if (claim.ply !== undefined) {
+            fail(
+              file,
+              `${where}: claim ${claim.kind} carries a "ply", which only a trap ` +
+                'claim may have — this board has its own FEN, so there is nothing to index',
+            );
+            continue;
+          }
+          if (claim.kind === 'manual') {
+            manualReview.push(`${file} ${where} — ${claim.note}`);
+            continue;
+          }
+          for (const problem of assertClaim(board.fen, claim)) {
+            fail(file, `${where}: ${problem}`);
+          }
+        }
+      }
+    }
+
     if (board.kind === 'replay') {
       const game = new Chess();
       try {
@@ -464,7 +700,18 @@ for (const { file, data } of lessonFiles) {
 }
 
 /** Language-neutral board fields must agree across the pair. */
-const NEUTRAL = ['kind', 'fen', 'pgn', 'solution', 'opponentReplies', 'onlyMove', 'orientation'];
+const NEUTRAL = [
+  'kind',
+  'fen',
+  'pgn',
+  'solution',
+  'opponentReplies',
+  'onlyMove',
+  'orientation',
+  /* A claim is an assertion about the CHESS, so the pair must agree on it —
+     otherwise one language ships a board nothing ever checked. */
+  'claims',
+];
 for (const [key, pair] of byKey) {
   if (!pair.fr || !pair.en) {
     fail(pair.fr?.file ?? pair.en?.file ?? key, `missing the ${pair.fr ? 'en' : 'fr'} half of the pair`);
@@ -612,10 +859,32 @@ for (const { file, data } of readCollection('agenda')) {
   console.log(`  ok  ${file} — ${data.date} ${data.time}`);
 }
 
+/* ───────────────────── the manual review queue ─────────────────── */
+
+/**
+ * ⚠️ NOT A WARNING TO SCROLL PAST — it is the list of diagrams whose meaning
+ * no machine vouched for.
+ *
+ * A claim like "the king must step aside and then the queen falls" needs a
+ * forcing-line search, which is not a property of a position and is therefore
+ * not something `assertClaim` can honestly state. Those boards declare
+ * `kind: 'manual'` with a note, and land here. So does a board with no claim at
+ * all — silence is the failure mode this whole section exists to remove.
+ *
+ * It does NOT fail the build: most of it is content that predates claims, and
+ * failing would mean either retrofitting every board in one go or switching the
+ * check off. A visible queue that shrinks is worth more than a red build
+ * somebody disables.
+ */
+if (manualReview.length > 0) {
+  console.log(`\n  ${manualReview.length} board(s) a machine cannot vouch for — read these by hand:`);
+  for (const entry of manualReview) console.log(`  ..    ${entry}`);
+}
+
 if (problems.length > 0) {
   console.error(`\n${problems.length} content problem(s):`);
   for (const p of problems) console.error(`  FAIL  ${p}`);
   console.error('');
   process.exit(1);
 }
-console.log('\nAll content is legal chess.\n');
+console.log('\nAll content is legal chess, and every declared claim holds.\n');

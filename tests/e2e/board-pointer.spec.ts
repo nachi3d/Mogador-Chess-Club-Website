@@ -28,16 +28,48 @@ async function openBoard(page: Page, path: string, index = 0) {
   return board;
 }
 
-/** Tap or click a square, choosing whichever the context actually supports. */
+/**
+ * Tap or click a square, choosing whichever the context actually supports.
+ *
+ * ⚠️ THE PICK-UP MUST BE RENDERED BEFORE THE DROP IS CLICKED.
+ *
+ * Two `click()`s back to back with no gap is not a person tapping a piece and
+ * then its destination — it is two synthetic events inside one frame, and
+ * Chessground drops the second often enough to fail a run. Measured on
+ * `/apprendre-les-bases/le-cavalier/` with the old helper: **solved 1 time in
+ * 3** at a zero gap, with `data-attempts` still 0, i.e. the second click never
+ * became a move at all.
+ *
+ * ⚠️ It was NOT a product bug, and the difference matters. Driven by hand at
+ * any human pace the same board picks up and solves every time; the app was
+ * verified working before this helper was touched. What follows is the harness
+ * modelling a reader instead of outrunning one.
+ *
+ * Waiting on `square.selected` rather than on a timeout is what makes it
+ * deterministic — and it also asserts the pick-up actually happened, which the
+ * old helper never checked.
+ */
 async function pointTo(page: Page, board: ReturnType<Page['locator']>, file: number, rank: number) {
   const cg = board.locator('cg-board');
   const box = await cg.boundingBox();
   if (!box) throw new Error('board has no box');
   const sq = box.width / 8;
   const position = { x: sq * (file + 0.5), y: sq * (7 - rank + 0.5) };
+  const selectedBefore = await cg.locator('square.selected').count();
   const touch = await page.evaluate(() => 'ontouchstart' in window);
+  /* The press needs a real duration — see PRESS_MS in helpers/board.ts.
+     A 0ms press is released inside the same frame it began, and Chessground
+     silently emits no move: measured 1/8 at 0ms against 8/8 at 60ms. */
   if (touch) await cg.tap({ position });
-  else await cg.click({ position });
+  else await cg.click({ position, delay: 60 });
+
+  /* A pick-up highlights the square; a drop clears it. Either way the board
+     has to have reacted before the next pointer event is sent. */
+  await expect
+    .poll(async () => (await cg.locator('square.selected').count()) !== selectedBefore, {
+      timeout: 5_000,
+    })
+    .toBe(true);
 }
 
 const solvedState = (page: Page, index = 0) =>

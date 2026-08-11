@@ -13,6 +13,328 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ---
 
+## [0.9.0] — 2026-08-10
+
+**The teaching release.** v0.8.0 gave the site something to say about the
+reader; this one gives it something to teach them. Course 3 adds seven lessons
+on the tactical motifs, `/pieges/` goes from one trap to seven, and every one
+of those traps teaches its refutation rather than just its trick.
+
+Underneath both: **claim-level content checking.** A board or a trap now
+declares what its prose asserts — a pin, a fork, a discovery, a line — and the
+build proves it. That exists because course 3 shipped four positions that were
+legal, solvable, passed every check, and described a mechanism the board did
+not contain. Two of them were the exact beginner misconceptions the lessons
+were written to correct.
+
+And `/progres/` is reachable on desktop, which it had not been since M3 put it
+in the mobile bottom bar and nowhere else.
+
+Nothing here changes what the site is: still static, still no account, still no
+in-app communication.
+
+### Fixed — the pointer helpers pressed for 0ms, and Chessground ignored it
+
+The v0.9.0 release matrix went red on two chromium specs, both reporting that a
+tutorial board refused every pointer move — `data-attempts` still 0, so no move
+was even attempted. Indistinguishable from a real regression.
+
+It was the harness. `click()` with no `delay` sends `mousedown` and `mouseup`
+with nothing between them, so both land in **one animation frame**; Chessground
+does its drag bookkeeping inside a `requestAnimationFrame` loop and a press
+already released before that frame runs emits nothing at all. The same
+mechanism CLAUDE.md documents for synthetic drags, in tap shape.
+
+Measured on `/apprendre-les-bases/le-cavalier/`, 8 fresh contexts each:
+
+```
+click delay = 0ms   → solved 1/8
+click delay = 60ms  → solved 8/8
+```
+
+`movePiece()` now presses for 60ms, and the two specs that hand-roll their
+clicks do the same. `pointTo` additionally waits for the pick-up to render
+before clicking the destination, which makes the sequence deterministic and
+asserts something the old helper never checked — that the piece was actually
+picked up. `board-frame` gained the same wait plus an explicit
+`data-attempts: 1` after the refused move, because its `data-busy` check had
+been passing **vacuously** on a board that never became busy.
+
+⚠️ **The application was never broken**, and that was established before any
+harness code was touched: driven by hand at human pace the board picks up and
+solves every time. Two further tells, both worth recognising next time — the
+failure **bisected clean to the v0.8.0 tag**, whose own matrix had been green,
+and it survived `--workers=1`, so the usual "contention flake" reading was
+wrong in both directions.
+
+Verified with four consecutive full runs of `board-pointer`, `board-frame` and
+`exercise` (45 tests each): 45/45 every time.
+
+### Added — six opening traps (content batch 4), built from notation
+
+`/pieges/` goes from one trap to seven: **le mat du berger**, **l'attaque
+Fegatello**, **le piège de l'éléphant**, **le gambit Blackburne-Shilling**,
+**le piège de l'Arche de Noé** and **le mat étouffé de la Caro-Kann**.
+
+⚠️ **The brief supplied no FENs, deliberately** — batch 3 shipped four
+positions that were legal and wrong. Every line here was built from algebraic
+notation, replayed through chess.js, and each mechanism the copy asserts was
+checked before a file existed. **All six lines verified sound as given.**
+
+#### Two corrections
+
+- **The QGD trap is the Elephant Trap, not the Lasker Trap.** The brief called
+  it `piege-de-lasker`. The line — `1.d4 d5 2.c4 e6 3.Nc3 Nf6 4.Bg5 Nbd7 5.cxd5
+  exd5 6.Nxd5?? Nxd5!` — is universally the **Elephant Trap**; the *Lasker
+  Trap* is a different thing entirely, in the Albin Counter-Gambit
+  (`1.d4 d5 2.c4 e5 3.dxe5 d4 4.e3?? Bb4+`), and is famous for an
+  under-promotion. Shipped as `piege-de-l-elephant`. The line itself is correct
+  and unchanged.
+- **"Black emerges a piece up" overstates it by a pawn.** Counted with
+  chess.js: white 23, black 25 — Black is **+2, a knight for a pawn**. The copy
+  says that, and walks the reader through the count, rather than rounding it up.
+
+#### The sixth trap: the Caro-Kann smothered mate
+
+`1.e4 c6 2.d4 d5 3.Nc3 dxe4 4.Nxe4 Nd7 5.Qe2 Ngf6?? 6.Nd6#`
+
+Chosen over the Englund and Scandinavian candidates because of what it teaches
+rather than what it is: the mate happens because **5.Qe2 is a quiet move that
+sets up a discovery** — when the knight leaves e4 the queen's line opens onto
+e7, pinning that pawn so it cannot capture on d6. So it ties course 2's
+smothered mate to course 3's pin in six moves, in an opening beginners really
+play, and its refutation is a single move (`5...Ndf6`). The gap it fills: it is
+the only trap in the batch whose mate is *enabled by a pin*, and the mechanism
+is asserted three ways (`line`, `discovery`, `pin`) rather than described.
+
+#### Claims on traps — anchored to a ply
+
+The trap schema gained `claims[]`, and a trap's claims carry a **`ply`**: the
+position after that half-move, same 0-based scheme as `moveComments`, `-1` for
+the start. `after`/`moves` continue from there, which is what lets a claim prove
+a **refutation the PGN does not contain** — `mat-du-berger` asserts that at
+ply 4, `3...Qe7 4.Qxe5?? Qxe5` wins the queen.
+
+18 claims across the six: **7 `line`**, **2 `pin`**, **1 `discovery`**,
+**6 `manual`**. Every `manual` note says what a human must check and why no
+machine can — a trapped bishop's exhaustiveness, modern theory's verdict on a
+defence, a material total, an evaluation of alternatives.
+
+Both new rules were verified to fail: a trap claim with **no** `ply`, one with
+an **out-of-range** ply, one anchored **one ply off** (*"move[0] 'h5f7' is not
+legal in …"*), a false `pin`, and a lesson claim that wrongly carried a `ply`.
+
+#### Verification
+
+`check-content` green. **Every one of the six replayers was stepped through in
+a browser**, ply by ply, with each move printed beside the commentary that
+renders on it — the check the brief asks for and the checker structurally
+cannot do. All 24 comments land on the move they describe. One French notation
+typo found that way and fixed (`Dé7` → `De7`).
+
+### Fixed — `/progres/` was reachable on mobile and nowhere on desktop
+
+M3 added the bottom bar with **Progrès** as its fourth entry, and never added a
+desktop counterpart. The page built, rendered and passed every one of its own
+specs; a desktop reader had no way to reach it short of typing the URL.
+
+Same defect as an index card with no destination (Critical Feature 32),
+inverted — there a way in that leads nowhere, here a page with no way in. Both
+are invisible to a suite full of "this element does the right thing"
+assertions, because **nothing is broken, only absent**.
+
+#### It is a top-level nav entry, not a group item and not a tools icon
+
+Stated because two of the three placements are wrong:
+
+- **Not inside a nav group.** Not "Apprendre" (nothing to read), not
+  "S'entraîner" (nothing to do) — it is about the *reader*. Filing it under a
+  content section repeats the category error CLAUDE.md already rejects for
+  putting settings under "Le club".
+- **Not in the header-tools cluster.** Theme, language and settings are
+  **preference controls**, and icon-only. Progress is a destination you return
+  to and read; it needs a name, not a glyph.
+- **Top-level, last, after the three groups.** The nav root already carries one
+  plain link (Accueil), so this is not a new shape; it is a link rather than a
+  disclosure, so it adds no fourth panel; and it sits where the bar puts it.
+
+Label is `nav.progress`, **the same key the bar uses** (Critical Feature 20).
+That key having exactly one caller was itself the smell: a destination named
+nowhere else is usually reachable from nowhere else.
+
+#### The rule, and a spec that reads the bar rather than a list
+
+New **Critical Feature 36**: no route may exist on one layout only. Every
+bottom-bar destination must be reachable from the desktop header, asserted in
+both locales — and ⚠️ **the list is read off the bar at phone width, never
+hard-coded**, so a fifth entry fails until it has a desktop home. A spec naming
+four known paths would have passed throughout this bug.
+
+Verified to have teeth: with the entry removed the spec fails with *"the bottom
+bar reaches /progres/, but the desktop header has no link to it"* in FR and EN,
+plus the `aria-current` test.
+
+`scripts/spec-map.mjs` mapped `Header.astro` to **nothing at all**, so editing
+the site navigation selected no specs — part of how this survived. It now maps
+to `mobile-app`, `main-menu` and `smoke`.
+
+#### E3 on desktop, in all four themes
+
+Rank, points, session streak and achievements are now asserted to render at a
+desktop viewport in **4 themes × both modes**. The existing axe sweep proved
+those pages were *accessible* in every theme; it could not prove the resolver
+had filled anything in, because a blank rank and a zero total are perfectly
+accessible.
+
+⚠️ One assertion had to be strengthened after it was written: `data-score-rank`
+is **server-rendered with "Pion" as a seed**, so "the rank is non-empty" passes
+with the resolver dead. It now asserts the rank label *agrees with the points
+beside it*, computed from the catalogue on the page — no threshold hardcoded,
+and only the resolver can make it true.
+
+⚠️ **Measured cost: the header wraps to two rows between 768px and 1023px** —
+77px tall becomes 129px. The fifth entry adds 72px of nav width. Verified
+against `dev` that the same header already wraps at 768px without the change,
+so this widens an existing designed behaviour rather than introducing one;
+1024px and up are unchanged. Not fixable by trimming the gap (four gaps hold
+16px at most), so it is accepted and recorded rather than papered over.
+
+### Added — the checker now asserts the MECHANISM, not just the legality
+
+Course 3 shipped four boards that were legal, six-field, solvable and **wrong**:
+they described a mechanism the position did not contain. Every one passed
+`check-content.mjs`. They were caught by replaying each position by hand and
+asserting the specific claim its caption makes — so that by-hand pass is now
+part of the build.
+
+A `position` or `exercise` board may declare `claims[]`, and each is proved:
+
+| kind | what is asserted |
+|---|---|
+| `pin` | the named piece has **zero** legal moves, **and** removing it exposes its own king — the second half is what separates a pin from a piece merely blocked in |
+| `fork` | the piece on `from` attacks **every** `target`, and each holds an enemy piece |
+| `discovery` | `by` does **not** attack `target` now and **does** once `screen` is lifted, so the screen is load-bearing |
+| `line` | the moves are legal in sequence and the position ends `mate`/`check`/`quiet`/`stalemate`, optionally capturing a stated piece |
+
+`after: [...]` replays moves before asserting, because a caption usually
+describes the position the diagram is *about* to reach ("le cavalier saute en
+c7 …"). Claims are language-neutral, so the fr/en pair must agree — `claims`
+joined the `NEUTRAL` list.
+
+**Each assertion was verified to FAIL on the real broken position before being
+trusted**, using throwaway fixtures carrying the original values: the Ruy Lopez
+FEN (*"the piece on c6 has 5 legal move(s) (Nb8 Nce7 Nd4 Nb4 Na5) — it is NOT
+pinned"*), the b3 bishop (*"with e5 removed, the piece on b3 still does not
+attack h8"*), a wrong fork target, and the g1-king overload (*"move[2] 'e1e8'
+is not legal"*). Fixtures deleted.
+
+#### ⚠️ `manual` is the honest escape, and it is PRINTED
+
+Some claims are genuinely not properties of a position. "The king must step
+aside and then the queen falls" and "if she recaptures it is mate in two" need
+a forcing-line search over every legal reply — a small engine, not an
+assertion. Inventing a check that appears to cover them would be worse than the
+gap, so those declare `kind: 'manual'` with a **required** `note` saying what a
+human must verify, and the checker prints them as a **review queue**. A board
+with no claims at all is printed there too: the goal is that nothing passes
+silently, not that everything passes.
+
+Course 3 lands 5 machine-checked claims (both clouage boards, la fourchette, la
+découverte, la surcharge) and 3 manual ones (l'enfilade, la déviation,
+l'attraction) whose notes name exactly what to look at.
+
+⚠️ **The queue does not fail the build, deliberately.** 17 of its entries are
+boards from courses 1 and 2 that predate claims. Failing would force either a
+retrofit in one sitting or switching the check off, and a visible list that
+shrinks is worth more than a red build somebody disables.
+
+### Added — course 3, "Les motifs tactiques" (content batch 3)
+
+Seven lessons, both locales, `intermediaire`, `order: 3`: la fourchette, le
+clouage, l'enfilade, l'attaque à la découverte, la déviation, l'attraction, la
+surcharge. Fourteen Markdown files plus the course index record, in the shape
+courses 1 and 2 already use — no schema change, no new component, no new route.
+
+Six lessons carry a still diagram plus a judged exercise; lesson 6 carries the
+replayer (`1. Rh8+ Kxh8 2. Ng6+ Kg8 3. Nxe7+`) plus its exercise. Cross-links
+to `/exercices/fourchette-de-cavalier/`, `/pieges/legal/` and two course-2
+lessons, locale-correct on both sides.
+
+#### ⚠️ FOUR OF THE EIGHT POSITIONS DID NOT DO WHAT THE PROSE SAID
+
+The brief warned about the two error classes batch 2 shipped, and **not one of
+this batch's errors was either of them.** Every position was legal, parsed, had
+six fields and a legal solution — `check-content.mjs` passed all eight without
+complaint. They were wrong in the one way no checker can see: **the prose
+described a mechanism the position did not contain.** Found by replaying each
+one through chess.js and asserting the specific claim the sentence makes.
+
+- **Lesson 2, le clouage — there was no pin.** The FEN was the Ruy Lopez after
+  `1.e4 e5 2.Nf3 Nc6 3.Bb5`, and the lesson said the c6 knight "ne peut pas
+  bouger". The black **d7 pawn** stands on the b5–e8 diagonal, so the knight
+  had **five** legal moves. This is the single most common beginner
+  misconception about that opening, and the lesson would have taught it as
+  fact. Both boards moved to positions where d7 is empty and the pin is real —
+  the Steinitz (`3...d6`) for the diagram, and `1.e4 e5 2.Nf3 Nc6 3.Nc3 d6` for
+  the exercise, where `Bb5` is the **unique** pinning move. A short paragraph
+  was added to both locales naming the d7 pawn, because the trap is worth
+  teaching once the position is honest.
+- **Lesson 4, la découverte — the bishop was on the wrong square.** `Bb3` does
+  not see h8 (b3–g8 is the diagonal), and `Ne5` was not on its line either, so
+  `Nxd7` discovered nothing. Bishop to **b2** puts the knight on the a1–h8
+  diagonal, where removing it uncovers check exactly as described. Verified by
+  deleting the knight and asserting the bishop then reaches h8.
+- **Lesson 6, l'attraction — the combination was refuted by `2...fxg6`.** With
+  a black pawn on f7, `Ng6+` is simply captured, and White has thrown away a
+  rook and a knight. The f7 pawn is **removed**: `Ne5` already covers f7, so
+  the king is still sealed on g8 and `Rh8+` still forces `Kxh8`. Asserted:
+  after `Rh8+` Black has exactly one legal reply, and after `Ng6+` nothing can
+  take the knight. The ply-0 comment changed with it — f7 is now named as
+  covered by the knight rather than occupied by a pawn, which is a better
+  teaching point anyway.
+- **Lesson 7, la surcharge — the mate did not exist, twice over.** With the
+  white king on g1 the recapture `Qxc5` arrived **with check**, so White never
+  got the free move; and even without that, a queen on c5 covers f8 along the
+  a3–f8 diagonal and simply blocks `Re8+`. The deflection square has to be one
+  the queen cannot bounce back from: the knight moved to **g5**, the bishop to
+  **d2**, the white king to **h1**. `Bxg5` is now the unique knight-winning
+  move, `Qxg5` is not check, and `Re8` is mate — all three asserted.
+
+#### One `onlyMove` flipped to `false`
+
+**Lesson 5, la déviation.** `Ra8+` forces mate in two (`Ra8+ Qd8 Rxd8#`, and
+`Qc8` loses the same way), so `Rxd7` is not the only right answer — it is not
+even the best one. Under `onlyMove: true` a student who found the **mate**
+would have been told they were wrong, which is precisely what the rule in
+CLAUDE.md forbids. Flipped to `false`, so that reader now gets "not the line we
+had in mind".
+
+⚠️ The position cannot be repaired without destroying the lesson: the mate
+exists *because* the back rank is weak and the queen is the only blocker, which
+is the very thing the lesson teaches. Flagged for Seàn in BACKLOG.md rather
+than papered over.
+
+#### The checker's teeth were re-proved, not assumed
+
+Both batch-2 classes were re-tested with throwaway fixtures before anything was
+written, and both were rejected: a `[SetUp]` FEN contradicting the first move
+(*"PGN rejected — Invalid move in PGN: Qb3+"*) and a finished mate written with
+the wrong side to move (*"the side NOT to move is in check — impossible
+position"*). The fixtures were removed; `git status` confirmed nothing was left
+behind.
+
+#### Verification
+
+`check-content.mjs` green on all seven pairs. The **lesson 6 replayer was
+stepped through in a browser** on the built site: each of the five plies renders
+the expected position (read back off Chessground's own transforms), and the
+three comments land on `Rh8+`, `Ng6+` and `Nxe7+` — plies 0, 2 and 4, the
+0-indexed numbering the brief insisted on. `npm run test:branch` selected
+`index-cards`, `lessons` and `smoke`: **48 passed**, including the check that
+the new course card on `/cours/` resolves.
+
+---
+
 ## [0.8.0] — 2026-08-10
 
 **Progression, and a real address.** The site can now say what a reader has
@@ -2379,7 +2701,8 @@ Foundation only: no real content, no interactive board yet.
   `url()` references unresolved and the fonts silently 404 into a Georgia
   fallback. `scripts/build-fonts.mjs` self-hosts them instead. See CLAUDE.md.
 
-[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.5.0...v0.6.0

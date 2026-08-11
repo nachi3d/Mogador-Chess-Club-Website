@@ -1,0 +1,51 @@
+{
+  "title_fr": "L'attaque Fegatello",
+  "title_en": "The Fried Liver Attack",
+  "slug": "fegatello",
+  "eco": "C57",
+  "level": "intermediaire",
+  "themes": ["sacrifice", "attraction", "ouverture"],
+  "pgn": "1. e4 e5 2. Nf3 Nc6 3. Bc4 Nf6 4. Ng5 d5 5. exd5 Nxd5 6. Nxf7 Kxf7 7. Qf3+",
+  "moveComments": [
+    {
+      "ply": 6,
+      "fr": "Le cavalier saute en g5 et attaque f7 — la case que seul le roi défend. Le fou c4 vise la même case. Deux attaquants, un défenseur.",
+      "en": "The knight jumps to g5 and attacks f7 — the square only the king defends. The bishop on c4 aims at the same square. Two attackers, one defender."
+    },
+    {
+      "ply": 9,
+      "fr": "Voilà l'erreur, et elle est très naturelle : reprendre le pion avec le cavalier. Le bon coup est Ca5, qui attaque le fou c4 et fait fuir la pièce qui menace f7. Reprendre en d5 laisse le sacrifice arriver.",
+      "en": "Here is the mistake, and it is a very natural one: recapturing the pawn with the knight. The right move is Na5, attacking the c4 bishop and driving away the piece that threatens f7. Recapturing on d5 lets the sacrifice land."
+    },
+    {
+      "ply": 10,
+      "fr": "Le sacrifice. Les Blancs donnent un cavalier — vraiment, pas en apparence — pour une seule raison : faire sortir le roi noir.",
+      "en": "The sacrifice. White gives up a knight — genuinely, not for show — for one reason: to drag the black king out."
+    },
+    {
+      "ply": 11,
+      "fr": "Le roi doit prendre, et le voilà en f7. Il ne pourra plus jamais roquer, et chaque coup blanc viendra avec une menace contre lui. C'est l'attraction : on ne cherche pas à gagner du matériel, on cherche à placer une pièce adverse là où elle sera mal.",
+      "en": "The king has to take, and there he is on f7. He will never castle now, and every White move will come with a threat against him. This is attraction: you are not trying to win material, you are trying to place an enemy piece where it will be badly off."
+    },
+    {
+      "ply": 12,
+      "fr": "Avec échec, évidemment. Les Blancs développent en attaquant — c'est ça, le prix du cavalier.",
+      "en": "With check, of course. White develops while attacking — that is what the knight bought."
+    }
+  ],
+  "shapes": [
+    { "ply": 6, "arrows": [["g5", "f7"], ["c4", "f7"]], "circles": ["f7"] },
+    { "ply": 11, "circles": ["f7"] }
+  ],
+  "claims": [
+    { "kind": "line", "ply": 9, "moves": ["g5f7", "e8f7", "d1f3"], "ends": "check" },
+    { "kind": "line", "ply": 8, "moves": ["c6a5"], "ends": "quiet" },
+    {
+      "kind": "manual",
+      "ply": 9,
+      "note": "fegatello: that Black SURVIVES with best play (7...Ke6 and precise defence) is modern theory's verdict on a whole defensive line, not a property of a position — no assertion here can stand for it. The sacrifice, the king's arrival on f7 and the check are asserted; the evaluation is stated honestly in the summary and is Seàn's to confirm."
+    }
+  ],
+  "summary_fr": "Un vrai sacrifice, pas une arnaque : les Blancs donnent un cavalier pour attirer le roi noir au milieu de l'échiquier. Sois honnête sur ce que ça vaut — la théorie moderne dit que les Noirs survivent en défendant avec précision, ce qui est exactement ce qu'un débutant n'arrive pas à faire. C'est donc une arme pratique, pas une réfutation. La parade se joue un coup plus tôt : au lieu de reprendre en d5, on joue Ca5. C'est le motif de l'attraction du cours 3, dans une vraie ouverture.",
+  "summary_en": "A real sacrifice, not a swindle: White gives up a knight to drag the black king into the middle of the board. Be honest about what it is worth — modern theory says Black survives with precise defence, which is exactly what a beginner cannot produce. So it is a practical weapon, not a refutation. The answer comes one move earlier: instead of recapturing on d5, play Na5. This is the attraction motif from course 3, in a real opening."
+}
