@@ -323,6 +323,9 @@ it. Tags said one thing and the manifest said another.
 37. **Sound is OFF by default, and `src/lib/sound.ts` is the only file that may make one.** No other module constructs an `AudioContext`, an oscillator or a gain node. See "Sound".
 38. **No `AudioContext` before a user gesture**, and exactly one for the life of the page. Asserted against a patched constructor, not assumed.
 39. **Sound is never the only signal.** Every voice accompanies a visual that fires independently — a reader on silent, or with no audio device, loses nothing.
+40. **The LEARNER is a child profile, never the account.** Progress, points, attendance and game results reference `child_profiles.id`. An autonomous teenager is an account holding exactly one child — one code path, not two. See "The parent/child model".
+41. **Graduation is one FK update.** Moving a learner between accounts must never copy rows between tables. `graduate_child()` is the proof, and it is `service_role` only.
+42. **"Qui joue ?" is a choice, not a password.** No PIN, no lock on a child profile. The account is the security boundary; which child is playing is a preference.
 
 ---
 
@@ -2854,6 +2857,105 @@ a Supabase request on a public content route.
 Migrating the content is one row: `src/content/agenda/` holds a single entry
 (`2026-09-12.json`), so it is an `insert` in the migration that retires the
 collection, not a script.
+
+### The parent/child model — the learner stops being the login (0005)
+
+Decision: BACKLOG → "Modèle parent + profils enfants", taken by Seàn. **A parent
+holds the account; each child is a profile beneath it with no credentials**,
+carrying progress, points, rank and attendance. Most students at Dar Souiri
+arrive with a parent.
+
+⚠️ **THIS LANDED BEFORE THE ADMIN SURFACES, AND THE ORDER IS THE POINT.**
+v2-S4 part 2 was next in the queue and was deliberately pushed behind it,
+because it changes what an admin surface is a surface *of*: `/admin/eleves`
+lists children, not accounts, and the attendance marker marks a child. Built the
+other way round, the fix is a rewrite of the class table, the marker and the
+foreign key at the same time.
+
+| Table | Owner column | Why |
+|---|---|---|
+| `child_profiles` | `account_id` → `profiles` (**nullable**) | who holds this learner right now |
+| `exercise_progress`, `game_results`, `attendance`, `point_awards` | `child_id` | the work belongs to the PERSON |
+| `sessions.created_by`, `attendance.marked_by`, `point_awards.awarded_by` | `profiles` | an ACTOR has a login; a learner does not |
+
+#### ⚠️ ONE CODE PATH, NOT TWO
+
+**An autonomous teenager is an account holding exactly ONE child profile.** They
+are not a second shape with its own branch — they are the family case with a
+list of one. `resolveChild()` adopts a single child silently and never shows a
+picker; a parent with three sees one. Nothing anywhere asks "is this a family
+account", because there is no such property: the count decides, and a family
+that shrinks to one child stops being asked without any code knowing.
+
+A brand-new account holds none, so `resolveChild()` creates one from the profile
+name. That keeps "every learner is a `child_profiles` row" true from the first
+second of the first session — the alternative is progress with nowhere to go,
+which is the state this migration exists to make impossible.
+
+#### ⚠️ GRADUATION IS ONE FK UPDATE, AND THAT IS THE WHOLE TEST OF THE SHAPE
+
+The backlog states it as a design test: *if graduating a child into their own
+account requires copying rows between tables, the shape is wrong.* It passes
+because the child has its own primary key and everything hangs off **that**, not
+off the account — so `graduate_child()` is a single `update child_profiles set
+account_id = …` and touches no other table.
+
+Proved on the test project rather than argued: the child key was unchanged, the
+row counts identical either side, the new account read all of it and the old
+account read none.
+
+`SECURITY DEFINER`, `service_role` only, like `admin_set_role` — a parent who
+could point someone else's child at their own account is the worst hole this
+schema could have.
+
+#### ⚠️ THE CHILD ID IS CONTEXT, NOT A PARAMETER
+
+`progress.ts` is still the single reader and **its public API did not change
+shape**: `recordSolved(slug)` takes a slug and nothing else, exactly as it did
+for a guest. `src/lib/child.ts` resolves the active child once; the sync layer
+reads it.
+
+Threading the id through every caller would have put the account model into
+`ExerciseView`, `PlayView`, four page components and every spec, for a value
+none of them has any business knowing. Same containment as `BoardSurface.tsx`
+and `src/lib/progress.ts`.
+
+⚠️ **The import bookmark keys on the CHILD, not the account.** Two siblings on
+one tablet each get their own first-sign-in merge; keying on the account would
+give the second one silently nothing.
+
+⚠️ **`child.ts` may not statically import `@lib/supabase`**, same rule as
+`progress-sync.ts` — one static import puts 207 KB of client into every page
+with a board, and `auth.spec.ts` asserts against the network log that a guest
+fetches none of it.
+
+#### ⚠️ "Qui joue ?" IS A CHOICE, NOT A PASSWORD
+
+No PIN, no lock, no "are you sure". These are children in the same room as the
+parent who signed in; a lock buys nothing and puts a credential in front of an
+eight-year-old who wants to solve a mate in one. **The account is the security
+boundary.** Which child is playing is a preference, exactly like the board theme.
+
+Remembered **per device** (`mcc:child:v1`, keyed by account — one device may be
+shared by two parents), so a child's own phone answers once and the family
+tablet asks when the answer is genuinely unknown. The remembered choice is
+re-validated against what the account actually holds: a child who was graduated
+away must not keep receiving this device's progress, or the queue would fill
+with rows RLS then refuses and never drain.
+
+#### ⚠️ DROPPING A COLUMN DROPS ITS PRIMARY KEY AND ITS INDEXES, SILENTLY
+
+`exercise_progress` was keyed `(profile_id, exercise_slug)`. Dropping the column
+without rebuilding the key leaves the table with **no uniqueness at all**, and
+the sync layer's upsert becomes an insert on every write. The composite indexes
+from 0001/0003/0004 go the same way, and their loss reports as nothing worse
+than "the class list got slow" months later. 0005 rebuilds all of them.
+
+And **a policy naming the column blocks the drop entirely** — `2BP01`, *"cannot
+drop column profile_id because other objects depend on it"*. Postgres will not
+silently loosen a policy, which is correct; the consequence is that the owner
+policies come off **before** the column and are recreated after. That ordering
+is not cosmetic and it is what the first attempt at 0005 got wrong.
 
 ### Schema and RLS
 

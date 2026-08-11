@@ -58,6 +58,38 @@ test.describe('v2-S3 — progress sync', () => {
 
   /* ═══ Merge case 1 — empty cloud, full device ═════════════════════════ */
 
+  /**
+   * ⚠️ SINCE 0005 THE ROWS BELONG TO A CHILD, NOT TO THE ACCOUNT.
+   *
+   * A fresh account holds none until the client's `resolveChild()` mints one on
+   * first sync — which is exactly the path under test, so a spec that SEEDS the
+   * cloud has to create the child first, and one that READS it has to wait for
+   * the client to have created it. `childOf` does both: it returns the existing
+   * child, or makes the one the client would have made.
+   *
+   * It is deliberately not a fixture. Making it eager would create the child
+   * before sign-in in every test, and the "a new account gets one" behaviour
+   * would then never be exercised by anything.
+   */
+  async function childOf(accountId: string, create = true): Promise<string> {
+    for (let attempt = 0; attempt < 30; attempt += 1) {
+      const { data } = await adminClient()
+        .from('child_profiles')
+        .select('id')
+        .eq('account_id', accountId);
+      if (data?.[0]) return String(data[0]['id']);
+      if (create) {
+        const { data: made } = await adminClient()
+          .from('child_profiles')
+          .insert([{ account_id: accountId, display_name: 'Élève' }])
+          .select('id');
+        if (made?.[0]) return String(made[0]['id']);
+      }
+      await new Promise((r) => setTimeout(r, 500));
+    }
+    throw new Error(`no child profile ever appeared for ${accountId}`);
+  }
+
   test('empty → full: a guest month is carried up, and reported', async ({ page }) => {
     const email = e2eEmail('merge-empty');
     const user = await createConfirmedUser({ email, displayName: 'Sara' });
@@ -81,14 +113,14 @@ test.describe('v2-S3 — progress sync', () => {
     const { data: rows } = await adminClient()
       .from('exercise_progress')
       .select('exercise_slug, kind, solved')
-      .eq('profile_id', user.id);
+      .eq('child_id', await childOf(user.id, false));
     expect(rows?.length, 'all four boards reached the cloud').toBe(4);
     expect(new Set(rows?.map((r) => r['kind']))).toEqual(new Set(['exercise', 'tutorial', 'lesson']));
 
     const { data: games } = await adminClient()
       .from('game_results')
       .select('id, outcome')
-      .eq('profile_id', user.id);
+      .eq('child_id', await childOf(user.id, false));
     expect(games?.length, 'three games (2 wins + 1 loss) became three rows').toBe(3);
 
     /* ⚠️ The reader is TOLD. Silent success is indistinguishable from silent
@@ -102,12 +134,13 @@ test.describe('v2-S3 — progress sync', () => {
     const email = e2eEmail('merge-newdevice');
     const user = await createConfirmedUser({ email, displayName: 'Omar' });
     created.push(user.id);
+    const childId = await childOf(user.id);
 
     await adminClient()
       .from('exercise_progress')
       .insert([
-        { profile_id: user.id, exercise_slug: 'mat-du-couloir', kind: 'exercise', solved: true, attempts: 4, hint_used: true, solved_at: '2025-12-01T09:00:00.000Z' },
-        { profile_id: user.id, exercise_slug: 'tutorial:le-fou', kind: 'tutorial', solved: true, attempts: 1, hint_used: false, solved_at: '2025-12-02T09:00:00.000Z' },
+        { child_id: childId, exercise_slug: 'mat-du-couloir', kind: 'exercise', solved: true, attempts: 4, hint_used: true, solved_at: '2025-12-01T09:00:00.000Z' },
+        { child_id: childId, exercise_slug: 'tutorial:le-fou', kind: 'tutorial', solved: true, attempts: 1, hint_used: false, solved_at: '2025-12-02T09:00:00.000Z' },
       ]);
 
     await seedLocal(page, { exercises: {}, games: {}, announced: [] });
@@ -135,10 +168,12 @@ test.describe('v2-S3 — progress sync', () => {
     const user = await createConfirmedUser({ email, displayName: 'Yasmine' });
     created.push(user.id);
 
+    const childId = await childOf(user.id);
+
     /* Cloud: solved LATER, fewer attempts, hint not used. */
     await adminClient().from('exercise_progress').insert([
       {
-        profile_id: user.id,
+        child_id: childId,
         exercise_slug: 'mat-du-couloir',
         kind: 'exercise',
         solved: true,
@@ -148,7 +183,7 @@ test.describe('v2-S3 — progress sync', () => {
       },
       /* Cloud has it UNSOLVED; the device solved it. */
       {
-        profile_id: user.id,
+        child_id: childId,
         exercise_slug: 'tutorial:la-dame',
         kind: 'tutorial',
         solved: false,
@@ -197,7 +232,7 @@ test.describe('v2-S3 — progress sync', () => {
     const { data: rows } = await adminClient()
       .from('exercise_progress')
       .select('exercise_slug, solved, attempts, hint_used, solved_at')
-      .eq('profile_id', user.id)
+      .eq('child_id', await childOf(user.id, false))
       .eq('exercise_slug', 'mat-du-couloir');
     expect(rows?.[0]?.['attempts']).toBe(7);
     expect(rows?.[0]?.['solved_at']).toBe('2026-01-15T00:00:00+00:00');
@@ -219,7 +254,7 @@ test.describe('v2-S3 — progress sync', () => {
     await expect(page.getByTestId('sync-import')).toBeVisible({ timeout: 30_000 });
 
     const first = await readLocal(page);
-    const { data: g1 } = await adminClient().from('game_results').select('id').eq('profile_id', user.id);
+    const { data: g1 } = await adminClient().from('game_results').select('id').eq('child_id', await childOf(user.id, false));
 
     /* Run it again — a reload re-enters the account page and re-imports. */
     await page.reload();
@@ -227,7 +262,7 @@ test.describe('v2-S3 — progress sync', () => {
     await page.waitForTimeout(3000);
 
     const second = await readLocal(page);
-    const { data: g2 } = await adminClient().from('game_results').select('id').eq('profile_id', user.id);
+    const { data: g2 } = await adminClient().from('game_results').select('id').eq('child_id', await childOf(user.id, false));
 
     expect(second, 'the local store is byte-identical after a second run').toEqual(first);
     expect(g2?.length, 'no duplicate games — the union is by id').toBe(g1?.length);
@@ -304,7 +339,7 @@ test.describe('v2-S3 — progress sync', () => {
           const { data } = await adminClient()
             .from('exercise_progress')
             .select('exercise_slug')
-            .eq('profile_id', user.id);
+            .eq('child_id', await childOf(user.id, false));
           return data?.length ?? 0;
         },
         { timeout: 30_000, message: 'the offline session never arrived after reconnect' },

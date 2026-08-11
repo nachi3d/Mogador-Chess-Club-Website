@@ -11,6 +11,79 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### Added — the parent/child profile model (migration 0005)
+
+⚠️ **REORDERED AHEAD OF THE ADMIN SURFACES, DELIBERATELY.** v2-S4 part 2 was
+next; this went first because it changes what an admin surface is a surface
+*of*. `/admin/eleves` lists children, not accounts, and attendance attaches to a
+child — building the marker against "one account = one student" and repointing
+it later means rewriting the table, the marker and the foreign key together.
+`PUBLIC_AUTH_ENABLED` remains OFF, so none of this is reachable by a reader.
+
+**The learner stops being the login.** `profiles.id` was `auth.users.id`:
+identity and person were one row, so a child with no credentials had nowhere to
+live. `child_profiles` gives the learner its **own primary key** plus a nullable
+`account_id` — who holds them right now.
+
+⚠️ **ONE CODE PATH, NOT TWO.** An autonomous teenager is not a special case:
+they are an account holding exactly **one** child profile. Every learner is a
+`child_profiles` row, always, so nothing downstream branches on "is this a
+family". The client half is the same rule: `resolveChild()` adopts a single
+child silently and only asks when the count genuinely makes it ambiguous.
+
+**What moved.** `exercise_progress`, `game_results`, `attendance` and
+`point_awards` now reference the child. The primary keys moved with the column —
+`(profile_id, exercise_slug)` → `(child_id, exercise_slug)` and so on — because
+dropping the column without rebuilding the key would leave those tables with no
+uniqueness at all and let the sync layer insert a duplicate row on every write.
+Actor columns (`sessions.created_by`, `attendance.marked_by`,
+`point_awards.awarded_by`) deliberately still point at the **account**: a prof
+who marks a register is a person with a login, not a learner.
+
+Exercised against the test project with real seeded data — 4 progress rows, 3
+games, 2 attendance rows and 1 award across two accounts. All followed; the
+backfill created one child per `eleve` account and none for staff.
+
+**Graduation is one FK update, and it is proved rather than asserted.**
+`graduate_child()` is a `SECURITY DEFINER` function granted to `service_role`
+only. Run against the test project: the child key was unchanged, the row counts
+were identical either side, the new account read all of it and the old account
+read none. That is the backlog's own test for this shape — *if graduating
+requires copying rows between tables, the shape is wrong.*
+
+**"Qui joue ?" — a choice, not a password.** No PIN, no lock. These are children
+in the same room as the parent who signed in; the account is the security
+boundary and which child is playing is a preference, like the board theme. The
+choice is remembered **per device**, so a child's own phone asks once and the
+family tablet asks when the answer is genuinely unknown. An account with one
+child never sees the picker at all.
+
+**`progress.ts` is still the single reader, and its public API did not change
+shape.** `recordSolved(slug)` still takes a slug and nothing else. The child id
+is **context**, resolved once in `src/lib/child.ts` and read by the sync layer —
+threading it through every caller would have put the account model into
+`ExerciseView`, `PlayView`, four page components and every spec, for a value
+none of them has any business knowing.
+
+**Live RLS + GRANT audit against the running test database**, with a real
+parent, a real prof, a real anon client and the service role — 27 checks, clean.
+The one that matters: **a parent cannot take over another family's child**, and
+cannot write progress for one. A parent also cannot mint points for their own
+child, which keeps the teacher-award anti-cheat story intact under the new
+model. `service_role` DML is granted explicitly on `child_profiles` — the line
+0002 exists for and 0003 forgot.
+
+### Fixed
+
+- **`role-separation.spec.ts` and `progress-sync.spec.ts` addressed
+  `profile_id`** and were repointed at the child. Nothing about the boundaries
+  they assert changed; they were asserting them against a column that no longer
+  exists.
+- **The graduation spec depended on a sibling test's write**, which
+  `fullyParallel` is free to break — and did, in a way that made it measure zero
+  rows and then assert zero equalled zero. It now seeds its own child and its
+  own progress. A proof that passes on an empty set proves nothing.
+
 ### Added — v2-S4 (part 1): the role boundary, proven
 
 ⚠️ **FOUNDATION ONLY. The admin surfaces are NOT built** — `/admin`,

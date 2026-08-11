@@ -80,6 +80,20 @@ export const SPEC_MAP = [
   [/^src\/lib\/motion\./, ['feel.spec.ts', 'motion.spec.ts']],
   [/^src\/lib\/(auth-flag|supabase)/, ['auth.spec.ts', 'auth-disabled.spec.ts']],
 
+  /* 0005 — the parent/child model. `child.ts` decides WHO progress belongs to,
+     so it reaches the sync suite as well as its own; `progress-sync.ts` is the
+     only writer of those rows. Both also touch the auth-off guarantee, because
+     a guest must download none of it. */
+  [
+    /^src\/lib\/(child|progress-sync)\./,
+    ['child-profiles.spec.ts', 'progress-sync.spec.ts', 'auth.spec.ts', 'auth-disabled.spec.ts'],
+  ],
+  [
+    /^src\/components\/account\//,
+    ['child-profiles.spec.ts', 'auth.spec.ts', 'auth-disabled.spec.ts'],
+  ],
+  [/^supabase\/migrations\//, ['child-profiles.spec.ts', 'role-separation.spec.ts', 'progress-sync.spec.ts']],
+
   /* i18n ROUTING, as distinct from the string tables above. */
   [/^src\/i18n\/paths\./, ['smoke.spec.ts', 'legal.spec.ts']],
   [/^src\/pages\//, ['smoke.spec.ts']],

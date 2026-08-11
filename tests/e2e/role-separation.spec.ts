@@ -27,6 +27,13 @@ test.describe('v2-S4 — a student cannot cross a role boundary', () => {
   let other = { id: '', email: '', password: '' };
   let prof = { id: '', email: '', password: '' };
   let sessionId = '';
+  /* ⚠️ Since 0005 the LEARNER is a child profile, not the account, so every
+     assertion below addresses a child id. A student account is an account
+     holding exactly one child — the same shape a family account has with three.
+     Created here with the service role because the client path that mints one
+     (`resolveChild()`) is not what is under test. */
+  let studentChild = '';
+  let otherChild = '';
 
   /** A PostgREST client signed in as this user — the student's own token. */
   async function clientFor(user: { email: string; password: string }) {
@@ -76,6 +83,17 @@ test.describe('v2-S4 — a student cannot cross a role boundary', () => {
     });
     expect(error, `admin_set_role failed: ${error?.message}`).toBeNull();
 
+    const kid = async (account: string, name: string) => {
+      const { data, error } = await adminClient()
+        .from('child_profiles')
+        .insert([{ account_id: account, display_name: name }])
+        .select('id');
+      expect(error, `could not create a child for ${name}: ${error?.message}`).toBeNull();
+      return String(data![0]!['id']);
+    };
+    studentChild = await kid(student.id, 'Élève');
+    otherChild = await kid(other.id, 'Autre');
+
     /* A published session and some progress for the student to not-see. */
     const { data } = await adminClient()
       .from('sessions')
@@ -83,7 +101,7 @@ test.describe('v2-S4 — a student cannot cross a role boundary', () => {
       .select();
     sessionId = String(data?.[0]?.['id']);
     await adminClient().from('exercise_progress').insert([
-      { profile_id: other.id, exercise_slug: 'mat-du-couloir', kind: 'exercise', solved: true },
+      { child_id: otherChild, exercise_slug: 'mat-du-couloir', kind: 'exercise', solved: true },
     ]);
   });
 
@@ -94,9 +112,9 @@ test.describe('v2-S4 — a student cannot cross a role boundary', () => {
 
   test("another student's progress returns 0 rows", async () => {
     const c = await clientFor(student);
-    const { data } = await c.from('exercise_progress').select('*').eq('profile_id', other.id);
+    const { data } = await c.from('exercise_progress').select('*').eq('child_id', otherChild);
     expect(data?.length ?? 0).toBe(0);
-    const { data: games } = await c.from('game_results').select('*').eq('profile_id', other.id);
+    const { data: games } = await c.from('game_results').select('*').eq('child_id', otherChild);
     expect(games?.length ?? 0).toBe(0);
   });
 
@@ -104,7 +122,7 @@ test.describe('v2-S4 — a student cannot cross a role boundary', () => {
     const c = await clientFor(student);
     const { error } = await c
       .from('attendance')
-      .insert([{ session_id: sessionId, profile_id: student.id, status: 'present' }]);
+      .insert([{ session_id: sessionId, child_id: studentChild, status: 'present' }]);
     expect(error?.code, 'a student marked themselves present').toBe('42501');
   });
 
@@ -142,10 +160,10 @@ test.describe('v2-S4 — a student cannot cross a role boundary', () => {
     const c = await clientFor(student);
     const { error } = await c
       .from('point_awards')
-      .insert([{ profile_id: student.id, points: 50, reason: 'moi', awarded_by: student.id }]);
+      .insert([{ child_id: studentChild, points: 50, reason: 'moi', awarded_by: student.id }]);
     expect(error?.code).toBe('42501');
 
-    const { data } = await adminClient().from('point_awards').select('*').eq('profile_id', student.id);
+    const { data } = await adminClient().from('point_awards').select('*').eq('child_id', studentChild);
     expect(data?.length ?? 0).toBe(0);
   });
 
@@ -180,12 +198,12 @@ test.describe('v2-S4 — a student cannot cross a role boundary', () => {
 
     const { error: mark } = await c
       .from('attendance')
-      .upsert([{ session_id: sessionId, profile_id: student.id, status: 'present', marked_by: prof.id }]);
+      .upsert([{ session_id: sessionId, child_id: studentChild, status: 'present', marked_by: prof.id }]);
     expect(mark, `a prof could not mark attendance: ${mark?.message}`).toBeNull();
 
     const { error: award } = await c
       .from('point_awards')
-      .insert([{ profile_id: student.id, points: 10, reason: 'A aidé un camarade', awarded_by: prof.id }]);
+      .insert([{ child_id: studentChild, points: 10, reason: 'A aidé un camarade', awarded_by: prof.id }]);
     expect(award, `a prof could not award points: ${award?.message}`).toBeNull();
 
     const { data: seen } = await c.from('exercise_progress').select('*');
@@ -198,7 +216,7 @@ test.describe('v2-S4 — a student cannot cross a role boundary', () => {
     });
     expect(promote, 'a prof could promote a student').not.toBeNull();
 
-    await adminClient().from('point_awards').delete().eq('profile_id', student.id);
+    await adminClient().from('point_awards').delete().eq('child_id', studentChild);
     await adminClient().from('attendance').delete().eq('session_id', sessionId);
   });
 
@@ -212,7 +230,7 @@ test.describe('v2-S4 — a student cannot cross a role boundary', () => {
     for (const reason of ['', '  ', 'x']) {
       const { error } = await c
         .from('point_awards')
-        .insert([{ profile_id: student.id, points: 5, reason, awarded_by: prof.id }]);
+        .insert([{ child_id: studentChild, points: 5, reason, awarded_by: prof.id }]);
       expect(error, `a reason of ${JSON.stringify(reason)} was accepted`).not.toBeNull();
     }
   });

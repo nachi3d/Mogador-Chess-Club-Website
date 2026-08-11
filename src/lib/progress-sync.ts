@@ -21,6 +21,7 @@
  */
 
 import { hasAuthFlag } from '@lib/auth-flag';
+import { resolveChild } from '@lib/child';
 import type { ExerciseProgress, GameOutcome, Progress } from '@lib/progress';
 
 /**
@@ -52,7 +53,7 @@ type QueueEntry =
 
 interface SyncRecord {
   readonly queue: readonly QueueEntry[];
-  /** Profile ids whose guest import has already run. Makes the report once. */
+  /** Child ids whose guest import has already run. Makes the report once. */
   readonly imported: readonly string[];
 }
 
@@ -200,6 +201,15 @@ export function flush(): Promise<void> {
         setState('pending');
         return;
       }
+      /* ⚠️ THE CHILD, NOT THE ACCOUNT. Resolution can legitimately answer null
+         — a parent whose device has not yet been told which of three children
+         is playing. Nothing is pushed until it has: writing a sibling's row is
+         worse than a queue that waits, and the queue is durable. */
+      const child = await resolveChild();
+      if (!child) {
+        setState('pending');
+        return;
+      }
       const supabase = await getSupabase();
 
       const exercises = current.queue.filter((q) => q.t === 'exercise');
@@ -207,7 +217,7 @@ export function flush(): Promise<void> {
 
       if (exercises.length > 0) {
         const rows = exercises.map((q) => ({
-          profile_id: user.id,
+          child_id: child.id,
           exercise_slug: q.slug,
           kind: kindOf(q.slug),
           solved: q.p.solved,
@@ -218,7 +228,7 @@ export function flush(): Promise<void> {
         }));
         const { error } = await supabase
           .from('exercise_progress')
-          .upsert(rows, { onConflict: 'profile_id,exercise_slug' });
+          .upsert(rows, { onConflict: 'child_id,exercise_slug' });
         if (error) {
           setState(navigator?.onLine === false ? 'offline' : 'pending');
           return;
@@ -227,7 +237,7 @@ export function flush(): Promise<void> {
 
       if (games.length > 0) {
         const rows = games.map((q) => ({
-          profile_id: user.id,
+          child_id: child.id,
           id: q.id,
           level: q.level,
           outcome: q.o,
@@ -236,7 +246,7 @@ export function flush(): Promise<void> {
            twice is a retry, not a correction. */
         const { error } = await supabase
           .from('game_results')
-          .upsert(rows, { onConflict: 'profile_id,id', ignoreDuplicates: true });
+          .upsert(rows, { onConflict: 'child_id,id', ignoreDuplicates: true });
         if (error) {
           setState(navigator?.onLine === false ? 'offline' : 'pending');
           return;
@@ -311,11 +321,15 @@ export async function importGuestProgress(
     const { getSupabase, getUser } = await import('@lib/supabase');
     const user = await getUser();
     if (!user) return EMPTY_REPORT;
+    /* The merge is the child's, not the account's — a parent signing in on a
+       shared tablet merges this device's guest work into whoever is playing. */
+    const child = await resolveChild();
+    if (!child) return EMPTY_REPORT;
     const supabase = await getSupabase();
 
     const [{ data: cloudRows }, { data: cloudGames }] = await Promise.all([
-      supabase.from('exercise_progress').select('*').eq('profile_id', user.id),
-      supabase.from('game_results').select('*').eq('profile_id', user.id),
+      supabase.from('exercise_progress').select('*').eq('child_id', child.id),
+      supabase.from('game_results').select('*').eq('child_id', child.id),
     ]);
 
     /* ── Exercises ── */
@@ -372,7 +386,7 @@ export async function importGuestProgress(
 
     /* ── Push the merge back up, so the cloud holds the union too ── */
     const rows = Object.entries(merged).map(([slug, p]) => ({
-      profile_id: user.id,
+      child_id: child.id,
       exercise_slug: slug,
       kind: kindOf(slug),
       solved: p.solved,
@@ -384,23 +398,26 @@ export async function importGuestProgress(
     if (rows.length > 0) {
       await supabase
         .from('exercise_progress')
-        .upsert(rows, { onConflict: 'profile_id,exercise_slug' });
+        .upsert(rows, { onConflict: 'child_id,exercise_slug' });
     }
     if (newGames.length > 0) {
       await supabase.from('game_results').upsert(
         newGames.map((g) => ({
-          profile_id: user.id,
+          child_id: child.id,
           id: g.id,
           level: g.level,
           outcome: g.outcome,
         })),
-        { onConflict: 'profile_id,id', ignoreDuplicates: true },
+        { onConflict: 'child_id,id', ignoreDuplicates: true },
       );
     }
 
+    /* ⚠️ THE BOOKMARK KEYS ON THE CHILD. Two siblings on one tablet each get
+       their own first-sign-in merge; keying on the account would give the
+       second one silently nothing. */
     const record = readSync();
-    const already = record.imported.includes(user.id);
-    if (!already) writeSync({ ...record, imported: [...record.imported, user.id] });
+    const already = record.imported.includes(child.id);
+    if (!already) writeSync({ ...record, imported: [...record.imported, child.id] });
     setState('synced');
 
     let lessons = 0;
