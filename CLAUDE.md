@@ -2778,6 +2778,83 @@ these numbers are local and declarative.
 total.** No endpoint may accept a total, a rank or an achievement list. The
 client may send what it *did*; the server decides what that is worth.
 
+### v2-S4 — teacher roles (FOUNDATION SHIPPED, SURFACES NOT YET)
+
+⚠️ **WHAT EXISTS AND WHAT DOES NOT.** Migration 0004, the RLS/GRANT audit and
+the role-separation specs are done and verified against the TEST project. The
+**admin surfaces are not built** — `/admin`, `/admin/eleves`, `/admin/seances`,
+the attendance marker and the award form. The agenda still reads the git
+collection. A future session builds the UI on top of a boundary that is already
+proven; nothing was half-built, because a present-but-inert admin page is worse
+than an absent one (Critical Feature 32's lesson).
+
+#### The role model, re-verified this session
+
+`admin` / `prof` / `eleve`. All profs see all students; groups are v2.1.
+
+Both protections on `profiles.role` were re-checked **live**, not re-read:
+
+- `authenticated` holds `UPDATE` on **`display_name` and `locale` only** — a
+  column grant, so `role` is unreachable even through a row the student owns;
+- `admin_set_role()` is `EXECUTE`-granted to `postgres` and `service_role`
+  **only**, so a student cannot reach it and neither can a prof.
+
+⚠️ **A prof is not an admin.** The spec asserts a prof can mark attendance and
+award points and **cannot promote anyone** — a boundary that is too tight is
+also a bug, so the prof's own abilities are asserted alongside the student's
+inabilities.
+
+#### `point_awards` — teacher-awarded points (migration 0004)
+
+E3 built `PointEntry` with `origin` and `source` precisely so a second producer
+could arrive without a migration, and this is that producer. **One row per
+award; still no balance anywhere.**
+
+Three rules live in the DATABASE rather than in a form, because a form is the
+half a future admin script skips:
+
+- ⚠️ **`reason` is REQUIRED**, checked on the trimmed length. Points that appear
+  with no explanation destroy trust faster than no points at all: a student who
+  cannot tell why a number moved learns the number is arbitrary.
+- ⚠️ **Points are POSITIVE and capped at 50.** Not a typo guard, a policy. This
+  site records losses and charges nothing for them; a prof who could award −50
+  would turn the ledger into a disciplinary instrument. The cap sits under the
+  tutorial's own 65 so no single award can outweigh the work.
+- ⚠️ **A student has no INSERT policy at all.** This is the one table where a
+  client-side write would mint points directly, so the refusal is at the
+  database — verified by a real student token getting `42501`.
+
+#### ⚠️ THE ADMIN UI IS FRENCH ONLY — decided, and not to be undone
+
+`/admin*` carries **no i18n scaffolding**, no `t()`, no `/en/` counterpart.
+Same decision as BabyClub, and for the same reason: it is a single-operator
+context. Seàn and one or two profs use it, in French, in a room in Essaouira.
+
+The public site's FR/EN rule is about *readers* — students and parents who may
+arrive in either language. An admin screen has no such audience, and running it
+through the i18n layer would double every string in `ui.ts`, double the review
+surface, and buy nothing. ⚠️ **A future session must not "fix" this by adding
+translations** — the missing EN is the decision, not an omission.
+
+#### The agenda moves to the database — DECIDED, NOT YET DONE
+
+⚠️ **BUILD-TIME READ, NOT A RUNTIME FETCH, and that is forced by the
+architecture.** With `PUBLIC_AUTH_ENABLED` off there is no Supabase client in
+the bundle at all, and `/agenda` must still render — so the only design that
+works in both flag states is fetching published sessions at BUILD time and
+emitting them statically. That also keeps the guest rule absolutely intact: zero
+requests, not merely zero *auth* requests.
+
+The cost, and it is real: **a session a prof publishes does not appear until the
+site rebuilds.** That needs a deploy hook or a scheduled rebuild, and it is in
+BACKLOG rather than hand-waved. The alternative — a runtime anon read on
+`/agenda` — was rejected because it cannot work with accounts off and would put
+a Supabase request on a public content route.
+
+Migrating the content is one row: `src/content/agenda/` holds a single entry
+(`2026-09-12.json`), so it is an `insert` in the migration that retires the
+collection, not a script.
+
 ### Schema and RLS
 
 `supabase/migrations/`, numbered, **never edited after merge** — a fix is 0002.
