@@ -412,6 +412,46 @@ not as "unavailable", so the state no longer exists.
 - [ ] The prerequisite line still goes to `/apprendre-les-bases/`, and the
       tutorial index still lists its 13 steps
 
+### E2 — sound
+
+The suite proves the plumbing: no `AudioContext` before a gesture, off by
+default, one context not one per move, the invitation offered once. **It cannot
+hear anything.** Everything below is the part only a person can judge, and the
+last item is the real test.
+
+- [ ] Open any exercise with sound **off** (the default). Play a few moves.
+      Silence — including the wrong move, the solve, everything
+- [ ] `/parametres/` → **Son**: the toggle is off and the three volume steps are
+      greyed out. Turn it on — you hear one short click immediately, and the
+      steps become selectable
+- [ ] Try all three volume steps. Each plays a click as you pick it. On a phone
+      at arm's length, is **Doux** audible and **Fort** not startling?
+- [ ] Solve an exercise with sound on. **Does the correct move feel
+      satisfying?** It should read as "yes, that" — not as a fanfare
+- [ ] Play a wrong move. ⚠️ **Does it feel corrective rather than punishing?**
+      This is the one that matters most: the site teaches children, and an error
+      must inform without scolding. If it reads as a buzzer, say so — the whole
+      voice is four numbers in `src/lib/sound.ts`
+- [ ] Play a capture, and a move that gives check. The capture should sit lower
+      and heavier than a plain move; the check should sound tense, and a capture
+      that *is* a check should play only the check
+- [ ] Earn an achievement. It should be recognisably the solve sound "plus
+      something", not a different event
+- [ ] ⚠️ **Do twenty exercises in one sitting. Is anything grating?** Nothing
+      else on this checklist can answer that, and it is the question that
+      decides whether the feature stays as it is
+
+- [ ] Turn sound on, then put the tab in the background and let an exercise play
+      out. Nothing should be audible from a tab you are not looking at
+- [ ] With sound on, put the phone on silent. Everything still works and nothing
+      is lost — every sound has a visible counterpart
+- [ ] Solve your first exercise on a fresh browser profile: the invitation
+      appears once, below the verdict. Say **no thanks**, then solve another —
+      it must never come back
+- [ ] Repeat on a profile with reduced motion requested (macOS/iOS: Reduce
+      Motion; Windows: Show animations off). No invitation at all — but
+      `/parametres/` still lets you turn sound on, and it works
+
 ### Batch 4 — the six new opening traps
 
 `/pieges/` now lists **seven**. The chess is machine-verified and every declared
