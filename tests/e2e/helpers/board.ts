@@ -71,6 +71,30 @@ async function offsetOf(page: Page, square: string, orientation: 'white' | 'blac
  * people actually do on the phones most club members will arrive on. Same code
  * under test, none of the fragility.
  */
+/**
+ * ⚠️ A PRESS NEEDS A DURATION, OR CHESSGROUND IGNORES IT.
+ *
+ * `click()` with no `delay` sends mousedown and mouseup with nothing in
+ * between, so both land in the same animation frame. Chessground does its drag
+ * bookkeeping inside a `requestAnimationFrame` loop (`processDrag`), and a
+ * press that is already released before that frame runs is not a press it can
+ * act on — it silently emits no move. CLAUDE.md documents the same mechanism
+ * for synthetic drags; this is the tap-shaped version of it.
+ *
+ * MEASURED on `/apprendre-les-bases/le-cavalier/`, 8 fresh contexts each:
+ *
+ *     click delay = 0ms   → solved 1/8
+ *     click delay = 60ms  → solved 8/8
+ *
+ * ⚠️ It was never a product bug. Driven at any human pace the same board picks
+ * up and solves every time, verified by hand before this line was written — a
+ * 0ms press is simply not something a person can produce.
+ *
+ * `tap()` takes no `delay` and the touch projects have never shown this, so the
+ * touch path is left alone.
+ */
+const PRESS_MS = 60;
+
 export async function movePiece(
   page: Page,
   from: string,
@@ -96,7 +120,7 @@ export async function movePiece(
     // Recomputed per press: selecting a piece renders the move-destination
     // dots, and the board can move or resize under them.
     if (touch) await board.tap({ position });
-    else await board.click({ position });
+    else await board.click({ position, delay: PRESS_MS });
   };
 
   await press(from);

@@ -139,15 +139,31 @@ test.describe('the frame holds in every exercise state', () => {
     const sq = box.width / 8;
     const at = (f: number, r: number) => ({ x: sq * (f + 0.5), y: sq * (7 - r + 0.5) });
 
+    /**
+     * ⚠️ WAIT FOR THE PICK-UP BEFORE CLICKING THE DESTINATION.
+     *
+     * Two clicks in the same frame is not a person tapping a piece and then a
+     * square: Chessground drops the second often enough to fail a run, with
+     * `data-attempts` still 0 because no move was ever attempted. The board is
+     * fine when driven at any human pace — this is the harness modelling one.
+     * Same fix and same reasoning as `pointTo` in board-pointer.spec.ts.
+     */
+    const cg = board.locator('cg-board');
+    const pickUp = async (square: { x: number; y: number }) => {
+      await cg.click({ position: square, delay: 60 });
+      await expect(cg.locator('square.selected')).toHaveCount(1, { timeout: 5_000 });
+    };
+
     // A legal but off-line move: the board shakes and resets.
-    await board.locator('cg-board').click({ position: at(6, 0) });
-    await board.locator('cg-board').click({ position: at(7, 2) });
+    await pickUp(at(6, 0));
+    await cg.click({ position: at(7, 2), delay: 60 });
+    await expect(exercise).toHaveAttribute('data-attempts', '1', { timeout: 15_000 });
     await expect(exercise).toHaveAttribute('data-busy', 'false', { timeout: 15_000 });
     expectWellFramed(await frameMetrics(page), 'after a refused move');
 
     // Then solve it.
-    await board.locator('cg-board').click({ position: at(6, 0) });
-    await board.locator('cg-board').click({ position: at(5, 2) });
+    await pickUp(at(6, 0));
+    await cg.click({ position: at(5, 2), delay: 60 });
     await expect(exercise).toHaveAttribute('data-state', 'solved', { timeout: 15_000 });
     expectWellFramed(await frameMetrics(page), 'solved');
   });

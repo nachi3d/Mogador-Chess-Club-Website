@@ -33,6 +33,43 @@ in the mobile bottom bar and nowhere else.
 Nothing here changes what the site is: still static, still no account, still no
 in-app communication.
 
+### Fixed — the pointer helpers pressed for 0ms, and Chessground ignored it
+
+The v0.9.0 release matrix went red on two chromium specs, both reporting that a
+tutorial board refused every pointer move — `data-attempts` still 0, so no move
+was even attempted. Indistinguishable from a real regression.
+
+It was the harness. `click()` with no `delay` sends `mousedown` and `mouseup`
+with nothing between them, so both land in **one animation frame**; Chessground
+does its drag bookkeeping inside a `requestAnimationFrame` loop and a press
+already released before that frame runs emits nothing at all. The same
+mechanism CLAUDE.md documents for synthetic drags, in tap shape.
+
+Measured on `/apprendre-les-bases/le-cavalier/`, 8 fresh contexts each:
+
+```
+click delay = 0ms   → solved 1/8
+click delay = 60ms  → solved 8/8
+```
+
+`movePiece()` now presses for 60ms, and the two specs that hand-roll their
+clicks do the same. `pointTo` additionally waits for the pick-up to render
+before clicking the destination, which makes the sequence deterministic and
+asserts something the old helper never checked — that the piece was actually
+picked up. `board-frame` gained the same wait plus an explicit
+`data-attempts: 1` after the refused move, because its `data-busy` check had
+been passing **vacuously** on a board that never became busy.
+
+⚠️ **The application was never broken**, and that was established before any
+harness code was touched: driven by hand at human pace the board picks up and
+solves every time. Two further tells, both worth recognising next time — the
+failure **bisected clean to the v0.8.0 tag**, whose own matrix had been green,
+and it survived `--workers=1`, so the usual "contention flake" reading was
+wrong in both directions.
+
+Verified with four consecutive full runs of `board-pointer`, `board-frame` and
+`exercise` (45 tests each): 45/45 every time.
+
 ### Added — six opening traps (content batch 4), built from notation
 
 `/pieges/` goes from one trap to seven: **le mat du berger**, **l'attaque

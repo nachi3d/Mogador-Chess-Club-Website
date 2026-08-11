@@ -3194,6 +3194,38 @@ Chessground marks a drag as *started* inside a `requestAnimationFrame` loop (`pr
 
 **So specs TAP instead: `movePiece()` clicks the piece, then clicks the square.** That goes through `selectSquare` on plain mousedown/mouseup with no rAF anywhere, lands in the same `userMove` → `onMove` handler, and is what people actually do on a phone. Same code under test, none of the fragility. `dragPiece()` still exists and is exercised, but only on desktop Chromium — the drag is a real user path worth covering, just not one a synthetic instantaneous drag can cover reliably under load.
 
+#### ⚠️ A PRESS NEEDS A DURATION — `click()` with no `delay` is not a tap
+
+Same mechanism as the drag above, and it cost a red release gate to find.
+
+`click()` with no `delay` sends `mousedown` and `mouseup` with nothing between
+them, so both land in **one animation frame**. Chessground does its drag
+bookkeeping inside a `requestAnimationFrame` loop, and a press already released
+before that frame runs is not a press it can act on — it emits **no move, no
+error, and no attempt**. The board looks dead.
+
+Measured on `/apprendre-les-bases/le-cavalier/`, 8 fresh contexts each:
+
+```
+click delay = 0ms   → solved 1/8
+click delay = 60ms  → solved 8/8
+```
+
+So `movePiece()` presses for `PRESS_MS` (60ms). ⚠️ **`tap()` takes no `delay`**
+and the touch projects have never shown this, so the touch path is unchanged.
+
+⚠️ **THIS WAS NEVER A PRODUCT BUG, and the distinction is the whole point.**
+Driven at any human pace the same board picks up and solves every time —
+verified by hand, twice, before a line of harness code was touched. A 0ms press
+is not something a person can produce. The failure presented as *"the tutorial
+board refuses every pointer move"*, which is indistinguishable from a real
+regression until you drive it yourself.
+
+⚠️ **It also bisected clean to a tree that had already shipped green** — the
+v0.8.0 tag failed the same way — which is the tell that a harness assumption
+has become false rather than the app breaking. If a board spec starts failing
+on a tree you did not touch: **drive the page by hand before believing it.**
+
 Two more things `tests/e2e/helpers/board.ts` gets right, both learned the hard way:
 
 1. **Element-relative positions, never page coordinates.** `locator.click({ position })` makes Playwright scroll the board into view and resolve the point against the element. `page.mouse.click(x, y)` breaks the moment anything scrolls between the two taps — and it does: on a phone viewport the second click landed on the move-entry field instead, focusing an input scrolled it into view, and the failure looked like *the board ignoring legal input*, with a screenshot showing the piece dutifully selected and the page halfway down.
