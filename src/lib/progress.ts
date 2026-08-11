@@ -31,6 +31,8 @@
  * `mcc:progress:v2` and may migrate v1 across; it never reinterprets v1 bytes
  * under new rules, because a half-migrated record is worse than a lost one.
  */
+import { queueExercise, queueGame } from '@lib/progress-sync';
+
 const STORAGE_KEY = 'mcc:progress:v1';
 
 /** What we remember about one exercise. */
@@ -230,6 +232,16 @@ function update(
   const current = readProgress();
   const next = mutate(current.exercises[slug] ?? EMPTY_EXERCISE);
   persist({ ...current, exercises: { ...current.exercises, [slug]: next } });
+  /**
+   * ⚠️ WRITE-THROUGH, AND STRICTLY AFTER THE LOCAL WRITE (v2-S3).
+   *
+   * The local record is already persisted by the line above, so a failed or
+   * slow cloud write can never lose it — the queue simply retries. This call
+   * returns immediately and does nothing at all for a guest: `queueExercise`
+   * checks the auth flag first, so a signed-out reader's write path never
+   * reaches any Supabase code. See `progress-sync.ts`.
+   */
+  queueExercise(slug, next);
   return next;
 }
 
@@ -332,7 +344,31 @@ export function recordGame(level: string, outcome: GameOutcome): GameRecord {
     losses: previous.losses + (outcome === 'loss' ? 1 : 0),
   };
   persist({ ...current, games: { ...current.games, [level]: next } });
+  /**
+   * ⚠️ ONE ROW PER GAME, WITH AN ID — the local shape stays a counter, but the
+   * durable copy is a row, because two counters cannot be merged and rows with
+   * ids can. A random id makes the union exact for every game from here on;
+   * only the counters that predate v2-S3 need the deterministic fallback in
+   * `progress-sync.ts`.
+   */
+  queueGame(newGameId(), level, outcome);
   return next;
+}
+
+/**
+ * A fresh id for one game. `crypto.randomUUID` where it exists — it is in every
+ * browser this site supports — with a random fallback so a write can never
+ * throw on a platform that lacks it.
+ */
+function newGameId(): string {
+  try {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID();
+    }
+  } catch {
+    /* fall through */
+  }
+  return `g-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 /** Wins per level — what the ledger sums. Losses are deliberately not here. */
@@ -443,4 +479,28 @@ export function extendStreak(): number {
  */
 export function resetStreak(): number {
   return writeStreak(0);
+}
+
+/* ══ v2-S3 — the durable copy ═══════════════════════════════════════════════
+ *
+ * ⚠️ THE ONLY DOOR. Components import `progress.ts` and nothing else; the
+ * Supabase-touching module stays behind these three lines so "progress.ts is
+ * the single reader" survives the arrival of a backend. Re-exports rather than
+ * wrappers: a wrapper would be a second place for the state to be wrong.
+ */
+export { syncState, startSync, SYNC_EVENT, type SyncState } from '@lib/progress-sync';
+export type { ImportReport } from '@lib/progress-sync';
+
+/**
+ * The first sign-in merge. Reads what this device knows, merges it with what
+ * the cloud knows, writes the union back to BOTH, and reports what this device
+ * contributed.
+ *
+ * ⚠️ IT IS `progress.ts` THAT PERSISTS THE RESULT, not the sync module — the
+ * store has exactly one writer and this keeps it that way. `importGuestProgress`
+ * is handed a callback rather than the key.
+ */
+export async function importFromCloud(): Promise<import('@lib/progress-sync').ImportReport> {
+  const { importGuestProgress } = await import('@lib/progress-sync');
+  return importGuestProgress(readProgress(), (merged) => persist(merged));
 }

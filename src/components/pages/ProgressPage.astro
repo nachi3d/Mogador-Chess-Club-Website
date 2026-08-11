@@ -177,7 +177,13 @@ function achievementLabel(id: string): string {
     <p class="progress-note">{t('progress.noJs')}</p>
   </noscript>
 
-  <div class="progress" data-progress-view>
+  <div
+    class="progress"
+    data-progress-view
+    data-progress-root
+    data-sync-ok={t('account.sync.ok')}
+    data-sync-pending={t('account.sync.pending')}
+  >
     {/* The way back in. Hidden until the resolver proves there is one. */}
     <ResumeCard id="progres" locale={locale} testId="resume-progres" />
 
@@ -282,6 +288,12 @@ function achievementLabel(id: string): string {
         See `src/lib/points.ts` → derived, never banked. */}
     <section class="progress-block" aria-labelledby="progress-rank">
       <h2 class="progress-block-title" id="progress-rank">{t('progress.rank')}</h2>
+      {/* ── v2-S3 — the sync state, and nothing more ────────────────────────
+          ⚠️ THIS PAGE IS ABOUT PROGRESS, NOT ABOUT SYNCING. One discreet line,
+          empty for a guest and empty when there is nothing to say. No spinner
+          and no progress bar: the reader is never waiting on the network here,
+          because everything above is read from `localStorage`. */}
+      <p class="progress-sync" data-testid="progress-sync-state" hidden></p>
 
       <div class="score-head">
         <p class="score-rank" data-score-rank>{rankSeed}</p>
@@ -397,6 +409,37 @@ function achievementLabel(id: string): string {
   this rewrites three anchors from it. No second copy of `complete()`, and no
   second reading of `mcc:progress:v1`.
 */}
+{/* ⚠️ A MODULE, not `is:inline` — it imports `progress.ts`, which is the only
+    door to the durable copy. It is deferred and that is correct: the sync state
+    is not first-paint information, and nothing on this page waits for it. */}
+<script>
+  import { startSync, syncState, SYNC_EVENT } from '@lib/progress';
+
+  const el = document.querySelector('[data-testid="progress-sync-state"]') as HTMLElement | null;
+  const root = document.querySelector('[data-progress-root]') as HTMLElement | null;
+
+  function paint() {
+    if (!el) return;
+    const state = syncState();
+    /* A guest has nothing to say about syncing, and saying "off" to them would
+       be talking about a feature they have not asked for. */
+    if (state === 'off') {
+      el.hidden = true;
+      return;
+    }
+    el.hidden = false;
+    el.textContent =
+      state === 'synced' ? (root?.dataset.syncOk ?? '') : (root?.dataset.syncPending ?? '');
+  }
+
+  paint();
+  window.addEventListener(SYNC_EVENT, paint);
+  /* ⚠️ Also the RECONNECT path: a student who worked a whole session offline
+     and opens this page must have it pushed. `startSync` retries on `online`
+     and on the tab becoming visible, and flushes once now. */
+  startSync();
+</script>
+
 <script is:inline>
   (function () {
     try {

@@ -472,6 +472,14 @@ const fr = {
   'account.role.prof': 'Professeur',
   'account.role.eleve': 'Élève',
   'account.progress.heading': 'Progression',
+  /* ── v2-S3 — the import report and the sync state ─────────────────────
+     ⚠️ THE REPORT IS NOT DECORATION. A student who worked as a guest for a
+     month needs to be TOLD their work arrived: silent success reads exactly
+     like silent loss, and the second one is unrecoverable. */
+  'account.import.recovered': '%s exercices et %s leçons récupérés depuis cet appareil.',
+  'account.import.upToDate': 'Votre progression est à jour.',
+  'account.sync.ok': 'Synchronisé.',
+  'account.sync.pending': 'En attente de synchronisation.',
   'account.progress.soon': 'À venir',
   'account.progress.body':
     'La synchronisation de votre progression entre appareils arrive prochainement.',
@@ -947,6 +955,11 @@ const en: Record<keyof typeof fr, string> = {
   'account.role.prof': 'Teacher',
   'account.role.eleve': 'Student',
   'account.progress.heading': 'Progress',
+  /* ── v2-S3. See the FR note above. */
+  'account.import.recovered': '%s exercises and %s lessons recovered from this device.',
+  'account.import.upToDate': 'Your progress is up to date.',
+  'account.sync.ok': 'Synced.',
+  'account.sync.pending': 'Waiting to sync.',
   'account.progress.soon': 'Coming soon',
   'account.progress.body': 'Syncing your progress across devices is coming shortly.',
   'account.attendance.heading': 'Attendance',

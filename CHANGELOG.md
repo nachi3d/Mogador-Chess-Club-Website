@@ -11,6 +11,66 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### Added — v2-S3: progress sync, and the first-sign-in merge
+
+⚠️ **`PUBLIC_AUTH_ENABLED` IS STILL OFF.** All of this is built, migrated and
+verified against the TEST project with the flag on locally; flipping it is a
+release decision, not a side effect of a session. The database is now ahead of
+the site, which is the safe ordering.
+
+**Migration 0003 — a `kind` discriminator, not three tables.** The local store
+has one map for every judged board: an exercise, a tutorial step and a lesson
+board all produce the same record. One local map → one table makes the sync a
+mirror rather than a translation, and keeps the merge from branching on
+namespace. `game_results` is a **row per game, not a counter**, because two
+counters cannot be merged — 3 wins here and 2 there might mean 5 games or 3, and
+neither `sum` nor `max` is right in both cases. `lesson_progress` is deprecated
+and deliberately not dropped.
+
+**RLS audited live**, against the running database with real users rather than
+by re-reading the migration: owner CRUD, another signed-in user reads **0** rows
+and cannot forge one (42501), `anon` reads nothing and writes nothing, a prof
+reads all and **cannot write**, and deleting the auth user cascades progress and
+games away.
+
+⚠️ **The `service_role` grant is the trap migration 0002 exists for, and 0003
+walked into it again** — default privileges do not give `service_role` DML on a
+new table, so the admin client got `42501` on a table whose RLS was perfect. Any
+future migration adding a table needs the grant.
+
+**`progress.ts` is still the single reader.** No component gained a Supabase
+call; `progress-sync.ts` is a backend it writes through to. Reads never touch
+the network — `localStorage` remains the source of truth for the UI — and writes
+go local first, so a failed cloud write cannot lose anything.
+
+**The merge**, run at sign-in and idempotent by construction: `solved` OR,
+`attempts` MAX, `hintUsed` OR, `solvedAt` EARLIEST, games UNION by id. Tested
+with conflicting state seeded on **both** sides, not just empty-into-full — the
+case that passes even when the rules are backwards.
+
+⚠️ **A real bug the idempotency test caught: Postgres and JavaScript disagree
+about the timestamp STRING.** `timestamptz` returns `...+00:00`, JS writes
+`...000Z`. Comparing lexicographically is wrong, not untidy: `+` sorts before
+`.`, so a cloud value would win every "earliest" test whatever date it held, and
+a student's first-solved date would drift. Everything is canonicalised now.
+
+**The offline queue** is bounded at 500, survives reload, holds one entry per
+row (state, not a replayable history), retries on reconnect and on the tab
+becoming visible — no polling, no spinner. Tested explicitly: a whole session
+worked offline, a reload while still offline, then reconnect, and everything
+arrives.
+
+**Surfaces:** `/compte` gains the real progress section with the import report
+("12 exercices et 3 leçons récupérés" — silent success is indistinguishable from
+silent loss); `/progres` shows one discreet sync line, hidden for a guest.
+**Signing out keeps local progress** — the student carries on as a guest, and
+that is asserted.
+
+**Anti-cheat is documented, not built.** The database records what was DONE and
+points stay derived, so a server-side recomputation is possible later with no
+migration. CLAUDE.md records what such a check would need and why client-side
+validation is not it.
+
 ### Fixed — `npm run demo` now sweeps orphaned Playwright browsers too
 
 A killed `test:release` leaves its browsers running, and neither existing probe

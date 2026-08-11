@@ -34,6 +34,10 @@ const t = useTranslations(locale);
     data-locale={locale}
     data-msg-saved={t('account.saved')}
     data-msg-error={t('account.saveError')}
+    data-msg-imported={t('account.import.recovered')}
+    data-msg-synced={t('account.import.upToDate')}
+    data-msg-sync-ok={t('account.sync.ok')}
+    data-msg-sync-pending={t('account.sync.pending')}
   >
     {/* Signed out — the default, because that is what a static page can prove. */}
     <div class="account-signed-out" data-testid="account-signed-out" hidden>
@@ -75,12 +79,32 @@ const t = useTranslations(locale);
         <p class="account-status" role="status" data-testid="account-status"></p>
       </form>
 
-      <section class="account-soon">
-        <h2>
-          {t('account.progress.heading')}
-          <span class="soon-badge">{t('account.progress.soon')}</span>
-        </h2>
-        <p>{t('account.progress.body')}</p>
+      {/* ── v2-S3 — the real progress section ────────────────────────────
+          ⚠️ EVERY NUMBER HERE IS DERIVED, NOT STORED. The counts come from the
+          same local store the rest of the site reads and the same ledger
+          `/progres/` uses; nothing about a total is fetched or kept. See the
+          anti-cheat note in CLAUDE.md. */}
+      <section class="account-progress" data-testid="account-progress">
+        <h2>{t('account.progress.heading')}</h2>
+        {/* Filled by the script below — the import report, shown ONCE after a
+            sign-in that recovered something. Silent success is
+            indistinguishable from silent loss. */}
+        <p class="account-import" data-testid="sync-import" role="status" aria-live="polite"></p>
+        <dl class="account-stats">
+          <div>
+            <dt>{t('progress.exercises')}</dt>
+            <dd data-account-solved>0</dd>
+          </div>
+          <div>
+            <dt>{t('score.pointsLabel')}</dt>
+            <dd data-score-points>0</dd>
+          </div>
+          <div>
+            <dt>{t('score.title')}</dt>
+            <dd data-score-rank></dd>
+          </div>
+        </dl>
+        <p class="account-sync" data-testid="account-sync-state"></p>
       </section>
 
       <section class="account-soon">
@@ -101,6 +125,10 @@ const t = useTranslations(locale);
 
   <script>
     import { getProfile, getSession, signOut, updateProfile } from '@lib/supabase';
+    /* ⚠️ v2-S3 — through `progress.ts` ONLY. This page never touches the sync
+       module or Supabase for progress: `progress.ts` is still the single
+       reader, and it is the one that decides what the durable copy does. */
+    import { importFromCloud, readProgress, solvedSlugs, startSync, syncState } from '@lib/progress';
 
     const root = document.querySelector('[data-testid="account"]') as HTMLElement | null;
     const signedOut = document.querySelector('[data-testid="account-signed-out"]') as HTMLElement | null;
@@ -141,6 +169,42 @@ const t = useTranslations(locale);
       root?.setAttribute('data-state', 'signed-in');
       if (panel) panel.hidden = false;
       if (signedOut) signedOut.hidden = true;
+
+      /**
+       * ⚠️ THE FIRST-SIGN-IN MERGE, and the moment a guest month is saved or
+       * lost. It runs on every visit and is IDEMPOTENT by construction (max /
+       * OR / earliest / union by id), so a re-run changes nothing — the
+       * bookmark only decides whether the reader is told about it again.
+       *
+       * It is awaited AFTER the panel is shown: nothing on this page waits on
+       * the network, so a dead Supabase leaves a usable account page.
+       */
+      const importEl = document.querySelector('[data-testid="sync-import"]') as HTMLElement | null;
+      const report = await importFromCloud();
+      if (importEl) {
+        const recovered = report.exercises + report.lessons;
+        importEl.textContent =
+          report.ran && recovered > 0
+            ? (root?.dataset.msgImported ?? '')
+                .replace('%s', String(report.exercises))
+                .replace('%s', String(report.lessons))
+            : (root?.dataset.msgSynced ?? '');
+      }
+
+      /* Derived, never stored — the same computation `/progres/` does. */
+      const solvedEl = document.querySelector('[data-account-solved]');
+      if (solvedEl) solvedEl.textContent = String(solvedSlugs().length);
+      void readProgress();
+
+      const syncEl = document.querySelector('[data-testid="account-sync-state"]');
+      const paint = () => {
+        if (!syncEl) return;
+        const key = syncState() === 'synced' ? 'msgSyncOk' : 'msgSyncPending';
+        syncEl.textContent = root?.dataset[key] ?? '';
+      };
+      paint();
+      window.addEventListener('mcc:sync-state', paint);
+      startSync();
     })();
 
     form?.addEventListener('submit', async (event) => {
