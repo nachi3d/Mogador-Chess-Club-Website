@@ -11,6 +11,55 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### Fixed — switched-off code is no longer precached
+
+**29.9 KB across 12 files** was being pushed into every visitor's service-worker
+cache to support nine routes that answer 404. Astro collects a page's `<script>`
+blocks from the **module graph, not from what renders**, so the scripts behind
+the routes `getStaticPaths()` declines to emit are still built, still hashed into
+`_astro/`, and were still swept into the precache.
+
+⚠️ **Same mechanism as the 216 KB `@supabase/supabase-js` leak the
+`supabase.disabled` alias was written to fix** — the alias cut the *client* out
+of the graph and left the *callers* behind. v2-S4's admin surfaces then roughly
+doubled what remained. Found while verifying the v0.11.0 artefact.
+
+⚠️ **THE OBVIOUS FIX WOULD HAVE BEEN WRONG, AND MEASURABLY SO.** A `globIgnores`
+list naming the admin and auth chunks looks right and breaks two live modules:
+`child.js` and `supabase.disabled.js` *look* like auth chunks and are genuinely
+reachable — `progress.ts` → `progress-sync.ts` → `child.ts` runs on every board
+page, and the stub is what that path dynamically imports. Naming them would have
+pulled both out of the offline cache.
+
+So the question is asked of the **build** instead of a human: start from every
+emitted HTML file, follow every asset filename mentioned, transitively, and
+precache what that reaches. Nothing to keep in step, no flag to read, and it
+cannot disagree with the build because it *is* the build. With accounts ON it
+finds nothing to exclude — the same code proving itself against the case where
+nothing is orphaned. It errs towards **including** (a plain substring scan over
+each chunk's whole text), because over-inclusion costs a few bytes while
+under-inclusion costs a file offline, and exclusion is not deletion: an excluded
+file is still served on request, just not pushed into every cache up front.
+
+Precache: **162 → 150 files, 5983 → 5953 KiB.**
+
+⚠️ **This also corrects the figure in the original BACKLOG entry** — 29.9 KB
+across 12 files, not 31.9 across 13. The first count included `child.js`, which
+is exactly the module the reachability analysis proved was live.
+
+Guarded twice, and both were verified to **fail on the old behaviour** before
+being trusted:
+
+- **The build fails** if an exclusion did not take effect — a `globIgnores` entry
+  that matches nothing is otherwise silent, the log looks identical and the bytes
+  go on shipping.
+- **`pwa.spec.ts` asserts it in both flag states**, and ⚠️ **asserts the chunks
+  exist first**. "No admin chunk appears in the manifest" passes perfectly on a
+  build that contains no admin chunks — the same vacuous-match failure that once
+  reported a v0.11.0 artefact clean by grepping zero files. With accounts ON the
+  spec asserts the opposite, because these chunks are reachable then and belong
+  in the cache; that is what makes the rule "unreachable" rather than "auth".
+
 ---
 
 ## [0.11.0] — 2026-08-12

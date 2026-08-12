@@ -80,6 +80,76 @@ test.describe('service worker precache', () => {
   });
 
   /**
+   * ⚠️ SWITCHED-OFF CODE IS NOT PRECACHED EITHER — same shape as the engine.
+   *
+   * Astro collects a page's `<script>` blocks from the module graph, not from
+   * what renders, so the scripts behind the nine routes `getStaticPaths()`
+   * declines to emit are still built and were, until v0.11.1, swept into the
+   * precache: 29.9 KB across 12 files charged to every first visit for routes
+   * that answer 404. Same mechanism as the 216 KB `@supabase/supabase-js` leak
+   * the `supabase.disabled` alias was written to fix — the alias cut the client
+   * out and left the callers behind.
+   *
+   * ⚠️ THE CORPUS CHECK IS THE POINT OF THIS TEST, NOT A PRELUDE TO IT.
+   *
+   * "No admin chunk appears in the manifest" passes perfectly on a build that
+   * contains no admin chunks at all — if someone deletes the admin pages, or
+   * the chunk naming changes, this test goes green while proving nothing. That
+   * is precisely the vacuous-grep failure that once "proved" a v0.11.0 artefact
+   * clean by matching zero files. So: find the chunks in `dist/` FIRST, fail if
+   * there are none, and only then assert they are absent from the manifest.
+   */
+  test('never precaches the chunks behind the switched-off routes', async ({ request }) => {
+    const { readdirSync, existsSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const { AUTH_ENABLED } = await import('./helpers/auth-mode');
+
+    const astroDir = join(process.cwd(), 'dist', '_astro');
+    test.skip(!existsSync(astroDir), 'no dist/_astro to inspect');
+
+    /* The chunks that exist ONLY to serve a gated route. Matched on the
+       component names Astro derives its chunk filenames from. */
+    const gated = readdirSync(astroDir).filter((name) =>
+      /^(admin\.|Admin|AccountPage|LoginPage|ChildPicker|ledger\.|_\.\.\.slug_)/.test(name),
+    );
+
+    /* ⚠️ THE NON-EMPTY CORPUS ASSERTION. Everything below is vacuous without
+       it, and it is the assertion most likely to start failing for a real
+       reason (a rename), which is exactly what we want it to catch. */
+    expect(
+      gated.length,
+      'no gated-route chunks found in dist/_astro — this test would pass vacuously. ' +
+        'Either the admin/auth pages are gone, or the chunk naming changed and the ' +
+        'pattern above needs updating.',
+    ).toBeGreaterThan(5);
+
+    const source = await (await request.get('/sw.js')).text();
+    const manifest = source.match(/precacheAndRoute\(\[(.*?)\]\s*[,)]/s)?.[1];
+    expect(manifest, 'no precache manifest found in sw.js').toBeTruthy();
+    /* And the manifest must be real, for the same reason. */
+    expect(manifest!, 'the precache manifest is empty or unparsed').toContain('index.html');
+
+    const precached = gated.filter((name) => manifest!.includes(name));
+
+    if (AUTH_ENABLED) {
+      /* ⚠️ THE OTHER DIRECTION, AND IT IS NOT SYMMETRY FOR ITS OWN SAKE. With
+         accounts ON these chunks ARE reachable, so they SHOULD be precached —
+         an exclusion that fired in both states would quietly take the account
+         pages out of the offline cache for the readers who can actually use
+         them. This is what proves the rule is "unreachable", not "auth". */
+      expect(
+        precached.length,
+        'accounts are ON, so these chunks are reachable and belong in the precache',
+      ).toBeGreaterThan(5);
+    } else {
+      expect(
+        precached,
+        'switched-off code is being precached — every first visit pays for routes that 404',
+      ).toEqual([]);
+    }
+  });
+
+  /**
    * The other half of the same decision: excluded from the precache AND cached
    * at runtime. Without this, the first game would cost 3.6 MB and so would
    * every game after it.
