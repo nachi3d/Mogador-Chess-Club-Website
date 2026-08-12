@@ -1329,6 +1329,25 @@ and a runtime `CacheFirst` rule caches it instead. The spec parses the array out
 `precacheAndRoute([...])` rather than grepping for the word "stockfish", which was
 only ever true while the engine did not exist.
 
+⚠️ **AND NEITHER IS ANYTHING NO EMITTED PAGE CAN REACH.** Astro collects a page's
+`<script>` blocks from the **module graph, not from what renders**, so the scripts
+behind a route `getStaticPaths()` declined to emit are still built and were still
+precached — 29.9 KB across 12 files with accounts off. `unreachableAssets()` in
+`build-sw.mjs` walks from every emitted HTML file through the asset graph and
+excludes what it never reaches.
+
+- ⚠️ **DERIVED, NEVER A LIST OF NAMES.** A `globIgnores` list naming "the auth
+  chunks" would have excluded `child.js` and `supabase.disabled.js`, which *look*
+  like auth chunks and are live on every board page via `progress.ts` →
+  `progress-sync.ts`. Ask the build, not a human.
+- It errs towards **including**: over-inclusion costs bytes, under-inclusion
+  costs a file offline. **Exclusion is not deletion** — the file is still served.
+- ⚠️ **A `globIgnores` entry that matches nothing is silent**, so the build
+  re-reads `sw.js` and **fails** if an exclusion did not take effect.
+- ⚠️ **The spec asserts the chunks EXIST before asserting they are absent.** "No
+  admin chunk in the manifest" passes perfectly on a build that has none. With
+  accounts ON it asserts the opposite — the rule is *unreachable*, not *auth*.
+
 **Generated assets** (icons, fonts, piece CSS, the vendored engine) are committed
 artefacts produced by scripts that are **run by hand when their input changes** —
 none of them run as part of `npm run build`. ⚠️ **`public/engine` must stay out of
