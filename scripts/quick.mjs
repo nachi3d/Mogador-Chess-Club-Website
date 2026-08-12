@@ -155,10 +155,10 @@ if (blocked.length > 0) {
 // and it fails in under a second rather than after a full type-check.
 run('content is legal chess', 'node scripts/check-content.mjs');
 
-// `npm run build` runs check-contrast as its FIRST step, then astro check,
-// then the build, then the service worker. Contrast is therefore covered here
-// rather than being run twice.
-run('build (contrast → types → build → service worker)', 'npm run build');
+// `npm run build` runs the CLAUDE.md size guard and check-contrast as its FIRST
+// two steps, then astro check, then the build, then the service worker. Both
+// checks are therefore covered here rather than being run twice.
+run('build (CLAUDE.md size → contrast → types → build → service worker)', 'npm run build');
 
 /* ── 3. The specs that cover what moved ───────────────────────────────────── */
 
