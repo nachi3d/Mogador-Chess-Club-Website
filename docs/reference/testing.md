@@ -107,7 +107,37 @@ absorbed. A run reporting `N passed, 1 flaky` on WebKit is green.
 
 Same shape, different browser, found in Session 3. Under the full fan-out the Windows Firefox build fills the log with `RenderCompositorSWGL failed mapping default framebuffer` and `VideoBridgeParent receives IPC close with reason=AbnormalShutdown`, and whatever test was in flight dies with a **`mouse.move` or `page.reload` timeout** — the browser has stopped answering, so it presents as a hang rather than a failed assertion.
 
-The tell is that it lands on a **different test each run**, including specs that predate whatever you are working on. Confirmed with `--workers=1`, where the same specs pass 21/21 in ~2.5 minutes. Firefox therefore carries one local retry, exactly as WebKit does. A genuine failure still fails the retry — **if a Firefox spec fails twice, believe it.**
+The tell is that it lands on a **different test each run**, including specs that predate whatever you are working on. Confirmed with `--workers=1`, where the same specs pass 21/21 in ~2.5 minutes. Firefox therefore carries one local retry, exactly as WebKit does.
+
+#### ⚠️ "IF IT FAILS TWICE, BELIEVE IT" IS TOO STRONG — the retry can land inside the same crash
+
+That sentence used to end this section, and the **v0.11.0 release gate falsified
+it**: four Firefox specs failed *and failed their retry*, in four unrelated files
+(`index-cards`, `progression`, `replayer`, `theme`), and all 102 tests in those
+four files then passed **serially, first time**.
+
+The reason is the same one the `auth.spec.ts` section gives for its own hard
+failures: **the retry runs while the crowd is still there.** When the compositor
+has died, the immediate re-run meets a browser that is still broken — the crash
+is a property of the *process*, not of the test, so retrying inside it proves
+nothing. The evidence in that run was unambiguous once read rather than counted:
+
+- the log carried `RenderCompositorSWGL failed mapping default framebuffer` and
+  `VideoBridgeParent receives IPC close with reason=AbnormalShutdown`;
+- the errors were bare `Test timeout of 30000ms exceeded`, a
+  `browserContext.close: Protocol error … can't access property
+  '_maybeDontRestoreTabs'`, and `Tearing down "context" exceeded the test
+  timeout` — **not one failed assertion between them**;
+- two of the four files had not been touched for several sessions.
+
+**So the rule is: the retry is not the arbiter — a serial re-run is.** A genuine
+failure is deterministic and fails at `--workers=1` too, and it fails with an
+*assertion*, naming a value. ⚠️ Do not shorten this back to "failed twice means
+real": that reading blocks a release on a browser bug, and the pressure at that
+moment is to skip the check rather than to do it.
+
+⚠️ And the converse still holds and matters more: **a serial re-run that fails is
+a real defect**, whatever the log says about compositors.
 
 ### `auth.spec.ts` hard-fails under the Firefox fan-out — and it is the NETWORK, not the browser
 

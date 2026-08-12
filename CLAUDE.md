@@ -1072,9 +1072,17 @@ touching application code.**
 | `auth.spec.ts`: `createConfirmedUser: fetch failed` — the error comes from **Node**, not from a page | **Network contention** minting users, not the browser. Not absorbed by the retry |
 | A board spec fails on a tree that already shipped green | **A harness assumption**, not the app. **Drive the page by hand before believing it** |
 
-**A genuine failure is deterministic and fails the retry too.** WebKit and Firefox
-carry one local retry; chromium has none. A run reporting `N passed, 1 flaky` on
-WebKit is green.
+**A genuine failure is deterministic and fails A SERIAL RE-RUN too, and it fails
+with an assertion naming a value.** WebKit and Firefox carry one local retry;
+chromium has none. A run reporting `N passed, 1 flaky` on WebKit is green.
+
+⚠️ **THE LOCAL RETRY IS NOT THE ARBITER — `--workers=1` IS.** The v0.11.0 gate
+failed four Firefox specs that also failed their retries, in four unrelated
+files, and all 102 tests in those files then passed serially first time: when the
+compositor has died the retry runs inside the same broken process, so it proves
+nothing. Read the errors rather than counting them — bare timeouts and
+`browserContext.close` protocol errors are a dead browser; an assertion naming a
+value is a defect. See [`docs/reference/testing.md`](./docs/reference/testing.md).
 
 ⚠️ **Never pipe the test run into `tail`** — it reports tail's exit code, so 14
 failures read as "196 passed, exit 0". Redirect to a file, check the status, and
