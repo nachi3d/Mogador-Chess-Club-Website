@@ -54,6 +54,21 @@ interface Props {
    * sets, which would be ~32 KB brotli to draw four glyphs.
    */
   piecePreviews?: boolean;
+  /**
+   * This page exists in ONE language only (v2-S4).
+   *
+   * ⚠️ IT SUPPRESSES THE hreflang ALTERNATES AND THE LANGUAGE SWITCHER, and
+   * both halves are necessary. `/admin*` is French only — a single-operator
+   * context, decided and recorded in CLAUDE.md — so there is no `/en/admin/`
+   * to point at. Left on, the alternates would advertise a 404 to search
+   * engines and the switcher would offer a reader a one-way trip to it.
+   *
+   * This is NOT an escape hatch from the FR/EN rule for public pages. The rule
+   * is about readers, and every page a student or parent can reach still ships
+   * in both languages. Setting this on such a page is a bug, and
+   * `smoke.spec.ts` walks the public routes asserting the switcher is present.
+   */
+  singleLocale?: boolean;
 }
 
 const {
@@ -63,6 +78,7 @@ const {
   reveals = false,
   board = false,
   piecePreviews = false,
+  singleLocale = false,
 } = Astro.props;
 
 /**
@@ -369,13 +385,23 @@ const pageDescription = description ?? site.description[locale];
     <meta name="description" content={pageDescription} />
     <link rel="canonical" href={canonical.href} />
 
-    {/* Both languages, plus x-default pointing at the FR root. */}
+    {/* Both languages, plus x-default pointing at the FR root.
+        ⚠️ Omitted entirely on a single-locale page — see the prop. */}
     {
-      LOCALES.map((l) => (
-        <link rel="alternate" hreflang={l} href={new URL(alternatePath(pathname, l), site.url).href} />
-      ))
+      !singleLocale &&
+        LOCALES.map((l) => (
+          <link rel="alternate" hreflang={l} href={new URL(alternatePath(pathname, l), site.url).href} />
+        ))
     }
-    <link rel="alternate" hreflang="x-default" href={new URL(alternatePath(pathname, 'fr'), site.url).href} />
+    {
+      !singleLocale && (
+        <link
+          rel="alternate"
+          hreflang="x-default"
+          href={new URL(alternatePath(pathname, 'fr'), site.url).href}
+        />
+      )
+    }
 
     {/* Inter — the BODY face, used by every theme, so it is safe to preload
         statically. It is discovered only after the CSS parses, and `swap`
@@ -429,7 +455,7 @@ const pageDescription = description ?? site.description[locale];
         region that is also the active control. */}
     <p class="sr-only" role="status" aria-live="polite" data-theme-status></p>
 
-    <Header locale={locale} pathname={pathname} />
+    <Header locale={locale} pathname={pathname} singleLocale={singleLocale} />
 
     <main id="main" class="container-page site-main">
       <slot />

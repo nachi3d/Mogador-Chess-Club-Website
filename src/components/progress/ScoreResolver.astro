@@ -46,6 +46,7 @@
  *
  *   [data-score-points]            ← the total
  *   [data-score-source="<id>"]     ← that bucket's subtotal
+ *   [data-score-teacher-wrap]      ← un-hidden only once a prof has awarded
  *   [data-score-rank]              ← the current rank's label
  *   [data-score-next]              ← the next rank's label
  *   [data-score-remaining]         ← points still needed for it
@@ -198,7 +199,7 @@ const rankLabels: Record<string, string> = {
       }
 
       /* Sums values the build computed. No award rule lives here. */
-      var sources = { basics: 0, lessons: 0, exercises: 0, games: 0 };
+      var sources = { basics: 0, lessons: 0, exercises: 0, games: 0, teacher: 0 };
       var done = {};
       var count = 0;
       var mate = false;
@@ -226,7 +227,16 @@ const rankLabels: Record<string, string> = {
         sources.games += Math.min(wins, cat.winCap) * cat.wins[levels[g]];
       }
 
-      var points = sources.basics + sources.lessons + sources.exercises + sources.games;
+      /* Teacher awards — ROWS mirrored from the cloud, summed like everything
+         else. Never a stored total; see AwardRecord in progress.ts. */
+      var aw = s.awards || [];
+      for (var t = 0; t < aw.length; t++) {
+        var pts = aw[t] && typeof aw[t].points === 'number' ? Math.floor(aw[t].points) : 0;
+        if (pts > 0 && pts <= 50) sources.teacher += pts;
+      }
+
+      var points =
+        sources.basics + sources.lessons + sources.exercises + sources.games + sources.teacher;
 
       var idx = 0;
       for (var r = 0; r < cat.ranks.length; r++) {
@@ -283,9 +293,18 @@ const rankLabels: Record<string, string> = {
       text('[data-score-remaining]', s.remaining);
       text('[data-score-earned]', s.earned.length);
 
-      var keys = ['basics', 'lessons', 'exercises', 'games'];
+      var keys = ['basics', 'lessons', 'exercises', 'games', 'teacher'];
       for (var i = 0; i < keys.length; i++) {
         text('[data-score-source="' + keys[i] + '"]', s.sources[keys[i]]);
+      }
+
+      /* The teacher block appears only once a prof has actually awarded
+         something. A guest, and a student nobody has awarded, see nothing —
+         an empty "attribués par ton prof: 0" invites the question "why not?" */
+      var tw = document.querySelectorAll('[data-score-teacher-wrap]');
+      for (var tz = 0; tz < tw.length; tz++) {
+        if (s.sources.teacher > 0) tw[tz].removeAttribute('hidden');
+        else tw[tz].setAttribute('hidden', '');
       }
 
       var fills = document.querySelectorAll('[data-score-rank-fill]');

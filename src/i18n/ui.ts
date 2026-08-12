@@ -139,6 +139,17 @@ const fr = {
   'score.source.lessons': 'Leçons',
   'score.source.exercises': 'Exercices',
   'score.source.games': 'Parties gagnées',
+  /* ⚠️ v2-S4 — "attribués par ton prof" must read as a DIFFERENT KIND of point,
+     not a bigger one. A student who cannot tell what they earned from what they
+     were given loses the meaning of both. Tutoiement here and nowhere else on
+     the site is deliberate: this is the one line addressed to the child rather
+     than to the reader in general. */
+  'score.source.teacher': 'Attribués par ton prof',
+  'score.teacher.title': 'Points attribués par ton prof',
+  'score.teacher.intro':
+    'Ces points ont été donnés en cours, pour quelque chose que le site ne peut pas voir.',
+  'score.teacher.on': 'le %s',
+  'score.earnedTitle': 'Points gagnés',
   'score.streak.title': 'Série en cours',
   /* ⚠️ "dans cette session" is load-bearing wording. It tells the reader the
      number is not a record being kept about them, which is exactly why there
@@ -459,6 +470,12 @@ const fr = {
   'callback.working': 'Connexion en cours…',
   'callback.failed': "Ce lien n'est plus valide. Demandez-en un nouveau.",
   'callback.retry': 'Retourner à la connexion',
+  'child.heading': 'Qui joue ?',
+  'child.intro':
+    'Choisissez l’élève. Ce choix est retenu sur cet appareil : le téléphone d’un enfant ne le demande qu’une fois.',
+  'child.addLabel': 'Ajouter un élève',
+  'child.add': 'Ajouter',
+  'child.addError': 'Impossible d’ajouter cet élève. Réessayez.',
   'account.title': 'Mon compte',
   'account.intro': 'Votre nom affiché et votre langue. Rien d’autre n’est stocké ici.',
   'account.displayName': 'Prénom affiché',
@@ -472,6 +489,14 @@ const fr = {
   'account.role.prof': 'Professeur',
   'account.role.eleve': 'Élève',
   'account.progress.heading': 'Progression',
+  /* ── v2-S3 — the import report and the sync state ─────────────────────
+     ⚠️ THE REPORT IS NOT DECORATION. A student who worked as a guest for a
+     month needs to be TOLD their work arrived: silent success reads exactly
+     like silent loss, and the second one is unrecoverable. */
+  'account.import.recovered': '%s exercices et %s leçons récupérés depuis cet appareil.',
+  'account.import.upToDate': 'Votre progression est à jour.',
+  'account.sync.ok': 'Synchronisé.',
+  'account.sync.pending': 'En attente de synchronisation.',
   'account.progress.soon': 'À venir',
   'account.progress.body':
     'La synchronisation de votre progression entre appareils arrive prochainement.',
@@ -659,6 +684,12 @@ const en: Record<keyof typeof fr, string> = {
   'score.source.lessons': 'Lessons',
   'score.source.exercises': 'Exercises',
   'score.source.games': 'Games won',
+  'score.source.teacher': 'Given by your teacher',
+  'score.teacher.title': 'Points given by your teacher',
+  'score.teacher.intro':
+    'These were given in class, for something the site cannot see.',
+  'score.teacher.on': 'on %s',
+  'score.earnedTitle': 'Points earned',
   'score.streak.title': 'Current run',
   'score.streak.value': '%s exercises in a row this session',
   'score.achievements': 'Achievements',
@@ -934,6 +965,12 @@ const en: Record<keyof typeof fr, string> = {
   'callback.working': 'Signing you in…',
   'callback.failed': 'This link is no longer valid. Request a new one.',
   'callback.retry': 'Back to sign in',
+  'child.heading': 'Who is playing?',
+  'child.intro':
+    'Choose the student. The choice is remembered on this device: a child’s own phone only asks once.',
+  'child.addLabel': 'Add a student',
+  'child.add': 'Add',
+  'child.addError': 'Could not add this student. Please try again.',
   'account.title': 'My account',
   'account.intro': 'Your display name and language. Nothing else is stored here.',
   'account.displayName': 'Display first name',
@@ -947,6 +984,11 @@ const en: Record<keyof typeof fr, string> = {
   'account.role.prof': 'Teacher',
   'account.role.eleve': 'Student',
   'account.progress.heading': 'Progress',
+  /* ── v2-S3. See the FR note above. */
+  'account.import.recovered': '%s exercises and %s lessons recovered from this device.',
+  'account.import.upToDate': 'Your progress is up to date.',
+  'account.sync.ok': 'Synced.',
+  'account.sync.pending': 'Waiting to sync.',
   'account.progress.soon': 'Coming soon',
   'account.progress.body': 'Syncing your progress across devices is coming shortly.',
   'account.attendance.heading': 'Attendance',

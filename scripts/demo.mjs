@@ -37,7 +37,9 @@ const CHECKLIST = join(ROOT, 'docs', 'MANUAL-TESTS.md');
  * 4322 confuse the next run, and it is the SECOND server that is hardest to
  * notice because nothing about it looks wrong.
  *
- * ⚠️ THIS LIST IS NOT THE WHOLE SWEEP, AND CANNOT BE. See `previewsForRepo()`.
+ * ⚠️ THIS LIST IS NOT THE WHOLE SWEEP, AND CANNOT BE. See `previewsForRepo()`
+ * for servers this range cannot see, and `orphanedBrowsers()` for the browsers
+ * a killed test run leaves behind — which hold no port at all.
  */
 const PORTS = [4321, 4322, 4323, 4324, 4325];
 
@@ -287,10 +289,160 @@ function previewsForRepo() {
   return found;
 }
 
-function killPid(pid) {
+function killPid(pid, tree = false) {
   // Both are real executables; no shell, so no DEP0190 and no arg mangling.
-  if (IS_WINDOWS) spawnSync('taskkill', ['/F', '/PID', pid], { stdio: 'ignore' });
-  else spawnSync('kill', ['-9', pid], { stdio: 'ignore' });
+  if (IS_WINDOWS) {
+    /* `/T` for a browser: Chromium is a process TREE — one parent and a
+       renderer, a GPU process and a utility process per tab. Killing the top
+       alone leaves the children reparented and running, which is how a sweep
+       "succeeds" and the count barely moves. */
+    const args = tree ? ['/F', '/T', '/PID', pid] : ['/F', '/PID', pid];
+    spawnSync('taskkill', args, { stdio: 'ignore' });
+  } else spawnSync('kill', ['-9', pid], { stdio: 'ignore' });
+}
+
+/**
+ * Where Playwright keeps its browsers, as lowercase path prefixes.
+ *
+ * ⚠️ `PLAYWRIGHT_BROWSERS_PATH` FIRST, BECAUSE THE DEFAULT IS OFTEN WRONG.
+ * On this machine it is `D:\AppData\ms-playwright` — not under `%LOCALAPPDATA%`
+ * at all — so a sweep that assumed the documented default would look in an
+ * empty directory, find nothing, and report success. That is the failure mode
+ * this whole file exists to avoid.
+ *
+ * `PLAYWRIGHT_BROWSERS_PATH=0` means "inside node_modules", which lives under
+ * ROOT and is therefore already covered by the repo-path prefix.
+ *
+ * The bare `ms-playwright` segment is the belt-and-braces case: it is
+ * Playwright's own directory name wherever the cache is put, so it still
+ * matches if the sweep runs in a shell where the variable is not exported.
+ * ⚠️ It is a PATH segment, never a process name — see `orphanedBrowsers()`.
+ */
+function playwrightRoots() {
+  const normalise = (text) => text.replace(/\\/g, '/').toLowerCase();
+  const roots = new Set([normalise(join(ROOT, 'node_modules'))]);
+
+  const configured = process.env['PLAYWRIGHT_BROWSERS_PATH'];
+  if (configured && configured !== '0') roots.add(normalise(configured));
+
+  const home = process.env['USERPROFILE'] ?? process.env['HOME'] ?? '';
+  if (IS_WINDOWS) {
+    const local = process.env['LOCALAPPDATA'];
+    if (local) roots.add(normalise(join(local, 'ms-playwright')));
+  } else if (home) {
+    roots.add(normalise(join(home, 'Library', 'Caches', 'ms-playwright')));
+    roots.add(normalise(join(home, '.cache', 'ms-playwright')));
+  }
+  return [...roots];
+}
+
+/**
+ * Playwright browser processes that have been ORPHANED — their launcher is gone.
+ *
+ * ─────────────────────────────────────────────────────────────────────────
+ * ⚠️ WHY THIS EXISTS. A killed `test:release` leaves its browsers running.
+ * **~60 of them were found on this machine** during the v0.10.0 promotion,
+ * alongside a stray preview server, and the next full matrix then failed on
+ * five unrelated specs across four projects — every one of which passed when
+ * re-run serially on a clear machine. `demo.mjs` swept previews for this repo
+ * and nothing swept browsers, so each killed run left the next one slower.
+ *
+ * ⚠️ MATCH ON THE EXECUTABLE PATH, NEVER ON THE PROCESS NAME.
+ * `chrome.exe` is also the name of Seàn's own browser, and killing that would
+ * be a far worse bug than the one this fixes. On Windows the filter is
+ * `ExecutablePath` — the real image path, which `Name` and `CommandLine` are
+ * not — and it must sit under a directory Playwright itself installs into. A
+ * Chrome from Program Files can never match; a browser from the
+ * `ms-playwright` cache always does.
+ *
+ * ⚠️ ORPHANS ONLY. A browser whose launcher is still alive belongs to a test
+ * run IN PROGRESS — possibly this repo's own matrix in another terminal,
+ * possibly another project's, since the browser cache is shared machine-wide
+ * and nothing about it is per-repo. Killing those would turn a tidy-up into
+ * the thing it is meant to prevent. So a candidate is swept only when its
+ * parent pid is no longer in the process table.
+ *
+ * ⚠️ Only TREE ROOTS are killed — a candidate whose parent is itself a
+ * candidate is a renderer, and `taskkill /T` takes it with its parent. Listing
+ * renderers separately would report sixty kills for six browsers.
+ *
+ * Known limit, and it errs the safe way: Windows reuses pids, so a dead
+ * launcher's pid can belong to something live by the time this runs. The
+ * orphan then looks parented and is LEFT ALONE. Under-killing is the right
+ * direction for a routine that runs unattended.
+ * ─────────────────────────────────────────────────────────────────────────
+ */
+function orphanedBrowsers() {
+  const found = new Map(); // pid → executable path, for the message
+
+  /* ⚠️ ExecutablePath, not Name and not CommandLine. See the note above. */
+  const probe = IS_WINDOWS
+    ? read('powershell', [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        'Get-CimInstance Win32_Process | ' +
+          'ForEach-Object { "$($_.ProcessId)|$($_.ParentProcessId)|$($_.ExecutablePath)" }',
+      ])
+    : read('ps', ['-eo', 'pid=,ppid=,args=']);
+
+  if (!probe.ok) {
+    probeFailed = true;
+    return found;
+  }
+
+  const normalise = (text) => text.replace(/\\/g, '/').toLowerCase();
+  const roots = playwrightRoots();
+  const isBrowserPath = (path) => {
+    if (!path) return false;
+    const p = normalise(path);
+    /* Under a directory Playwright installs into, and inside the browsers
+       cache rather than merely under node_modules — `node.exe` itself lives
+       under node_modules on some setups. */
+    if (!roots.some((root) => p.startsWith(root)) && !p.includes('/ms-playwright/')) return false;
+    return /\/(chrome|chromium|headless_shell|firefox|webkit|playwright|pw_run|node)[^/]*$/.test(p)
+      ? !/\/node(\.exe)?$/.test(p)
+      : false;
+  };
+
+  const live = new Set();
+  const rows = new Map(); // pid → { parent, path }
+
+  for (const line of probe.out.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    let pid, parent, path;
+    if (IS_WINDOWS) {
+      const parts = trimmed.split('|');
+      [pid, parent] = [parts[0]?.trim() ?? '', parts[1]?.trim() ?? ''];
+      path = parts.slice(2).join('|').trim();
+    } else {
+      const m = /^(\d+)\s+(\d+)\s+(.*)$/.exec(trimmed);
+      if (!m) continue;
+      [, pid, parent, path] = m;
+      /* argv[0] is the executable; a Playwright cache path has no spaces. */
+      path = path.split(/\s/)[0] ?? '';
+    }
+    if (!/^\d+$/.test(pid)) continue;
+    live.add(pid);
+    rows.set(pid, { parent, path });
+  }
+
+  const candidates = new Set(
+    [...rows].filter(([, { path }]) => isBrowserPath(path)).map(([pid]) => pid),
+  );
+
+  for (const pid of candidates) {
+    const { parent, path } = rows.get(pid);
+    if (pid === String(process.pid) || pid === String(process.ppid)) continue;
+    /* A renderer — its parent is the browser, which is handled on its own. */
+    if (candidates.has(parent)) continue;
+    /* The launcher is still alive: a run is in progress. Not ours to touch. */
+    if (live.has(parent)) continue;
+    found.set(pid, path);
+  }
+
+  return found;
 }
 
 /** The whole sweep: the port walk, then anything previewing this repo. */
@@ -313,10 +465,20 @@ function sweep(report = () => {}) {
     report(pid, port ? `previewing this repo on ${port}` : 'previewing this repo');
   }
 
+  /* ⚠️ AND THE BROWSERS. A killed matrix leaves its browsers running, and they
+     are invisible to both probes above — they hold no port and their command
+     line says nothing about this repo. Sixty of them corrupted a release gate.
+     Tree-killed, and only when orphaned; see `orphanedBrowsers()`. */
+  for (const [pid, path] of orphanedBrowsers()) {
+    killPid(pid, true);
+    killed += 1;
+    report(pid, `orphaned ${path.split(/[\\/]/).pop()} left by a killed test run`);
+  }
+
   return killed;
 }
 
-step(1, 'Clearing stale preview servers');
+step(1, 'Clearing stale preview servers and orphaned test browsers');
 const cleared = sweep((pid, why) => say(`      ${dim(`killed pid ${pid} ${why}`)}`));
 // Windows frees the socket a moment after taskkill returns; binding too soon
 // makes astro silently move to the next port, which is the exact trap.

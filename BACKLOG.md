@@ -23,11 +23,76 @@ with itself.
 | Item | Status | Note |
 |---|---|---|
 | **v2-S2** — Google OAuth, prof-created student accounts, Resend SMTP | `backlog` | SMTP needs a domain, and `mogadorchess.nachi3dlabs.com` is one — no longer blocked. OAuth and prof-created accounts could ship without it, but all three are one coherent "getting people in" session. `handle_new_user()` already clamps the locale for the Google claim. |
-| **Turn accounts back on** | `blocked` | Set `PUBLIC_AUTH_ENABLED=true` in the Cloudflare build variables. **Blocked on v2-S3**, deliberately: v0.3.0 shipped with accounts switched off because there is nothing to sync yet, and an account that does nothing is a child's email address collected for no reason. One variable, no code. See CLAUDE.md → "Accounts are switched off in production". |
-| **v2-S3** — progress sync + `localStorage` import | `backlog` | The critical path of v2. Schema is already in place (`exercise_progress`, `lesson_progress`), and the tutorial writes under `tutorial:<slug>` in the same store, so it syncs with no special-casing. |
-| **v2-S4** — sessions, attendance, admin dashboard | `backlog` | Tables and RLS exist from migration 0001; nothing renders them. |
+| **Turn accounts back on** | `seàn` | Set `PUBLIC_AUTH_ENABLED=true` in the Cloudflare build variables. ⚠️ **No longer blocked — v2-S3 shipped, so there is now something to sync.** The reason accounts were off (an account that does nothing is a child's email address collected for no reason) has gone. One variable, no code, and the database is already ahead of the site, which is the safe ordering. Seàn's call. ✅ **The parent/child blocker is CLEARED — migration 0005 shipped**, so an account opened now is already a parent account holding one child and needs no later rescue. See "Modèle parent + profils enfants" below. See CLAUDE.md → "Accounts are switched off in production". |
+| **Modèle parent + profils enfants** | ✅ **BUILT** | Migration 0005 shipped: `child_profiles` with its own PK and a nullable `account_id`; progress, games, attendance and awards repointed to the child; `graduate_child()` proved on the test project (one FK update, progress followed, zero rows copied); live RLS audit clean, including "a parent cannot take over another family's child". Client side: `src/lib/child.ts` resolves the active child as CONTEXT — `progress.ts` kept its API shape — and the "Qui joue ?" picker is on `/compte/`. See CLAUDE.md → "The parent/child model". **What remains is the surfaces built on it**, below. |
+| ~~**v2-S3** — progress sync + `localStorage` import~~ | **done** | Migration 0003 (`kind` discriminator + `game_results`), RLS audited live against the running database, `progress-sync.ts` behind `progress.ts`, an idempotent merge, a bounded offline queue, and the `/compte` + `/progres` surfaces. ⚠️ `PUBLIC_AUTH_ENABLED` is still OFF and is now the only thing between this and accounts being live. |
+| **v2-S4 (part 1)** — the role boundary | **done** | Migration 0004 (`point_awards`), a 22-assertion live RLS/GRANT audit, and `role-separation.spec.ts`. The boundary is proven; the surfaces are not built. |
+| ~~**v2-S4 (part 2)** — the admin surfaces~~ | **done** | `/admin` (dashboard), `/admin/eleves` (the class — **children, not accounts**), `/admin/eleve/?id=` (one learner: the student’s own progress, plus attendance and awards) and `/admin/seances` (session CRUD + the register). **No new migration was needed** — 0001/0004/0005 already carried every table and policy, which is what "the boundary underneath is already proven" meant. FR only, and now Critical Feature 43 so it stays that way. The register is one tap per child, optimistic, no modal and no save button; **measured at 59 ms of UI per child, 1.18 s for twenty taps, durable in 1.47 s** (`attendance-timing.spec.ts`). `role-separation.spec.ts` grew from 8 to 15 assertions, all through PostgREST with real tokens. ⚠️ **Creating a student from the admin UI is deliberately NOT built** — staff hold SELECT on `child_profiles` and nothing else; see "Guest attendance", which is the feature that needs it. |
+| **v2-S4 (part 3)** — the agenda moves to the database | `soon` | Decided: a **build-time** read, because with `PUBLIC_AUTH_ENABLED` off there is no Supabase client in the bundle and `/agenda` must still render — that also keeps the guest rule at zero requests rather than zero *auth* requests. ⚠️ **The cost is real: a session a prof publishes does not appear until the site rebuilds**, so this needs a deploy hook or a scheduled rebuild before it is an improvement on the git collection. Content migration is one row — `src/content/agenda/` holds a single entry. Cancelled sessions must stay visible with their state, not vanish. |
+| **Guest attendance** | `backlog` | Attendance assumes a student with an account, so a teenager who has never signed in cannot be marked. BabyClub solved the same shape with **guest bookings** — a row keyed by a name rather than a profile — and that is the reference to look at when this is wanted. Not built here: it means attendance rows without a `profile_id`, which changes the FK and the RLS on a table that currently has a clean owner rule. |
 | **v2-S5** — progress charts | `backlog` | Needs S3's data before it can show anything true. |
 | **Student groups** (all profs currently see all students) | `backlog` | Deferred to v2.1 by decision, not oversight. |
+
+### Modèle parent + profils enfants — ✅ DECIDED, and now BUILT (migration 0005)
+
+✅ **Seàn's decision: parent-held accounts with child profiles beneath is THE
+model.** Not one option among several, and not an open question — **most
+students at Dar Souiri arrive with a parent**, so the family is the ordinary
+case and the schema should say so.
+
+**A parent holds the account.** `auth.users` is the parent: they sign in, they
+receive the email, they enrol children in sessions. Each **child is a profile
+beneath it**, with no credentials of its own, carrying progress, points, rank
+and attendance. The same shape as BabyClub's `profiles → children`.
+
+⚠️ **A DIRECT STUDENT ACCOUNT REMAINS THE SECONDARY CASE, not a deleted one.**
+An autonomous teenager who signs up alone must still work — the model is
+"parent-first", not "parent-only". Both shapes exist in the same schema.
+
+⚠️ **AND IT STILL CANNOT WAIT, for a different reason now.** Today
+`profiles.id` **is** `auth.users.id` — identity and person are one row, so a
+child with no login has nowhere to live. Every account opened before the schema
+changes is keyed to a login with real progress hanging off it. The decision is
+made; what is left is doing it **before** accounts go live, or paying for it as
+a data rescue afterwards.
+
+- **Profile picker on app open — "Qui joue ?", Netflix-style.** A choice, not a
+  password: a twelve-year-old should not be managing credentials, and the parent
+  keeps oversight without standing over them. **Remembered per device**, so a
+  child's own phone asks once and then stops asking.
+- **One purse per child.** Individual merit stays visible — a child can see what
+  *they* earned, which is the whole point of the ledger. ⚠️ **Do NOT invent a
+  shared family wallet**: it blurs who earned what, which is exactly what E3's
+  derived-not-banked rule exists to keep legible. A purchase may draw from
+  **several purses**, with the split recorded on the order.
+- **Attendance and exercises attach to the CHILD profile, not the parent.** A
+  prof marks children, not accounts.
+- ⚠️ **GRADUATION IS A REQUIREMENT, NOT A QUESTION.** A sixteen-year-old will
+  not want to go through their mother's account. A child profile must be able to
+  graduate into its own account **carrying its progress with it**, and the
+  schema must make that **a migration of ONE FK, not a data rescue** — which in
+  practice means a child profile needs its own primary key and a *nullable* link
+  to the account that currently holds it, rather than being keyed on
+  `auth.users.id` as profiles are today. If graduating a profile ever requires
+  copying rows between tables, the shape is wrong.
+
+#### ⚠️ WHAT THIS NOW BINDS — design against it, do not retrofit
+
+The decision is taken, so these are no longer "interactions to consider". They
+are constraints on work that has not been built yet, and each one is cheap to
+honour now and expensive to retrofit:
+
+| | |
+|---|---|
+| **v2-S4 part 2** (the admin surfaces) | ⚠️ **Must be designed against this model.** Attendance attaches to the CHILD profile; `/admin/eleves` lists children, not accounts; a parent with three children is three rows in the class table and one row in `auth.users`. Building it against "one account = one student" and fixing it later means rewriting the marker, the class table and the FK together. |
+| **E8 shop** | One purse per child. A purchase may draw from **several purses**, with the split recorded on the order. ⚠️ Never a shared family wallet — it blurs who earned what, which is the same legibility E3's derived-not-banked rule protects. |
+| **Points and rank** | One purse per child, so individual merit stays visible. A child sees what *they* earned. |
+| The minors privacy paragraph | Already models a **guardian** email, so the policy is closer to this model than the schema is. |
+
+**No longer blocked.** What remains is sequencing: the schema change should land
+before accounts are turned on for families, because a club where parents enrol
+is a different product from a club of teenagers with their own email addresses,
+and the schema cannot straddle both after the fact.
 
 ## Deployment and domain
 
@@ -65,7 +130,7 @@ one.
 | **E5 — retro main menu on the home page** | **done** | Six entries, roving tabindex, "Reprendre" resolving to the furthest incomplete step. |
 | **E6 — complete themes** (background + board + pieces) | **done** | Four themes, each with both palettes, four licence-checked piece sets and a sixth board preset. The constraints it shipped under still bind anything added later: every piece set needs its own attribution on `/mentions-legales/`, verified set by set; texture in CSS only, never images; and every theme clears `check-contrast.mjs` on all its pairs in both modes **at design time**, not at the end. |
 | **E7 — thematic typography** | **done** | Heading face per theme; **the body family never changes** (Critical Feature 23). One theme loads one display font, never four. |
-| **E8 — the shop** | `blocked` | Catalogue display needs nothing; **the points exchange cannot open before v2-S3**. Points live in `localStorage` while accounts are off, so changing phone loses them — and that is a lost *reward*, not lost progress. Once accounts exist the balance must be computed in the database from exercises actually solved, never accepted from the client. **Points are never sold.** |
+| **E8 — the shop** | `blocked` | ⚠️ **One purse per CHILD, and an order records the split when a purchase draws from several** — the parent/child model is decided and the shop must be built against it, never against a shared family wallet. Catalogue display needs nothing; **the points exchange cannot open before v2-S3**. Points live in `localStorage` while accounts are off, so changing phone loses them — and that is a lost *reward*, not lost progress. Once accounts exist the balance must be computed in the database from exercises actually solved, never accepted from the client. **Points are never sold.** |
 | **E4 — vocabulary and atmosphere** | `backlog` | Evocative names on **page titles only**; nav labels stay functional (Cours, Exercices, Jouer). ⚠️ Now constrained by E5 as well: the home menu takes its labels from the same `nav.*` keys, so renaming a nav label renames a menu entry too. May be absorbed by E5 + E7 — see the addendum. |
 
 ### Refonte esthétique majeure — a direction session, not a patch
@@ -123,7 +188,7 @@ board stays sober throughout.
 | **AGPL piece sets** (`pixel`, `letter`, `pirouetti`) | `conditional` | Free software, and NOT a licence conflict — but AGPLv3 §13 adds a network-use obligation the repo does not currently carry, so adopting one changes the licence statement on `/mentions-legales/`. `pixel` would suit Terminal well. Needs Seàn's decision, not a session's. |
 | **Old-style figures in body text** | `blocked` | Declared in `typography.css` and inert: Inter ships no `onum`. Only unblocked by changing the body face, which the E7 safety rule forbids doing per-theme. A spec reports whether it ever starts working. |
 | **The board BLOCK overflows a phone screen** | `open` | **Measured in M3, not fixed.** At 390×844 (791px usable) the exercise block is **833px** and the trap replayer **895px**; at 360×640 (587px usable) they are 828px and 865px. The *board* is fine — 335px — so this is not a sizing bug: the other ~500px is the control stack (tag, move field, buttons, hint, verdict). Compressing it is a design decision about what an exercise shows at once, which is why M3 recorded it rather than tweaking CSS. Re-measure with `scripts/measure-board.mjs` (scratchpad, M3 session) or rebuild it — it walks `.mcc-board-block` at both viewports. |
-| **A killed matrix leaves orphaned Playwright browsers, and nothing sweeps them** | `open` | Found during the v0.10.0 promotion: a run killed part-way left **~60 orphaned `ms-playwright` browser processes** plus a stray preview server, and the next full matrix then failed on five unrelated specs across four projects — all of which passed serially once the machine was clear. `scripts/demo.mjs` sweeps *previews for this repo* and nothing sweeps browsers. The fix is the same shape as `previewsForRepo()`: match `Win32_Process` on an `ExecutablePath` under `ms-playwright` and kill those, ⚠️ **never filtering on `chrome.exe` by name alone** — that would kill the user's own browser. Worth running before any `test:release`. |
+| ~~**A killed matrix leaves orphaned Playwright browsers**~~ | **done** | `orphanedBrowsers()` in `scripts/demo.mjs`, inside the same `sweep()` as the preview cleanup, so it runs on startup and on Ctrl+C. Matches on `ExecutablePath` under a Playwright browsers root (`PLAYWRIGHT_BROWSERS_PATH` first — the documented default is wrong on this machine), **never on the process name**; kills tree roots only, with `taskkill /T`, and **only when orphaned** so a run in progress is never touched. Verified live: 25 outside-cache browsers spared, 3 spared while their launcher lived, 1 orphan reported and 4 processes gone. See CLAUDE.md → the sweep. |
 | **The M1 mobile header wraps at 360px** | `open` | 61px at 390px, **97px at 360px** — the "one line" header becomes two, eating 36px of an already short screen. Found in M3. |
 | **The desktop header wraps between 768px and 1023px** | `open` | **77px → 129px**, introduced by adding the fifth nav entry (`/progres/`) — it adds 72px of nav width and pushes `header-inner` past one line in that band. Verified against `dev` that the header already wrapped at 768px without it, so this widens an existing behaviour rather than creating one, and 1024px+ is untouched. **Not fixable by trimming the gap** — the four `nav-root` gaps hold 16px at 0.25rem against the 72px needed. The real options are a narrower brand (hiding the club name below 1024px, reclaiming ~150px) or accepting two rows; the first is a design decision, not a session's. Accepted for now and measured rather than papered over. |
 

@@ -1,0 +1,150 @@
+---
+/**
+ * The admin shell — chrome, navigation and the staff gate (v2-S4 part 2).
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️ FRENCH ONLY, AND THAT IS A DECISION RATHER THAN AN OMISSION.
+ *
+ * There is no `t()` here, no `/en/admin/`, and no i18n scaffolding anywhere
+ * under `/admin*`. Same decision as BabyClub, for the same reason: this is a
+ * single-operator context — Seàn and one or two profs, in French, in a room in
+ * Essaouira. The site's FR/EN rule is about READERS, and an admin screen has no
+ * such audience; running it through the i18n layer would double every string in
+ * `ui.ts` and double the review surface to buy nothing.
+ *
+ * ⚠️ A FUTURE SESSION MUST NOT "FIX" THIS BY ADDING TRANSLATIONS. The missing
+ * English is the decision. It is recorded in CLAUDE.md as well as here, because
+ * a rule that lives only next to the code it constrains is a rule the next
+ * session tidies away.
+ *
+ * ── The gate ────────────────────────────────────────────────────────────
+ * ⚠️ THE ROLE CHECK BELOW IS UX. RLS IS THE SECURITY.
+ *
+ * The site is static and the anon key is public, so "the page did not render
+ * the table" protects nothing at all — a student who opens devtools does not
+ * use the page. What actually refuses them is `is_staff()` in the policies, and
+ * `role-separation.spec.ts` proves that with a real student token against
+ * PostgREST rather than by driving this UI.
+ *
+ * What the gate buys is that a student who lands here by accident gets a
+ * sentence rather than an empty table that looks broken.
+ *
+ * ── Layout ──────────────────────────────────────────────────────────────
+ * ⚠️ MOBILE-FIRST, because this is opened on a phone in a room at Dar Souiri
+ * and not at a desk. The nav is a horizontal scroll strip of ≥44px targets at
+ * every width — NOT a bottom bar: the site's bottom bar has exactly four
+ * entries (Critical Feature 27) and a second fixed bar stacked on it would eat
+ * a quarter of a 640px screen.
+ *
+ * ⚠️ CRITICAL FEATURE 36 — the same nav renders at every width. There is no
+ * `display: none` on any destination here, so nothing is reachable on one
+ * layout and missing from the other. `admin.spec.ts` reads the strip's links at
+ * phone width and again at desktop width and asserts the two lists are equal.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+import BaseLayout from '@layouts/BaseLayout.astro';
+import '@styles/admin.css';
+
+interface Props {
+  /** Shown as the page heading and in the document title. */
+  title: string;
+  /** Which nav entry is current. */
+  current: 'dashboard' | 'eleves' | 'seances';
+  /** One sentence under the heading. Optional. */
+  intro?: string;
+}
+
+const { title, current, intro } = Astro.props;
+
+const NAV = [
+  { id: 'dashboard', href: '/admin/', label: 'Tableau de bord' },
+  { id: 'eleves', href: '/admin/eleves/', label: 'Élèves' },
+  { id: 'seances', href: '/admin/seances/', label: 'Séances' },
+] as const;
+---
+
+<BaseLayout locale="fr" title={title} description="Espace encadrants." singleLocale>
+  <div class="admin" data-admin data-state="checking" data-testid="admin">
+    {/* ⚠️ The nav renders in every state, including "not staff". A reader who
+        is signed in as a prof in another tab must not be stranded on a page
+        with no way out; and it is one element, so the CF36 list cannot differ
+        between states either. */}
+    <nav class="admin-nav" aria-label="Espace encadrants" data-testid="admin-nav">
+      <ul>
+        {
+          NAV.map((item) => (
+            <li>
+              <a
+                href={item.href}
+                class:list={['admin-nav-link', { 'is-current': item.id === current }]}
+                aria-current={item.id === current ? 'page' : undefined}
+                data-admin-nav
+              >
+                {item.label}
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </nav>
+
+    {/* Checking — the honest first state. The page cannot know who this is
+        until the client asks, so it says so rather than flashing a table. */}
+    <p class="admin-checking" data-admin-checking>Vérification du compte…</p>
+
+    {/* Not staff, or not signed in. One sentence and a way out. */}
+    <div class="admin-denied" data-admin-denied hidden data-testid="admin-denied">
+      <h1>Espace encadrants</h1>
+      <p>Cet espace est réservé aux professeurs du club.</p>
+      <p class="admin-denied-note">
+        Si vous êtes professeur, connectez-vous avec le compte concerné.
+      </p>
+      <p>
+        <a class="btn-primary" href="/connexion/">Se connecter</a>
+        <a class="btn-ghost" href="/">Retour au site</a>
+      </p>
+    </div>
+
+    <div class="admin-body" data-admin-body hidden>
+      <header class="admin-head">
+        <h1>{title}</h1>
+        {intro && <p class="admin-intro">{intro}</p>}
+      </header>
+      <slot />
+    </div>
+  </div>
+</BaseLayout>
+
+<script>
+  import { isStaff } from '@lib/admin';
+  import { getSession } from '@lib/supabase';
+
+  const root = document.querySelector('[data-admin]') as HTMLElement | null;
+  const checking = document.querySelector('[data-admin-checking]') as HTMLElement | null;
+  const denied = document.querySelector('[data-admin-denied]') as HTMLElement | null;
+  const body = document.querySelector('[data-admin-body]') as HTMLElement | null;
+
+  function show(state: 'staff' | 'denied') {
+    root?.setAttribute('data-state', state);
+    if (checking) checking.hidden = true;
+    if (denied) denied.hidden = state !== 'denied';
+    if (body) body.hidden = state !== 'staff';
+    /* Tell the page's own script it may load data. Dispatched rather than
+       imported so each surface stays a plain listener and none of them has to
+       repeat the role check. */
+    if (state === 'staff') window.dispatchEvent(new CustomEvent('mcc:admin-ready'));
+  }
+
+  (async () => {
+    /* ⚠️ A FAILED CHECK DENIES. A dead Supabase, an expired token or a thrown
+       fetch must not fall through to the staff branch — that is the one
+       direction in which failing open would show a class list to whoever is
+       holding the phone. */
+    try {
+      const session = await getSession();
+      show(session && (await isStaff()) ? 'staff' : 'denied');
+    } catch {
+      show('denied');
+    }
+  })();
+</script>

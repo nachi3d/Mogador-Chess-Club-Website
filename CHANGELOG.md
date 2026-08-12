@@ -13,6 +13,450 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ---
 
+## [0.11.0] — 2026-08-12
+
+**The whole account stack — sync, roles, the register — is built, and it is
+still switched off.**
+
+This release is v2 arriving in one piece: progress that follows a student
+between devices (v2-S3), a proven role boundary with teacher-awarded points
+(v2-S4 part 1), the admin surfaces a prof actually uses (v2-S4 part 2), and
+underneath all of it the parent/child model that makes the learner a person
+rather than a login.
+
+⚠️ **AND NONE OF IT IS REACHABLE. `PUBLIC_AUTH_ENABLED` REMAINS UNSET.**
+
+That is deliberate and it is the most important line in this entry.
+`/connexion/`, `/compte/`, `/auth/callback/` and the four `/admin*` routes are
+**not emitted into `dist/` at all**, and there is **no Supabase project ref, host
+or anon key in any shipped bundle** — off means *not built*, not hidden. Nine
+routes' worth of feature ships as zero bytes a reader can reach. Turning it on is
+one build variable and a release decision, and it is Seàn's, not a side effect of
+a session. What changed in v0.11.0 is that it is now worth making.
+
+What a reader of the live site gets from this release: nothing they can see —
+which is the point. What the project gets is that the next decision is a switch
+rather than a build.
+
+- **v2-S3 — progress sync.** Signed in, `localStorage` stays the source of truth
+  for the UI and the cloud is the durable copy; reads never touch the network, so
+  a dead Supabase cannot block a board. The **first-sign-in import** merges a
+  guest's work rather than replacing it — `solved` OR, `attempts` MAX, `hintUsed`
+  OR, `solvedAt` EARLIEST, games unioned by id — chosen so the merge is
+  commutative and idempotent, because it runs once, on real work, with no undo.
+  An **offline queue** (`mcc:sync:v1`, one entry per row, bounded at 500) retries
+  on reconnect and on the tab becoming visible, with no polling and no spinner.
+- **v2-S4 — the role boundary and the surfaces on top of it.** `admin` / `prof` /
+  `eleve`, with `role` unreachable from any client (column privileges, a trigger,
+  and no INSERT policy). **Teacher-awarded points** as rows with a required
+  reason, positive and capped at 50 — all three enforced in the database, not the
+  form. Then the surfaces: a dashboard, a class list, session CRUD and the
+  attendance register, French only, mobile-first, needing **no new migration**
+  because the schema was already there.
+- **The parent/child profile model.** A parent holds the account; each child is a
+  profile beneath it carrying the progress, the points and the attendance. An
+  autonomous teenager is an account holding exactly one child — one code path,
+  not two. Graduation into their own account is **one foreign-key update** and
+  copies no rows, which was the design's own test for whether the shape was right.
+- **Tooling.** `npm run demo` now sweeps orphaned Playwright browsers as well as
+  orphaned preview servers — ~60 were found on this machine, and they had cost
+  three red release gates that were not defects. CLAUDE.md was split into the
+  rules that bind every session plus `docs/reference/`, with a size guard that
+  fails the build past 150 000 characters; it had reached 247 KB, past which its
+  tail was silently no longer read.
+
+### Added — v2-S4 part 2: the admin surfaces
+
+`/admin/` (dashboard), `/admin/eleves/` (the class), `/admin/eleve/?id=…` (one
+learner) and `/admin/seances/` (sessions + the attendance register), reached from
+`/compte/`. ⚠️ **`PUBLIC_AUTH_ENABLED` stays OFF.** This session makes accounts
+worth turning on; it does not turn them on.
+
+**No new migration was needed**, which is the payoff from doing 0005 first:
+0001, 0004 and 0005 already carried every table, policy and grant these surfaces
+use. The one thing that would have needed a migration — a prof creating a student
+— is deliberately not built, because staff hold `SELECT` on `child_profiles` and
+nothing else, and a teacher renaming a child is indistinguishable from a teacher
+inventing one.
+
+⚠️ **The class list is CHILDREN, not accounts.** A parent with three children is
+three rows and one row in `auth.users`. Built the other way round, the table, the
+marker and the foreign key would all have had to be rewritten together.
+
+⚠️ **THE REGISTER IS THE DESIGN CONSTRAINT, AND IT IS MEASURED.** Twenty
+teenagers in a room, a prof standing up with a phone: one tap per child, no modal
+per row, **no save button anywhere**. The write is optimistic — the state flips on
+the tap, because nobody waits for twenty round trips on mobile data — and a failed
+write is **loud and does not revert**, since a mark that silently undoes itself is
+worse than one that never happened. Nothing re-sorts or changes height after a
+tap: a list that moves under a thumb is how the next student gets marked wrong.
+
+`attendance-timing.spec.ts` signs in a real prof, creates twenty real children and
+drives twenty real marks: **1 175 ms for twenty taps (59 ms per child), all twenty
+rows durable 1 470 ms after the first.** That is the interface's cost, not a
+human's pace — a real class is bounded by reading the names, around half a minute.
+The useful reading is that the software is nowhere near the bottleneck.
+
+⚠️ **A cancelled session is a STATE, never a deletion.** `on delete cascade` means
+deleting one destroys a register that may already have been marked, so the UI
+offers no delete at all.
+
+### Added — teacher-awarded points reach the student, as rows
+
+Migration 0004 built `point_awards` and E3 built `PointEntry` with `origin` and
+`source` so a second producer could arrive without a migration. This is that
+producer.
+
+⚠️ **STILL NOT A BALANCE.** Awards are mirrored into `mcc:progress:v1` as ROWS
+with their reasons and summed by the ledger, exactly like solves. They are pulled
+on sign-in and **never pushed** — the client has no INSERT policy and must not act
+as though it might. `mirrorAwards()` **replaces** rather than merges, because the
+server is the only author; merging would make a withdrawn award immortal on
+whichever device saw it first. The key stays `v1`: a record written before this
+has no `awards`, which normalises to empty.
+
+⚠️ **The student sees "gagnés" and "attribués par ton prof" as different kinds of
+thing, not a bigger number** — its own block, its own heading, an accent edge, and
+**the reason printed next to every award**. The reason is why the database
+requires one. A student nobody has awarded sees no block at all, rather than an
+empty "0 from your teacher", which reads as a mark against them.
+
+### Added — `src/lib/ledger.ts`, the one summation
+
+E3 put the computation in `ScoreResolver`'s inline script, which is right for the
+reader (it must land in the first paint, so it cannot import). v2-S4 adds a second
+caller asking the same question over cloud rows: a prof reading a student's total.
+
+⚠️ **A prof and a student reading different totals is the worst failure a
+progression display can have** — both numbers look plausible and the student is
+the one who has to argue about it. So the summation moved to a pure function over
+rows, the inline copy stays for the first-paint reason, and `admin.spec.ts` seeds
+a store, reads `window.MCC_SCORE` off the live page, runs the shared function over
+the same records and catalogue, and asserts every number matches — including that
+the teacher bucket is non-zero, so the test cannot pass vacuously.
+
+### Added — `singleLocale` on BaseLayout
+
+⚠️ **The admin UI is FRENCH ONLY, and that is a decision** (now Critical Feature
+43). Same as BabyClub, same reason: a single-operator context. The FR/EN rule is
+about readers, and an admin screen has no such audience. A future session must not
+"fix" it by adding translations.
+
+The prop suppresses the hreflang alternates **and** the language switcher, and both
+halves are needed: left on, the alternates advertise a 404 to search engines and
+the switcher offers a reader a one-way trip to it. It is not an escape hatch for
+public pages, and a spec asserts a public page still carries both.
+
+### Changed — `role-separation.spec.ts`: 8 assertions → 15, and serialised
+
+Everything new is asserted **through PostgREST with the user's own token**, never
+by driving the admin pages — hiding a table is UX, and a student who opens
+devtools does not use the table. Added: a student cannot read the class list or
+rename another family's child; a prof reads every child and can **write none**;
+re-marking corrects rather than duplicating (the upsert key 0005 rebuilt);
+cancelling keeps the session and its register; the award bounds hold with
+`validateAward()` nowhere in the picture; a student reads their own awards and
+cannot delete them.
+
+⚠️ **And the file now runs one at a time.** Its tests share the same student,
+session and awards, and this session took it from two mutating tests to seven.
+They passed first time in parallel — which is exactly how that flake ships, and it
+would later read as a real regression in an RLS policy.
+
+### Verified
+
+- **Both flag states, with a clean rebuild between** (the documented stale-`dist/`
+  tell): accounts ON — 123 pages, 417 passed; accounts OFF — 114 pages, 379
+  passed. The 9-page delta is exactly the gated routes. No Supabase ref, host or
+  anon key anywhere in the OFF build.
+- **Live RLS audit** against the TEST project: 15/15, with real tokens for a
+  student, a second family and a prof.
+- The four `/admin*` routes joined the existing "off means not built" list rather
+  than getting a private assertion of their own.
+
+### Changed — CLAUDE.md split into rules + `docs/reference/`, with a size guard
+
+**CLAUDE.md had reached 247 KB against a 150 000-character context limit**, past
+which the tail of the file is silently no longer read. That is the worst shape a
+rules file can fail in: the rules were present in the repository, correct and
+reviewed, and **absent from the sessions that needed them** — roughly the last
+third, including the whole deployment and testing policy. Nothing reported it.
+
+**247 KB → 84 KB (56% of the limit).** The split is by **when you need it**, not
+by importance:
+
+- **CLAUDE.md keeps what constrains work you might do without knowing the area
+  exists** — the conventions, the 42 Critical Features, the promotion routine,
+  the ply/content-authoring rules, the migration checklist, the verification and
+  quick-change policy, and the architectural decisions that bind.
+- **`docs/reference/` (14 files) holds the reasoning, the measurements and the
+  incident narratives**, one file per area, each opening with a **Read when**
+  line. CLAUDE.md links every one of them with a line saying when it matters.
+
+⚠️ **NOTHING WAS DELETED, and that was verified rather than asserted.** The
+reference files were sliced **verbatim** from the original, and a check confirms
+**2 398 of 2 409 substantive lines are present character-for-character**
+elsewhere; the 11 exceptions are the rewritten opening paragraph and the
+migration checklist, which was reworded when it was hoisted into CLAUDE.md and
+replaced in `supabase.md` with a pointer so it has exactly one home.
+
+**Incident narratives keep their rule in CLAUDE.md and move the story out**, but
+only where the story is not itself the rule. Where recognising the symptom *is*
+the rule — the WebKit fan-out signature, the stale-`dist/` tell of all five
+projects failing identically, the `42501`-from-`service_role` tell — enough stays
+to identify it from the failure alone. `docs/reference/incidents.md` indexes them
+all, grouped by how they failed; the common thread is that most failed silently
+and several looked green.
+
+### Removed — the superseded on-square coordinates section
+
+The one thing deliberately **not** carried across intact. It was headed
+SUPERSEDED and described coordinates drawn **on the squares**, which the outer-
+gutter reversal replaced — including the "two inks exist" reasoning, which the
+one-colour-per-palette change had already retired. ⚠️ **A section marked
+SUPERSEDED is a trap, not an archive:** a future session reads a confident,
+detailed passage and has only a parenthetical standing between it and treating it
+as current.
+
+What survives is the half that is still live, folded into the gutter section as
+"The alignment is GEOMETRIC, never a nudge" — pin each track with `inset`, divide
+it with **`flex: 1 1 0`, never Chessground's `1 1 auto`**, and put aesthetic
+insets on the `coord` child rather than the track. Checked against
+`src/components/board/board.css` before cutting rather than assumed: both rules
+are in the live CSS, and `tests/e2e/nav-coords.spec.ts` still guards them. The
++24px default-offset measurement is kept as the illustration of why the fix is
+geometric.
+
+### Added — `scripts/check-claude-md.mjs`, the size guard
+
+Fails at **150 000 characters**, warns from **120 000**, and runs as the **first
+step of `npm run build`** (so `npm run quick` and the release gate inherit it).
+It also asserts the pointers resolve **both ways**: every `docs/reference/*.md`
+is linked from CLAUDE.md, and CLAUDE.md links nothing that does not exist — a
+pointer is the whole mechanism holding the split together.
+
+Both halves were verified to **fail on a broken tree** before being trusted: an
+80 KB pad tripped the limit, and a renamed reference file tripped both pointer
+checks. ⚠️ The message says **split, do not trim** — a rule deleted to save bytes
+comes back as a bug.
+
+### Added — the parent/child profile model (migration 0005)
+
+⚠️ **REORDERED AHEAD OF THE ADMIN SURFACES, DELIBERATELY.** v2-S4 part 2 was
+next; this went first because it changes what an admin surface is a surface
+*of*. `/admin/eleves` lists children, not accounts, and attendance attaches to a
+child — building the marker against "one account = one student" and repointing
+it later means rewriting the table, the marker and the foreign key together.
+`PUBLIC_AUTH_ENABLED` remains OFF, so none of this is reachable by a reader.
+
+**The learner stops being the login.** `profiles.id` was `auth.users.id`:
+identity and person were one row, so a child with no credentials had nowhere to
+live. `child_profiles` gives the learner its **own primary key** plus a nullable
+`account_id` — who holds them right now.
+
+⚠️ **ONE CODE PATH, NOT TWO.** An autonomous teenager is not a special case:
+they are an account holding exactly **one** child profile. Every learner is a
+`child_profiles` row, always, so nothing downstream branches on "is this a
+family". The client half is the same rule: `resolveChild()` adopts a single
+child silently and only asks when the count genuinely makes it ambiguous.
+
+**What moved.** `exercise_progress`, `game_results`, `attendance` and
+`point_awards` now reference the child. The primary keys moved with the column —
+`(profile_id, exercise_slug)` → `(child_id, exercise_slug)` and so on — because
+dropping the column without rebuilding the key would leave those tables with no
+uniqueness at all and let the sync layer insert a duplicate row on every write.
+Actor columns (`sessions.created_by`, `attendance.marked_by`,
+`point_awards.awarded_by`) deliberately still point at the **account**: a prof
+who marks a register is a person with a login, not a learner.
+
+Exercised against the test project with real seeded data — 4 progress rows, 3
+games, 2 attendance rows and 1 award across two accounts. All followed; the
+backfill created one child per `eleve` account and none for staff.
+
+**Graduation is one FK update, and it is proved rather than asserted.**
+`graduate_child()` is a `SECURITY DEFINER` function granted to `service_role`
+only. Run against the test project: the child key was unchanged, the row counts
+were identical either side, the new account read all of it and the old account
+read none. That is the backlog's own test for this shape — *if graduating
+requires copying rows between tables, the shape is wrong.*
+
+**"Qui joue ?" — a choice, not a password.** No PIN, no lock. These are children
+in the same room as the parent who signed in; the account is the security
+boundary and which child is playing is a preference, like the board theme. The
+choice is remembered **per device**, so a child's own phone asks once and the
+family tablet asks when the answer is genuinely unknown. An account with one
+child never sees the picker at all.
+
+**`progress.ts` is still the single reader, and its public API did not change
+shape.** `recordSolved(slug)` still takes a slug and nothing else. The child id
+is **context**, resolved once in `src/lib/child.ts` and read by the sync layer —
+threading it through every caller would have put the account model into
+`ExerciseView`, `PlayView`, four page components and every spec, for a value
+none of them has any business knowing.
+
+**Live RLS + GRANT audit against the running test database**, with a real
+parent, a real prof, a real anon client and the service role — 27 checks, clean.
+The one that matters: **a parent cannot take over another family's child**, and
+cannot write progress for one. A parent also cannot mint points for their own
+child, which keeps the teacher-award anti-cheat story intact under the new
+model. `service_role` DML is granted explicitly on `child_profiles` — the line
+0002 exists for and 0003 forgot.
+
+### Fixed
+
+- **`role-separation.spec.ts` and `progress-sync.spec.ts` addressed
+  `profile_id`** and were repointed at the child. Nothing about the boundaries
+  they assert changed; they were asserting them against a column that no longer
+  exists.
+- **The graduation spec depended on a sibling test's write**, which
+  `fullyParallel` is free to break — and did, in a way that made it measure zero
+  rows and then assert zero equalled zero. It now seeds its own child and its
+  own progress. A proof that passes on an empty set proves nothing.
+
+### Added — v2-S4 (part 1): the role boundary, proven
+
+⚠️ **FOUNDATION ONLY. The admin surfaces are NOT built** — `/admin`,
+`/admin/eleves`, `/admin/seances`, the attendance marker and the award form are
+a follow-up session. Nothing was half-built: a present-but-inert admin page is
+worse than an absent one. `PUBLIC_AUTH_ENABLED` remains OFF.
+
+**Migration 0004 — `point_awards`.** Teacher-awarded points for what the
+software cannot see: effort, attendance, helping another student. E3 built
+`PointEntry` with `origin` and `source` so a second producer could arrive
+without a migration, and this is that producer. One row per award; still no
+balance stored anywhere.
+
+Three rules live in the **database**, not in a form, because a form is the half
+a future admin script skips:
+
+- `reason` is **required**, checked on the trimmed length — points that appear
+  with no explanation destroy trust faster than no points at all;
+- points are **positive and capped at 50** — a prof who could award −50 would
+  turn the ledger into a disciplinary instrument, and the cap sits under the
+  tutorial's own 65 so no award outweighs the work;
+- a student has **no INSERT policy at all** — the one table where a client write
+  would mint points directly.
+
+**Live RLS/GRANT audit, 22 assertions, clean.** Exercised with a real student, a
+real prof and a real anon client against the running database — not read from
+the migration, which is what produced the `service_role` bug twice. `anon` sees
+only published sessions and cannot create one; a student cannot mark attendance,
+create a session, mint points, read another student's progress, change their
+role by table **or** by `admin_set_role`; a prof can do the job and **cannot
+promote anyone**; `service_role` can reach all five tables.
+
+Both `profiles.role` protections re-verified live: `authenticated` holds
+`UPDATE` on `display_name` and `locale` only, and `admin_set_role` is execute-
+granted to `service_role` alone.
+
+**`role-separation.spec.ts`** (8 tests) asserts the same boundaries through
+PostgREST with each user's own token — deliberately not through the UI, because
+a spec that drove admin pages would only prove the buttons are hidden, and a
+student who opens devtools does not use the buttons.
+
+**Decisions recorded ahead of the build:** the admin UI is **French only** (a
+single-operator context — a future session must not add i18n scaffolding), and
+the agenda will move to the database as a **build-time read**, because with
+accounts off there is no Supabase client in the bundle and `/agenda` must still
+render.
+
+### Added — v2-S3: progress sync, and the first-sign-in merge
+
+⚠️ **`PUBLIC_AUTH_ENABLED` IS STILL OFF.** All of this is built, migrated and
+verified against the TEST project with the flag on locally; flipping it is a
+release decision, not a side effect of a session. The database is now ahead of
+the site, which is the safe ordering.
+
+**Migration 0003 — a `kind` discriminator, not three tables.** The local store
+has one map for every judged board: an exercise, a tutorial step and a lesson
+board all produce the same record. One local map → one table makes the sync a
+mirror rather than a translation, and keeps the merge from branching on
+namespace. `game_results` is a **row per game, not a counter**, because two
+counters cannot be merged — 3 wins here and 2 there might mean 5 games or 3, and
+neither `sum` nor `max` is right in both cases. `lesson_progress` is deprecated
+and deliberately not dropped.
+
+**RLS audited live**, against the running database with real users rather than
+by re-reading the migration: owner CRUD, another signed-in user reads **0** rows
+and cannot forge one (42501), `anon` reads nothing and writes nothing, a prof
+reads all and **cannot write**, and deleting the auth user cascades progress and
+games away.
+
+⚠️ **The `service_role` grant is the trap migration 0002 exists for, and 0003
+walked into it again** — default privileges do not give `service_role` DML on a
+new table, so the admin client got `42501` on a table whose RLS was perfect. Any
+future migration adding a table needs the grant.
+
+**`progress.ts` is still the single reader.** No component gained a Supabase
+call; `progress-sync.ts` is a backend it writes through to. Reads never touch
+the network — `localStorage` remains the source of truth for the UI — and writes
+go local first, so a failed cloud write cannot lose anything.
+
+**The merge**, run at sign-in and idempotent by construction: `solved` OR,
+`attempts` MAX, `hintUsed` OR, `solvedAt` EARLIEST, games UNION by id. Tested
+with conflicting state seeded on **both** sides, not just empty-into-full — the
+case that passes even when the rules are backwards.
+
+⚠️ **A real bug the idempotency test caught: Postgres and JavaScript disagree
+about the timestamp STRING.** `timestamptz` returns `...+00:00`, JS writes
+`...000Z`. Comparing lexicographically is wrong, not untidy: `+` sorts before
+`.`, so a cloud value would win every "earliest" test whatever date it held, and
+a student's first-solved date would drift. Everything is canonicalised now.
+
+**The offline queue** is bounded at 500, survives reload, holds one entry per
+row (state, not a replayable history), retries on reconnect and on the tab
+becoming visible — no polling, no spinner. Tested explicitly: a whole session
+worked offline, a reload while still offline, then reconnect, and everything
+arrives.
+
+**Surfaces:** `/compte` gains the real progress section with the import report
+("12 exercices et 3 leçons récupérés" — silent success is indistinguishable from
+silent loss); `/progres` shows one discreet sync line, hidden for a guest.
+**Signing out keeps local progress** — the student carries on as a guest, and
+that is asserted.
+
+**Anti-cheat is documented, not built.** The database records what was DONE and
+points stay derived, so a server-side recomputation is possible later with no
+migration. CLAUDE.md records what such a check would need and why client-side
+validation is not it.
+
+### Fixed — `npm run demo` now sweeps orphaned Playwright browsers too
+
+A killed `test:release` leaves its browsers running, and neither existing probe
+could see them: an orphaned browser holds no port and its command line says
+nothing about this repo. **~60 of them accumulated on the machine** during the
+v0.10.0 promotion, and the next full matrix failed on five unrelated specs
+across four projects — all of which passed when re-run serially once the machine
+was clear. Three red gates in a row, none of them a defect.
+
+`orphanedBrowsers()` lives in the **same `sweep()`** as the preview cleanup, so
+it runs on startup and on Ctrl+C with no second routine to remember.
+
+Four rules hold it, and each was verified against a live machine rather than
+reasoned about:
+
+- ⚠️ **Match on the executable path, never on the process name.** `chrome.exe`
+  is also Seàn's own browser. The Windows filter is `ExecutablePath` — the real
+  image path, which `Name` and `CommandLine` are not — and it must sit under a
+  directory Playwright installs into. **25 browser-named processes outside the
+  cache were spared** while the orphan was taken.
+- ⚠️ **`PLAYWRIGHT_BROWSERS_PATH` first.** On this machine it is
+  `D:\AppData\ms-playwright`, nowhere near the documented `%LOCALAPPDATA%`
+  default — a sweep that assumed the default would search an empty directory,
+  find nothing, and report success.
+- ⚠️ **Orphans only.** A live launcher means a run in progress, possibly another
+  project's, since the cache is machine-wide. With the launcher alive **3
+  browsers were spared**; once it was gone, the same shape was swept.
+- ⚠️ **Tree roots only, `taskkill /T`.** Chromium is a process tree; killing the
+  top alone leaves renderers reparented and running. One orphan reported, **four
+  processes gone**.
+
+Known limit, erring the safe way: Windows reuses pids, so a dead launcher's pid
+may belong to something live, and the orphan is then left alone. Under-killing
+is the right direction for a routine that runs unattended.
+
+---
+
 ## [0.10.0] — 2026-08-11
 
 **The site can make a sound, and says nothing until asked.** Six short voices,
@@ -2851,7 +3295,8 @@ Foundation only: no real content, no interactive board yet.
   `url()` references unresolved and the fonts silently 404 into a Georgia
   fallback. `scripts/build-fonts.mjs` self-hosts them instead. See CLAUDE.md.
 
-[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.7.0...v0.8.0

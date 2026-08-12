@@ -15,6 +15,7 @@ import { localizePath } from '@i18n/paths';
 import { useTranslations } from '@i18n/ui';
 import BaseLayout from '@layouts/BaseLayout.astro';
 import PageIntro from '@components/PageIntro.astro';
+import ChildPicker from '@components/account/ChildPicker.astro';
 
 interface Props {
   locale: Locale;
@@ -34,6 +35,10 @@ const t = useTranslations(locale);
     data-locale={locale}
     data-msg-saved={t('account.saved')}
     data-msg-error={t('account.saveError')}
+    data-msg-imported={t('account.import.recovered')}
+    data-msg-synced={t('account.import.upToDate')}
+    data-msg-sync-ok={t('account.sync.ok')}
+    data-msg-sync-pending={t('account.sync.pending')}
   >
     {/* Signed out — the default, because that is what a static page can prove. */}
     <div class="account-signed-out" data-testid="account-signed-out" hidden>
@@ -75,12 +80,61 @@ const t = useTranslations(locale);
         <p class="account-status" role="status" data-testid="account-status"></p>
       </form>
 
-      <section class="account-soon">
-        <h2>
-          {t('account.progress.heading')}
-          <span class="soon-badge">{t('account.progress.soon')}</span>
-        </h2>
-        <p>{t('account.progress.body')}</p>
+      <ChildPicker locale={locale} />
+
+      {/* ── v2-S3 — the real progress section ────────────────────────────
+          ⚠️ EVERY NUMBER HERE IS DERIVED, NOT STORED. The counts come from the
+          same local store the rest of the site reads and the same ledger
+          `/progres/` uses; nothing about a total is fetched or kept. See the
+          anti-cheat note in CLAUDE.md. */}
+      <section class="account-progress" data-testid="account-progress">
+        <h2>{t('account.progress.heading')}</h2>
+        {/* Filled by the script below — the import report, shown ONCE after a
+            sign-in that recovered something. Silent success is
+            indistinguishable from silent loss. */}
+        <p class="account-import" data-testid="sync-import" role="status" aria-live="polite"></p>
+        <dl class="account-stats">
+          <div>
+            <dt>{t('progress.exercises')}</dt>
+            <dd data-account-solved>0</dd>
+          </div>
+          <div>
+            <dt>{t('score.pointsLabel')}</dt>
+            <dd data-score-points>0</dd>
+          </div>
+          <div>
+            <dt>{t('score.title')}</dt>
+            <dd data-score-rank></dd>
+          </div>
+        </dl>
+        <p class="account-sync" data-testid="account-sync-state"></p>
+      </section>
+
+      {/* ── The way into the admin surfaces (v2-S4) ────────────────────────
+          ⚠️ THIS IS THE ONLY ENTRY POINT, AND IT IS DELIBERATELY HERE.
+
+          Not the nav: the header is already at five entries and wraps between
+          768 and 1024px, and a link almost every reader would never be allowed
+          to follow does not earn a permanent slot. Not the mobile bottom bar
+          either — that has exactly four entries (Critical Feature 27).
+
+          `/compte/` is reachable from the account button in the header at every
+          width, so Critical Feature 36 holds: there is no layout on which this
+          is reachable and another on which it is not. `admin.spec.ts` asserts
+          it at phone and desktop widths.
+
+          ⚠️ HIDDEN IS UX, NOT SECURITY. The link is revealed by the script
+          below when the profile says prof or admin; a student who un-hides it
+          in devtools reaches a page whose every query RLS answers with nothing.
+          The label is French because the destination is. */}
+      <section class="account-staff" data-testid="account-staff" hidden>
+        <h2>Espace encadrants</h2>
+        <p>Classe, séances et présences.</p>
+        <p>
+          <a class="btn-primary" href="/admin/" data-testid="account-admin-link">
+            Ouvrir l’espace encadrants
+          </a>
+        </p>
       </section>
 
       <section class="account-soon">
@@ -101,6 +155,10 @@ const t = useTranslations(locale);
 
   <script>
     import { getProfile, getSession, signOut, updateProfile } from '@lib/supabase';
+    /* ⚠️ v2-S3 — through `progress.ts` ONLY. This page never touches the sync
+       module or Supabase for progress: `progress.ts` is still the single
+       reader, and it is the one that decides what the durable copy does. */
+    import { importFromCloud, readProgress, solvedSlugs, startSync, syncState } from '@lib/progress';
 
     const root = document.querySelector('[data-testid="account"]') as HTMLElement | null;
     const signedOut = document.querySelector('[data-testid="account-signed-out"]') as HTMLElement | null;
@@ -141,6 +199,48 @@ const t = useTranslations(locale);
       root?.setAttribute('data-state', 'signed-in');
       if (panel) panel.hidden = false;
       if (signedOut) signedOut.hidden = true;
+
+      /* Staff see the way into /admin. UX only — RLS is the boundary. */
+      if (profile?.role === 'prof' || profile?.role === 'admin') {
+        const staff = document.querySelector('[data-testid="account-staff"]') as HTMLElement | null;
+        if (staff) staff.hidden = false;
+      }
+
+      /**
+       * ⚠️ THE FIRST-SIGN-IN MERGE, and the moment a guest month is saved or
+       * lost. It runs on every visit and is IDEMPOTENT by construction (max /
+       * OR / earliest / union by id), so a re-run changes nothing — the
+       * bookmark only decides whether the reader is told about it again.
+       *
+       * It is awaited AFTER the panel is shown: nothing on this page waits on
+       * the network, so a dead Supabase leaves a usable account page.
+       */
+      const importEl = document.querySelector('[data-testid="sync-import"]') as HTMLElement | null;
+      const report = await importFromCloud();
+      if (importEl) {
+        const recovered = report.exercises + report.lessons;
+        importEl.textContent =
+          report.ran && recovered > 0
+            ? (root?.dataset.msgImported ?? '')
+                .replace('%s', String(report.exercises))
+                .replace('%s', String(report.lessons))
+            : (root?.dataset.msgSynced ?? '');
+      }
+
+      /* Derived, never stored — the same computation `/progres/` does. */
+      const solvedEl = document.querySelector('[data-account-solved]');
+      if (solvedEl) solvedEl.textContent = String(solvedSlugs().length);
+      void readProgress();
+
+      const syncEl = document.querySelector('[data-testid="account-sync-state"]');
+      const paint = () => {
+        if (!syncEl) return;
+        const key = syncState() === 'synced' ? 'msgSyncOk' : 'msgSyncPending';
+        syncEl.textContent = root?.dataset[key] ?? '';
+      };
+      paint();
+      window.addEventListener('mcc:sync-state', paint);
+      startSync();
     })();
 
     form?.addEventListener('submit', async (event) => {
@@ -230,6 +330,26 @@ const t = useTranslations(locale);
 
   .account-status {
     margin: 0.75rem 0 0;
+    color: var(--mcc-text-secondary);
+  }
+
+  /* The staff block reads as a destination, not a notice: a solid accent edge
+     rather than the dashed "coming soon" border below it. */
+  .account-staff {
+    margin-bottom: 1.5rem;
+    padding: 1rem 1.25rem;
+    border-inline-start: 3px solid var(--mcc-accent);
+    background-color: var(--mcc-surface-sunken);
+    border-radius: var(--radius-card);
+  }
+
+  .account-staff h2 {
+    margin: 0 0 0.4rem;
+    font-size: 1.125rem;
+  }
+
+  .account-staff p {
+    margin: 0 0 0.75rem;
     color: var(--mcc-text-secondary);
   }
 

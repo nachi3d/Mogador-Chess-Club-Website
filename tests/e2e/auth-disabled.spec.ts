@@ -46,7 +46,21 @@ test.describe('accounts disabled — the default build', () => {
   }
 
   test('the auth routes are not emitted at all', () => {
-    for (const route of ['connexion', 'compte', 'en/connexion', 'en/compte', 'auth/callback']) {
+    /* ⚠️ v2-S4 part 2 added four more, and they belong in the SAME list rather
+       than in a second test: "off means not built" is one guarantee, and a
+       route with its own private assertion is a route that can quietly drop out
+       of it. */
+    for (const route of [
+      'connexion',
+      'compte',
+      'en/connexion',
+      'en/compte',
+      'auth/callback',
+      'admin',
+      'admin/eleves',
+      'admin/eleve',
+      'admin/seances',
+    ]) {
       const page = join(DIST, route, 'index.html');
       expect(
         () => statSync(page),
@@ -62,7 +76,17 @@ test.describe('accounts disabled — the default build', () => {
    * so a missing route is a bare 404, which is the correct answer for a URL that
    * does not exist.
    */
-  for (const route of ['/connexion/', '/compte/', '/en/connexion/', '/en/compte/', '/auth/callback/']) {
+  for (const route of [
+    '/connexion/',
+    '/compte/',
+    '/en/connexion/',
+    '/en/compte/',
+    '/auth/callback/',
+    '/admin/',
+    '/admin/eleves/',
+    '/admin/eleve/',
+    '/admin/seances/',
+  ]) {
     test(`${route} is not served`, async ({ request }) => {
       const response = await request.get(route, { maxRedirects: 0 });
       expect(response.status(), `${route} responded ${response.status()}`).toBe(404);
