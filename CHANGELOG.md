@@ -11,6 +11,23 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+---
+
+## [0.11.1] — 2026-08-12
+
+**The service worker no longer precaches unreachable chunks: 162 → 150 files,
+5983 → 5953 KiB.**
+
+A patch release with no visible change and one measurable one. Every first visit
+was pushing **29.9 KB across 12 files** into the service-worker cache to support
+nine routes that answer 404 — the scripts behind `/connexion/`, `/compte/`,
+`/auth/callback/` and the four `/admin*` surfaces, which Astro builds because it
+collects `<script>` blocks from the **module graph, not from what renders**.
+
+What is excluded is **computed from build reachability, not from a list of chunk
+names** — and that distinction is the whole fix rather than an implementation
+detail. See below.
+
 ### Fixed — switched-off code is no longer precached
 
 **29.9 KB across 12 files** was being pushed into every visitor's service-worker
@@ -3344,7 +3361,8 @@ Foundation only: no real content, no interactive board yet.
   `url()` references unresolved and the fonts silently 404 into a Georgia
   fallback. `scripts/build-fonts.mjs` self-hosts them instead. See CLAUDE.md.
 
-[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.11.0...HEAD
+[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.11.1...HEAD
+[0.11.1]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.8.0...v0.9.0
