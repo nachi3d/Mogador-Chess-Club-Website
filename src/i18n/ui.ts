@@ -139,6 +139,17 @@ const fr = {
   'score.source.lessons': 'Leçons',
   'score.source.exercises': 'Exercices',
   'score.source.games': 'Parties gagnées',
+  /* ⚠️ v2-S4 — "attribués par ton prof" must read as a DIFFERENT KIND of point,
+     not a bigger one. A student who cannot tell what they earned from what they
+     were given loses the meaning of both. Tutoiement here and nowhere else on
+     the site is deliberate: this is the one line addressed to the child rather
+     than to the reader in general. */
+  'score.source.teacher': 'Attribués par ton prof',
+  'score.teacher.title': 'Points attribués par ton prof',
+  'score.teacher.intro':
+    'Ces points ont été donnés en cours, pour quelque chose que le site ne peut pas voir.',
+  'score.teacher.on': 'le %s',
+  'score.earnedTitle': 'Points gagnés',
   'score.streak.title': 'Série en cours',
   /* ⚠️ "dans cette session" is load-bearing wording. It tells the reader the
      number is not a record being kept about them, which is exactly why there
@@ -673,6 +684,12 @@ const en: Record<keyof typeof fr, string> = {
   'score.source.lessons': 'Lessons',
   'score.source.exercises': 'Exercises',
   'score.source.games': 'Games won',
+  'score.source.teacher': 'Given by your teacher',
+  'score.teacher.title': 'Points given by your teacher',
+  'score.teacher.intro':
+    'These were given in class, for something the site cannot see.',
+  'score.teacher.on': 'on %s',
+  'score.earnedTitle': 'Points earned',
   'score.streak.title': 'Current run',
   'score.streak.value': '%s exercises in a row this session',
   'score.achievements': 'Achievements',

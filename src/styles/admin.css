@@ -1,0 +1,450 @@
+/**
+ * The admin surfaces (v2-S4 part 2) — mobile-first.
+ *
+ * ⚠️ EVERY COLOUR IS A TOKEN. These pages follow the reader's theme like any
+ * other, in all four themes and both modes, and `check-contrast.mjs` audits the
+ * pairs used here because they are the same semantic pairs the public site
+ * uses. Nothing hardcodes a hex, and nothing puts `opacity` on text over an
+ * audited fill — that is invisible to the auditor and cost a Lighthouse
+ * regression once already.
+ *
+ * ⚠️ TOUCH TARGETS ARE ≥44px EVERYWHERE. This is used standing up, on a phone,
+ * in a room with twenty teenagers in it. The attendance buttons are the whole
+ * reason for the size floor and are deliberately larger still.
+ */
+
+.admin {
+  /* The shell owns its own rhythm: the surfaces below are dense tables and
+     forms rather than prose, so the 65ch measure would be wrong here. */
+  max-inline-size: 62rem;
+  margin-inline: auto;
+}
+
+.admin-checking {
+  color: var(--mcc-text-secondary);
+}
+
+/* ── the buttons ────────────────────────────────────────────────────────
+   ⚠️ HERE AND NOT IN A SCOPED <style>, AND THAT IS NOT A PREFERENCE.
+
+   `controls.css` owns the STRUCTURE of every button on the site (the 44px
+   floor, the press, the transition) and each page has historically added its
+   own colours in a scoped block. That does not work on these surfaces: the
+   session cards and their Publier / Annuler buttons are built with
+   `innerHTML` at runtime, and Astro's scoping attribute is stamped at BUILD
+   time — so a scoped rule would style the buttons written in the template and
+   silently skip every identical button the script creates.
+
+   The failure would be invisible in review (the static ones look right) and
+   obvious only on the page a prof actually uses. Scoped under `.admin` so
+   nothing here reaches the public site. */
+.admin .btn-primary {
+  border: 1px solid var(--mcc-primary);
+  background-color: var(--mcc-primary);
+  color: var(--mcc-primary-contrast);
+}
+
+.admin .btn-ghost {
+  border: 1px solid var(--mcc-border-strong);
+  background: none;
+  color: var(--mcc-link);
+}
+
+/* ── nav ────────────────────────────────────────────────────────────────
+   A scroll strip, not a bar. See AdminShell for why it is not fixed. */
+.admin-nav {
+  margin-block-end: 1.5rem;
+  border-block-end: 1px solid var(--mcc-border-subtle);
+}
+
+.admin-nav ul {
+  display: flex;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  overflow-x: auto;
+  list-style: none;
+  /* iOS: keep the strip from rubber-banding the page underneath it. */
+  overscroll-behavior-inline: contain;
+}
+
+.admin-nav-link {
+  display: flex;
+  align-items: center;
+  min-block-size: 2.75rem;
+  padding-inline: 0.9rem;
+  border-block-end: 3px solid transparent;
+  color: var(--mcc-text-secondary);
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.admin-nav-link:hover {
+  color: var(--mcc-text-primary);
+}
+
+/* ⚠️ Current is a RULE plus a colour, never colour alone — the same rule the
+   mobile bottom bar follows. */
+.admin-nav-link.is-current {
+  border-block-end-color: var(--mcc-accent);
+  color: var(--mcc-text-primary);
+}
+
+.admin-head h1 {
+  margin-block-end: 0.25rem;
+}
+
+.admin-intro {
+  margin-block: 0 1.5rem;
+  color: var(--mcc-text-secondary);
+}
+
+.admin-denied-note {
+  color: var(--mcc-text-secondary);
+}
+
+/* ── blocks ─────────────────────────────────────────────────────────────── */
+.admin-block {
+  margin-block-end: 2rem;
+}
+
+.admin-block-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-block-end: 0.75rem;
+  font-size: 1.125rem;
+}
+
+.admin-empty {
+  margin: 0;
+  padding: 1rem;
+  border: 1px dashed var(--mcc-border-subtle);
+  border-radius: var(--radius-card);
+  color: var(--mcc-text-secondary);
+}
+
+.admin-error {
+  margin-block: 0.5rem 0;
+  color: var(--mcc-danger-text);
+}
+
+.admin-status {
+  margin-block: 0.5rem 0;
+  color: var(--mcc-text-secondary);
+  font-size: 0.9375rem;
+}
+
+/* ── the class table ────────────────────────────────────────────────────
+   ⚠️ A REAL <table>. It is tabular data with sortable columns, and a grid of
+   divs would leave a screen-reader user without row/column association — the
+   one thing a class list is entirely made of. */
+.admin-table-wrap {
+  overflow-x: auto;
+}
+
+.admin-table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: 0.9375rem;
+}
+
+.admin-table th,
+.admin-table td {
+  padding: 0.6rem 0.7rem;
+  border-block-end: 1px solid var(--mcc-border-subtle);
+  text-align: start;
+  white-space: nowrap;
+}
+
+.admin-table td.num,
+.admin-table th.num {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-table tbody tr:hover {
+  background-color: var(--mcc-surface-sunken);
+}
+
+/* The sort control IS the header — a button so it is reachable by keyboard and
+   announced as pressable, rather than a click handler on a <th>. */
+.admin-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-block-size: 2.75rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.admin-sort[aria-sort='ascending'] .admin-sort-mark::after {
+  content: '▲';
+}
+
+.admin-sort[aria-sort='descending'] .admin-sort-mark::after {
+  content: '▼';
+}
+
+.admin-sort-mark {
+  color: var(--mcc-accent-text);
+  font-size: 0.7em;
+}
+
+.admin-row-link {
+  color: var(--mcc-link);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.admin-row-link:hover {
+  text-decoration: underline;
+}
+
+.admin-rank {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background-color: var(--mcc-surface-sunken);
+  font-size: 0.8125rem;
+}
+
+/* ── attendance: the marker ─────────────────────────────────────────────
+   ⚠️ THIS IS THE ONE THAT HAS TO BE FAST. One tap per child, no modal, no save
+   button — see AdminSessionsPage for the reasoning and the measured timing. */
+.mark-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mark-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-block: 0.4rem;
+  border-block-end: 1px solid var(--mcc-border-subtle);
+}
+
+.mark-name {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.mark-buttons {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 0.35rem;
+}
+
+/* ⚠️ 48px, not 44. A prof marking twenty students is tapping fast, standing
+   up, without looking closely — the extra 4px is the difference between a
+   correction and a clean pass. */
+.mark-button {
+  min-inline-size: 3rem;
+  min-block-size: 3rem;
+  padding: 0;
+  border: 1px solid var(--mcc-border-strong);
+  border-radius: var(--radius-card);
+  background-color: var(--mcc-surface-card);
+  color: var(--mcc-text-secondary);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  /* Réponse — this follows a tap. See src/lib/motion.ts. */
+  transition:
+    background-color var(--motion-response) var(--ease-response),
+    color var(--motion-response) var(--ease-response),
+    border-color var(--motion-response) var(--ease-response);
+}
+
+/* ⚠️ STATE IS A FILL PLUS A GLYPH, NEVER COLOUR ALONE. The letters P / A / E
+   are the state; the fill is confirmation. A prof with any colour-vision
+   difference reads the same register as anyone else. */
+.mark-button[aria-pressed='true'] {
+  border-color: var(--mcc-primary);
+  background-color: var(--mcc-primary);
+  color: var(--mcc-primary-contrast);
+}
+
+.mark-button[data-status='absent'][aria-pressed='true'] {
+  border-color: var(--mcc-danger-text);
+  background-color: var(--mcc-danger-text);
+  color: var(--mcc-surface-page);
+}
+
+.mark-button[data-status='excuse'][aria-pressed='true'] {
+  border-color: var(--mcc-accent);
+  background-color: var(--mcc-accent);
+  color: var(--color-ink-950);
+}
+
+/* ⚠️ The write is optimistic and this is the ONLY sign it is in flight. It must
+   not move anything: a row that reflows under a thumb mid-pass is how the next
+   student gets marked wrong. Border colour only. */
+.mark-row[data-saving] .mark-buttons {
+  opacity: 1;
+}
+
+.mark-row[data-failed] {
+  border-inline-start: 3px solid var(--mcc-danger-text);
+  padding-inline-start: 0.5rem;
+}
+
+.mark-failed-note {
+  flex: 1 0 100%;
+  margin: 0.25rem 0 0;
+  color: var(--mcc-danger-text);
+  font-size: 0.8125rem;
+}
+
+/* ── forms ──────────────────────────────────────────────────────────────── */
+.admin-form {
+  display: grid;
+  gap: 0.75rem;
+  max-inline-size: 34rem;
+  margin-block-end: 1.5rem;
+}
+
+.admin-field label {
+  display: block;
+  margin-block-end: 0.3rem;
+  font-weight: 500;
+}
+
+.admin-field input,
+.admin-field select,
+.admin-field textarea {
+  inline-size: 100%;
+  min-block-size: 2.75rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--mcc-border-strong);
+  border-radius: var(--radius-card);
+  background-color: var(--mcc-surface-page);
+  color: var(--mcc-text-primary);
+  font: inherit;
+}
+
+.admin-field-hint {
+  margin-block: 0.25rem 0;
+  color: var(--mcc-text-secondary);
+  font-size: 0.8125rem;
+}
+
+.admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* ── session cards ──────────────────────────────────────────────────────── */
+.session-card {
+  margin-block-end: 0.75rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--mcc-border-subtle);
+  border-radius: var(--radius-card);
+  background-color: var(--mcc-surface-card);
+}
+
+.session-card[data-status='cancelled'] {
+  /* ⚠️ Visible, and visibly cancelled. A cancellation that disappears leaves a
+     student wondering whether they misremembered. */
+  border-style: dashed;
+}
+
+.session-when {
+  font-weight: 600;
+}
+
+.session-meta {
+  margin-block: 0.2rem 0.6rem;
+  color: var(--mcc-text-secondary);
+  font-size: 0.875rem;
+}
+
+.session-status {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.session-status[data-status='draft'] {
+  background-color: var(--mcc-surface-sunken);
+  color: var(--mcc-text-secondary);
+}
+
+.session-status[data-status='published'] {
+  background-color: var(--mcc-primary);
+  color: var(--mcc-primary-contrast);
+}
+
+.session-status[data-status='cancelled'] {
+  background-color: var(--mcc-danger-text);
+  color: var(--mcc-surface-page);
+}
+
+/* ── dashboard tiles ────────────────────────────────────────────────────── */
+.admin-tiles {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  margin-block-end: 2rem;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-tile {
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--mcc-border-subtle);
+  border-radius: var(--radius-card);
+  background-color: var(--mcc-surface-card);
+}
+
+.admin-tile b {
+  display: block;
+  font-size: 1.75rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.admin-tile span {
+  color: var(--mcc-text-secondary);
+  font-size: 0.875rem;
+}
+
+.admin-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* ⚠️ Reduced motion: the marker's feedback is a FILL, which is instant anyway.
+   Only the travel goes — the state still lands, exactly as the site's motion
+   rule requires. */
+@media (prefers-reduced-motion: reduce) {
+  .mark-button {
+    transition-duration: 1ms;
+  }
+}
+
+@media (min-width: 48rem) {
+  .mark-row {
+    padding-block: 0.3rem;
+  }
+}

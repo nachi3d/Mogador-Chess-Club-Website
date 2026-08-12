@@ -11,6 +11,115 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### Added — v2-S4 part 2: the admin surfaces
+
+`/admin/` (dashboard), `/admin/eleves/` (the class), `/admin/eleve/?id=…` (one
+learner) and `/admin/seances/` (sessions + the attendance register), reached from
+`/compte/`. ⚠️ **`PUBLIC_AUTH_ENABLED` stays OFF.** This session makes accounts
+worth turning on; it does not turn them on.
+
+**No new migration was needed**, which is the payoff from doing 0005 first:
+0001, 0004 and 0005 already carried every table, policy and grant these surfaces
+use. The one thing that would have needed a migration — a prof creating a student
+— is deliberately not built, because staff hold `SELECT` on `child_profiles` and
+nothing else, and a teacher renaming a child is indistinguishable from a teacher
+inventing one.
+
+⚠️ **The class list is CHILDREN, not accounts.** A parent with three children is
+three rows and one row in `auth.users`. Built the other way round, the table, the
+marker and the foreign key would all have had to be rewritten together.
+
+⚠️ **THE REGISTER IS THE DESIGN CONSTRAINT, AND IT IS MEASURED.** Twenty
+teenagers in a room, a prof standing up with a phone: one tap per child, no modal
+per row, **no save button anywhere**. The write is optimistic — the state flips on
+the tap, because nobody waits for twenty round trips on mobile data — and a failed
+write is **loud and does not revert**, since a mark that silently undoes itself is
+worse than one that never happened. Nothing re-sorts or changes height after a
+tap: a list that moves under a thumb is how the next student gets marked wrong.
+
+`attendance-timing.spec.ts` signs in a real prof, creates twenty real children and
+drives twenty real marks: **1 175 ms for twenty taps (59 ms per child), all twenty
+rows durable 1 470 ms after the first.** That is the interface's cost, not a
+human's pace — a real class is bounded by reading the names, around half a minute.
+The useful reading is that the software is nowhere near the bottleneck.
+
+⚠️ **A cancelled session is a STATE, never a deletion.** `on delete cascade` means
+deleting one destroys a register that may already have been marked, so the UI
+offers no delete at all.
+
+### Added — teacher-awarded points reach the student, as rows
+
+Migration 0004 built `point_awards` and E3 built `PointEntry` with `origin` and
+`source` so a second producer could arrive without a migration. This is that
+producer.
+
+⚠️ **STILL NOT A BALANCE.** Awards are mirrored into `mcc:progress:v1` as ROWS
+with their reasons and summed by the ledger, exactly like solves. They are pulled
+on sign-in and **never pushed** — the client has no INSERT policy and must not act
+as though it might. `mirrorAwards()` **replaces** rather than merges, because the
+server is the only author; merging would make a withdrawn award immortal on
+whichever device saw it first. The key stays `v1`: a record written before this
+has no `awards`, which normalises to empty.
+
+⚠️ **The student sees "gagnés" and "attribués par ton prof" as different kinds of
+thing, not a bigger number** — its own block, its own heading, an accent edge, and
+**the reason printed next to every award**. The reason is why the database
+requires one. A student nobody has awarded sees no block at all, rather than an
+empty "0 from your teacher", which reads as a mark against them.
+
+### Added — `src/lib/ledger.ts`, the one summation
+
+E3 put the computation in `ScoreResolver`'s inline script, which is right for the
+reader (it must land in the first paint, so it cannot import). v2-S4 adds a second
+caller asking the same question over cloud rows: a prof reading a student's total.
+
+⚠️ **A prof and a student reading different totals is the worst failure a
+progression display can have** — both numbers look plausible and the student is
+the one who has to argue about it. So the summation moved to a pure function over
+rows, the inline copy stays for the first-paint reason, and `admin.spec.ts` seeds
+a store, reads `window.MCC_SCORE` off the live page, runs the shared function over
+the same records and catalogue, and asserts every number matches — including that
+the teacher bucket is non-zero, so the test cannot pass vacuously.
+
+### Added — `singleLocale` on BaseLayout
+
+⚠️ **The admin UI is FRENCH ONLY, and that is a decision** (now Critical Feature
+43). Same as BabyClub, same reason: a single-operator context. The FR/EN rule is
+about readers, and an admin screen has no such audience. A future session must not
+"fix" it by adding translations.
+
+The prop suppresses the hreflang alternates **and** the language switcher, and both
+halves are needed: left on, the alternates advertise a 404 to search engines and
+the switcher offers a reader a one-way trip to it. It is not an escape hatch for
+public pages, and a spec asserts a public page still carries both.
+
+### Changed — `role-separation.spec.ts`: 8 assertions → 15, and serialised
+
+Everything new is asserted **through PostgREST with the user's own token**, never
+by driving the admin pages — hiding a table is UX, and a student who opens
+devtools does not use the table. Added: a student cannot read the class list or
+rename another family's child; a prof reads every child and can **write none**;
+re-marking corrects rather than duplicating (the upsert key 0005 rebuilt);
+cancelling keeps the session and its register; the award bounds hold with
+`validateAward()` nowhere in the picture; a student reads their own awards and
+cannot delete them.
+
+⚠️ **And the file now runs one at a time.** Its tests share the same student,
+session and awards, and this session took it from two mutating tests to seven.
+They passed first time in parallel — which is exactly how that flake ships, and it
+would later read as a real regression in an RLS policy.
+
+### Verified
+
+- **Both flag states, with a clean rebuild between** (the documented stale-`dist/`
+  tell): accounts ON — 123 pages, 417 passed; accounts OFF — 114 pages, 379
+  passed. The 9-page delta is exactly the gated routes. No Supabase ref, host or
+  anon key anywhere in the OFF build.
+- **Live RLS audit** against the TEST project: 15/15, with real tokens for a
+  student, a second family and a prof.
+- The four `/admin*` routes joined the existing "off means not built" list rather
+  than getting a private assertion of their own.
+
 ### Changed — CLAUDE.md split into rules + `docs/reference/`, with a size guard
 
 **CLAUDE.md had reached 247 KB against a 150 000-character context limit**, past

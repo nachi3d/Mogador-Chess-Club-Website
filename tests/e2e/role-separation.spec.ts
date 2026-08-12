@@ -19,6 +19,29 @@ import { AUTH_ENABLED, AUTH_OFF_REASON } from './helpers/auth-mode';
  * ═════════════════════════════════════════════════════════════════════════
  */
 
+/**
+ * ⚠️ ONE AT A TIME — these tests SHARE DATABASE ROWS.
+ *
+ * Every test here works on the same student, the same child profiles and the
+ * same session, and several of them write and then clean up: the attendance
+ * register for `sessionId`, the awards on `studentChild`, that session's own
+ * status. Under the global `fullyParallel: true` they interleave, and then
+ * "the award bounds hold" can assert zero awards while another test has two of
+ * its own in flight.
+ *
+ * That is not a hypothetical: v2-S4 part 2 added five more mutating tests to a
+ * file that already had two, and the collision surface went from small to
+ * certain. They passed on the first run, which is exactly how this kind of
+ * flake gets shipped — it fails later, on a matrix run, and reads as a real
+ * regression in an RLS policy.
+ *
+ * Same fix and same reasoning as `play.spec.ts`: sequential in one worker,
+ * other spec files still parallel alongside. `mode: 'default'` rather than
+ * `'serial'` so a genuine failure is reported on its own terms instead of
+ * skipping everything after it.
+ */
+test.describe.configure({ mode: 'default' });
+
 test.describe('v2-S4 — a student cannot cross a role boundary', () => {
   test.skip(!AUTH_ENABLED, AUTH_OFF_REASON);
 
@@ -233,5 +256,181 @@ test.describe('v2-S4 — a student cannot cross a role boundary', () => {
         .insert([{ child_id: studentChild, points: 5, reason, awarded_by: prof.id }]);
       expect(error, `a reason of ${JSON.stringify(reason)} was accepted`).not.toBeNull();
     }
+  });
+
+  /* ═══════════════════════════════════════════════════════════════════════
+     v2-S4 PART 2 — the boundaries the ADMIN SURFACES lean on.
+     ═══════════════════════════════════════════════════════════════════════
+     ⚠️ EVERY ONE OF THESE IS ASSERTED THROUGH PostgREST WITH THE USER'S OWN
+     TOKEN, never by driving `/admin`. The pages hide what a student may not
+     have; hiding is UX, and a student who opens devtools does not use the
+     pages. If any assertion below is ever made to pass by changing the UI, the
+     thing it was protecting has already been lost.
+     ═══════════════════════════════════════════════════════════════════════ */
+
+  /**
+   * ⚠️ THE CLASS LIST IS THE WHOLE POINT OF `/admin/eleves/`, and a student
+   * must not be able to read it. Before 0005 this row did not exist; now it is
+   * the roster.
+   */
+  test('the class list is staff-only — a student sees only their own child', async () => {
+    const c = await clientFor(student);
+    const { data } = await c.from('child_profiles').select('id,display_name,account_id');
+    const ids = (data ?? []).map((row) => String(row['id']));
+    expect(ids, 'a student read another family’s child profile').not.toContain(otherChild);
+    expect(
+      ids.every((id) => id === studentChild),
+      'a student read a child profile that is not theirs',
+    ).toBe(true);
+  });
+
+  /**
+   * ⚠️ AND A STUDENT MAY NOT RENAME A CHILD THEY DO NOT HOLD. `owns_child()`
+   * decides; the admin UI never enters into it.
+   */
+  test("a student cannot rename another family's child", async () => {
+    const c = await clientFor(student);
+    await c.from('child_profiles').update({ display_name: 'Piraté' }).eq('id', otherChild);
+    const { data } = await adminClient()
+      .from('child_profiles')
+      .select('display_name')
+      .eq('id', otherChild);
+    expect(data?.[0]?.['display_name'], 'a student renamed someone else’s child').toBe('Autre');
+  });
+
+  /**
+   * ⚠️ A PROF READS THE CLASS AND CANNOT REWRITE IT. Staff hold SELECT on
+   * `child_profiles` and nothing else — a teacher renaming a child is
+   * indistinguishable from a teacher inventing one, and the class list is
+   * built on that being impossible.
+   */
+  test('a prof reads every child and can write none of them', async () => {
+    const c = await clientFor(prof);
+
+    const { data } = await c.from('child_profiles').select('id');
+    const ids = (data ?? []).map((row) => String(row['id']));
+    expect(ids, 'a prof cannot see the class').toContain(studentChild);
+    expect(ids).toContain(otherChild);
+
+    await c.from('child_profiles').update({ display_name: 'Renommé' }).eq('id', studentChild);
+    const { data: after } = await adminClient()
+      .from('child_profiles')
+      .select('display_name')
+      .eq('id', studentChild);
+    expect(after?.[0]?.['display_name'], 'a prof renamed a child').toBe('Élève');
+
+    const { error: invent } = await c
+      .from('child_profiles')
+      .insert([{ account_id: null, display_name: 'Inventé' }]);
+    expect(invent, 'a prof invented a child profile').not.toBeNull();
+  });
+
+  /**
+   * ⚠️ THE MARKER'S WRITE IS AN UPSERT ON `(session_id, child_id)`, and this
+   * asserts the key that makes it one. Marking is a toggle a prof will hit
+   * twice in a noisy room; without the primary key 0005 rebuilt, the second tap
+   * would insert a second row and the register would count everyone twice.
+   */
+  test('marking the same child twice corrects rather than duplicates', async () => {
+    const c = await clientFor(prof);
+
+    for (const status of ['present', 'absent', 'present'] as const) {
+      const { error } = await c
+        .from('attendance')
+        .upsert([{ session_id: sessionId, child_id: studentChild, status, marked_by: prof.id }]);
+      expect(error, `re-marking failed: ${error?.message}`).toBeNull();
+    }
+
+    const { data } = await adminClient()
+      .from('attendance')
+      .select('status')
+      .eq('session_id', sessionId)
+      .eq('child_id', studentChild);
+    expect(data?.length, 'the register holds more than one row for one child').toBe(1);
+    expect(data?.[0]?.['status'], 'the last mark did not win').toBe('present');
+
+    await adminClient().from('attendance').delete().eq('session_id', sessionId);
+  });
+
+  /**
+   * ⚠️ A CANCELLED SESSION IS A STATE, NOT A DELETION — and the register it
+   * already carries must survive it. `on delete cascade` means deleting the
+   * session would destroy the attendance rows, which is precisely why the admin
+   * UI offers no delete at all.
+   */
+  test('cancelling a session keeps it, and keeps its register', async () => {
+    const c = await clientFor(prof);
+    await c
+      .from('attendance')
+      .upsert([{ session_id: sessionId, child_id: studentChild, status: 'present', marked_by: prof.id }]);
+
+    const { error } = await c.from('sessions').update({ status: 'cancelled' }).eq('id', sessionId);
+    expect(error, `a prof could not cancel a session: ${error?.message}`).toBeNull();
+
+    const { data: session } = await adminClient()
+      .from('sessions')
+      .select('status')
+      .eq('id', sessionId);
+    expect(session?.[0]?.['status']).toBe('cancelled');
+
+    const { data: register } = await adminClient()
+      .from('attendance')
+      .select('child_id')
+      .eq('session_id', sessionId);
+    expect(register?.length, 'cancelling took the register with it').toBe(1);
+
+    await adminClient().from('attendance').delete().eq('session_id', sessionId);
+    await adminClient().from('sessions').update({ status: 'published' }).eq('id', sessionId);
+  });
+
+  /**
+   * ⚠️ THE AWARD BOUNDS ARE THE DATABASE'S, and the admin form's copy of them
+   * is a convenience. This drives the values the form would refuse straight
+   * past it, so a future refactor that loosens `validateAward()` cannot loosen
+   * what is actually possible.
+   */
+  test('the award bounds hold with the form nowhere in the picture', async () => {
+    const c = await clientFor(prof);
+    for (const points of [0, -10, 51, 1000]) {
+      const { error } = await c
+        .from('point_awards')
+        .insert([{ child_id: studentChild, points, reason: 'contournement', awarded_by: prof.id }]);
+      expect(error, `${points} points were accepted`).not.toBeNull();
+    }
+    const { data } = await adminClient()
+      .from('point_awards')
+      .select('id')
+      .eq('child_id', studentChild);
+    expect(data?.length ?? 0, 'an out-of-range award was stored').toBe(0);
+  });
+
+  /**
+   * ⚠️ A STUDENT READS THEIR AWARDS AND NOBODY ELSE'S. `/progres/` prints them
+   * with their reasons, so this is also the boundary that stops one student
+   * reading what a prof wrote about another.
+   */
+  test('a student reads their own awards and no one else’s', async () => {
+    await adminClient()
+      .from('point_awards')
+      .insert([
+        { child_id: studentChild, points: 5, reason: 'A aidé un camarade', awarded_by: prof.id },
+        { child_id: otherChild, points: 7, reason: 'Beau sacrifice', awarded_by: prof.id },
+      ]);
+
+    const c = await clientFor(student);
+    const { data } = await c.from('point_awards').select('child_id,points,reason');
+    expect(data?.length, 'a student saw the wrong number of awards').toBe(1);
+    expect(String(data?.[0]?.['child_id'])).toBe(studentChild);
+    expect(Number(data?.[0]?.['points'])).toBe(5);
+
+    /* And they cannot delete the ones they do have. */
+    await c.from('point_awards').delete().eq('child_id', studentChild);
+    const { data: after } = await adminClient()
+      .from('point_awards')
+      .select('id')
+      .eq('child_id', studentChild);
+    expect(after?.length, 'a student deleted an award').toBe(1);
+
+    await adminClient().from('point_awards').delete().in('child_id', [studentChild, otherChild]);
   });
 });

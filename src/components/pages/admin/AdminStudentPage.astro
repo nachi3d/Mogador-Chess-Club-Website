@@ -1,0 +1,322 @@
+---
+/**
+ * /admin/eleve/?id=… — one learner, in detail.
+ *
+ * ⚠️ FRENCH ONLY. See `AdminShell.astro` and CLAUDE.md.
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️ WHY THE CHILD ID IS A QUERY PARAMETER AND NOT A ROUTE SEGMENT.
+ *
+ * `/admin/eleve/<uuid>/` cannot exist on this site. The output is fully static:
+ * every route is emitted at BUILD time, and child ids are rows in a database
+ * that the build has never seen and must never see. A dynamic segment would
+ * need `getStaticPaths()` to enumerate real students at build time — which
+ * means putting the class list into `dist/`, published to anyone who asks.
+ *
+ * So the id travels in the query string, which is not part of the route. This
+ * is the same constraint that makes `/auth/callback` a static page reading a
+ * fragment, and the reason the whole v2 design is "static host, client-side
+ * Supabase, RLS as the boundary".
+ *
+ * ⚠️ A HAND-EDITED id BUYS NOTHING. The page asks PostgREST for that child with
+ * the caller's own token; a student gets zero rows, because
+ * `child_profiles_select_staff` is what decides, not this page.
+ *
+ * ── What is shown ───────────────────────────────────────────────────────
+ * The same progress the student sees — computed by `computeLedger()`, the one
+ * shared summation — plus the two things only a prof has: attendance, and the
+ * awards ledger with the form that adds to it.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+import AdminShell from '@components/admin/AdminShell.astro';
+import { scoreCatalogue } from '@lib/scoreboard';
+import { RANKS } from '@lib/points';
+import { AWARD_MAX } from '@lib/progress';
+
+const catalogue = await scoreCatalogue('fr');
+const ranks = RANKS.map((r) => ({ id: r.id, min: r.min }));
+const rankLabels: Record<string, string> = {
+  pion: 'Pion',
+  cavalier: 'Cavalier',
+  fou: 'Fou',
+  tour: 'Tour',
+  dame: 'Dame',
+};
+---
+
+<AdminShell title="Élève" current="eleves">
+  <script
+    type="application/json"
+    data-ledger-catalogue
+    set:html={JSON.stringify({
+      entries: catalogue.entries,
+      wins: catalogue.wins,
+      winCap: catalogue.winCap,
+      ranks,
+    })}
+  />
+  <script type="application/json" data-rank-labels set:html={JSON.stringify(rankLabels)} />
+
+  <p class="admin-empty" data-student-missing hidden>
+    Élève introuvable. <a href="/admin/eleves/">Retour à la classe</a>.
+  </p>
+
+  <div data-student-body hidden>
+    <p><a class="admin-row-link" href="/admin/eleves/">← Toute la classe</a></p>
+
+    <h2 class="admin-block-title" data-student-name></h2>
+
+    {/* The same four numbers the student sees on /progres/. */}
+    <ul class="admin-tiles">
+      <li class="admin-tile"><b data-stat="points">0</b><span>points</span></li>
+      <li class="admin-tile"><b data-stat="rank">–</b><span>rang</span></li>
+      <li class="admin-tile"><b data-stat="solved">0</b><span>exercices résolus</span></li>
+      <li class="admin-tile"><b data-stat="lessons">0</b><span>leçons terminées</span></li>
+    </ul>
+
+    <section class="admin-block">
+      <h2 class="admin-block-title">D’où viennent les points</h2>
+      <ul class="mark-list" data-sources></ul>
+    </section>
+
+    {/* ── Awarding ──────────────────────────────────────────────────────
+        ⚠️ THE REASON IS REQUIRED HERE BECAUSE IT IS REQUIRED IN THE DATABASE,
+        not the other way round. Migration 0004 carries
+        `length(btrim(reason)) >= 3` and `points > 0 and points <= 50` as CHECK
+        constraints, and `role-separation.spec.ts` proves the database refuses a
+        blank reason with this form nowhere in the picture. What the form adds
+        is a useful message before a round trip — it is the half a future admin
+        script would skip, which is exactly why it is not the only guard.
+
+        The hint says the student will see the reason, because they will: it is
+        printed beside the award on their own progress page. */}
+    <section class="admin-block">
+      <h2 class="admin-block-title">Attribuer des points</h2>
+      <form class="admin-form" data-award-form>
+        <div class="admin-field">
+          <label for="award-points">Points</label>
+          <input id="award-points" type="number" min="1" max={AWARD_MAX} value="5" required />
+          <p class="admin-field-hint">Entre 1 et {AWARD_MAX}. Toujours positifs.</p>
+        </div>
+        <div class="admin-field">
+          <label for="award-reason">Raison</label>
+          <input id="award-reason" type="text" maxlength="120" required />
+          <p class="admin-field-hint">L’élève la verra. « A aidé un camarade », « beau sacrifice ».</p>
+        </div>
+        <div class="admin-actions">
+          <button type="submit" class="btn-primary">Attribuer</button>
+        </div>
+        <p class="admin-error" data-award-error role="status"></p>
+      </form>
+
+      <ul class="mark-list" data-award-list></ul>
+    </section>
+
+    <section class="admin-block">
+      <h2 class="admin-block-title">Présences</h2>
+      <div data-attendance><p class="admin-empty">Chargement…</p></div>
+    </section>
+  </div>
+</AdminShell>
+
+<script>
+  import {
+    awardPoints,
+    listAttendance,
+    listAwards,
+    listChildren,
+    listGames,
+    listProgress,
+    listSessions,
+    validateAward,
+  } from '@lib/admin';
+  import { computeLedger, type LedgerCatalogue } from '@lib/ledger';
+  import { kindOf } from '@lib/progress-sync';
+  import { getUser } from '@lib/supabase';
+
+  const params = new URLSearchParams(window.location.search);
+  const childId = params.get('id') ?? '';
+
+  const body = document.querySelector('[data-student-body]') as HTMLElement | null;
+  const missing = document.querySelector('[data-student-missing]') as HTMLElement | null;
+  const awardForm = document.querySelector('[data-award-form]') as HTMLFormElement | null;
+  const awardError = document.querySelector('[data-award-error]') as HTMLElement | null;
+  const awardList = document.querySelector('[data-award-list]') as HTMLElement | null;
+
+  let me: string | null = null;
+
+  const json = <T,>(selector: string, fallback: T): T => {
+    const node = document.querySelector(selector);
+    if (!node?.textContent) return fallback;
+    try {
+      return JSON.parse(node.textContent) as T;
+    } catch {
+      return fallback;
+    }
+  };
+
+  const dayFmt = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+
+  function esc(value: string): string {
+    const div = document.createElement('div');
+    div.textContent = value;
+    return div.innerHTML;
+  }
+
+  const set = (name: string, value: string | number) => {
+    const el = document.querySelector(`[data-stat="${name}"]`);
+    if (el) el.textContent = String(value);
+  };
+
+  async function paintAwards() {
+    if (!awardList) return;
+    const awards = await listAwards(childId);
+    awardList.innerHTML =
+      awards.length === 0
+        ? '<li class="admin-empty">Aucun point attribué pour l’instant.</li>'
+        : awards
+            .map(
+              (a) => `
+              <li class="mark-row">
+                <span class="mark-name">${esc(a.reason)}</span>
+                <span class="admin-rank">+${a.points}</span>
+                <span class="admin-rank">${esc(dayFmt.format(new Date(a.awardedAt)))}</span>
+              </li>`,
+            )
+            .join('');
+  }
+
+  awardForm?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (!awardError) return;
+    awardError.textContent = '';
+
+    const points = Number((document.getElementById('award-points') as HTMLInputElement).value);
+    const reason = (document.getElementById('award-reason') as HTMLInputElement).value;
+
+    const invalid = validateAward(points, reason);
+    if (invalid) {
+      awardError.textContent = invalid;
+      return;
+    }
+
+    const result = await awardPoints(childId, points, reason, me);
+    if (!result.ok) {
+      awardError.textContent = result.error ?? 'Impossible d’attribuer ces points.';
+      return;
+    }
+    awardForm.reset();
+    await paintAwards();
+    /* ⚠️ The totals above are recomputed from the rows, never incremented.
+       Nothing here holds a balance to adjust. */
+    await refresh();
+  });
+
+  async function refresh() {
+    const catalogue = json<LedgerCatalogue>('[data-ledger-catalogue]', {
+      entries: [],
+      wins: {},
+      winCap: 0,
+      ranks: [],
+    });
+    const rankLabels = json<Record<string, string>>('[data-rank-labels]', {});
+
+    const [progress, games, awards] = await Promise.all([
+      listProgress(),
+      listGames(),
+      listAwards(childId),
+    ]);
+
+    const mine = progress.filter((p) => p.childId === childId);
+    const exercises: Record<string, { solved: boolean; hintUsed: boolean }> = {};
+    const lessons = new Set<string>();
+    for (const row of mine) {
+      exercises[row.slug] = { solved: row.solved, hintUsed: row.hintUsed };
+      if (row.solved && kindOf(row.slug) === 'lesson') {
+        lessons.add(row.slug.split(':').slice(0, 3).join(':'));
+      }
+    }
+
+    const wins: Record<string, { wins: number }> = {};
+    for (const game of games) {
+      if (game.childId !== childId) continue;
+      const bucket = (wins[game.level] ??= { wins: 0 });
+      if (game.outcome === 'win') bucket.wins += 1;
+    }
+
+    const ledger = computeLedger(catalogue, { exercises, games: wins, awards });
+
+    set('points', ledger.points);
+    set('rank', rankLabels[ledger.rank] ?? ledger.rank);
+    set('solved', mine.filter((p) => p.solved).length);
+    set('lessons', lessons.size);
+
+    const labels: Record<string, string> = {
+      basics: 'Les bases',
+      lessons: 'Leçons',
+      exercises: 'Exercices',
+      games: 'Parties gagnées',
+      teacher: 'Attribués par un prof',
+    };
+    const sources = document.querySelector('[data-sources]');
+    if (sources) {
+      sources.innerHTML = Object.entries(ledger.sources)
+        .map(
+          ([key, value]) => `
+          <li class="mark-row">
+            <span class="mark-name">${labels[key] ?? key}</span>
+            <span class="admin-rank">${value}</span>
+          </li>`,
+        )
+        .join('');
+    }
+  }
+
+  window.addEventListener('mcc:admin-ready', async () => {
+    if (!childId) {
+      if (missing) missing.hidden = false;
+      return;
+    }
+
+    const [user, children] = await Promise.all([getUser(), listChildren()]);
+    me = user?.id ?? null;
+    const child = children.find((c) => c.id === childId);
+
+    /* ⚠️ Not found and not permitted look identical here, deliberately. RLS
+       returns zero rows either way, and a page that distinguished them would
+       be telling whoever is holding the phone that a given id exists. */
+    if (!child) {
+      if (missing) missing.hidden = false;
+      return;
+    }
+
+    if (body) body.hidden = false;
+    const name = document.querySelector('[data-student-name]');
+    if (name) name.textContent = child.displayName || 'Élève';
+
+    await Promise.all([refresh(), paintAwards()]);
+
+    /* Attendance, newest first. */
+    const sessions = await listSessions();
+    const rows: string[] = [];
+    for (const session of sessions.slice(0, 12)) {
+      const attendance = await listAttendance(session.id);
+      const mark = attendance.find((a) => a.childId === childId);
+      if (!mark) continue;
+      const label =
+        mark.status === 'present' ? 'Présent' : mark.status === 'absent' ? 'Absent' : 'Excusé';
+      rows.push(`
+        <li class="mark-row">
+          <span class="mark-name">${esc(dayFmt.format(new Date(session.startsAt)))}</span>
+          <span class="admin-rank">${label}</span>
+        </li>`);
+    }
+    const attendanceEl = document.querySelector('[data-attendance]');
+    if (attendanceEl) {
+      attendanceEl.innerHTML =
+        rows.length === 0
+          ? '<p class="admin-empty">Aucune présence enregistrée.</p>'
+          : `<ul class="mark-list">${rows.join('')}</ul>`;
+    }
+  });
+</script>

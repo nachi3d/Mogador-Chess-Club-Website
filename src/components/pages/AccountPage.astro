@@ -110,6 +110,33 @@ const t = useTranslations(locale);
         <p class="account-sync" data-testid="account-sync-state"></p>
       </section>
 
+      {/* ── The way into the admin surfaces (v2-S4) ────────────────────────
+          ⚠️ THIS IS THE ONLY ENTRY POINT, AND IT IS DELIBERATELY HERE.
+
+          Not the nav: the header is already at five entries and wraps between
+          768 and 1024px, and a link almost every reader would never be allowed
+          to follow does not earn a permanent slot. Not the mobile bottom bar
+          either — that has exactly four entries (Critical Feature 27).
+
+          `/compte/` is reachable from the account button in the header at every
+          width, so Critical Feature 36 holds: there is no layout on which this
+          is reachable and another on which it is not. `admin.spec.ts` asserts
+          it at phone and desktop widths.
+
+          ⚠️ HIDDEN IS UX, NOT SECURITY. The link is revealed by the script
+          below when the profile says prof or admin; a student who un-hides it
+          in devtools reaches a page whose every query RLS answers with nothing.
+          The label is French because the destination is. */}
+      <section class="account-staff" data-testid="account-staff" hidden>
+        <h2>Espace encadrants</h2>
+        <p>Classe, séances et présences.</p>
+        <p>
+          <a class="btn-primary" href="/admin/" data-testid="account-admin-link">
+            Ouvrir l’espace encadrants
+          </a>
+        </p>
+      </section>
+
       <section class="account-soon">
         <h2>
           {t('account.attendance.heading')}
@@ -172,6 +199,12 @@ const t = useTranslations(locale);
       root?.setAttribute('data-state', 'signed-in');
       if (panel) panel.hidden = false;
       if (signedOut) signedOut.hidden = true;
+
+      /* Staff see the way into /admin. UX only — RLS is the boundary. */
+      if (profile?.role === 'prof' || profile?.role === 'admin') {
+        const staff = document.querySelector('[data-testid="account-staff"]') as HTMLElement | null;
+        if (staff) staff.hidden = false;
+      }
 
       /**
        * ⚠️ THE FIRST-SIGN-IN MERGE, and the moment a guest month is saved or
@@ -297,6 +330,26 @@ const t = useTranslations(locale);
 
   .account-status {
     margin: 0.75rem 0 0;
+    color: var(--mcc-text-secondary);
+  }
+
+  /* The staff block reads as a destination, not a notice: a solid accent edge
+     rather than the dashed "coming soon" border below it. */
+  .account-staff {
+    margin-bottom: 1.5rem;
+    padding: 1rem 1.25rem;
+    border-inline-start: 3px solid var(--mcc-accent);
+    background-color: var(--mcc-surface-sunken);
+    border-radius: var(--radius-card);
+  }
+
+  .account-staff h2 {
+    margin: 0 0 0.4rem;
+    font-size: 1.125rem;
+  }
+
+  .account-staff p {
+    margin: 0 0 0.75rem;
     color: var(--mcc-text-secondary);
   }
 

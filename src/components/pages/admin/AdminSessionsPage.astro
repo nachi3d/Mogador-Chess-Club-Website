@@ -1,0 +1,411 @@
+---
+/**
+ * /admin/seances/ — session CRUD and the attendance marker.
+ *
+ * ⚠️ FRENCH ONLY. See `AdminShell.astro` and CLAUDE.md.
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️ THE MARKER IS THE DESIGN CONSTRAINT OF THIS WHOLE SESSION.
+ *
+ * Twenty teenagers in a room at Dar Souiri, a prof standing up with a phone.
+ * That produces three hard rules, and each one rules out the obvious build:
+ *
+ *  1. **ONE TAP PER CHILD.** Not tap-to-open, choose, confirm. Three states are
+ *     three buttons, always visible, always in the same place on every row.
+ *  2. **NO MODAL PER ROW.** A dialog steals focus, covers the list, and has to
+ *     be dismissed before the next student — it triples the interaction count
+ *     and loses the prof's place in the room.
+ *  3. **NO SAVE BUTTON PER ROW, AND NO SAVE BUTTON AT ALL.** Each tap writes
+ *     immediately. A single "enregistrer" at the bottom means twenty marks held
+ *     in a phone browser that a phone call, a lock screen or a stray back
+ *     gesture can take away — and the prof would not know which ones were lost.
+ *
+ * ⚠️ THE WRITE IS OPTIMISTIC AND FAILURE IS LOUD. The button flips on the tap,
+ * because a prof cannot wait for a round trip twenty times on Essaouira mobile
+ * data. If the write then fails, the ROW says so and keeps saying so — it does
+ * not silently revert, because a mark that quietly undoes itself is worse than
+ * one that never happened. The failed row keeps the prof's intended value on
+ * screen so they can see what to retry.
+ *
+ * ⚠️ NOTHING MOVES AFTER A TAP. No re-sort, no removal of marked rows, no
+ * collapsing. A list that reorders under a thumb mid-pass is precisely how the
+ * next student gets marked wrong, and the prof would have no way to notice.
+ *
+ * Measured on the built site with twenty children: see docs/MANUAL-TESTS.md.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+import AdminShell from '@components/admin/AdminShell.astro';
+
+const STATUSES = [
+  { id: 'present', label: 'P', full: 'Présent' },
+  { id: 'absent', label: 'A', full: 'Absent' },
+  { id: 'excuse', label: 'E', full: 'Excusé' },
+] as const;
+---
+
+<AdminShell title="Séances" current="seances" intro="Programmer une séance, et marquer les présences.">
+  {/* ── The marker, FIRST ────────────────────────────────────────────────
+      ⚠️ ABOVE THE CRUD FORM, DELIBERATELY. Marking happens weekly and takes
+      two minutes; creating a session happens rarely and can be scrolled to.
+      The thing done most often is the thing at the top. */}
+  <section class="admin-block">
+    <h2 class="admin-block-title">Présences</h2>
+
+    <div class="admin-field">
+      <label for="mark-session">Séance</label>
+      <select id="mark-session" data-mark-session>
+        <option value="">Choisir une séance…</option>
+      </select>
+    </div>
+
+    <p class="admin-status" data-mark-summary hidden></p>
+
+    <ul class="mark-list" data-mark-list></ul>
+    <p class="admin-empty" data-mark-empty hidden>
+      Choisissez une séance pour marquer les présences.
+    </p>
+  </section>
+
+  {/* ── Sessions ─────────────────────────────────────────────────────── */}
+  <section class="admin-block">
+    <h2 class="admin-block-title">Programmer une séance</h2>
+    <form class="admin-form" data-session-form>
+      <div class="admin-field">
+        <label for="session-when">Date et heure</label>
+        <input id="session-when" type="datetime-local" required data-field="startsAt" />
+      </div>
+      <div class="admin-field">
+        <label for="session-title">Intitulé</label>
+        <input id="session-title" type="text" maxlength="80" data-field="titleFr" />
+      </div>
+      <div class="admin-field">
+        <label for="session-venue">Lieu</label>
+        {/* ⚠️ Free text, and empty means "the club's usual venue". The venue
+            lives in site config and must never be hardcoded here — a session
+            carries its own only when it differs. See the portability rule. */}
+        <input id="session-venue" type="text" maxlength="80" data-field="venue" />
+        <p class="admin-field-hint">Vide = le lieu habituel du club.</p>
+      </div>
+      <div class="admin-field">
+        <label for="session-level">Niveau</label>
+        <select id="session-level" data-field="level">
+          <option value="">Tous niveaux</option>
+          <option value="debutant">Débutant</option>
+          <option value="intermediaire">Intermédiaire</option>
+          <option value="avance">Avancé</option>
+        </select>
+      </div>
+      <div class="admin-field">
+        <label for="session-duration">Durée (minutes)</label>
+        <input id="session-duration" type="number" min="15" max="480" value="90" data-field="duration" />
+      </div>
+      <div class="admin-field">
+        <label for="session-status">État</label>
+        <select id="session-status" data-field="status">
+          <option value="draft">Brouillon</option>
+          <option value="published">Publiée</option>
+        </select>
+        <p class="admin-field-hint">Seules les séances publiées sont visibles par les élèves.</p>
+      </div>
+      <div class="admin-actions">
+        <button type="submit" class="btn-primary">Créer</button>
+      </div>
+      <p class="admin-error" data-session-error role="status"></p>
+    </form>
+
+    <h2 class="admin-block-title">Toutes les séances</h2>
+    {/* ⚠️ CANCELLED SESSIONS STAY IN THIS LIST, with their state. They are
+        never deleted: a session that vanishes leaves students wondering whether
+        they misremembered, and deleting it would cascade away a register that
+        had already been marked. */}
+    <div data-session-list><p class="admin-empty">Chargement…</p></div>
+  </section>
+
+  <template data-mark-template>
+    <li class="mark-row">
+      <span class="mark-name"></span>
+      <span class="mark-buttons">
+        {
+          STATUSES.map((status) => (
+            <button
+              type="button"
+              class="mark-button"
+              data-status={status.id}
+              aria-pressed="false"
+              title={status.full}
+            >
+              <span aria-hidden="true">{status.label}</span>
+              <span class="sr-only">{status.full}</span>
+            </button>
+          ))
+        }
+      </span>
+    </li>
+  </template>
+</AdminShell>
+
+<script>
+  import {
+    cancelSession,
+    createSession,
+    listAttendance,
+    listChildren,
+    listSessions,
+    markAttendance,
+    updateSession,
+    type AdminChild,
+    type AdminSession,
+    type AttendanceStatus,
+  } from '@lib/admin';
+  import { getUser } from '@lib/supabase';
+
+  const select = document.querySelector('[data-mark-session]') as HTMLSelectElement | null;
+  const list = document.querySelector('[data-mark-list]') as HTMLElement | null;
+  const emptyNote = document.querySelector('[data-mark-empty]') as HTMLElement | null;
+  const summary = document.querySelector('[data-mark-summary]') as HTMLElement | null;
+  const template = document.querySelector('[data-mark-template]') as HTMLTemplateElement | null;
+  const form = document.querySelector('[data-session-form]') as HTMLFormElement | null;
+  const formError = document.querySelector('[data-session-error]') as HTMLElement | null;
+  const sessionList = document.querySelector('[data-session-list]') as HTMLElement | null;
+
+  let children: AdminChild[] = [];
+  let sessions: AdminSession[] = [];
+  let me: string | null = null;
+  /** The marks on screen, so the summary does not need a re-read per tap. */
+  const marks = new Map<string, AttendanceStatus>();
+
+  const whenFmt = new Intl.DateTimeFormat('fr-FR', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  function esc(value: string): string {
+    const div = document.createElement('div');
+    div.textContent = value;
+    return div.innerHTML;
+  }
+
+  function paintSummary() {
+    if (!summary) return;
+    const total = children.length;
+    const done = marks.size;
+    const present = [...marks.values()].filter((s) => s === 'present').length;
+    summary.hidden = total === 0;
+    /* ⚠️ "12 sur 20" and not a percentage: a prof mid-pass needs to know how
+       many are LEFT, which a percentage makes them work out. */
+    summary.textContent = `${done} sur ${total} marqués · ${present} présents`;
+  }
+
+  function renderMarkList(attendance: Map<string, AttendanceStatus>) {
+    if (!list || !template) return;
+    list.innerHTML = '';
+    marks.clear();
+    for (const [id, status] of attendance) marks.set(id, status);
+
+    for (const child of children) {
+      const node = template.content.firstElementChild!.cloneNode(true) as HTMLElement;
+      node.dataset.child = child.id;
+      const name = node.querySelector('.mark-name');
+      if (name) name.textContent = child.displayName || 'Élève';
+      const current = attendance.get(child.id);
+      if (current) {
+        const button = node.querySelector(`[data-status="${current}"]`);
+        button?.setAttribute('aria-pressed', 'true');
+      }
+      list.appendChild(node);
+    }
+    paintSummary();
+  }
+
+  /**
+   * ⚠️ ONE DELEGATED LISTENER FOR THE WHOLE REGISTER, not one per button.
+   * Twenty children is sixty buttons; sixty listeners is sixty closures over
+   * rows that get replaced whenever the session changes, and the stale ones
+   * would keep writing to the previous session.
+   */
+  list?.addEventListener('click', async (event) => {
+    const button = (event.target as HTMLElement).closest('.mark-button') as HTMLElement | null;
+    if (!button) return;
+    const row = button.closest('.mark-row') as HTMLElement | null;
+    const childId = row?.dataset.child;
+    const sessionId = select?.value;
+    if (!row || !childId || !sessionId) return;
+
+    const status = button.dataset.status as AttendanceStatus;
+
+    /* Optimistic: the state flips on the tap. See the header. */
+    row.querySelectorAll('.mark-button').forEach((b) => b.setAttribute('aria-pressed', 'false'));
+    button.setAttribute('aria-pressed', 'true');
+    marks.set(childId, status);
+    row.removeAttribute('data-failed');
+    row.querySelector('.mark-failed-note')?.remove();
+    row.dataset.saving = '';
+    paintSummary();
+
+    const result = await markAttendance(sessionId, childId, status, me);
+    delete row.dataset.saving;
+
+    if (!result.ok) {
+      /* ⚠️ LOUD, AND IT DOES NOT REVERT. The prof's intent stays on screen so
+         they can see what to retry; a mark that silently undoes itself is worse
+         than one that never happened. */
+      row.dataset.failed = '';
+      const note = document.createElement('p');
+      note.className = 'mark-failed-note';
+      note.setAttribute('role', 'status');
+      note.textContent = 'Non enregistré — retoucher pour réessayer.';
+      row.appendChild(note);
+    }
+  });
+
+  async function loadRegister(sessionId: string) {
+    if (!sessionId) {
+      if (list) list.innerHTML = '';
+      if (emptyNote) emptyNote.hidden = false;
+      if (summary) summary.hidden = true;
+      return;
+    }
+    if (emptyNote) emptyNote.hidden = true;
+    const rows = await listAttendance(sessionId);
+    renderMarkList(new Map(rows.map((r) => [r.childId, r.status])));
+  }
+
+  select?.addEventListener('change', () => void loadRegister(select.value));
+
+  function paintSessions() {
+    if (!sessionList) return;
+    if (sessions.length === 0) {
+      sessionList.innerHTML = '<p class="admin-empty">Aucune séance.</p>';
+      return;
+    }
+    const labels: Record<string, string> = {
+      draft: 'brouillon',
+      published: 'publiée',
+      cancelled: 'annulée',
+    };
+    sessionList.innerHTML = sessions
+      .map(
+        (s) => `
+        <div class="session-card" data-status="${s.status}" data-session="${s.id}">
+          <div class="session-when">${esc(whenFmt.format(new Date(s.startsAt)))}</div>
+          <p class="session-meta">${esc(s.titleFr ?? 'Séance')}${s.venue ? ' — ' + esc(s.venue) : ''} · ${s.durationMinutes} min</p>
+          <span class="session-status" data-status="${s.status}">${labels[s.status]}</span>
+          <p class="admin-actions">
+            ${
+              s.status === 'draft'
+                ? '<button type="button" class="btn-ghost" data-publish>Publier</button>'
+                : ''
+            }
+            ${
+              s.status !== 'cancelled'
+                ? '<button type="button" class="btn-ghost" data-cancel>Annuler la séance</button>'
+                : ''
+            }
+          </p>
+        </div>`,
+      )
+      .join('');
+  }
+
+  sessionList?.addEventListener('click', async (event) => {
+    const target = event.target as HTMLElement;
+    const card = target.closest('[data-session]') as HTMLElement | null;
+    const id = card?.dataset.session;
+    if (!id) return;
+
+    if (target.hasAttribute('data-publish')) {
+      await updateSession(id, { status: 'published' });
+    } else if (target.hasAttribute('data-cancel')) {
+      /* ⚠️ Confirmed, because it is visible to every student the moment it
+         lands — and it is a state change, not a deletion. */
+      if (!window.confirm('Annuler cette séance ? Les élèves la verront comme annulée.')) return;
+      await cancelSession(id);
+    } else return;
+
+    sessions = await listSessions();
+    paintSessions();
+    fillSessionSelect();
+  });
+
+  function fillSessionSelect() {
+    if (!select) return;
+    const keep = select.value;
+    /* ⚠️ Cancelled sessions are NOT offered for marking — there is no register
+       to take for a session that did not happen — but they stay in the list
+       above with their state. */
+    const options = sessions
+      .filter((s) => s.status !== 'cancelled')
+      .sort((a, b) => Date.parse(b.startsAt) - Date.parse(a.startsAt));
+    select.innerHTML =
+      '<option value="">Choisir une séance…</option>' +
+      options
+        .map(
+          (s) =>
+            `<option value="${s.id}">${esc(whenFmt.format(new Date(s.startsAt)))} — ${esc(s.titleFr ?? 'Séance')}</option>`,
+        )
+        .join('');
+    if (keep && options.some((s) => s.id === keep)) select.value = keep;
+  }
+
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (!formError) return;
+    formError.textContent = '';
+
+    const field = (name: string) =>
+      (form.querySelector(`[data-field="${name}"]`) as HTMLInputElement | HTMLSelectElement | null)
+        ?.value ?? '';
+
+    const local = field('startsAt');
+    if (!local) {
+      formError.textContent = 'Une date est nécessaire.';
+      return;
+    }
+
+    const result = await createSession({
+      /* `datetime-local` has no zone; the browser's own is the right one — the
+         prof is entering the time in the room they will be standing in. */
+      startsAt: new Date(local).toISOString(),
+      durationMinutes: Number(field('duration')) || 90,
+      titleFr: field('titleFr').trim() || null,
+      venue: field('venue').trim() || null,
+      level: field('level') || null,
+      status: (field('status') || 'draft') as 'draft' | 'published',
+    });
+
+    if (!result.ok) {
+      formError.textContent = result.error ?? 'La séance n’a pas pu être créée.';
+      return;
+    }
+    form.reset();
+    sessions = await listSessions();
+    paintSessions();
+    fillSessionSelect();
+  });
+
+  window.addEventListener('mcc:admin-ready', async () => {
+    const [user, kids, allSessions] = await Promise.all([getUser(), listChildren(), listSessions()]);
+    me = user?.id ?? null;
+    children = kids;
+    sessions = allSessions;
+    paintSessions();
+    fillSessionSelect();
+
+    /* Preselect the nearest session that is not cancelled — on a phone, at the
+       start of a class, that is almost always the one being marked. */
+    const now = Date.now();
+    const nearest = [...sessions]
+      .filter((s) => s.status !== 'cancelled')
+      .sort(
+        (a, b) =>
+          Math.abs(Date.parse(a.startsAt) - now) - Math.abs(Date.parse(b.startsAt) - now),
+      )[0];
+    if (nearest && select) {
+      select.value = nearest.id;
+      await loadRegister(nearest.id);
+    } else if (emptyNote) emptyNote.hidden = false;
+  });
+</script>

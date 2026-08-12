@@ -352,6 +352,42 @@ function achievementLabel(id: string): string {
       </ul>
     </section>
 
+    {/* ── Given by a prof ─────────────────────────────────────────────────
+        ⚠️ A SEPARATE BLOCK, NOT A FIFTH ROW ABOVE (v2-S4).
+
+        These points are a different KIND, not a bigger number: everything in
+        the block above is something the student did and the site watched; this
+        is something a person decided. Filed as one more row in the same list,
+        the distinction disappears — and with it the meaning of both halves.
+
+        So it is its own block, with its own heading, its own accent edge, and
+        the REASON printed next to every award. The reason is why the database
+        requires one (migration 0004): a point a student cannot account for
+        teaches them the number is arbitrary.
+
+        ⚠️ HIDDEN UNTIL THERE IS SOMETHING IN IT. `ScoreResolver` un-hides it
+        only when the teacher subtotal is above zero, so a guest — and a student
+        nobody has awarded — never meets an empty "0 points from your teacher",
+        which reads as a mark against them rather than as an absence. */}
+    <section
+      class="progress-block progress-teacher"
+      aria-labelledby="progress-teacher"
+      data-score-teacher-wrap
+      data-testid="progress-teacher"
+      hidden
+    >
+      <h2 class="progress-block-title" id="progress-teacher">
+        {t('score.teacher.title')}
+        <span class="score-tally">
+          <b data-score-source="teacher">0</b>
+          {' '}{t('score.points')}
+        </span>
+      </h2>
+      <p class="progress-note">{t('score.teacher.intro')}</p>
+      {/* Filled by the script below from the mirrored rows. */}
+      <ul class="progress-rows" data-award-list data-on-pattern={t('score.teacher.on')}></ul>
+    </section>
+
     {/* ── Achievements ───────────────────────────────────────────────── */}
     {/* ⚠️ EARNED AND REMAINING, BOTH VISIBLE. A list of only what you have
         says nothing about what is next; a list of only what you lack reads as
@@ -413,7 +449,57 @@ function achievementLabel(id: string): string {
     door to the durable copy. It is deferred and that is correct: the sync state
     is not first-paint information, and nothing on this page waits for it. */}
 <script>
-  import { startSync, syncState, SYNC_EVENT } from '@lib/progress';
+  /* ⚠️ THROUGH `progress.ts` ONLY, as everywhere else. This page does not know
+     that awards come from Supabase, and must not: `progress.ts` is the single
+     reader and the sync layer is what decides where the rows came from. */
+  import { awards, startSync, syncState, SYNC_EVENT } from '@lib/progress';
+
+  /**
+   * The awards list — the reasons, which are the whole point of the block.
+   *
+   * The SUBTOTAL and the block's visibility are `ScoreResolver`'s job (it owns
+   * the one computation); this only prints the rows behind it. A date is shown
+   * when the row carries one and simply omitted when it does not — an award
+   * with no usable timestamp is still a real award, and printing "Invalid Date"
+   * next to a student's points would be worse than printing nothing.
+   */
+  const list = document.querySelector('[data-award-list]') as HTMLElement | null;
+  if (list) {
+    const pattern = list.dataset.onPattern ?? '';
+    const locale = document.documentElement.lang === 'en' ? 'en-GB' : 'fr-FR';
+    for (const award of awards()) {
+      const row = document.createElement('li');
+      row.className = 'progress-row award-row';
+
+      const label = document.createElement('span');
+      label.className = 'progress-row-label';
+      label.textContent = award.reason;
+
+      if (award.awardedAt) {
+        const stamp = Date.parse(award.awardedAt);
+        if (!Number.isNaN(stamp)) {
+          const when = document.createElement('span');
+          when.className = 'award-when';
+          when.textContent = pattern.replace(
+            '%s',
+            new Date(stamp).toLocaleDateString(locale, {
+              day: 'numeric',
+              month: 'long',
+              year: 'numeric',
+            }),
+          );
+          label.appendChild(when);
+        }
+      }
+
+      const count = document.createElement('span');
+      count.className = 'progress-row-count award-points';
+      count.textContent = `+${award.points}`;
+
+      row.append(label, count);
+      list.appendChild(row);
+    }
+  }
 
   const el = document.querySelector('[data-testid="progress-sync-state"]') as HTMLElement | null;
   const root = document.querySelector('[data-progress-root]') as HTMLElement | null;
@@ -570,6 +656,38 @@ function achievementLabel(id: string): string {
     color: var(--mcc-text-secondary);
     font-size: 0.875rem;
     font-variant-numeric: tabular-nums;
+  }
+
+  /* ── Given by a prof (v2-S4) ──────────────────────────────────────────
+     ⚠️ DISTINCT BY STRUCTURE, NOT BY COLOUR ALONE. The block carries an accent
+     edge AND its own heading AND a printed reason on every row; someone who
+     cannot distinguish brass from a hairline still reads "Points attribués par
+     ton prof" and the sentence explaining what they were for. Same rule as the
+     board affordance tags.
+
+     ⚠️ AND NO `opacity` ON ANY OF THIS TEXT. The tokens below are the audited
+     pairs; an alpha applied on top of a proved pair is invisible to
+     check-contrast.mjs and cost a Lighthouse regression once already. */
+  .progress-teacher {
+    border-inline-start: 3px solid var(--mcc-accent);
+    padding-inline-start: 1rem;
+  }
+
+  .award-row {
+    align-items: flex-start;
+  }
+
+  .award-when {
+    display: block;
+    margin-block-start: 0.15rem;
+    color: var(--mcc-text-secondary);
+    font-size: 0.8125rem;
+  }
+
+  .award-points {
+    color: var(--mcc-accent-text);
+    font-weight: 600;
+    white-space: nowrap;
   }
 
   /* ── By theme ─────────────────────────────────────────────────────── */

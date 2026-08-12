@@ -1,0 +1,14 @@
+---
+/**
+ * /admin/eleves/ — the class list. Emitted only when accounts are enabled.
+ * See `/admin/[...slug].astro` for why the route is shaped like this.
+ */
+import { AUTH_ENABLED } from '@config/auth';
+import AdminStudentsPage from '@components/pages/admin/AdminStudentsPage.astro';
+
+export function getStaticPaths() {
+  return AUTH_ENABLED ? [{ params: { slug: undefined } }] : [];
+}
+---
+
+<AdminStudentsPage />

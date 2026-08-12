@@ -1,0 +1,18 @@
+---
+/**
+ * /admin/eleve/?id=… — one learner. Emitted only when accounts are enabled.
+ *
+ * ⚠️ THE CHILD ID IS A QUERY PARAMETER, NOT A SEGMENT, and that is forced by
+ * the architecture rather than chosen: a static build would have to enumerate
+ * every child at BUILD time to emit `/admin/eleve/<uuid>/`, which means putting
+ * the class list into `dist/` for anyone to read. See `AdminStudentPage.astro`.
+ */
+import { AUTH_ENABLED } from '@config/auth';
+import AdminStudentPage from '@components/pages/admin/AdminStudentPage.astro';
+
+export function getStaticPaths() {
+  return AUTH_ENABLED ? [{ params: { slug: undefined } }] : [];
+}
+---
+
+<AdminStudentPage />

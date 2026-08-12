@@ -1445,6 +1445,107 @@ downloads the auth client.
 - [ ] Clear the filter and confirm no ~200 KB auth chunk is fetched either
 - [ ] Now open `/connexion/` — still zero Supabase requests until you **submit** the form
 
+---
+
+## 7d. The admin surfaces (v2-S4 part 2) — ⚠️ NEEDS AN ON BUILD AND A PROF ACCOUNT
+
+These four routes do not exist on the default build. Section 7c-0 already checks
+that; everything here needs `PUBLIC_AUTH_ENABLED=true` **and a rebuild**, plus an
+account promoted to `prof` with the SQL in `docs/ADMIN.md`.
+
+> ⚠️ **This is the part of the site that is used on a phone, standing up, in a
+> room with twenty teenagers in it.** Test it that way — `npm run demo -- --host`
+> and a real phone — not in a desktop window. Half the decisions here only make
+> sense, and only fail, at 390px with one thumb.
+
+### 7d-0. On the DEFAULT build (do this one every release)
+
+- [ ] `/admin/`, `/admin/eleves/`, `/admin/eleve/`, `/admin/seances/` all **404**
+- [ ] `/en/admin/` **404s** as well — the admin UI is French only, by decision
+
+### 7d-1. The way in
+
+- [ ] Signed in as an **élève**: `/compte/` shows **no** "Espace encadrants" block
+- [ ] Signed in as a **prof**: the block is there, and its button opens `/admin/`
+- [ ] Same at **390px and at 1280px** — the entry point is not layout-dependent
+- [ ] Signed OUT, open `/admin/` directly: you get a **sentence**, not an empty
+      table, and a link back
+- [ ] As an **élève**, open `/admin/eleves/` directly: same refusal.
+      ⚠️ Then open DevTools and un-hide the body — the table is **empty**, because
+      RLS is what refuses, not the CSS
+
+### 7d-2. The class list
+
+- [ ] `/admin/eleves/` lists **children, not accounts** — a parent with two
+      children appears **twice**, with the two names
+- [ ] Every column sorts, and clicking the same header again reverses it
+- [ ] A student with no activity sorts to the **end**, whichever way — not to the top
+- [ ] The points and rank shown here are **the same numbers that student sees** on
+      their own `/progres/`. ⚠️ Check one student against their own screen; this is
+      the thing that destroys trust when it is wrong
+- [ ] A row opens `/admin/eleve/?id=…` with that child's progress, attendance and awards
+
+### 7d-3. Awarding points
+
+- [ ] Award **5 points** with a reason — it appears in the list immediately
+- [ ] The tiles above **recompute**; nothing is stored as a balance
+- [ ] Try **0**, **-5** and **51** — refused, with a message
+- [ ] Try a blank reason and a one-character reason — refused
+- [ ] ⚠️ Now sign in as **that student** on another device or a private window:
+      `/progres/` shows a **separate block** headed "Points attribués par ton prof",
+      with **the reason you typed** printed next to the award
+- [ ] A student who has been awarded nothing sees **no such block at all** —
+      not an empty one reading "0"
+
+### 7d-4. ⚠️ THE REGISTER — the timed one
+
+**This is the design constraint of the whole feature.** Do it on a phone.
+
+- [ ] `/admin/seances/` preselects the nearest session
+- [ ] Every child in the club is listed, each with **three buttons: P / A / E**
+- [ ] **Time yourself marking twenty.** Tap P down the list without pausing
+- [ ] ⚠️ **One tap per child.** No dialog opens, nothing has to be dismissed,
+      and there is **no save button anywhere**
+- [ ] ⚠️ **Nothing moves.** The list does not re-sort, rows do not disappear as
+      they are marked, and no row changes height under your thumb
+- [ ] The counter reads "12 sur 20 marqués · 12 présents" and keeps up
+- [ ] Tap a child again on a different letter — it **corrects**, it does not add a
+      second row. Reload: your correction is what stuck
+- [ ] **Turn airplane mode on and mark three more.** They flip on screen and then
+      each row says **"Non enregistré"** and *stays* saying it — it must not
+      silently revert to unmarked
+- [ ] Turn the network back on, tap those three again — they save
+
+> **Expected timing.** The interface costs about **60 ms per child** (measured:
+> 1.18 s for twenty taps, all twenty rows durable 1.47 s after the first tap —
+> `attendance-timing.spec.ts`). So a real class of twenty is bounded by how fast
+> you can read the names, around **half a minute**. ⚠️ **If it feels like the
+> phone is the thing slowing you down, that is a regression** — something started
+> blocking between taps.
+
+### 7d-5. Sessions
+
+- [ ] Create a session as a **brouillon** — it appears in the list, marked so
+- [ ] It is **not** on the public `/agenda/`, and not offered in the marking picker
+      until published
+- [ ] **Publier** it — now it is on `/agenda/` (after a rebuild — the agenda is
+      still the git collection; see BACKLOG) and in the picker
+- [ ] **Annuler la séance** — it stays in the list, visibly cancelled.
+      ⚠️ There is **no delete button**, on purpose: deleting would take its
+      register with it
+- [ ] A cancelled session's attendance rows still exist (check the student's own
+      detail page)
+- [ ] As an **élève**, `/agenda/` shows neither the draft nor the cancelled one
+
+### 7d-6. Chrome, themes and motion
+
+- [ ] All four themes × light and dark: the admin pages follow the theme, and
+      **nothing is unreadable** — especially the marked P/A/E fills
+- [ ] The admin nav strip scrolls horizontally at 320px and every entry is reachable
+- [ ] `prefers-reduced-motion`: the marker's fill still lands **instantly**; only
+      the travel goes
+- [ ] There is **no language switcher** in the header on any `/admin*` page
+
 ### Privacy policy
 
 - [ ] `/politique-confidentialite/` and `/en/politique-confidentialite/` both load
