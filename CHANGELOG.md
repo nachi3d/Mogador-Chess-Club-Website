@@ -11,6 +11,60 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+---
+
+## [0.11.0] — 2026-08-12
+
+**The whole account stack — sync, roles, the register — is built, and it is
+still switched off.**
+
+This release is v2 arriving in one piece: progress that follows a student
+between devices (v2-S3), a proven role boundary with teacher-awarded points
+(v2-S4 part 1), the admin surfaces a prof actually uses (v2-S4 part 2), and
+underneath all of it the parent/child model that makes the learner a person
+rather than a login.
+
+⚠️ **AND NONE OF IT IS REACHABLE. `PUBLIC_AUTH_ENABLED` REMAINS UNSET.**
+
+That is deliberate and it is the most important line in this entry.
+`/connexion/`, `/compte/`, `/auth/callback/` and the four `/admin*` routes are
+**not emitted into `dist/` at all**, and there is **no Supabase project ref, host
+or anon key in any shipped bundle** — off means *not built*, not hidden. Nine
+routes' worth of feature ships as zero bytes a reader can reach. Turning it on is
+one build variable and a release decision, and it is Seàn's, not a side effect of
+a session. What changed in v0.11.0 is that it is now worth making.
+
+What a reader of the live site gets from this release: nothing they can see —
+which is the point. What the project gets is that the next decision is a switch
+rather than a build.
+
+- **v2-S3 — progress sync.** Signed in, `localStorage` stays the source of truth
+  for the UI and the cloud is the durable copy; reads never touch the network, so
+  a dead Supabase cannot block a board. The **first-sign-in import** merges a
+  guest's work rather than replacing it — `solved` OR, `attempts` MAX, `hintUsed`
+  OR, `solvedAt` EARLIEST, games unioned by id — chosen so the merge is
+  commutative and idempotent, because it runs once, on real work, with no undo.
+  An **offline queue** (`mcc:sync:v1`, one entry per row, bounded at 500) retries
+  on reconnect and on the tab becoming visible, with no polling and no spinner.
+- **v2-S4 — the role boundary and the surfaces on top of it.** `admin` / `prof` /
+  `eleve`, with `role` unreachable from any client (column privileges, a trigger,
+  and no INSERT policy). **Teacher-awarded points** as rows with a required
+  reason, positive and capped at 50 — all three enforced in the database, not the
+  form. Then the surfaces: a dashboard, a class list, session CRUD and the
+  attendance register, French only, mobile-first, needing **no new migration**
+  because the schema was already there.
+- **The parent/child profile model.** A parent holds the account; each child is a
+  profile beneath it carrying the progress, the points and the attendance. An
+  autonomous teenager is an account holding exactly one child — one code path,
+  not two. Graduation into their own account is **one foreign-key update** and
+  copies no rows, which was the design's own test for whether the shape was right.
+- **Tooling.** `npm run demo` now sweeps orphaned Playwright browsers as well as
+  orphaned preview servers — ~60 were found on this machine, and they had cost
+  three red release gates that were not defects. CLAUDE.md was split into the
+  rules that bind every session plus `docs/reference/`, with a size guard that
+  fails the build past 150 000 characters; it had reached 247 KB, past which its
+  tail was silently no longer read.
+
 ### Added — v2-S4 part 2: the admin surfaces
 
 `/admin/` (dashboard), `/admin/eleves/` (the class), `/admin/eleve/?id=…` (one
@@ -3241,7 +3295,8 @@ Foundation only: no real content, no interactive board yet.
   `url()` references unresolved and the fonts silently 404 into a Georgia
   fallback. `scripts/build-fonts.mjs` self-hosts them instead. See CLAUDE.md.
 
-[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.7.0...v0.8.0
