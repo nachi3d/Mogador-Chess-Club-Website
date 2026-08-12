@@ -1,0 +1,14 @@
+---
+/**
+ * /admin/seances/ — sessions and the attendance marker. Emitted only when
+ * accounts are enabled. See `/admin/[...slug].astro` for the route shape.
+ */
+import { AUTH_ENABLED } from '@config/auth';
+import AdminSessionsPage from '@components/pages/admin/AdminSessionsPage.astro';
+
+export function getStaticPaths() {
+  return AUTH_ENABLED ? [{ params: { slug: undefined } }] : [];
+}
+---
+
+<AdminSessionsPage />

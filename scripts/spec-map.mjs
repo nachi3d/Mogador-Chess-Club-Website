@@ -92,7 +92,34 @@ export const SPEC_MAP = [
     /^src\/components\/account\//,
     ['child-profiles.spec.ts', 'auth.spec.ts', 'auth-disabled.spec.ts'],
   ],
-  [/^supabase\/migrations\//, ['child-profiles.spec.ts', 'role-separation.spec.ts', 'progress-sync.spec.ts']],
+  [
+    /^supabase\/migrations\//,
+    [
+      'child-profiles.spec.ts',
+      'role-separation.spec.ts',
+      'progress-sync.spec.ts',
+      /* v2-S4 part 2 — the admin surfaces read every one of these tables. */
+      'admin.spec.ts',
+    ],
+  ],
+
+  /* v2-S4 part 2 — the admin surfaces.
+     ⚠️ `ledger.ts` reaches BOTH specs on purpose: `progression.spec.ts` covers
+     the student's own total and `admin.spec.ts` pins the two implementations
+     equal. A change to the summation that only ran one of them would prove
+     nothing about the thing the split exists to protect. */
+  [/^src\/lib\/ledger\./, ['admin.spec.ts', 'progression.spec.ts']],
+  [/^src\/lib\/admin\./, ['admin.spec.ts', 'role-separation.spec.ts', 'attendance-timing.spec.ts']],
+  [/^src\/components\/admin\//, ['admin.spec.ts', 'auth-disabled.spec.ts']],
+  /* ⚠️ The sessions page carries the attendance marker, whose SPEED is the
+     design constraint of the whole feature — so a change to it re-measures
+     rather than merely re-asserting that the buttons exist. */
+  [
+    /^src\/components\/pages\/admin\/AdminSessionsPage\./,
+    ['admin.spec.ts', 'attendance-timing.spec.ts', 'auth-disabled.spec.ts'],
+  ],
+  [/^src\/components\/pages\/admin\//, ['admin.spec.ts', 'auth-disabled.spec.ts']],
+  [/^src\/styles\/admin\./, ['admin.spec.ts', 'themes.spec.ts']],
 
   /* i18n ROUTING, as distinct from the string tables above. */
   [/^src\/i18n\/paths\./, ['smoke.spec.ts', 'legal.spec.ts']],

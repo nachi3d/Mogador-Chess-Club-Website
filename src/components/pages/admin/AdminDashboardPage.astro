@@ -1,0 +1,157 @@
+---
+/**
+ * /admin/ — what a prof needs in the first five seconds.
+ *
+ * ⚠️ FRENCH ONLY. See `AdminShell.astro` and CLAUDE.md.
+ *
+ * ⚠️ MOBILE-FIRST, AND THAT DECIDED WHAT IS ON IT. This is opened standing up,
+ * on a phone, at the start of a session — so the page answers "what is on now,
+ * who has been working, and where do I go next" and nothing else. Charts, class
+ * averages and trends are all things a prof reads at a desk, and putting them
+ * here would push the three useful answers below the fold.
+ *
+ * ⚠️ EVERY NUMBER IS COUNTED FROM ROWS AT READ TIME. Nothing is cached and no
+ * total is stored anywhere — the same rule the student's own ledger follows.
+ */
+import AdminShell from '@components/admin/AdminShell.astro';
+---
+
+<AdminShell title="Tableau de bord" current="dashboard" intro="Le club, en un coup d’œil.">
+  <ul class="admin-tiles">
+    <li class="admin-tile"><b data-tile="children">–</b><span>élèves</span></li>
+    <li class="admin-tile"><b data-tile="sessions">–</b><span>séances à venir</span></li>
+    <li class="admin-tile"><b data-tile="solved">–</b><span>exercices résolus</span></li>
+    <li class="admin-tile"><b data-tile="awards">–</b><span>points attribués</span></li>
+  </ul>
+
+  <section class="admin-block">
+    <h2 class="admin-block-title">Prochaines séances</h2>
+    <div data-next-sessions>
+      <p class="admin-empty">Chargement…</p>
+    </div>
+  </section>
+
+  <section class="admin-block">
+    <h2 class="admin-block-title">Activité récente</h2>
+    {/* ⚠️ NAMES AND DATES, NOT A LEADERBOARD. Ordering students by output in
+        front of their teacher is the same mistake as a daily streak: it turns a
+        record of work into a ranking of children. This is "who has been at it",
+        newest first, so a prof can notice someone who has stopped. */}
+    <div data-recent>
+      <p class="admin-empty">Chargement…</p>
+    </div>
+  </section>
+
+  <section class="admin-block">
+    <h2 class="admin-block-title">Raccourcis</h2>
+    <p class="admin-links">
+      <a class="btn-primary" href="/admin/seances/">Marquer les présences</a>
+      <a class="btn-ghost" href="/admin/eleves/">Voir la classe</a>
+    </p>
+  </section>
+</AdminShell>
+
+<script>
+  import { listAwards, listChildren, listProgress, listSessions } from '@lib/admin';
+
+  const set = (name: string, value: string | number) => {
+    const el = document.querySelector(`[data-tile="${name}"]`);
+    if (el) el.textContent = String(value);
+  };
+
+  const dateFmt = new Intl.DateTimeFormat('fr-FR', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  function panel(selector: string, html: string) {
+    const el = document.querySelector(selector);
+    if (el) el.innerHTML = html;
+  }
+
+  /** Escape everything that reaches innerHTML — display names are user text. */
+  function esc(value: string): string {
+    const div = document.createElement('div');
+    div.textContent = value;
+    return div.innerHTML;
+  }
+
+  window.addEventListener('mcc:admin-ready', async () => {
+    /* One round of requests, in parallel. A prof on mobile data waits once. */
+    const [children, sessions, progress, awards] = await Promise.all([
+      listChildren(),
+      listSessions(),
+      listProgress(),
+      listAwards(),
+    ]);
+
+    const names = new Map(children.map((c) => [c.id, c.displayName]));
+    const now = Date.now();
+    const upcoming = sessions
+      .filter((s) => s.status !== 'cancelled' && Date.parse(s.startsAt) >= now)
+      .sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt));
+
+    set('children', children.length);
+    set('sessions', upcoming.length);
+    set('solved', progress.filter((p) => p.solved).length);
+    set(
+      'awards',
+      awards.reduce((sum, a) => sum + a.points, 0),
+    );
+
+    panel(
+      '[data-next-sessions]',
+      upcoming.length === 0
+        ? '<p class="admin-empty">Aucune séance à venir. <a href="/admin/seances/">En programmer une</a>.</p>'
+        : upcoming
+            .slice(0, 3)
+            .map(
+              (s) => `
+              <div class="session-card" data-status="${s.status}">
+                <div class="session-when">${esc(dateFmt.format(new Date(s.startsAt)))}</div>
+                <p class="session-meta">${esc(s.titleFr ?? 'Séance')}${
+                  s.venue ? ' — ' + esc(s.venue) : ''
+                }</p>
+                <span class="session-status" data-status="${s.status}">${
+                  s.status === 'published' ? 'publiée' : 'brouillon'
+                }</span>
+              </div>`,
+            )
+            .join(''),
+    );
+
+    /* Most recent solve per child — "who has been working", not "who most". */
+    const last = new Map<string, string>();
+    for (const row of progress) {
+      if (!row.solved || !row.solvedAt) continue;
+      const previous = last.get(row.childId);
+      if (!previous || row.solvedAt > previous) last.set(row.childId, row.solvedAt);
+    }
+    const recent = [...last.entries()]
+      .sort((a, b) => b[1].localeCompare(a[1]))
+      .slice(0, 8);
+
+    const dayFmt = new Intl.DateTimeFormat('fr-FR', {
+      day: 'numeric',
+      month: 'long',
+    });
+
+    panel(
+      '[data-recent]',
+      recent.length === 0
+        ? '<p class="admin-empty">Personne n’a encore travaillé sur le site.</p>'
+        : `<ul class="mark-list">${recent
+            .map(
+              ([id, when]) => `
+              <li class="mark-row">
+                <span class="mark-name">${esc(names.get(id) ?? 'Élève')}</span>
+                <span class="admin-rank">${esc(dayFmt.format(new Date(when)))}</span>
+              </li>`,
+            )
+            .join('')}</ul>`,
+    );
+  });
+</script>

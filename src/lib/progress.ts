@@ -35,6 +35,17 @@ import { queueExercise, queueGame } from '@lib/progress-sync';
 
 const STORAGE_KEY = 'mcc:progress:v1';
 
+/**
+ * The largest single teacher award, mirroring the CHECK in migration 0004.
+ *
+ * ⚠️ THE DATABASE IS WHERE THE RULE LIVES. This constant exists so a mirrored
+ * row that is out of range is dropped on read rather than displayed; it is not
+ * a second policy, and it must never become the only place the bound is stated.
+ * 50 sits a little under the whole tutorial (65) so no single award can outweigh
+ * the work — the reasoning is in the migration.
+ */
+export const AWARD_MAX = 50;
+
 /** What we remember about one exercise. */
 export interface ExerciseProgress {
   readonly solved: boolean;
@@ -65,6 +76,42 @@ export type GameOutcome = 'win' | 'draw' | 'loss';
 
 export const EMPTY_GAMES: GameRecord = { wins: 0, draws: 0, losses: 0 };
 
+/**
+ * One point award from a prof (v2-S4).
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️ MIRRORED FROM THE CLOUD, AND NEVER WRITTEN BY THIS DEVICE.
+ *
+ * These rows are the local copy of `point_awards`, pulled on sign-in exactly as
+ * exercise records are. Three things about that are load-bearing:
+ *
+ *  * **It is still not a balance.** A row carries what happened and why; the
+ *    total is recomputed from the rows by the ledger, like everything else. If
+ *    anyone is ever tempted to cache the sum here, the whole anti-cheat posture
+ *    of E3 goes with it.
+ *  * **Nothing local ever creates one.** There is no `recordAward()` and there
+ *    must not be. A student who edits this array gives themselves points on
+ *    their own screen until the next sign-in overwrites it, and gives
+ *    themselves nothing at all anywhere else — the database has no INSERT
+ *    policy for them, which is where the refusal actually lives.
+ *  * **A guest has none, and that is not a degraded state.** Awards exist only
+ *    where a prof and an account do.
+ *
+ * ⚠️ THE KEY STAYS `v1`. This ADDS a namespace and reinterprets nothing: a
+ * record written before v2-S4 has no `awards`, which normalises to empty — the
+ * true statement "no prof has awarded this reader anything". Same no-op shape
+ * change as `games`/`announced` in E3 and `boardTheme` in E6.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+export interface AwardRecord {
+  /** Positive and ≤ 50 — the database enforces it; see migration 0004. */
+  readonly points: number;
+  /** Required, and shown to the student. A point with no reason is arbitrary. */
+  readonly reason: string;
+  /** ISO 8601, or null when the cloud row carried nothing usable. */
+  readonly awardedAt: string | null;
+}
+
 export interface Progress {
   readonly exercises: Readonly<Record<string, ExerciseProgress>>;
   /**
@@ -84,6 +131,8 @@ export interface Progress {
    * earned.
    */
   readonly announced: readonly string[];
+  /** Teacher awards, mirrored from the cloud. Rows, never a total. */
+  readonly awards: readonly AwardRecord[];
 }
 
 export const EMPTY_EXERCISE: ExerciseProgress = {
@@ -93,7 +142,7 @@ export const EMPTY_EXERCISE: ExerciseProgress = {
   solvedAt: null,
 };
 
-const EMPTY_PROGRESS: Progress = { exercises: {}, games: {}, announced: [] };
+const EMPTY_PROGRESS: Progress = { exercises: {}, games: {}, announced: [], awards: [] };
 
 /** `localStorage`, or null when it is unavailable for any reason. */
 function storage(): Storage | null {
@@ -132,6 +181,38 @@ function normalizeEntry(value: unknown): ExerciseProgress | null {
 /** A non-negative whole number, or 0. Same defensive posture as `attempts`. */
 function count(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
+}
+
+/**
+ * Coerce the awards array, field by field and row by row.
+ *
+ * ⚠️ A ROW THAT DOES NOT MAKE SENSE IS DROPPED, NOT REPAIRED. `points` is
+ * clamped to the range the database enforces (1–50) rather than trusted: this
+ * array is the one part of the store whose contents a student never earned
+ * locally, so a hand-edited 5000 must not become 5000 points on their own
+ * screen either. The clamp is a mirror of the CHECK in migration 0004, not a
+ * second policy — the database remains the place the rule lives.
+ *
+ * A row with no reason is dropped outright. The reason is required precisely
+ * because a point nobody can explain reads as arbitrary; showing one with a
+ * blank explanation would be the failure the constraint exists to prevent.
+ */
+function normalizeAwards(value: unknown): AwardRecord[] {
+  if (!Array.isArray(value)) return [];
+  const out: AwardRecord[] = [];
+  for (const entry of value as unknown[]) {
+    if (typeof entry !== 'object' || entry === null) continue;
+    const raw = entry as Record<string, unknown>;
+    const points = count(raw['points']);
+    const reason = typeof raw['reason'] === 'string' ? raw['reason'].trim() : '';
+    if (points < 1 || points > AWARD_MAX || reason.length === 0) continue;
+    out.push({
+      points,
+      reason,
+      awardedAt: typeof raw['awardedAt'] === 'string' ? raw['awardedAt'] : null,
+    });
+  }
+  return out;
 }
 
 function normalizeGames(value: unknown): Record<string, GameRecord> {
@@ -185,7 +266,12 @@ export function readProgress(): Progress {
       ? (record['announced'] as unknown[]).filter((id): id is string => typeof id === 'string')
       : [];
 
-    return { exercises: out, games: normalizeGames(record['games']), announced };
+    return {
+      exercises: out,
+      games: normalizeGames(record['games']),
+      announced,
+      awards: normalizeAwards(record['awards']),
+    };
   } catch {
     // Unparseable JSON, a thrown getItem — either way, start from empty. We do
     // NOT delete the bad value: a future version may be able to salvage it, and
@@ -275,6 +361,33 @@ export function recordSolved(slug: string, at: string = new Date().toISOString()
  */
 export function resetAttempts(slug: string): ExerciseProgress {
   return update(slug, (p) => ({ ...p, attempts: 0 }));
+}
+
+/* ═══════════════════════ teacher awards (v2-S4) ══════════════════════════ */
+
+/**
+ * Replace the mirrored awards with what the cloud says.
+ *
+ * ⚠️ REPLACE, NEVER MERGE — and this is the one place in the store where that
+ * is the right verb. Everything else here is the reader's own work and merges
+ * by max/OR/union, because two devices can both be right. Awards are not the
+ * reader's work at all: the server is the only author, so the server's list is
+ * simply the list. Merging would make a withdrawn award immortal on whichever
+ * device saw it first.
+ *
+ * ⚠️ CALLED ONLY BY `progress-sync.ts`, and only for a signed-in reader. There
+ * is deliberately no public "add an award" — see `AwardRecord`.
+ */
+export function mirrorAwards(awards: readonly AwardRecord[]): readonly AwardRecord[] {
+  const current = readProgress();
+  const next = normalizeAwards(awards);
+  persist({ ...current, awards: next });
+  return next;
+}
+
+/** What a prof has awarded, newest first. Empty for a guest, always. */
+export function awards(): readonly AwardRecord[] {
+  return [...readProgress().awards].sort((a, b) => (b.awardedAt ?? '').localeCompare(a.awardedAt ?? ''));
 }
 
 /** The slugs solved at least once — what the index needs to draw its ticks. */

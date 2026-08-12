@@ -16,9 +16,11 @@ import SettingsLink from '@components/SettingsLink.astro';
 interface Props {
   locale: Locale;
   pathname: string;
+  /** This page exists in one language only — see BaseLayout's prop. */
+  singleLocale?: boolean;
 }
 
-const { locale, pathname } = Astro.props;
+const { locale, pathname, singleLocale = false } = Astro.props;
 const t = useTranslations(locale);
 const current = stripLocale(pathname);
 ---
@@ -145,7 +147,11 @@ const current = stripLocale(pathname);
         <SettingsLink locale={locale} current={current === '/parametres/'} />
       </span>
       <ThemeToggle locale={locale} />
-      <LangSwitcher locale={locale} pathname={pathname} />
+      {/* ⚠️ OMITTED ON A SINGLE-LOCALE PAGE (v2-S4). `/admin*` is French only,
+          so there is no counterpart to switch to and the switcher would offer a
+          one-way trip to a 404. It is omitted rather than disabled: a control
+          that is present and does nothing is worse than one that is absent. */}
+      {!singleLocale && <LangSwitcher locale={locale} pathname={pathname} />}
     </div>
   </div>
 </header>

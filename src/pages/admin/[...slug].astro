@@ -1,0 +1,22 @@
+---
+/**
+ * /admin/ — emitted ONLY when accounts are enabled.
+ *
+ * ⚠️ THE REST PARAMETER IS WHY THIS FILE HAS A STRANGE NAME. Astro's static
+ * build has no "skip this page" switch on a plain `.astro` route: if the file
+ * exists, the page is emitted. A DYNAMIC route decides for itself, so
+ * `getStaticPaths()` returning `[]` emits nothing and the URL 404s exactly as
+ * an unwritten one does. Same pattern as `/compte/` and `/connexion/`.
+ *
+ * ⚠️ NO `/en/admin/`. The admin surfaces are French only — a decision, not an
+ * omission. See `AdminShell.astro` and CLAUDE.md.
+ */
+import { AUTH_ENABLED } from '@config/auth';
+import AdminDashboardPage from '@components/pages/admin/AdminDashboardPage.astro';
+
+export function getStaticPaths() {
+  return AUTH_ENABLED ? [{ params: { slug: undefined } }] : [];
+}
+---
+
+<AdminDashboardPage />

@@ -327,9 +327,17 @@ export async function importGuestProgress(
     if (!child) return EMPTY_REPORT;
     const supabase = await getSupabase();
 
-    const [{ data: cloudRows }, { data: cloudGames }] = await Promise.all([
+    const [{ data: cloudRows }, { data: cloudGames }, { data: cloudAwards }] = await Promise.all([
       supabase.from('exercise_progress').select('*').eq('child_id', child.id),
       supabase.from('game_results').select('*').eq('child_id', child.id),
+      /* ⚠️ AWARDS ARE PULLED, NEVER PUSHED (v2-S4). The client has no INSERT
+         policy on this table and must not act as though it might: a prof is the
+         only author, so this is a one-way mirror. See `AwardRecord`. */
+      supabase
+        .from('point_awards')
+        .select('points,reason,awarded_at')
+        .eq('child_id', child.id)
+        .order('awarded_at', { ascending: false }),
     ]);
 
     /* ── Exercises ── */
@@ -382,7 +390,16 @@ export async function importGuestProgress(
       else bucket.losses += 1;
     }
 
-    apply({ ...local, exercises: merged, games });
+    /* ⚠️ AWARDS ARE REPLACED, NOT MERGED — the server is the only author, so
+       its list IS the list. Merging would make a withdrawn award immortal on
+       whichever device happened to see it. See `mirrorAwards()`. */
+    const mirrored = (cloudAwards ?? []).map((a) => ({
+      points: Number(a['points']),
+      reason: String(a['reason'] ?? ''),
+      awardedAt: canonicalTime(typeof a['awarded_at'] === 'string' ? a['awarded_at'] : null),
+    }));
+
+    apply({ ...local, exercises: merged, games, awards: mirrored });
 
     /* ── Push the merge back up, so the cloud holds the union too ── */
     const rows = Object.entries(merged).map(([slug, p]) => ({

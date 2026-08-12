@@ -1,0 +1,276 @@
+---
+/**
+ * /admin/eleves/ — the class list.
+ *
+ * ⚠️ FRENCH ONLY. See `AdminShell.astro` and CLAUDE.md.
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️ THE ROWS ARE CHILDREN, NOT ACCOUNTS.
+ *
+ * A parent with three children is THREE rows here and one row in `auth.users`.
+ * That is the whole reason migration 0005 landed before this page: built
+ * against "one account is one student", the table, the attendance marker and
+ * the foreign key would all have had to be rewritten at the same time.
+ *
+ * An autonomous teenager is not a special case either — they are an account
+ * holding exactly one child, so they are one row, produced by the same query
+ * with no branch anywhere.
+ *
+ * ── The rank and the points ─────────────────────────────────────────────
+ * ⚠️ COMPUTED BY `computeLedger()`, THE SAME FUNCTION THE STUDENT'S OWN TOTAL
+ * COMES FROM. A prof reading a different number from the one the student is
+ * looking at is the worst failure this page could have: both numbers look
+ * plausible, and it is the student who has to argue about it. The catalogue is
+ * built here at BUILD time from the content, exactly as `/progres/` builds it,
+ * and handed to the script as data.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+import AdminShell from '@components/admin/AdminShell.astro';
+import { scoreCatalogue } from '@lib/scoreboard';
+import { RANKS } from '@lib/points';
+
+/* FR: the admin surfaces are single-locale, so there is one catalogue. */
+const catalogue = await scoreCatalogue('fr');
+
+/* The rank LABELS are French here for the same reason every other string on
+   this page is. The ids come from `points.ts`, so the ladder cannot drift. */
+const rankLabels: Record<string, string> = {
+  pion: 'Pion',
+  cavalier: 'Cavalier',
+  fou: 'Fou',
+  tour: 'Tour',
+  dame: 'Dame',
+};
+const ranks = RANKS.map((r) => ({ id: r.id, min: r.min }));
+
+const COLUMNS = [
+  { id: 'name', label: 'Élève', numeric: false },
+  { id: 'solved', label: 'Exercices', numeric: true },
+  { id: 'lessons', label: 'Leçons', numeric: true },
+  { id: 'points', label: 'Points', numeric: true },
+  { id: 'rank', label: 'Rang', numeric: false },
+  { id: 'last', label: 'Dernière activité', numeric: false },
+] as const;
+---
+
+<AdminShell
+  title="Élèves"
+  current="eleves"
+  intro="Un élève par ligne. Un parent qui inscrit trois enfants apparaît trois fois."
+>
+  {/* The catalogue as DATA, not code — same choice as ScoreResolver. */}
+  <script
+    type="application/json"
+    data-ledger-catalogue
+    set:html={JSON.stringify({
+      entries: catalogue.entries,
+      wins: catalogue.wins,
+      winCap: catalogue.winCap,
+      ranks,
+    })}
+  />
+  <script type="application/json" data-rank-labels set:html={JSON.stringify(rankLabels)} />
+
+  <div class="admin-table-wrap">
+    <table class="admin-table" data-class-table>
+      <thead>
+        <tr>
+          {
+            COLUMNS.map((column) => (
+              <th scope="col" class:list={[{ num: column.numeric }]} aria-sort="none" data-col={column.id}>
+                <button type="button" class="admin-sort" data-sort={column.id}>
+                  {column.label}
+                  <span class="admin-sort-mark" aria-hidden="true" />
+                </button>
+              </th>
+            ))
+          }
+        </tr>
+      </thead>
+      <tbody data-class-body>
+        <tr><td colspan={COLUMNS.length}>Chargement…</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="admin-empty" data-class-empty hidden>
+    Aucun élève pour l’instant. Un profil apparaît ici dès qu’un compte est créé.
+  </p>
+</AdminShell>
+
+<script>
+  import { listChildren, listGames, listProgress, listAwards } from '@lib/admin';
+  import { computeLedger, type LedgerCatalogue } from '@lib/ledger';
+  import { kindOf } from '@lib/progress-sync';
+
+  interface Row {
+    id: string;
+    name: string;
+    solved: number;
+    lessons: number;
+    points: number;
+    rank: string;
+    rankId: string;
+    last: string | null;
+  }
+
+  const json = <T,>(selector: string, fallback: T): T => {
+    const node = document.querySelector(selector);
+    if (!node?.textContent) return fallback;
+    try {
+      return JSON.parse(node.textContent) as T;
+    } catch {
+      return fallback;
+    }
+  };
+
+  const body = document.querySelector('[data-class-body]') as HTMLElement | null;
+  const empty = document.querySelector('[data-class-empty]') as HTMLElement | null;
+  const table = document.querySelector('[data-class-table]') as HTMLElement | null;
+
+  let rows: Row[] = [];
+  let sortKey: keyof Row = 'name';
+  let ascending = true;
+
+  const dayFmt = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+
+  function esc(value: string): string {
+    const div = document.createElement('div');
+    div.textContent = value;
+    return div.innerHTML;
+  }
+
+  function paint() {
+    if (!body) return;
+    const sorted = [...rows].sort((a, b) => {
+      const x = a[sortKey];
+      const y = b[sortKey];
+      /* Nulls last whichever way the column is sorted — a student with no
+         activity is not "the earliest", they are unknown. */
+      if (x === null) return 1;
+      if (y === null) return -1;
+      const cmp = typeof x === 'number' && typeof y === 'number'
+        ? x - y
+        : String(x).localeCompare(String(y), 'fr');
+      return ascending ? cmp : -cmp;
+    });
+
+    body.innerHTML = sorted
+      .map(
+        (row) => `
+        <tr>
+          <td><a class="admin-row-link" href="/admin/eleve/?id=${encodeURIComponent(row.id)}">${esc(row.name)}</a></td>
+          <td class="num">${row.solved}</td>
+          <td class="num">${row.lessons}</td>
+          <td class="num">${row.points}</td>
+          <td><span class="admin-rank">${esc(row.rank)}</span></td>
+          <td>${row.last ? esc(dayFmt.format(new Date(row.last))) : '—'}</td>
+        </tr>`,
+      )
+      .join('');
+  }
+
+  /* ⚠️ `aria-sort` on the <th>, not just an arrow. The arrow is the visible
+     half; without the attribute a screen-reader user cannot tell the table is
+     sorted at all, let alone by what. */
+  function markSort() {
+    document.querySelectorAll('[data-col]').forEach((th) => {
+      const isCurrent = th.getAttribute('data-col') === sortKey;
+      th.setAttribute('aria-sort', isCurrent ? (ascending ? 'ascending' : 'descending') : 'none');
+      const button = th.querySelector('[data-sort]');
+      if (button) button.setAttribute('aria-sort', th.getAttribute('aria-sort') ?? 'none');
+    });
+  }
+
+  table?.addEventListener('click', (event) => {
+    const button = (event.target as HTMLElement).closest('[data-sort]');
+    if (!button) return;
+    const key = button.getAttribute('data-sort') as keyof Row;
+    if (key === sortKey) ascending = !ascending;
+    else {
+      sortKey = key;
+      /* Names read best A→Z; every number reads best highest-first. */
+      ascending = key === 'name';
+    }
+    markSort();
+    paint();
+  });
+
+  window.addEventListener('mcc:admin-ready', async () => {
+    const catalogue = json<LedgerCatalogue>('[data-ledger-catalogue]', {
+      entries: [],
+      wins: {},
+      winCap: 0,
+      ranks: [],
+    });
+    const rankLabels = json<Record<string, string>>('[data-rank-labels]', {});
+
+    const [children, progress, games, awards] = await Promise.all([
+      listChildren(),
+      listProgress(),
+      listGames(),
+      listAwards(),
+    ]);
+
+    if (children.length === 0) {
+      if (body) body.innerHTML = '';
+      if (empty) empty.hidden = false;
+      return;
+    }
+
+    /* Group the class's rows by child once, rather than filtering per child —
+       twenty children over a few thousand rows is the same work either way at
+       this size, but the grouping is what stays cheap when the club grows. */
+    const byChild = new Map<string, { exercises: Record<string, { solved: boolean; hintUsed: boolean }>; games: Record<string, { wins: number }>; awards: { points: number }[]; last: string | null; lessons: Set<string> }>();
+    const bucket = (id: string) => {
+      let value = byChild.get(id);
+      if (!value) {
+        value = { exercises: {}, games: {}, awards: [], last: null, lessons: new Set() };
+        byChild.set(id, value);
+      }
+      return value;
+    };
+
+    for (const row of progress) {
+      const value = bucket(row.childId);
+      value.exercises[row.slug] = { solved: row.solved, hintUsed: row.hintUsed };
+      if (row.solved && row.solvedAt && (!value.last || row.solvedAt > value.last)) {
+        value.last = row.solvedAt;
+      }
+      /* `lesson:<course>:<lesson>:<index>` — count the LESSON, not its boards,
+         or a three-board lesson reads as three lessons. Same rule as the sync
+         layer's import report. */
+      if (row.solved && kindOf(row.slug) === 'lesson') {
+        value.lessons.add(row.slug.split(':').slice(0, 3).join(':'));
+      }
+    }
+    for (const game of games) {
+      const value = bucket(game.childId);
+      const level = (value.games[game.level] ??= { wins: 0 });
+      if (game.outcome === 'win') level.wins += 1;
+    }
+    for (const award of awards) bucket(award.childId).awards.push({ points: award.points });
+
+    rows = children.map((child) => {
+      const value = byChild.get(child.id);
+      const ledger = computeLedger(catalogue, {
+        exercises: value?.exercises ?? {},
+        games: value?.games ?? {},
+        awards: value?.awards ?? [],
+      });
+      return {
+        id: child.id,
+        name: child.displayName || 'Élève',
+        solved: Object.values(value?.exercises ?? {}).filter((e) => e.solved).length,
+        lessons: value?.lessons.size ?? 0,
+        points: ledger.points,
+        rankId: ledger.rank,
+        rank: rankLabels[ledger.rank] ?? ledger.rank,
+        last: value?.last ?? null,
+      };
+    });
+
+    markSort();
+    paint();
+  });
+</script>

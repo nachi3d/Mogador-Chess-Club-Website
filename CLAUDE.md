@@ -283,6 +283,11 @@ it. Tags said one thing and the manifest said another.
 40. **The LEARNER is a child profile, never the account.** Progress, points, attendance and game results reference `child_profiles.id`. An autonomous teenager is an account holding exactly one child — one code path, not two. See "The parent/child model".
 41. **Graduation is one FK update.** Moving a learner between accounts must never copy rows between tables. `graduate_child()` is the proof, and it is `service_role` only.
 42. **"Qui joue ?" is a choice, not a password.** No PIN, no lock on a child profile. The account is the security boundary; which child is playing is a preference.
+43. **The admin UI is FRENCH ONLY, and that is a decision.** No `t()`, no `/en/admin/`, no i18n scaffolding under `/admin*`. A future session must not "fix" it — see the admin section.
+44. **RLS is the security; the admin UI's role check is UX.** Every boundary is asserted through PostgREST with the user's own token, never by driving the pages.
+45. **The register is one tap per child, no modal, no save button.** Marking twenty teenagers in a room is the constraint the whole surface is shaped by, and it is measured rather than claimed.
+46. **A cancelled session is a STATE, never a deletion.** Deleting one cascades its register away; students who were told it was happening are left wondering.
+47. **There is ONE ledger summation** — `computeLedger()` — and the inline resolver's copy is pinned equal to it by a spec. A prof and a student must never read different totals.
 
 ---
 
@@ -593,7 +598,16 @@ FR at the root, EN under `/en/...`. **Route segments are not translated** (`/en/
 | `/connexion/` | `/en/connexion/` | **NOT EMITTED by default** — see the account flag below |
 | `/compte/` | `/en/compte/` | **NOT EMITTED by default** — see the account flag below |
 | `/auth/callback/` | — | **NOT EMITTED by default.** The only unlocalised route |
+| `/admin/` | — | **NOT EMITTED by default.** Staff dashboard. **FR only** — see Critical Feature 43 |
+| `/admin/eleves/` | — | **NOT EMITTED by default.** The class list — **children, not accounts** |
+| `/admin/eleve/` | — | **NOT EMITTED by default.** One learner, by `?id=` — a query param, not a segment, and forced by the static build |
+| `/admin/seances/` | — | **NOT EMITTED by default.** Sessions + the attendance register |
 | `/manifest.webmanifest` | — | Generated from `src/config/site.ts` |
+
+⚠️ **`/auth/callback/` is no longer the only unlocalised route** — the four
+`/admin*` routes are unlocalised too, for a different reason. The callback is
+machinery a reader never navigates to; `/admin*` is French **content** for a
+single-operator audience. Neither is a precedent for a public page.
 
 Each route file is a two-line shell that renders a shared component from `src/components/pages/` with a `locale` prop, so the two locales cannot drift apart structurally.
 
@@ -873,8 +887,74 @@ magic-link + Google, **no passwords**; **SMS is rejected**, do not reintroduce i
   path, not two. **Graduation is one FK update** (41); if it ever requires copying
   rows between tables, the shape is wrong. **"Qui joue ?" is a choice, not a
   password** (42) — the account is the security boundary.
-- ⚠️ **The admin UI is French only.** Decided; a future session must not "fix" it
-  by adding translations.
+### The admin surfaces (v2-S4 part 2) — BUILT, and the flag is still OFF
+
+`/admin/` (dashboard), `/admin/eleves/` (the class), `/admin/eleve/?id=…` (one
+learner), `/admin/seances/` (sessions + the register). Reached from `/compte/`,
+which is the only entry point. **No new migration** — 0001/0004/0005 already
+carried every table and policy these needed, which is what "the boundary
+underneath is already proven" in BACKLOG meant.
+
+- ⚠️ **FRENCH ONLY** (Critical Feature 43). No `t()`, no `/en/admin/`, no i18n
+  scaffolding. Same decision as BabyClub, same reason: a single-operator context
+  — Seàn and one or two profs, in French, in a room in Essaouira. The FR/EN rule
+  is about **readers**, and an admin screen has no such audience. **A future
+  session must not "fix" this by adding translations; the missing English is the
+  decision.** `admin.spec.ts` asserts `/en/admin*` 404s.
+- ⚠️ **`singleLocale` on BaseLayout suppresses the hreflang alternates AND the
+  language switcher.** Both halves are needed: left on, the alternates advertise
+  a 404 to search engines and the switcher offers a reader a one-way trip to it.
+  It is **not** an escape hatch for public pages, and a spec asserts a public
+  page still carries both.
+- ⚠️ **RLS is the security; the role check is UX** (Critical Feature 44). The gate
+  in `AdminShell` decides what to DRAW. `role-separation.spec.ts` proves the real
+  boundary through PostgREST with a real student's token — including that a
+  student cannot read the class list, a prof can read every child and **write
+  none**, and the award bounds hold with the form nowhere in the picture. **If an
+  assertion about who may see what ever lands in `admin.spec.ts`, it is in the
+  wrong file.** ⚠️ The gate **fails closed**: a thrown fetch denies.
+- ⚠️ **The class list is CHILDREN, not accounts.** A parent with three children is
+  three rows. This is why 0005 landed first.
+- ⚠️ **The child id is a QUERY PARAMETER, not a route segment**, and that is
+  forced: a static build would have to enumerate real students at build time to
+  emit `/admin/eleve/<uuid>/`, which means publishing the class list in `dist/`.
+- ⚠️ **The register is one tap per child, no modal, no save button** (Critical
+  Feature 45). The write is **optimistic** — the state flips on the tap, because
+  a prof cannot wait for a round trip twenty times on mobile data — and a failed
+  write is **loud and does not revert**, because a mark that silently undoes
+  itself is worse than one that never happened. **Nothing moves after a tap**: a
+  list that reorders under a thumb is how the next student gets marked wrong.
+  Measured at **59 ms of UI per child** — see `attendance-timing.spec.ts`.
+- ⚠️ **A cancelled session is a STATE, never a deletion** (Critical Feature 46).
+  `on delete cascade` means deleting one destroys a register that may already
+  have been marked, so the UI offers no delete at all.
+- ⚠️ **Teacher awards are ROWS mirrored into the local store, never a balance.**
+  They are pulled on sign-in and **never pushed** — the client has no INSERT
+  policy and must not act as though it might. `mirrorAwards()` **replaces**
+  rather than merges, because the server is the only author; merging would make
+  a withdrawn award immortal on whichever device saw it first.
+- ⚠️ **`computeLedger()` in `src/lib/ledger.ts` is the ONE summation** (Critical
+  Feature 47). `ScoreResolver`'s inline copy stays because it must run before
+  first paint, and `admin.spec.ts` pins the two equal — a prof and a student
+  reading different totals is the worst failure a progression display can have,
+  and both numbers would look plausible.
+- ⚠️ **Admin button colours live in `admin.css`, not a scoped `<style>`.** The
+  session cards are built with `innerHTML` at runtime and Astro stamps its
+  scoping attribute at **build** time, so a scoped rule would style the template's
+  buttons and silently skip every identical one the script creates.
+- ⚠️ **`src/lib/admin.ts` may be imported ONLY from `/admin*`.** It imports
+  `@lib/supabase` statically, which is safe there and would break the guest
+  zero-request rule anywhere else. A spec greps the built public pages for an
+  admin chunk.
+- ⚠️ **`role-separation.spec.ts` runs ONE AT A TIME.** Its tests share the same
+  student, session and awards, and v2-S4 part 2 took it from two mutating tests
+  to seven. They passed first time in parallel, which is exactly how that flake
+  ships.
+
+**Not built, deliberately:** creating a student from the admin UI (staff hold
+SELECT on `child_profiles` and nothing else — a teacher renaming a child is
+indistinguishable from a teacher inventing one), and the agenda still reads the
+git collection. Both in BACKLOG.
 
 ### ⚠️ THE CHECKLIST FOR A MIGRATION THAT ADDS A TABLE
 
