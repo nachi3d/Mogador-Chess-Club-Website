@@ -11,6 +11,72 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### Changed — CLAUDE.md split into rules + `docs/reference/`, with a size guard
+
+**CLAUDE.md had reached 247 KB against a 150 000-character context limit**, past
+which the tail of the file is silently no longer read. That is the worst shape a
+rules file can fail in: the rules were present in the repository, correct and
+reviewed, and **absent from the sessions that needed them** — roughly the last
+third, including the whole deployment and testing policy. Nothing reported it.
+
+**247 KB → 84 KB (56% of the limit).** The split is by **when you need it**, not
+by importance:
+
+- **CLAUDE.md keeps what constrains work you might do without knowing the area
+  exists** — the conventions, the 42 Critical Features, the promotion routine,
+  the ply/content-authoring rules, the migration checklist, the verification and
+  quick-change policy, and the architectural decisions that bind.
+- **`docs/reference/` (14 files) holds the reasoning, the measurements and the
+  incident narratives**, one file per area, each opening with a **Read when**
+  line. CLAUDE.md links every one of them with a line saying when it matters.
+
+⚠️ **NOTHING WAS DELETED, and that was verified rather than asserted.** The
+reference files were sliced **verbatim** from the original, and a check confirms
+**2 398 of 2 409 substantive lines are present character-for-character**
+elsewhere; the 11 exceptions are the rewritten opening paragraph and the
+migration checklist, which was reworded when it was hoisted into CLAUDE.md and
+replaced in `supabase.md` with a pointer so it has exactly one home.
+
+**Incident narratives keep their rule in CLAUDE.md and move the story out**, but
+only where the story is not itself the rule. Where recognising the symptom *is*
+the rule — the WebKit fan-out signature, the stale-`dist/` tell of all five
+projects failing identically, the `42501`-from-`service_role` tell — enough stays
+to identify it from the failure alone. `docs/reference/incidents.md` indexes them
+all, grouped by how they failed; the common thread is that most failed silently
+and several looked green.
+
+### Removed — the superseded on-square coordinates section
+
+The one thing deliberately **not** carried across intact. It was headed
+SUPERSEDED and described coordinates drawn **on the squares**, which the outer-
+gutter reversal replaced — including the "two inks exist" reasoning, which the
+one-colour-per-palette change had already retired. ⚠️ **A section marked
+SUPERSEDED is a trap, not an archive:** a future session reads a confident,
+detailed passage and has only a parenthetical standing between it and treating it
+as current.
+
+What survives is the half that is still live, folded into the gutter section as
+"The alignment is GEOMETRIC, never a nudge" — pin each track with `inset`, divide
+it with **`flex: 1 1 0`, never Chessground's `1 1 auto`**, and put aesthetic
+insets on the `coord` child rather than the track. Checked against
+`src/components/board/board.css` before cutting rather than assumed: both rules
+are in the live CSS, and `tests/e2e/nav-coords.spec.ts` still guards them. The
++24px default-offset measurement is kept as the illustration of why the fix is
+geometric.
+
+### Added — `scripts/check-claude-md.mjs`, the size guard
+
+Fails at **150 000 characters**, warns from **120 000**, and runs as the **first
+step of `npm run build`** (so `npm run quick` and the release gate inherit it).
+It also asserts the pointers resolve **both ways**: every `docs/reference/*.md`
+is linked from CLAUDE.md, and CLAUDE.md links nothing that does not exist — a
+pointer is the whole mechanism holding the split together.
+
+Both halves were verified to **fail on a broken tree** before being trusted: an
+80 KB pad tripped the limit, and a renamed reference file tripped both pointer
+checks. ⚠️ The message says **split, do not trim** — a rule deleted to save bytes
+comes back as a bug.
+
 ### Added — the parent/child profile model (migration 0005)
 
 ⚠️ **REORDERED AHEAD OF THE ADMIN SURFACES, DELIBERATELY.** v2-S4 part 2 was
