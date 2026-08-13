@@ -11,6 +11,36 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### Fixed — the v0.12.0 deploy notes were wrong, and production proved it within the hour
+
+⚠️ **`docs/reference/deployment.md` shipped in v0.12.0 asserting "nothing on
+Cloudflare builds this site".** That is false. **Workers Builds is connected**,
+and the evidence behind the claim — `npx wrangler deployments list` labelling
+every deployment `Source: Unknown (deployment)`, wrangler's label for a CLI
+upload — turns out not to distinguish the two paths at all.
+
+The site falsified it immediately. Pushing `main` triggered a Cloudflare build at
+`23:29:19Z`; `npx wrangler deploy` landed at `23:30:51Z`; **a second Cloudflare
+build at `23:31:12Z` overwrote it 21 seconds later.** The served page carried
+this release's `<p class="empty">` markup with **zero sessions** — a v0.12.0
+build holding production credentials, which is a combination only Cloudflare
+could produce.
+
+⚠️⚠️ **The consequence was live: the public agenda went blank.** "Aucune séance
+programmée pour le moment" replaced the club's one published session, because
+production is missing migrations 0005–0007 and its `sessions` table is empty.
+Restored by redeploying the local fallback build and re-verified end to end —
+**and the restoration is fragile, because the next push to `main` undoes it.**
+
+- **Tell the deploy paths apart by OUTPUT, never by the source label**: the
+  fallback's 12 September session means a local build; an empty or
+  database-shaped agenda means a Cloudflare one.
+- ⚠️ **Workers Builds silently changed what production is.** The deployed tree is
+  now "whatever `main` holds" rather than "the tree that was tested and
+  uploaded" — a promotion-policy change wearing the clothes of a settings change.
+- **The ordering rule is now load-bearing rather than advisory:** migrations to
+  production first, credentialed builds second.
+
 ---
 
 ## [0.12.0] — 2026-08-13

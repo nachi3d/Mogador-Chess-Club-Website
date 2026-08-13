@@ -1003,16 +1003,29 @@ publishes, and is told the site is up to date.
 - ⚠️ **The credentials are the BUILD's, never the bundle's.** The script runs in
   Node and exits; `anon` has held `select` on published sessions since 0001, so
   the anon key is enough and the service role is not wanted.
-- ⚠️⚠️ **AND AS OF v0.12.0 THE BUILD DOES NOT HAVE THEM, SO PRODUCTION SHIPS THE
-  FALLBACK.** Two facts, both verified rather than assumed: **nothing on
-  Cloudflare builds this site** — every deployment is a `wrangler` CLI upload of
-  a `dist/` built here, so dashboard build variables are never read — and
-  `fetch-agenda.mjs` reads `process.env` in **its own process**, which
-  `.env.local` never reaches. A normal `npm run build` bakes the committed
-  fallback and says so in yellow. ⚠️ **Production is also missing migrations
-  0005–0007**, so wiring the credentials in *before* applying them ships an
-  **empty** `/agenda/`. Order matters: migrations, then credentials. Neither
-  half is a bug to fix in passing — see
+- ⚠️⚠️ **THERE ARE TWO DEPLOY PATHS AND THEY OVERWRITE EACH OTHER.**
+  **Cloudflare Workers Builds IS connected**: a push to `main` triggers a
+  Cloudflare-side `npm run build` with the **dashboard build variables**, which
+  deploys on its own. `npx wrangler deploy` uploads a `dist/` built **here**,
+  where `fetch-agenda.mjs` reads `process.env` in its own process and
+  `.env.local` never reaches it — so a local build bakes the committed fallback
+  and says so in yellow. **The two produce different agendas, and last writer
+  wins.** At the v0.12.0 promotion a Cloudflare build landed **21 seconds
+  after** a CLI deploy and replaced it.
+- ⚠️⚠️ **AND THE CLOUDFLARE BUILD CURRENTLY EMPTIES THE PUBLIC AGENDA**, because
+  **production is missing migrations 0005–0007** — its `sessions` table has no
+  rows, so a credentialed build bakes zero sessions and `/agenda/` renders
+  "Aucune séance programmée". It did exactly that in production on 2026-08-14
+  and was restored by redeploying the local build. **Order matters: migrations
+  to production FIRST, credentials second.** Until then, a push to `main` takes
+  the club's one published session off the site.
+- ⚠️ **`Source: Unknown (deployment)` IN `wrangler deployments list` IS NOT
+  EVIDENCE OF A CLI UPLOAD.** Workers Builds deployments carry the same label
+  here, and reading it as "nothing on Cloudflare builds this site" is a
+  conclusion this project has already published once and had to retract. **Tell
+  the paths apart by their OUTPUT** — a credentialed build has an empty or
+  database-shaped agenda; a local one has the fallback's 12 September session —
+  or by correlating deployment timestamps against a push. See
   [`docs/reference/deployment.md`](./docs/reference/deployment.md).
 - ⚠️ **`src/data/agenda.json` is a GENERATED ARTEFACT and is gitignored.** The
   committed source is `agenda.fallback.json`. One committed file would be a
