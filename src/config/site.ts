@@ -97,6 +97,25 @@ export const site = {
   defaultLocale: DEFAULT_LOCALE,
 
   /**
+   * The club's own time zone — an IANA name, never a fixed offset.
+   *
+   * ⚠️ IT LIVES HERE FOR THE SAME REASON THE VENUE DOES. A club that moves to
+   * another country changes one line; a session's stored `starts_at` is an
+   * instant and needs a zone to become "Saturday at 16:00" for a reader.
+   *
+   * ⚠️ NEVER `+01:00`. Morocco is UTC+1 all year EXCEPT during Ramadan, when it
+   * drops to UTC+0 and back again — the dates move every year and the IANA
+   * database knows them. A hardcoded offset would put the whole agenda an hour
+   * out for several weeks a year, in the season the club is running.
+   *
+   * ⚠️ AND NEVER THE BUILD MACHINE'S ZONE. Cloudflare builds in UTC. Anything
+   * deriving a calendar date from an instant passes this explicitly.
+   * `scripts/fetch-agenda.mjs` mirrors it and the build FAILS if the two
+   * disagree — see `src/lib/agenda.ts`.
+   */
+  timezone: 'Africa/Casablanca',
+
+  /**
    * The venue. Deliberately a plain data object with nullable fields — see the
    * portability rule at the top of this file. Swapping venues is a one-commit
    * change here and nowhere else.

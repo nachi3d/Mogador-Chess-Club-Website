@@ -288,6 +288,10 @@ it. Tags said one thing and the manifest said another.
 45. **The register is one tap per child, no modal, no save button.** Marking twenty teenagers in a room is the constraint the whole surface is shaped by, and it is measured rather than claimed.
 46. **A cancelled session is a STATE, never a deletion.** Deleting one cascades its register away; students who were told it was happening are left wondering.
 47. **There is ONE ledger summation** — `computeLedger()` — and the inline resolver's copy is pinned equal to it by a spec. A prof and a student must never read different totals.
+48. **A control a signed-in reader is entitled to use is REACHABLE, and a spec drives it.** The family section renders for every signed-in account; only the picker inside it is conditional. RLS saying yes is not the same as the reader being able to get there — see the family-section rule below.
+49. **The public agenda is BAKED at build time, never fetched at runtime.** Static output plus Critical Features 9 and 18 leave no other answer; the staleness that follows is made loud on `/admin/seances`, not hidden. See the agenda rule.
+50. **A cancelled session stays publicly visible with its state, and a draft never leaks.** CF46 is only half kept if the student who was told it was happening cannot see the cancellation.
+51. **`delete_own_account()` takes no target, and nothing is retained.** The parameter list is the security design; erasure leaves no statistics, no archive and no anonymised copy.
 
 ---
 
@@ -360,9 +364,24 @@ time. No error, no warning, no visible red — just a border that computes to
 | `--mcc-border` | `--mcc-border-subtle` / `--mcc-border-strong` | 12 borderless elements across 7 files |
 | `--font-mono` | `--font-notation` | every inline notation in every lesson set in Inter |
 | `--font-display` | `--mcc-font-display` | a heading that never follows the theme |
+| `--mcc-text`, `--mcc-text-muted` | `--mcc-text-primary` / `--mcc-text-secondary` | the child picker's buttons and intro drew no colour at all |
 
 **The rule: assert the RESOLVED value, never that a rule exists.** A spec
-asserting the rule would have passed throughout all three bugs.
+asserting the rule would have passed throughout all four bugs.
+
+### ⚠️ A SCOPED `<style>` DOES NOT REACH AN ELEMENT THE SCRIPT CREATED
+
+Astro stamps `data-astro-cid-*` at **build** time onto the elements a component
+declares, and compiles `.child-choice` to `.child-choice[data-astro-cid-…]`. An
+element built at runtime carries the class and not the attribute, so **every
+rule silently misses it.** Nothing errors; the tell is a control that looks like
+it belongs to a different website.
+
+**Anything painted by script is styled from a real stylesheet** — `admin.css`,
+`family.css` — imported by the component, and structure still comes from
+`controls.css`. ⚠️ Prefix those rules with the section class (`.family .child-…`)
+so the cascade is settled by **specificity, not by stylesheet order**, which is
+not guaranteed for a component-imported sheet.
 
 ### The rest of the board
 
@@ -520,7 +539,6 @@ src/content/
   traps/        legal.json
   cours/        bien-ouvrir-une-partie.json
   exercices/    mat-de-l-escalier.json
-  agenda/       2026-09-12.json
 ```
 
 **All content is `.json`, not `.md`.** A Markdown body can only be in one language; this site has two. Keeping every field in typed frontmatter means the FR/EN pair is visible to the schema, and a missing translation is a validation error rather than a page that silently renders French to an English reader.
@@ -532,7 +550,6 @@ Astro 7 deltas to remember: config lives at `src/content.config.ts`, each collec
 | `traps` | `title_fr/_en`, `slug`, `eco?`, `level`, `themes[]`, `pgn`, `notes[]{ply,text_fr,text_en}`, `summary_fr/_en` |
 | `cours` | `title_fr/_en`, `slug`, `level`, `order`, `summary_fr/_en` |
 | `exercices` | `title_fr/_en`, `slug`, `fen`, `solution[]` (UCI), `opponentReplies[]` (UCI), `onlyMove`, `hint_fr/_en`, `level`, `themes[]` |
-| `agenda` | `date`, `time`, `venue?`, `level`, `note_fr/_en?` |
 
 `level` is `debutant | intermediaire | avance` everywhere. Every collection has `draft: boolean` (default false) so an entry can be parked without deleting it.
 
@@ -590,7 +607,7 @@ FR at the root, EN under `/en/...`. **Route segments are not translated** (`/en/
 | `/exercices/` | `/en/exercices/` | Exercise index — **no board mounted here**; solved ticks from `localStorage` |
 | `/exercices/[slug]/` | `/en/exercices/[slug]/` | Exercise detail — the interactive board, hint, attempts, outbound WhatsApp share |
 | `/jouer/` | `/en/jouer/` | Play the computer. Engine loaded on a click, never before. |
-| `/agenda/` | `/en/agenda/` | Sessions; venue falls back to site config |
+| `/agenda/` | `/en/agenda/` | Sessions, **from the `sessions` table, baked at build**. Venue falls back to site config. See the agenda rule below |
 | `/contact/` | `/en/contact/` | WhatsApp CTA, venue, socials |
 | `/mentions-legales/` | `/en/mentions-legales/` | Legal notice + credits. **Footer only, not in the nav.** |
 | `/parametres/` | `/en/parametres/` | Appearance settings. Reachable from the **desktop header** (gear, beside the theme toggle) and the footer. |
@@ -953,8 +970,94 @@ underneath is already proven" in BACKLOG meant.
 
 **Not built, deliberately:** creating a student from the admin UI (staff hold
 SELECT on `child_profiles` and nothing else — a teacher renaming a child is
-indistinguishable from a teacher inventing one), and the agenda still reads the
-git collection. Both in BACKLOG.
+indistinguishable from a teacher inventing one). ✅ **The agenda now reads the
+database** — see the rule below.
+
+### ⚠️ THE PUBLIC AGENDA IS BAKED AT BUILD TIME — AND THAT IS FORCED
+
+`/agenda/` reads the `sessions` table. **The git collection is retired and must
+not come back** (`src/content/agenda/` is gone; `content.config.ts` says why).
+
+The read happens in `scripts/fetch-agenda.mjs` at build, writing
+`src/data/agenda.json`, which `src/lib/agenda.ts` is the only reader of.
+**A runtime read is not available to this site** and the reasoning is closed:
+
+- static output, no adapter, no SSR — there is no server to ask;
+- **Critical Feature 9** — a public page makes no third-party request, so an
+  anonymous visitor would otherwise contact supabase.co to find out when a club
+  for children meets;
+- **Critical Feature 18** — accounts OFF ships no Supabase ref, host or anon key
+  at all, and a runtime read needs all three;
+- and gating it on `PUBLIC_AUTH_ENABLED` fixes nothing, because production
+  ships with accounts OFF — `/admin/seances` would go on silently doing nothing
+  in exactly the state it is broken in.
+
+⚠️ **THE FAILURE MODE IS STALENESS, AND IT IS MADE LOUD RATHER THAN SOLVED.** A
+session published after the last deploy is not on the site. The public page
+cannot know that; `/admin/seances` can, and says so — it is built in the same
+build, so it knows what was baked, and it compares that against the live table
+by fingerprint. **Anything added to the public agenda card must be added to
+`sessionFingerprint()` in the same commit**, or a prof edits that field,
+publishes, and is told the site is up to date.
+
+- ⚠️ **The credentials are the BUILD's, never the bundle's.** The script runs in
+  Node and exits; `anon` has held `select` on published sessions since 0001, so
+  the anon key is enough and the service role is not wanted.
+- ⚠️⚠️ **AND AS OF v0.12.0 THE BUILD DOES NOT HAVE THEM, SO PRODUCTION SHIPS THE
+  FALLBACK.** Two facts, both verified rather than assumed: **nothing on
+  Cloudflare builds this site** — every deployment is a `wrangler` CLI upload of
+  a `dist/` built here, so dashboard build variables are never read — and
+  `fetch-agenda.mjs` reads `process.env` in **its own process**, which
+  `.env.local` never reaches. A normal `npm run build` bakes the committed
+  fallback and says so in yellow. ⚠️ **Production is also missing migrations
+  0005–0007**, so wiring the credentials in *before* applying them ships an
+  **empty** `/agenda/`. Order matters: migrations, then credentials. Neither
+  half is a bug to fix in passing — see
+  [`docs/reference/deployment.md`](./docs/reference/deployment.md).
+- ⚠️ **`src/data/agenda.json` is a GENERATED ARTEFACT and is gitignored.** The
+  committed source is `agenda.fallback.json`. One committed file would be a
+  footgun: a Playwright run builds against the TEST project, so `git add -A`
+  would ship test sessions to the club as the production fallback.
+- ⚠️ **No credentials is a dev build; broken credentials is a fatal build.**
+  Shipping a stale agenda while believing it fresh is the failure the feature
+  exists to remove, so that case exits non-zero.
+- ⚠️ **`site.timezone` is an IANA name, never `+01:00`** — Morocco drops to
+  UTC+0 for Ramadan and back. The snapshot records the zone it was baked in and
+  the build FAILS if it disagrees with the config.
+- ⚠️ **A cancelled session stays PUBLICLY visible with its state** (0006 widened
+  the select policy). Critical Feature 46 is only half kept if a student cannot
+  see the cancellation. **A draft never leaks.**
+- ⚠️ **The seed must not delete migrated rows.** `seed-test.mjs` cleared every
+  session, including the one 0006 inserted, moments after the migration created
+  it.
+
+### ⚠️ AN ACCOUNT DELETES ITSELF, AND THE FUNCTION TAKES NO TARGET
+
+`delete_own_account()` (migration 0007), reached from `/compte/`. The privacy
+notice always promised erasure; until now that promise was a volunteer
+remembering to run SQL.
+
+- ⚠️ **NO ARGUMENT, AND IT MUST NEVER GAIN ONE.** The id can only come from
+  `auth.uid()`. A `delete_account(target uuid)` with an ownership check inside
+  is one refactor away from deleting anybody — **the parameter list is the
+  guarantee, not the body.** `authenticated` only; not `service_role`.
+- ⚠️ **Two steps, and the second is a TYPED WORD** (`SUPPRIMER` / `DELETE`,
+  case-exact). Two buttons in one place is one mis-tap on a family tablet, on
+  the only action here nobody can undo.
+- ⚠️ **The confirmation NAMES what goes** — children, progress, games, points,
+  attendance. "Are you sure?" tells a reader nothing.
+- ⚠️ **NOTHING IS RETAINED.** No statistics, no archive, no anonymised copy —
+  and a spec asserts that rather than the notice claiming it. Device-local
+  progress is deliberately untouched: it is the reader's own copy, it is what a
+  guest has, and erasing it is not what the request asks for.
+- ⚠️ **Local state is cleared only AFTER the server confirms** — the opposite of
+  `signOut()`, which clears first. Wiping a device for a delete that did not
+  happen destroys data the account still holds.
+- ⚠️ **Anything exported from `supabase.ts` and imported by a page script must
+  also be exported by `supabase.disabled.ts`**, or the accounts-OFF build fails
+  outright — the alias replaces the module for scripts that are still *built*
+  behind unemitted routes. The stub returns `{ ok: false }`: a stubbed success
+  would tell a reader their data was erased.
 
 ### ⚠️ THE CHECKLIST FOR A MIGRATION THAT ADDS A TABLE
 
@@ -1058,6 +1161,68 @@ It clears the ports and sweeps orphaned previews and browsers first, **stops dea
 if the build fails**, and prints the branch, the last commit, the URL and the path
 to `docs/MANUAL-TESTS.md`. Do not hand-run `build && preview` any more.
 
+#### Accounts ON — `npm run demo:accounts`, and never a hand-typed env line
+
+```sh
+npm run demo:accounts     # + `-- --host` for a real phone
+```
+
+⚠️ **`.env.local` HOLDS THE PRODUCTION PROJECT**, because that is what a deploy
+build needs. So the dangerous mistake is not a build that fails — it is one that
+**succeeds** while wired to the live database, where signing in on localhost
+creates a real account and nothing announces it. `demo:accounts` reads the test
+credentials through the same interlock as the e2e suite and **fails closed**;
+never reconstruct it as `PUBLIC_SUPABASE_URL=… npm run demo`.
+
+⚠️ **Never put `PUBLIC_AUTH_ENABLED` in `.env.local`.** The default build on this
+machine must stay the shape production ships.
+
+**➡️ [`docs/LOCAL-ACCOUNTS.md`](./docs/LOCAL-ACCOUNTS.md)** — seeding, the
+no-email magic link, becoming a prof, and the walkthrough of the picker,
+`/compte/` and the admin surfaces. **Read it before testing anything behind the
+flag** — and its §7, which is what is *not* built.
+
+#### ⚠️ THE FAMILY SECTION AND THE PICKER ARE TWO RULES, NOT ONE
+
+`FamilySection.astro` on `/compte/`. Coupling these is what made "Ajouter un
+élève" unreachable for every account that had never had a second child inserted
+by SQL — see Critical Feature 48 and
+[`docs/reference/supabase.md`](./docs/reference/supabase.md).
+
+1. **The section renders for every signed-in account.** Adding, renaming and
+   removing a student are things a parent does with one child exactly as much as
+   with three.
+2. **Only the "Qui joue ?" picker is conditional** — hidden at one child or
+   fewer, because `resolveChild()` adopts a lone child silently and there is
+   genuinely nothing to ask.
+
+- ⚠️ **The roster and the picker are two lists of the same names, deliberately.**
+  The picker is tapped by a child on a shared tablet; "Retirer" must not sit
+  beside the button they are aiming for.
+- ⚠️ **Removal is never offered for the last child.** `resolveChild()` creates
+  one from the profile name the instant an account has none, so the control
+  would be a lie: the child returns, renamed, with its history gone by cascade.
+  The button is **absent**, not disabled, and a sentence says why.
+- ⚠️ **Removal is the one control on the site that destroys what a child
+  earned** — `child_profiles` is the FK target of progress, games, attendance
+  and awards, all `on delete cascade`. Two steps, in place, naming the child and
+  what goes with them. That is not the same thing as the picker's no-PIN rule
+  (Critical Feature 42), which is about *choosing*, not *erasing*.
+- ⚠️ **A removal or a rename must update the device's remembered choice.** Left
+  behind, resolution keeps handing progress to a child id RLS now refuses and
+  the offline queue never drains.
+- ⚠️ **TWO LOADS ARE ROUTINELY IN FLIGHT AND CAN LAND OUT OF ORDER.**
+  `resolveChild()` fires `CHILD_EVENT`, whose listener re-enters `load()`, so
+  the first paint already has a second read behind it. **Last to finish is not
+  most recent** — a generation counter drops the older answer, and a repaint
+  never touches a row that is mid-edit. Both were measured failures, not
+  precautions: a removal left one name on screen and two rows in the table, and
+  a rename input was detached from under the typing.
+- ⚠️ **`family.spec.ts` is the UI spec and `child-profiles.spec.ts` is the
+  boundary spec.** RLS permitted every one of these writes throughout the whole
+  time the form was invisible, so an assertion about *reachability* belongs in
+  the first and can never live in the second.
+
 ### ⚠️ Symptoms that are the ENVIRONMENT, not the application
 
 Each of these has cost real debugging time. **Recognise the signature before
@@ -1076,6 +1241,13 @@ touching application code.**
 with an assertion naming a value.** WebKit and Firefox carry one local retry;
 chromium has none. A run reporting `N passed, 1 flaky` on WebKit is green.
 
+⚠️ **THE TWO BROWSER-CRASH ROWS ARE NOW A FINDING WHEN THEY COME FROM
+`test:release`.** They belong to a raw `npx playwright test`, which still pools
+every project at the default fan-out. The matrix caps its workers and runs one
+project at a time precisely so it never reaches that state — so a compositor
+death *from the gate* means the cap has stopped being enough, and the next step
+is to check free RAM during the run, not to re-run and hope.
+
 ⚠️ **THE LOCAL RETRY IS NOT THE ARBITER — `--workers=1` IS.** The v0.11.0 gate
 failed four Firefox specs that also failed their retries, in four unrelated
 files, and all 102 tests in those files then passed serially first time: when the
@@ -1085,9 +1257,11 @@ nothing. Read the errors rather than counting them — bare timeouts and
 value is a defect. See [`docs/reference/testing.md`](./docs/reference/testing.md).
 
 ⚠️ **Never pipe the test run into `tail`** — it reports tail's exit code, so 14
-failures read as "196 passed, exit 0". Redirect to a file, check the status, and
-sanity-check the arithmetic: 5 projects means the total must be `5 ×` the
-per-project count.
+failures read as "196 passed, exit 0". Redirect to a file and check the status.
+`test:release` does both for you, and it also **compares the projects against
+each other** and fails if one ran zero tests — a hole the old "the total must be
+a multiple of 5" check could not see, since four projects of 100 and one of 0
+divides just as neatly as five of 80.
 
 ### ⚠️ Driving a board from a spec — the four gates
 
@@ -1148,7 +1322,8 @@ promotion rule.
 - A value change with no structural effect: a duration, a colour **already in
   the token set**, a link URL, a contact detail
 - **ONE** entry added to an **existing** collection using an **existing** shape
-  (one trap, one exercise, one agenda entry)
+  (one trap or one exercise). ⚠️ **An agenda entry is no longer content** — it
+  is a row a prof creates in `/admin/seances`, and it never touches this repo
 - Reverting a single previous commit
 
 ### What NEVER qualifies
@@ -1199,11 +1374,45 @@ overrides the comparison branch; it exists for testing the script itself.
 | | Command | When | Cost |
 |---|---|---|---|
 | **Every feature branch** | `npm run test:branch` | every session, before merging to `dev` | ~1-3 min |
-| **Promotion only** | `npm run test:release` | once, when promoting `dev` → `main` | 30-45 min |
+| **Promotion only** | `npm run test:release` | once, when promoting `dev` → `main` | ~65-70 min |
 
 `npm run test:branch` is **chromium only** and runs the specs mapped from what
 actually changed (`scripts/spec-map.mjs`). `--all` runs every chromium spec for
 a sweeping refactor — still one browser.
+
+#### ⚠️ THE MATRIX RUNS ONE PROJECT AT A TIME, UNDER A WORKER CAP
+
+`test:release` does **not** hand the whole matrix to Playwright at once. It runs
+each project on its own, sequentially, at **three** workers. That is slower than
+the old single pooled run and it is the reason the gate is green.
+
+**Why: the red gates were MEMORY EXHAUSTION, not browser bugs and not test
+bugs.** Playwright shares one worker pool across every project, so at the
+default six workers this machine ran six *mixed* browsers side by side — 80
+processes, 6.68 GB of browser memory, 2.08 GB of 15.8 GB free. At that point
+Firefox's software compositor cannot allocate, the browser stops answering, and
+whatever test was in flight dies of a bare timeout. That is why it landed on a
+different spec every run and why every one of them passed serially.
+
+- ⚠️ **`--workers=3` IS NOT A TUNING KNOB.** Three is roughly half the peak
+  memory, which is the difference between green and red. Raising it back
+  towards six reintroduces the entire problem.
+- ⚠️ **DO NOT "FIX" A RED MATRIX BY RAISING TIMEOUTS.** Tried on
+  `play.spec.ts`; the failure count went **up**. A starved browser given longer
+  to answer is still starved, and every test now waits longer to find out.
+- ⚠️ **A GATE THAT IS EXPECTED TO BE RED IS WORTH NOTHING.** v0.11.0 shipped on
+  4 waved-through failures and v0.11.1 on 7. Both diagnoses were right and both
+  promotions were sound — and that is exactly the habit that lets a real
+  regression through. The trend was the defect, not the individual runs.
+- **It proves every project actually ran.** Counts come from the JSON reporter
+  and are compared **project against project**, because the old "is the total a
+  multiple of five" check passes perfectly on four projects of 100 and one of 0.
+- ⚠️ **The alternatives were MEASURED and the numbers are in
+  `scripts/test-release.mjs` → MEASUREMENTS.** Pooling at three workers was
+  green too but not cheaper, and `fullyParallel: false` on firefox was rejected
+  without a run — webkit and iphone-13 already carry it and were two of the
+  three projects failing both gates. Re-measure before re-arguing; do not
+  re-reason.
 
 #### ⚠️ DO NOT RUN THE MATRIX ON A FEATURE BRANCH. EVER. NOT "TO BE SAFE".
 
@@ -1215,7 +1424,9 @@ already done:
   the cost from one run per release to one run per session.
 - **It was costing 30-45 minutes per session**, routinely, because it *felt*
   prudent. That is not caution. It is a tax that discourages small fixes, and
-  unfixed small things are what a visitor actually sees.
+  unfixed small things are what a visitor actually sees. ⚠️ **The tax is now
+  ~65-70 minutes**, since the matrix runs its projects one at a time — so this
+  rule matters more than when it was written, not less.
 - **A chromium failure is a failure.** If `test:branch` fails, fix it. Do not
   run the matrix to find out whether it is "really" broken.
 - **A chromium pass is enough to merge to `dev`.** `dev` is not production.
@@ -1281,8 +1492,9 @@ Run `npm run demo`, which prints its path, and work down it. The release gate is
 □ node scripts/check-claude-md.mjs — green (CLAUDE.md under the size limit)
 □ node scripts/check-contrast.mjs — green
 □ node scripts/check-content.mjs — green
-□ npm run test:release — green (the full matrix; see the known environmental
-  flakes above. This is the ONE place it runs.)
+□ npm run test:release — green, meaning ZERO failures. ⚠️ It runs its projects
+  one at a time and it is EXPECTED TO BE GREEN now; a red matrix is a finding
+  to chase, not a known flake to wave through. This is the ONE place it runs.
 □ docs/MANUAL-TESTS.md — worked through on desktop AND a real phone
 □ Lighthouse ≥ 90 (Performance, Accessibility, SEO)
 □ package.json "version" matches the tag about to be cut

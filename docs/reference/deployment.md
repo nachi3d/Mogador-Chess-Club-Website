@@ -215,3 +215,124 @@ Production deploys run from `main`. A deploy from a `main` that predates
 `wrangler.jsonc` will hit the auto-config trap again regardless of what `dev` holds.
 
 ---
+
+---
+
+## ⚠️ The public agenda needs a deploy to change — and that is a Seàn step
+
+**Read when:** a prof says a session they published is not on the site, or you
+are setting up the production project.
+
+`/agenda/` is baked at build time from the `sessions` table (CLAUDE.md → the
+agenda rule, and the header of `scripts/fetch-agenda.mjs` for why a runtime read
+is not available to this site). The consequence is simple and unavoidable:
+
+> **A session published in `/admin/seances` reaches the public site at the next
+> production deploy, and not before.**
+
+### What is in the repo, and what is not
+
+In the repo, and done:
+
+- the build-time read, which fails the build if credentials are present and the
+  read fails — a stale agenda never ships believing it is fresh;
+- the committed fallback, so a build with no credentials is complete rather than
+  empty;
+- **the loud half**: `/admin/seances` compares what the deployed build baked
+  against the live table and tells the prof, in French, when the public agenda
+  has not caught up, with the date of the last build.
+
+Not in the repo, because it is dashboard configuration:
+
+1. ⚠️ **`PUBLIC_SUPABASE_URL` and `PUBLIC_SUPABASE_ANON_KEY` must reach the
+   process that runs `npm run build`** — independently of `PUBLIC_AUTH_ENABLED`,
+   which stays off. Without them every production build falls back to the
+   committed snapshot and **no prof can change the agenda at all**. The build
+   says so loudly in its log; nothing else will. ⚠️ **Read the next section
+   before setting them anywhere — as of v0.12.0 "the Cloudflare dashboard" is
+   the wrong place, because nothing on Cloudflare builds this site.**
+2. **A Cloudflare deploy hook**, called from a Supabase database webhook on
+   `insert`/`update` of `public.sessions`. This is what turns "at the next
+   deploy" into "in a few minutes".
+3. **A scheduled rebuild** (nightly is ample for a weekly club) as the floor. It
+   is what makes a failed webhook self-healing instead of silent.
+
+### ⚠️ NOTHING ON CLOUDFLARE BUILDS THIS SITE — so a build variable set there is never read
+
+**Verified at the v0.12.0 promotion, 2026-08-13.** `npx wrangler deployments
+list` reports **every** deployment this project has ever had with
+`Source: Unknown (deployment)` — wrangler's label for a **CLI upload**. There is
+no Workers Builds git integration, and there never has been.
+
+That matters more than it sounds, because it inverts where the agenda's
+credentials have to live:
+
+> **`npm run build` runs on Seàn's machine and `npx wrangler deploy` uploads the
+> `dist/` it produced.** Cloudflare receives finished files. It never runs a
+> build command, so **`PUBLIC_SUPABASE_URL` / `PUBLIC_SUPABASE_ANON_KEY` entered
+> in the dashboard's build-variables panel have no effect on anything.**
+
+⚠️ **AND `.env.local` DOES NOT FILL THE GAP EITHER, WHICH IS THE TRAP.**
+`scripts/fetch-agenda.mjs` is a plain Node script reading `process.env`, run as
+its own process **before** `astro build`. Astro's dotenv loading feeds
+`import.meta.env` *inside* the Astro build and reaches this script never — and
+there is no `dotenv` dependency. So a normal `npm run build` on this machine
+bakes the **committed fallback** no matter what `.env.local` holds, and says so
+in yellow. That is the state every production build to date has shipped in.
+
+Whoever wants a database-backed public agenda has to pick one:
+
+- **export the two variables into the shell that runs the build**, by hand or
+  from a script that reads `.env.local` — and accept that the agenda is only as
+  fresh as the last deploy from that shell; or
+- **connect Workers Builds** to the repo, at which point the dashboard build
+  variables become real and the deploy hook in the list above becomes possible.
+  ⚠️ That also changes the deploy from "the tree Seàn tested" to "whatever
+  `main` holds", which is a promotion-policy change, not a settings change.
+
+⚠️ **Until one of those happens, `/admin/seances`'s staleness banner is
+comparing against a snapshot that CANNOT track the database**, and the honest
+reading of a "not up to date" warning is *"this site does not read the agenda
+from the database yet"*, not *"someone needs to deploy"*.
+
+#### The production database is behind the repo, and that is the other half
+
+Also verified 2026-08-13, read-only, against the production project
+(`vtestpaufxmrvdhgrrsy` — ⚠️ the ref that reads like a test project and is the
+live database):
+
+| Probe | Result | Means |
+|---|---|---|
+| `sessions`, as `anon` | `200 []` | table exists, no visible rows |
+| `sessions`, as `service_role` | `200 []` | genuinely empty — not RLS hiding them |
+| `child_profiles`, as `service_role` | **`404`** | **the table does not exist** |
+| `profiles` | 1 row | 0001-era schema is there |
+
+So **migrations 0005, 0006 and 0007 have never been applied to production**;
+0006's migrated session row is not there. Building production *with* credentials
+today would therefore bake **zero** sessions and ship an **empty** `/agenda/`,
+replacing the season-opening entry a visitor can currently see — with no
+`/admin/seances` in production to put it back, because accounts are off.
+
+⚠️ **This is why v0.12.0 deployed from the committed fallback, deliberately, and
+that was Seàn's call at the promotion.** The DB-backed agenda is dormant in
+production rather than broken: with accounts OFF no prof can publish there
+anyway, so nothing is lost by waiting. **Applying the migrations to production is
+the prerequisite for switching the credentials on, and it must happen first —
+in that order, or the public agenda empties.**
+
+### Why a hook rather than a runtime read — and what it costs
+
+The alternatives were weighed and the reasoning is closed in CLAUDE.md. What is
+worth writing down here is the honest cost of the one that was chosen:
+
+- ⚠️ **Publishing a session triggers a production deploy of whatever is on
+  `main`.** That is safe because `main` is the released state by definition —
+  but it does mean the deploy history fills with prof-triggered builds, and a
+  build that fails for an unrelated reason leaves the session invisible with
+  nothing announcing it. The staleness banner on `/admin/seances` is the
+  backstop for exactly that case, and it is the reason it exists.
+- ⚠️ **Do not "fix" a missing session by editing `src/data/agenda.fallback.json`.**
+  That file is the no-credentials fallback, not a content store; an entry added
+  there is invisible to `/admin/seances`, cannot be cancelled by a prof, and
+  will be silently overridden by the next successful build.

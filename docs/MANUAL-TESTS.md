@@ -412,22 +412,88 @@ not as "unavailable", so the state no longer exists.
 - [ ] The prerequisite line still goes to `/apprendre-les-bases/`, and the
       tutorial index still lists its 13 steps
 
-### v2-S4 — the role boundary (no UI yet)
+### v2-S4 — the role boundary and the admin surfaces
 
-The surfaces are not built, so there is nothing to click. What is checkable by
-hand is that nothing LEAKED into the site while accounts are off.
+**The surfaces ARE built** (part 2), and they are only reachable in a build with
+`PUBLIC_AUTH_ENABLED=true`. ⚠️ **Walking them needs a test project, a seed and a
+prof role — the whole procedure is [`docs/LOCAL-ACCOUNTS.md`](./LOCAL-ACCOUNTS.md),
+which is the single source for it.** Do not improvise the environment: `.env.local`
+holds the PRODUCTION project, and a hand-typed build wired to it would create real
+accounts in the live club's database.
 
-- [ ] With the flag off, nothing about admin, attendance or teacher points is
-      visible or reachable anywhere on the site
-- [ ] `/agenda` still renders from the git collection, unchanged
+What belongs on *this* list is what only a person can judge.
 
-When part 2 lands, the check that matters is the one only a real room can
-answer:
+With the flag **off** — the shape production ships, and what `npm run demo` gives
+you:
+
+- [ ] Nothing about admin, attendance or teacher points is visible or reachable
+      anywhere on the site
+- [ ] `/agenda` still renders, from the snapshot baked at build time — the git
+      collection is gone, and the flag being off changes nothing about it
+
+With the flag **on** (`npm run demo:accounts`):
 
 - [ ] ⚠️ **Mark a full class on a phone, at Dar Souiri, during a real session.
       How long does it take?** Twenty teenagers, one tap each, standing up. If
       it needs a modal per student or a save button per row it has failed,
-      however correct it is
+      however correct it is. The suite measures 59 ms of UI per child; it cannot
+      measure a room
+- [ ] The "Qui joue ?" picker on a **shared family tablet**: does the right child
+      get asked for, and does a child's own phone stop asking?
+- [ ] The points a prof sees on `/admin/eleve/` and the points that child sees on
+      `/progres/` are **the same number**. Two plausible, different totals is the
+      worst failure this display can have
+
+#### The family section on `/compte/` — walk it as an account with ONE child
+
+⚠️ **Sign in as `seed-eleve-2` (Omar, one child), not as the two-child family.**
+One child is the shape every real signup produces, and it is the shape in which
+this whole section used to be invisible. Procedure in
+[`docs/LOCAL-ACCOUNTS.md`](./LOCAL-ACCOUNTS.md) §6a.
+
+- [ ] **Mes élèves** is there, with the child listed and **Ajouter un élève**
+      reachable — the regression that shipped for two releases
+- [ ] **Qui joue ?** is *not* there at one child, and appears as soon as a second
+      is added. Two rules, and only the picker is the conditional one
+- [ ] There is no **Retirer** at one child, and a sentence explains it rather than
+      a greyed-out button explaining nothing
+- [ ] **Retirer** on a second child asks first, **names the child**, and says the
+      progress goes with them. Cancel leaves everything alone
+- [ ] **Renommer** works, and the new name is what the picker's button says
+- [ ] ⚠️ **The buttons look like this site's buttons** — border, ink, 44px, and
+      the press. They are built by script, so a scoped `<style>` would silently
+      miss every one of them; that is exactly what had happened to the picker
+
+#### Supprimer mon compte — the one that cannot be undone
+
+⚠️ **Use a throwaway seeded account, never your own.** There is no bin.
+
+- [ ] The section names what goes — élèves, progression, parties, points,
+      présences — **before** the confirmation, not after
+- [ ] **Supprimer** reveals a typed confirmation and the first button goes away.
+      Two delete buttons in the same place is one mis-tap on a family tablet
+- [ ] `Supprimer` in lower case does NOT arm it; `SUPPRIMER` does. A phone's
+      autocapitalisation must not be enough on its own
+- [ ] **Annuler** puts everything back and deletes nothing
+- [ ] After confirming: you land on the home page as a guest, and signing in
+      again with that address creates a **new, empty** account
+- [ ] ⚠️ Your **device-local** progress is still there, and still works. That is
+      correct and the notice says so — it is your copy, on your machine
+
+#### The public agenda — the staleness banner
+
+⚠️ **This is the half of the agenda feature a machine cannot judge**, because
+the question is whether a prof believes it.
+
+- [ ] Publish a session in `/admin/seances` **without rebuilding**. The banner
+      says the public agenda is not up to date, and gives the last build date
+- [ ] `/agenda/` does NOT show it yet — correct, and the banner is what makes
+      that honest rather than broken
+- [ ] Rebuild (`npm run demo:accounts`). The banner flips to "à jour" and the
+      session is on `/agenda/`
+- [ ] Cancel a session: it stays on `/agenda/` and **says** it is cancelled. Not
+      faded, not struck through — a parent must not squint at it and turn up
+- [ ] A **draft** never appears on `/agenda/` at all
 
 ### v2-S3 — progress sync (only once `PUBLIC_AUTH_ENABLED` is on)
 

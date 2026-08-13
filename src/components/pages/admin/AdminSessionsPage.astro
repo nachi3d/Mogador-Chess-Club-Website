@@ -35,6 +35,28 @@
  * ═════════════════════════════════════════════════════════════════════════
  */
 import AdminShell from '@components/admin/AdminShell.astro';
+import { bakedAt, bakedFingerprints } from '@lib/agenda';
+
+/**
+ * ⚠️ WHAT THIS BUILD BAKED INTO THE PUBLIC AGENDA — the loud half of the
+ * agenda's failure mode.
+ *
+ * `/agenda/` is static: its content is fixed at build time, because a public
+ * page may not make a third-party request (Critical Feature 9) and accounts-off
+ * builds carry no Supabase at all (18). The unavoidable consequence is that a
+ * session published after the last deploy is not on the site — and the public
+ * page has no way to know that.
+ *
+ * This page does. It is built in the SAME build as the agenda, so it knows
+ * exactly what was baked; it reads the live table anyway to draw the list; and
+ * comparing the two costs one string set. A prof who publishes something then
+ * gets told, in French, on the screen they published it from, that the public
+ * agenda has not caught up.
+ *
+ * Without this the failure is completely silent — which is how `/admin/seances`
+ * came to be a feature that wrote to a table nobody displayed.
+ */
+const baked = { at: bakedAt(), fingerprints: bakedFingerprints() };
 
 const STATUSES = [
   { id: 'present', label: 'P', full: 'Présent' },
@@ -113,6 +135,18 @@ const STATUSES = [
       <p class="admin-error" data-session-error role="status"></p>
     </form>
 
+    {/* ── Is the public agenda up to date? ─────────────────────────────────
+        Hidden until the script has compared; a banner that flashes "à jour"
+        before it has looked would be worse than none. */}
+    <div
+      class="agenda-sync"
+      data-agenda-sync
+      data-baked-at={baked.at ?? ''}
+      data-baked={JSON.stringify(baked.fingerprints)}
+      hidden
+    >
+    </div>
+
     <h2 class="admin-block-title">Toutes les séances</h2>
     {/* ⚠️ CANCELLED SESSIONS STAY IN THIS LIST, with their state. They are
         never deleted: a session that vanishes leaves students wondering whether
@@ -158,6 +192,7 @@ const STATUSES = [
     type AttendanceStatus,
   } from '@lib/admin';
   import { getUser } from '@lib/supabase';
+  import { sessionFingerprint } from '@lib/agenda';
 
   const select = document.querySelector('[data-mark-session]') as HTMLSelectElement | null;
   const list = document.querySelector('[data-mark-list]') as HTMLElement | null;
@@ -275,7 +310,78 @@ const STATUSES = [
 
   select?.addEventListener('change', () => void loadRegister(select.value));
 
+  /* ── Is the deployed agenda still what the database says? ──────────────── */
+
+  const syncBox = document.querySelector('[data-agenda-sync]') as HTMLElement | null;
+
+  /**
+   * ⚠️ ONLY FUTURE SESSIONS COUNT, AND THAT IS WHAT MAKES THIS QUIET ENOUGH TO
+   * BELIEVE.
+   *
+   * The baked snapshot drops sessions a day after they finish, so a past
+   * session inevitably stops matching. Comparing those would leave a permanent
+   * "not up to date" banner, and a warning that is always on is a warning
+   * nobody reads — which would leave the real failure just as silent as before.
+   *
+   * Both directions are counted: something published or edited and not yet
+   * deployed, AND something the public agenda still shows that the database no
+   * longer agrees with (a session pulled back to draft). A prof cares about the
+   * same thing in either case — the site does not match the truth.
+   */
+  function paintAgendaSync() {
+    if (!syncBox) return;
+    let bakedList: string[] = [];
+    try {
+      bakedList = JSON.parse(syncBox.dataset.baked ?? '[]') as string[];
+    } catch {
+      /* An unreadable stamp must not take the page down; say nothing. */
+      return;
+    }
+    const bakedSet = new Set(bakedList);
+    const now = Date.now();
+
+    const liveFuture = sessions.filter(
+      (s) => (s.status === 'published' || s.status === 'cancelled') && Date.parse(s.startsAt) >= now,
+    );
+    const liveSet = new Set(liveFuture.map((s) => sessionFingerprint(s)));
+    const notDeployed = liveFuture.filter((s) => !bakedSet.has(sessionFingerprint(s))).length;
+    const staleOnSite = bakedList.filter((fp) => {
+      /* A baked entry for a session that is still in the future and no longer
+         matches anything live. The date is the second field of the print. */
+      const startsAt = fp.split('|')[1] ?? '';
+      return Date.parse(startsAt) >= now && !liveSet.has(fp);
+    }).length;
+
+    const pending = notDeployed + staleOnSite;
+    const bakedAtRaw = syncBox.dataset.bakedAt ?? '';
+    const builtOn = bakedAtRaw
+      ? new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long', timeStyle: 'short' }).format(
+          new Date(bakedAtRaw),
+        )
+      : 'inconnue';
+
+    syncBox.hidden = false;
+    syncBox.dataset.state = pending > 0 ? 'pending' : 'ok';
+    syncBox.setAttribute('role', 'status');
+    syncBox.innerHTML =
+      pending > 0
+        ? `<p class="agenda-sync-title">⚠️ L’agenda public n’est pas à jour</p>
+           <p class="agenda-sync-body">${pending} modification${pending > 1 ? 's' : ''} ne ${
+             pending > 1 ? 'sont' : 'est'
+           } pas encore visible${pending > 1 ? 's' : ''} sur <a href="/agenda/">/agenda</a>.
+           Le site public est reconstruit à chaque déploiement : la séance apparaîtra
+           au prochain. Si c’est urgent, prévenez Seàn.</p>
+           <p class="agenda-sync-when">Dernière construction : ${builtOn}</p>`
+        : `<p class="agenda-sync-title">L’agenda public est à jour</p>
+           <p class="agenda-sync-when">Dernière construction : ${builtOn}</p>`;
+  }
+
   function paintSessions() {
+    /* ⚠️ FIRST, AND BEFORE THE EMPTY-LIST RETURN BELOW. Every path that
+       refreshes the list — create, publish, cancel, first load — comes through
+       here, so this is the one call site; and an account with no sessions at
+       all can still have a stale entry baked into the deployed agenda. */
+    paintAgendaSync();
     if (!sessionList) return;
     if (sessions.length === 0) {
       sessionList.innerHTML = '<p class="admin-empty">Aucune séance.</p>';

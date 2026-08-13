@@ -204,6 +204,49 @@ export async function signOut(): Promise<void> {
   }
 }
 
+/**
+ * Erase the signed-in account and everything hanging off it.
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️ THE FUNCTION TAKES NO TARGET, AND THAT IS THE WHOLE SECURITY DESIGN.
+ * `delete_own_account()` reads `auth.uid()` and deletes that row; there is no
+ * id to pass and no id to get wrong. See migration 0007 — nothing here is a
+ * boundary, exactly as nothing else in this file is.
+ *
+ * ⚠️ THE LOCAL SIDE IS CLEARED EVEN IF THE CALL FAILS IS **WRONG** HERE, and
+ * it is the opposite of `signOut()` above. Sign-out clears the flag first
+ * because the reader asked to be signed out either way. Deletion must not
+ * touch local state until the server has confirmed: wiping a device's progress
+ * for a delete that did not happen destroys data the account still holds.
+ *
+ * The order is therefore: delete server-side → confirm → then sign out, which
+ * clears the session and the flag. Anything device-local (progress, the child
+ * choice, the theme) is deliberately left alone — it is the reader's own copy
+ * on their own machine, it is what a guest would have, and erasing it is not
+ * what "delete my account" asks for. The notice says so in those words.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+export async function deleteOwnAccount(): Promise<{ ok: true } | { ok: false; message: string }> {
+  try {
+    const sb = await getSupabase();
+    /* Re-read the user rather than trusting a cached session: this is the one
+       call on the site that cannot be retried into existence afterwards. */
+    const { data: userData } = await sb.auth.getUser();
+    if (!userData.user?.id) return { ok: false, message: 'not signed in' };
+
+    const { error } = await sb.rpc('delete_own_account');
+    if (error) return { ok: false, message: error.message };
+
+    /* The session now points at a row that no longer exists. Signing out is
+       housekeeping, not the deletion — so a failure here is not reported as a
+       failed deletion, which would be a lie in the direction that matters. */
+    await signOut();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : String(e) };
+  }
+}
+
 /** The signed-in reader's own profile row, or null. RLS does the deciding. */
 export async function getProfile(): Promise<Profile | null> {
   try {

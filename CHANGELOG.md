@@ -13,6 +13,486 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ---
 
+## [0.12.0] — 2026-08-13
+
+**The agenda a prof edits is the agenda a visitor reads, and an account can
+erase itself without asking anybody.**
+
+Two promises that were being kept by a person remembering to do something are
+now kept by the software. `/admin/seances` had let a prof publish a session
+since v2-S4 part 1, and `/agenda/` had gone on rendering a git collection that
+only a developer could change — so the surface that could be edited was the one
+nobody could see. And the privacy notice had always offered erasure, which in
+practice meant a volunteer running SQL. Both are closed here, and both closures
+are shaped by the same two constraints as everything else on this site: the
+build is static, and a public page makes no third-party request.
+
+⚠️ **Accounts remain built and switched off.** `PUBLIC_AUTH_ENABLED` is
+unchanged, so nothing in the account half of this release is in front of a
+reader yet — including the deletion button. The agenda half ships regardless,
+because its read happens at build time with the build's own credentials and
+puts nothing in the bundle.
+
+The release also makes the gate honest again: `npm run test:release` runs its
+projects one at a time under a worker cap and is **expected to be green**, after
+two promotions that shipped on failures everybody had a good explanation for.
+
+### Fixed — the new agenda spec was measuring an animation, and it turned the gate red
+
+The v0.12.0 release matrix came back **5 failed across four projects**, every
+one of them in `agenda.spec.ts`. Neither cause was an application defect — both
+were checked against the source before anything was touched — and both are the
+same shape: **a spec asserting a value while the thing producing it was still
+moving.**
+
+**`a cancelled session renders as cancelled, in words` — `expected >= 1,
+received 0.999974`.** `.session-cancelled` sets `border-left-color` and
+`background-color` and nothing else: no opacity, no `text-decoration`. The card
+was not dimmed, it was mid-reveal. Three things had to line up, and the spec had
+already anticipated one of them:
+
+- `[data-reveal-stagger]` delays each card by `60ms × --reveal-i`, capped at
+  six — so cards settle up to **300ms apart**, and the two being compared are
+  the first card and one far down the list;
+- ⚠️ **`settleReveals` waited a flat 450ms**, described in its own comment as
+  "the transition itself". It had forgotten the stagger, so the tail of a long
+  list was still moving when it returned;
+- and the list is long because the **test project has accumulated 26 sessions**
+  from past suite runs, 21 of them junk rows created seconds apart. The
+  fixture grew until the race started losing.
+
+⚠️ **The first fix was wrong in an instructive way** and the re-run caught it:
+waiting for the opacities to stop *changing* read `0` on a card whose transition
+had not *started*. An element waiting out its stagger delay is perfectly stable.
+**Stability and settledness are different questions.** Reveals are one-shot
+(`io.unobserve`), so the helper now waits for the resolved end state — every
+target carrying `is-revealed` **and** every opacity at 1 — bounded at ~240
+frames, which strengthens every axe check that uses it.
+
+⚠️ **And WebKit then failed differently**, at `0`: its IntersectionObserver
+never fired for a card the page-wide scroll pass had swept past, so no amount of
+waiting would settle it. The spec now brings **each card into view on its own**
+and asserts `is-revealed` with its own message before reading any opacity — "the
+card never revealed" and "the card is dimmed" are different defects and must not
+share an error.
+
+⚠️⚠️ **AND THE FIX ITSELF THEN BROKE THE GATE, WHICH IS THE ENTRY WORTH
+KEEPING.** The settle loop counted 240 `requestAnimationFrame`s inside a
+`page.evaluate`. **WebKit stalls rAF** — so the loop never advanced, and a raw
+`evaluate` carries no Playwright-side deadline, so it hung until the **30s test
+timeout**. That took down every home-page spec that calls the helper: **13
+failures across webkit and iphone-13**, in three spec files with nothing to do
+with the agenda. The `240` cap looked like a bound and was worthless, because
+reaching it required the very clock that had stopped.
+
+**The rule that comes out of it: a wait is bounded by Playwright or it is not
+bounded.** `waitForFunction` takes `polling: 100` (a timer, not the animation
+clock) and a deadline the harness enforces however dead the page is; where a
+page-side loop is genuinely needed it runs on `setTimeout` against a wall clock.
+The old flat `waitForTimeout` was immune to all of this for one reason nobody
+had written down — **it waits outside the page** — and that is why replacing it
+needed more care than it got.
+
+**The two zero-third-party-request tests, timing out at 30s on `networkidle`.**
+⚠️ **The cause is this file's name.** `agenda.spec.ts` sorts first, so its two
+tests are the first page loads of every project run — the ones that pay for the
+service worker's cold precache, **150 files and ~6 MB of first-party assets**.
+The network is genuinely not idle, and waiting for it proved nothing whatever
+about third parties. Replaced with a bounded grace after `load`; the listener
+has been recording since before navigation, so nothing is missed.
+
+⚠️ **No timeout was raised to make a red gate green.** Verified serially on all
+five projects — 45 passed, and the two intermediate failures above were each
+watched to fail first.
+
+**Not fixed, and flagged rather than folded in:** those 21 leftover session rows
+in the test project. They are created by the suite and never purged, and they
+will keep growing.
+
+### Documented — the agenda's credentials had nowhere to be set, and the docs said otherwise
+
+Found at this promotion, while confirming that the newly-configured Cloudflare
+build variables had been picked up. **They had not, and structurally could not
+have been.** Two independent facts, both verified rather than reasoned:
+
+- ⚠️ **Nothing on Cloudflare builds this site.** `npx wrangler deployments list`
+  reports every deployment this project has ever had as `Source: Unknown
+  (deployment)` — a **CLI upload**. `npm run build` runs here and
+  `npx wrangler deploy` uploads the finished `dist/`, so Cloudflare never runs a
+  build command and a variable in its build-variables panel is never read.
+- ⚠️ **`.env.local` does not fill the gap either**, which is the part most likely
+  to be assumed away. `scripts/fetch-agenda.mjs` is a plain Node script reading
+  `process.env` in its **own process**, before `astro build`; Astro's dotenv
+  loading feeds `import.meta.env` inside the Astro build and reaches it never.
+  A normal build on this machine bakes the committed fallback and says so in
+  yellow — which is what every production build to date has shipped.
+
+**And production's database is behind the repo.** Read-only probes against the
+live project: `sessions` is empty to `anon` *and* to `service_role` (so it is
+genuinely empty, not RLS hiding rows), and `child_profiles` **404s — the table
+does not exist**. Migrations 0005–0007 have never been applied there.
+
+⚠️ **So switching the credentials on today would have shipped an EMPTY
+`/agenda/`**, replacing the season-opening session a visitor can currently see,
+with no `/admin/seances` in production to restore it because accounts are off.
+**v0.12.0 therefore deploys from the committed fallback, deliberately** — the
+database-backed agenda is *dormant* in production rather than broken, and
+nothing is lost while accounts are off, because no prof can publish there
+anyway. The order when it is switched on is **migrations first, credentials
+second**; reversed, the agenda empties.
+
+`docs/reference/deployment.md` said "set them in the Cloudflare dashboard",
+which was wrong in a way that would read as done. It now carries the deployment
+topology, the probe results and both routes to a live agenda.
+
+### Changed — `/agenda` reads the database, and the git collection is retired
+
+v2-S4 part 1 built `/admin/seances` and left `/agenda/` reading a git content
+collection. Two sources of truth for one list, and **the one a prof could edit
+was the one nobody could see**: publishing a session changed nothing a visitor
+could reach, and nothing said so.
+
+⚠️ **THE READ IS AT BUILD TIME, AND THAT IS FORCED RATHER THAN CHOSEN.** The
+three options were weighed and two are unavailable to this site:
+
+- a **runtime read** would have every anonymous visitor contact supabase.co on
+  page load — Critical Feature 9, on a page that tells children when a club
+  meets — and needs the ref, host and anon key in a bundle that Critical
+  Feature 18 says carries none of them;
+- **gating that read on `PUBLIC_AUTH_ENABLED`** fixes nothing where it matters,
+  because production ships with accounts OFF: `/admin/seances` would go on
+  silently doing nothing in exactly the state it is broken in.
+
+Static output plus "no third-party request" leaves one answer, so the content is
+fixed at build. `scripts/fetch-agenda.mjs` reads `sessions` over plain PostgREST
+and writes `src/data/agenda.json`; `src/lib/agenda.ts` is its only reader. ⚠️ The
+credentials are the **build's** and are never shipped — the bundle is
+byte-for-byte as clean as before, and `auth-disabled.spec.ts` still proves it.
+
+⚠️ **THE FAILURE MODE IS STALENESS, AND THE WORK WAS MAKING IT LOUD.** A session
+published after the last deploy is not on the site, and the public page cannot
+know. `/admin/seances` can: it is built in the same build, so it knows what was
+baked, compares it against the live table by fingerprint, and tells the prof — in
+French, on the screen they published from, with the date of the last build.
+Without that, the failure is exactly as silent as the bug being fixed.
+
+- **Migration 0006** widens the public select policy to `published, cancelled`.
+  ⚠️ **Critical Feature 46 was only half kept**: `cancelSession()` never deletes
+  so a student is not left wondering — and the policy then hid the cancelled row
+  from every surface they could reach, producing the vanishing the rule exists
+  to prevent. `role-separation.spec.ts` changed with the rule and still proves
+  a **draft** never leaks.
+- The one git entry is migrated with a **fixed uuid**, so the committed fallback
+  and the database agree and it never reads as a pending change.
+- ⚠️ **`seed-test.mjs` was deleting it.** The seed cleared every session row,
+  including the one 0006 had just inserted. Caught only because `agenda.spec.ts`
+  asserts that session is on the page.
+- ⚠️ **`src/data/agenda.json` is generated and gitignored**; the committed source
+  is `agenda.fallback.json`. One file would be a footgun with a short fuse: a
+  Playwright run builds against the TEST project, so `git add -A` would have
+  shipped "Séance découverte" to the real club.
+- ⚠️ **`site.timezone` is an IANA name, never `+01:00`** — Morocco drops to UTC+0
+  for Ramadan. The snapshot records the zone it was baked in and the build fails
+  if it disagrees with the config.
+- **No credentials is a dev build; broken credentials is a fatal build.**
+  Shipping a stale agenda while believing it fresh is the whole defect.
+
+**What is not in the repo, because it is dashboard configuration:** the Supabase
+webhook → Cloudflare deploy hook that makes the wait minutes rather than "the
+next deploy", a nightly rebuild as the self-healing floor, and
+`PUBLIC_SUPABASE_*` as Cloudflare **build** variables — without which every
+production build falls back to the committed snapshot and no prof can change the
+agenda at all. All three in `docs/reference/deployment.md`.
+
+### Added — an account can delete itself
+
+The privacy notice has always promised erasure; `docs/ADMIN.md` has always had
+the SQL; there has never been a button, so the promise was kept by a volunteer
+remembering to run a statement.
+
+**Migration 0007** adds `delete_own_account()`. ⚠️ **It takes no target, and the
+parameter list is the security design** — the id can only come from
+`auth.uid()`. A `delete_account(target uuid)` with an ownership check inside is
+one refactor away from a function that deletes anybody. `authenticated` only,
+and deliberately not `service_role`, which has no `auth.uid()` and could only
+raise.
+
+- **Two steps, the second a typed word** (`SUPPRIMER` / `DELETE`, case-exact).
+  Two buttons in one place is one mis-tap on a family tablet, on the only action
+  on the site nobody can undo — and a phone's autocapitalisation must not be
+  enough on its own to arm it.
+- **The confirmation names what goes**: children, progress, games, points,
+  attendance. "Are you sure?" tells a reader nothing.
+- ⚠️ **Local state is cleared only after the server confirms** — the opposite of
+  `signOut()`, which clears first. Wiping a device for a delete that did not
+  happen destroys data the account still holds.
+- ⚠️ **Nothing is retained**: no statistics, no archive, no anonymised copy — and
+  `account-deletion.spec.ts` asserts that rather than the notice claiming it.
+  Device-local progress is untouched on purpose: it is the reader's own copy, it
+  is what a guest has, and erasing it is not what the request asks for.
+- `/politique-confidentialite` changed in the same commit: it said "you can
+  **ask** for your account to be deleted", which stopped being what the site
+  does. The link to `/compte/` renders only where that page is emitted.
+
+**Live audit, test project, 2026-08-13.** One row seeded in every table, deleted
+through the RPC as the signed-in user: `auth.users`, `profiles`,
+`child_profiles`, `exercise_progress`, `game_results`, `point_awards`,
+`attendance` and `lesson_progress` all **1 → 0 in 453 ms**. The club's own
+`sessions` row survived with `created_by` nulled — correct, because a session is
+club data and not the reader's.
+
+### Added — `npm run db:push`, so migrations reach the test project at all
+
+Applying a migration needed `supabase link`, which needs a personal access token
+nobody has on this machine and fails with a privileges error that reads like a
+broken project. `scripts/db-push.mjs` goes through `--db-url` instead, takes its
+credentials from `.env.test` through `assertNotProduction()`, refuses if the ref
+matches production, probes for the project's pooler host (the direct
+`db.<ref>.supabase.co` no longer resolves on IPv4-less projects) with a **dry
+run**, and redacts the password from everything it prints. ⚠️ There is no flag
+that points it at production, and adding one would be the bug.
+
+### Fixed — the accounts-OFF build broke on a missing stub export
+
+`deleteOwnAccount()` was added to `supabase.ts` and not to
+`supabase.disabled.ts`, and the accounts-OFF build failed outright with
+`[MISSING_EXPORT]`. ⚠️ **The alias replaces the module for page scripts that are
+still BUILT behind routes that are never emitted**, so anything exported from
+one belongs in the other. The stub returns `{ ok: false }` rather than the empty
+answer every other stub returns: a stubbed success would tell a reader their
+data had been erased.
+
+### Fixed — two specs that were passing on timing
+
+Both found by the new suites, both mine, and neither a flake:
+
+- `family.spec.ts` read the database immediately after confirming a removal.
+  While the confirm is open the row shows the QUESTION in place of the name, so
+  the roster already has exactly one name the instant the button is clicked —
+  the assertion passed before the delete had left the browser.
+- `account-deletion.spec.ts` read `{profile: 1, children: 0, …}` under the full
+  fan-out. ⚠️ **That is not a reachable state**: `child_profiles` cascades from
+  `profiles` and nothing else deletes a child, so the parent cannot outlive
+  them. A stale read across pooled connections, confirmed by the same test
+  passing in isolation and against the RPC called directly.
+
+### Fixed — the add-a-child form existed, was permitted, and could not be reached
+
+`/compte/` carried an **Ajouter un élève** form that inserted into
+`child_profiles`. RLS permitted the insert. The markup was correct. And one line
+hid the **whole section**, form included, whenever the account held one child or
+none — while `resolveChild()` gives every brand-new account exactly one:
+
+```js
+if (children.length <= 1 && active) { root.hidden = true; return; }
+```
+
+A parent with two children could add a third; a parent with one could add none,
+and the only way onto the other side of that was SQL. ⚠️ **Two rules had been
+written as one**: "there is nothing to *ask*" and "there is nothing to *manage*"
+are different claims, and only the first is true at one child.
+
+⚠️ **Every check in the project passed the entire time.** `child-profiles.spec.ts`
+was green and could not have been otherwise — it asserts the boundary through
+PostgREST, where a form does not exist. Nothing rendered wrong, nothing 404'd,
+and nothing was missing from the page for a test to notice. **A permission model
+that says yes proves nothing about whether a reader can get there.**
+
+- **`ChildPicker.astro` → `FamilySection.astro`**, and the two rules are now
+  spelled separately: the section renders for every signed-in account; only the
+  **Qui joue ?** picker is conditional on holding more than one child.
+- **Rename and remove**, which did not exist in any form. The roster is a
+  **second list**, deliberately not the picker: the picker is what a child taps
+  on a shared tablet, and "Retirer" must not sit beside the button they aim for.
+- ⚠️ **Removal is never offered for the last child.** `resolveChild()` creates
+  one from the profile name the instant an account has none, so the control
+  would be a lie — the child returns, renamed, with its history gone by cascade.
+  The button is absent rather than disabled, and a sentence says why.
+- ⚠️ **Removal asks first, in place, naming the child and what goes with them.**
+  It is the one control on the site that destroys what a child earned:
+  `child_profiles` is the FK target of progress, games, attendance and awards,
+  all `on delete cascade`. That is not in tension with "Qui joue ? is a choice,
+  not a password" — one is about choosing, the other about erasing.
+- **`tests/e2e/family.spec.ts`** drives the browser as an account with exactly
+  one child and asserts against the row afterwards. ⚠️ It was verified by
+  restoring the coupled rule and watching all six tests fail on
+  `expect(family).toBeVisible() — unexpected value "hidden"`.
+- **Critical Feature 48** and a spec-map entry, so the file runs when the code
+  it covers moves.
+
+⚠️ **And the new spec immediately found a second defect, which is the argument
+for having written it.** Two `load()` calls are routinely in flight —
+`resolveChild()` fires `CHILD_EVENT`, whose listener re-enters `load()` — and
+they can land out of order. Passing alone, the family spec was green; run
+alongside the other ten mapped specs it failed twice, and neither was a flake:
+
+- a removal left **one name on screen and two rows in the table**, because a
+  read issued before the delete committed repainted the roster afterwards.
+  **Last to finish is not most recent**; a generation counter now drops the
+  older answer.
+- a rename input was **detached from the DOM under the typing** by a background
+  repaint. A repaint now never touches a row that is mid-edit — worse than lost
+  keystrokes would have been the removal confirm being swapped for a fresh
+  "Retirer" in the same place, under a thumb already moving.
+
+### Fixed — the picker's own styling had never applied to the picker
+
+Two defects that had lived in the same file for the same reason: nobody had
+looked at it in a browser signed in with one child, because they could not.
+
+⚠️ **A scoped `<style>` cannot reach an element the script created.** Astro
+stamps `data-astro-cid-*` at build time onto the elements a component declares,
+so `.child-choice` compiled to `.child-choice[data-astro-cid-hcrewwfn]` — and
+the choice buttons are built in JS, carrying the class and not the attribute.
+Every rule missed. Verified by building the previous commit and reading the
+emitted CSS. Same trap as `admin.css`; the styles are now
+`src/styles/family.css`, prefixed with `.family` so the cascade is settled by
+specificity rather than by stylesheet order.
+
+⚠️ **And two of those declarations named tokens that do not exist** —
+`--mcc-text` and `--mcc-text-muted`, against the real `--mcc-text-primary` and
+`--mcc-text-secondary`. An unknown custom property invalidates the whole
+declaration silently; this is the fourth and fifth entry in that table in
+CLAUDE.md. The add button, meanwhile, took its border from a scoped rule
+belonging to a *different* component and so had none at all.
+
+### Added — testing accounts by hand is one command
+
+`npm run demo:accounts` builds and serves the site with `PUBLIC_AUTH_ENABLED=true`
+against the **test** Supabase project, then hands off to `npm run demo` so the
+port sweep, the orphan sweep and the Ctrl+C cleanup stay in one place.
+
+⚠️ **It is a script rather than a documented shell line because the failure mode
+is not a broken build.** `.env.local` holds the PRODUCTION project — that is what
+a deploy build needs — so omitting or fat-fingering the override produces a build
+that *succeeds* and is wired to the live database, where signing in on localhost
+creates a real account. Nothing would announce it. The script reads the test
+credentials through the same interlock the e2e suite uses and **fails closed**:
+missing config, a missing production ref, an unparseable URL, or a match against
+production all abort before anything is built.
+
+- **`docs/LOCAL-ACCOUNTS.md`** — the whole procedure: seed, sign in, become a
+  prof, and walk the picker, `/compte/` and the three admin surfaces. Its last
+  section is what is **not** built, which is the part most worth reading first.
+- **`supabase/seed/magic-link.mjs`** — mints a magic link for a seeded account
+  without email. The seeded accounts live on a domain with no inbox anywhere, so
+  the sign-in form can never reach them; `generateLink` skips the *delivery* and
+  leaves the real flow (verify → callback → tokens in the fragment) intact.
+- **`seed-test.mjs` now seeds child profiles**, and gives one family **two**
+  children. `child_profiles` was first populated by the one-off backfill in
+  migration 0005, so an account created afterwards has none until someone signs
+  in as them — a freshly seeded project came up with an **empty class list** at
+  `/admin/eleves/`, which reads as a broken surface rather than an unpopulated
+  one. And "Qui joue ?" only renders above one child, so with one child per
+  account the picker was untestable by construction.
+
+### Fixed — the e2e purge aborted every run that had anything to delete
+
+`tests/e2e/helpers/purge.ts` checked the delete cascade by querying `profile_id`
+on `exercise_progress` and `attendance`. ⚠️ **Migration 0005 repointed both at
+`child_profiles` and dropped that column**, so PostgREST answered `42703` and the
+helper threw — blaming the cascade for what was a stale query. Any run that
+actually deleted an e2e user aborted in global setup or teardown.
+
+⚠️ **It was invisible while the test project happened to be empty**, because the
+whole block is skipped when nothing was deleted. Found while setting up local
+account testing, and reproduced deliberately: a planted user with a child and an
+`exercise_progress` row made the next run abort, and passes on the fix.
+
+The check now follows the column — `child_id` on `exercise_progress`,
+`game_results`, `attendance` and `point_awards`, collected **before** the delete
+because afterwards there is nothing left to ask — and adds `child_profiles`
+itself, so the chain under test is the full one:
+`auth.users → profiles → child_profiles → progress/games/attendance/awards`.
+`lesson_progress` stays on `profile_id`: it is the deprecated 0001 table, it was
+never repointed, and it still hangs off the account.
+
+### Fixed — the release gate is green again, and the cause was the machine
+
+**`npm run test:release` now runs one project at a time under a worker cap:
+0 failures in 66.8 minutes**, against **v0.11.0's 4 failures in 43.9m** and
+**v0.11.1's 7 in 58.3m**. No test and no application code changed.
+
+⚠️ **The failures were MEMORY EXHAUSTION — not a browser bug, not a test bug.**
+Playwright shares **one worker pool across every project**, so at its default of
+six workers this machine was running six *mixed* browsers side by side.
+Sampled during a run: **80 browser processes, 6.68 GB of browser memory, 2.08 GB
+free of 15.8 GB.** At roughly 2 GB free, Firefox's software compositor cannot
+allocate its framebuffer, the browser stops answering, and whatever test was in
+flight dies of a bare timeout. That is the whole explanation for the two
+signatures this project has been documenting for several sessions: the failure
+**moves between specs and projects each run**, and **every one of them passes
+serially**.
+
+**Why this was worth a session at all, given both promotions were sound.** They
+were: the diagnosis was right each time, and the serial re-runs were green. But
+a gate that is *expected* to be red teaches the next session to wave failures
+through, and the reader of the fifth red gate cannot tell it from the first
+four. ⚠️ **The trend was the defect, not the individual runs.**
+
+### The three candidates, and why the cheap-looking one lost
+
+| | Change | Result |
+|---|---|---|
+| **A** | per-project runs, 3 workers | 5 projects, **0 failures, 66.8 min** — **shipped** |
+| **B** | `fullyParallel: false` on firefox | **rejected without a run** |
+| **C** | pooled, 3 workers | 3 projects, 0 failures, 51.7 min |
+
+⚠️ **C's 51.7 minutes is the trap in that table, not the winner.** It ran only
+firefox, webkit and iphone-13 — the three projects that produced every failure
+in both red gates — and still spent 51.7 of A's 66.8 minutes. The two projects
+it skipped are ~1190 further test executions with no idle capacity to absorb
+them at the same worker count, so pooled-over-five lands **above** A. It looked
+cheaper because it did less.
+
+⚠️ **B was rejected on evidence already in the repository, not on a hunch.**
+`fullyParallel: false` is what **webkit and iphone-13 already carry** — and they
+were two of the three projects failing both gates. A setting already in force on
+the failing projects cannot be the thing that would have saved them. Measuring
+it would have bought an hour of confirming what `playwright.config.ts` states in
+its own source.
+
+⚠️ **The caveat is recorded rather than glossed:** C came back green, and both
+red gates ran at **six** workers — so the **worker cap** is very likely the half
+of A that does the work, and the per-project split may not be load-bearing for
+stability at all. That is one pooled run and not a proof. The split is kept
+regardless, because it buys something the cap does not — see below.
+
+### Added — the gate proves every project actually ran
+
+Counts are read from Playwright's **JSON reporter** and compared **project
+against project**, so a project that contributes **zero tests** fails the gate by
+name.
+
+⚠️ **This replaces a check that could not see that hole.** The old rule was "the
+total must be a multiple of 5" — but four projects of 100 and one of 0 divides
+just as neatly as five of 80, and a project silently dropped from the config
+divides perfectly. A silent zero is the worst possible pass: the summary says
+green and a fifth of the matrix never happened.
+
+### Changed — the numbers in the docs
+
+- The release gate now costs **~65-70 min**, not 30-45. ⚠️ That makes *"do not
+  run the matrix on a feature branch"* matter **more** than when it was written,
+  not less.
+- The pre-PR checklist now reads **"green, meaning ZERO failures"**, and says
+  plainly that **a red matrix is a finding to chase, not a known flake to wave
+  through**.
+- The two browser-crash rows in *"Symptoms that are the ENVIRONMENT"* still
+  describe a raw `npx playwright test`, which pools everything at full fan-out.
+  ⚠️ **From `test:release` they are now a finding**: it means the cap has
+  stopped being enough, and the next step is to check free RAM during the run,
+  not to re-run and hope.
+- The measurements live in `scripts/test-release.mjs` → **MEASUREMENTS** and the
+  narrative in `docs/reference/testing.md`. ⚠️ `--workers=3` **is not a tuning
+  knob** — it is roughly half the peak memory, which is the measured difference
+  between green and red. Re-measure before re-arguing; do not re-reason.
+- ⚠️ **Not fixed by loosening timeouts.** That was tried on `play.spec.ts` and
+  the failure count went **up**: a starved browser given longer to answer is
+  still starved, and every test now waits longer to find out.
+
+---
+
 ## [0.11.1] — 2026-08-12
 
 **The service worker no longer precaches unreachable chunks: 162 → 150 files,
@@ -3361,7 +3841,8 @@ Foundation only: no real content, no interactive board yet.
   `url()` references unresolved and the fonts silently 404 into a Georgia
   fallback. `scripts/build-fonts.mjs` self-hosts them instead. See CLAUDE.md.
 
-[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.11.1...HEAD
+[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.11.1...v0.12.0
 [0.11.1]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.9.0...v0.10.0

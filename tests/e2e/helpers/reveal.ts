@@ -40,21 +40,67 @@ export async function settleReveals(page: Page): Promise<void> {
   });
 
   /* Wait for the mechanism to have finished rather than for a fixed duration:
-     every target must carry the class, and the transition must have run out. */
+     every target must carry the class, AND its transition must have run out. */
+
+  /**
+   * ⚠️ THE CLASS LANDING IS NOT THE TRANSITION ENDING, AND A FIXED WAIT CANNOT
+   * COVER THE STAGGER.
+   *
+   * This was `waitForTimeout(450)`, described as "the transition itself" — and
+   * it forgot `[data-reveal-stagger]`, which adds `transition-delay:
+   * --reveal-step × --reveal-i` (60ms per card, capped at six). The sixth card
+   * onwards therefore finishes at **300ms of delay plus the transition**, past
+   * 450ms, while the first card finished long before it.
+   *
+   * That is not theoretical: it turned the v0.12.0 release matrix red on four
+   * projects. `agenda.spec.ts` compares a cancelled card's opacity against a
+   * published one to prove a cancelled session is labelled rather than dimmed;
+   * the published card is first in the list and the cancelled one was 23rd, so
+   * one had settled to `1` and the other was sampled at **0.999974** — a
+   * "dimmed card" that was nothing of the sort.
+   *
+   * So wait for the RESOLVED VALUE rather than for a duration.
+   *
+   * ⚠️ AND NOT FOR STILLNESS EITHER, WHICH IS THE TRAP THIS WALKED INTO ONCE.
+   * The first attempt at this waited until no opacity had changed for three
+   * consecutive frames — and read `0`, confidently, on a card whose transition
+   * had not STARTED. An element sitting at `opacity: 0` waiting for its
+   * stagger delay is perfectly stable; stability and settledness are different
+   * questions, and only one of them is the one being asked. Reveals are
+   * one-shot (`io.unobserve` in BaseLayout), so the end state is unambiguous:
+   * every target carries `is-revealed` and every opacity has reached 1.
+   *
+   * ⚠️⚠️ AND THE WAIT IS BOUNDED BY PLAYWRIGHT, NOT BY THE PAGE. This started
+   * as a `page.evaluate` counting 240 `requestAnimationFrame`s, which looked
+   * bounded and was not: **WebKit stalls rAF**, the loop then never advanced,
+   * and a raw `evaluate` has no timeout of its own — so it hung until the 30s
+   * TEST timeout. That took the home page's specs down on webkit and
+   * iphone-13, 13 failures, in a spec file that had nothing to do with it. A
+   * fixed `waitForTimeout` was immune only because it waits OUTSIDE the page.
+   *
+   * `waitForFunction` fixes both halves: `polling` on a timer rather than on
+   * rAF, and a deadline Playwright enforces however dead the page's animation
+   * clock is. Nothing inside a browser may be trusted to end a wait.
+   */
   await page
     .waitForFunction(
-      () => {
-        const targets = Array.from(document.querySelectorAll('[data-reveal]'));
-        return targets.every((el) => el.classList.contains('is-revealed'));
-      },
+      () =>
+        Array.from(document.querySelectorAll('[data-reveal]')).every(
+          (el) =>
+            el.classList.contains('is-revealed') &&
+            /* Not `=== '1'`: the comparison is against a value a compositor
+               produced, and 0.9999 is settled for every purpose this helper
+               serves. A card that is actually dimmed sits far below it. */
+            Number(getComputedStyle(el).opacity) >= 0.9999,
+        ),
       undefined,
-      { timeout: 5_000 },
+      /* The longest legitimate settle is the stagger cap (5 × 60ms) plus one
+         transition, comfortably under a second. 5s is a ceiling, not a target. */
+      { timeout: 5_000, polling: 100 },
     )
     .catch(() => {
       /* A page whose reveals never complete is a real problem, but it is not
-         THIS helper's problem to report — the axe assertion that follows will
-         fail on the still-transparent text, which is the honest signal. */
+         THIS helper's problem to report — the assertion that follows will fail
+         on the still-transparent text, which is the honest signal. */
     });
-
-  await page.waitForTimeout(450); // the transition itself (--duration-slow)
 }

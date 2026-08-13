@@ -110,7 +110,9 @@ test.describe('service worker precache', () => {
     /* The chunks that exist ONLY to serve a gated route. Matched on the
        component names Astro derives its chunk filenames from. */
     const gated = readdirSync(astroDir).filter((name) =>
-      /^(admin\.|Admin|AccountPage|LoginPage|ChildPicker|ledger\.|_\.\.\.slug_)/.test(name),
+      /^(admin\.|Admin|AccountPage|LoginPage|FamilySection|family\.|ledger\.|_\.\.\.slug_)/.test(
+        name,
+      ),
     );
 
     /* ⚠️ THE NON-EMPTY CORPUS ASSERTION. Everything below is vacuous without

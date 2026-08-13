@@ -60,6 +60,32 @@ const PEOPLE = [
   { email: at('seed-eleve-2'), name: 'Omar', role: 'eleve', locale: 'en' },
 ];
 
+/**
+ * ⚠️ THE CHILDREN ARE SEEDED, NOT LEFT TO THE MIGRATION.
+ *
+ * `child_profiles` got its first rows from the section-4 backfill in migration
+ * 0005, which is a ONE-OFF: it ran once, over the accounts that existed at that
+ * moment. A seed account created afterwards has no child until somebody signs in
+ * as them and `resolveChild()` adopts one. So a freshly re-seeded project — or a
+ * new test project — comes up with an EMPTY CLASS LIST at `/admin/eleves/`, and
+ * the surface looks broken when it is merely unpopulated.
+ *
+ * ⚠️ AND ONE FAMILY DELIBERATELY HAS TWO CHILDREN. "Qui joue ?" only renders
+ * when an account holds MORE THAN ONE — `resolveChild()` adopts a lone child
+ * silently, which is the autonomous-teenager path (see `src/lib/child.ts`). With
+ * one child per account the picker is unreachable and cannot be tested at all.
+ * Sara's account therefore holds two, Omar's holds one, and the two code paths
+ * are both walkable on a seeded project.
+ *
+ * Keyed by the account's seed address; matched by display_name so a re-run adds
+ * only what is missing. Never deletes: a child carries progress, and a seed
+ * script that dropped them would take attendance and awards with it by cascade.
+ */
+const CHILDREN = {
+  [at('seed-eleve-1')]: ['Sara', 'Yassine'],
+  [at('seed-eleve-2')]: ['Omar'],
+};
+
 async function upsertPerson(person) {
   const { data, error } = await sb.auth.admin.createUser({
     email: person.email,
@@ -101,6 +127,43 @@ async function upsertPerson(person) {
   return data.user.id;
 }
 
+/**
+ * One learner per name in CHILDREN, under the account that holds them.
+ *
+ * Idempotent by (account, display_name): a re-run inserts only what is absent.
+ * `child_profiles` has no unique constraint and must never gain one — a parent
+ * legitimately holds several children (see migration 0005 §4) — so the check is
+ * a read, not an `on conflict`.
+ */
+async function seedChildren(idByEmail) {
+  for (const [email, names] of Object.entries(CHILDREN)) {
+    const accountId = idByEmail.get(email);
+    if (!accountId) {
+      console.log(`  ! ${email} has no account id — skipping its children`);
+      continue;
+    }
+    const locale = PEOPLE.find((p) => p.email === email)?.locale ?? 'fr';
+
+    const { data: existing, error: readError } = await sb
+      .from('child_profiles')
+      .select('display_name')
+      .eq('account_id', accountId);
+    if (readError) throw new Error(`children of ${email}: ${readError.message}`);
+    const have = new Set((existing ?? []).map((row) => row.display_name));
+
+    const missing = names.filter((name) => !have.has(name));
+    if (missing.length === 0) {
+      console.log(`  = ${email}: ${names.length} child profile(s) already present`);
+      continue;
+    }
+    const { error } = await sb
+      .from('child_profiles')
+      .insert(missing.map((display_name) => ({ account_id: accountId, display_name, locale })));
+    if (error) throw new Error(`children of ${email}: ${error.message}`);
+    console.log(`  + ${email}: ${missing.join(', ')}`);
+  }
+}
+
 function isoDaysFromNow(days, hour) {
   const d = new Date();
   d.setUTCDate(d.getUTCDate() + days);
@@ -112,7 +175,14 @@ async function main() {
   console.log(`seed → project "${env.testRef}" (production is "${env.productionRef}")`);
 
   const ids = [];
-  for (const person of PEOPLE) ids.push(await upsertPerson(person));
+  const idByEmail = new Map();
+  for (const person of PEOPLE) {
+    const id = await upsertPerson(person);
+    ids.push(id);
+    if (id) idByEmail.set(person.email, id);
+  }
+
+  await seedChildren(idByEmail);
 
   const createdBy = ids[0] ?? null;
   const sessions = [
@@ -140,14 +210,53 @@ async function main() {
       status: 'draft',
       created_by: createdBy,
     },
+    /**
+     * ⚠️ A CANCELLED SESSION, SEEDED ON PURPOSE — and it is in the FUTURE.
+     *
+     * `/agenda/` must show it with its state (Critical Feature 46's public
+     * half), and `agenda.spec.ts` asserts that against the built page. Without
+     * a seeded one the spec could only skip, and "no cancelled session was
+     * found, so the cancelled-session rendering is fine" is the vacuous pass
+     * this project has been bitten by before.
+     *
+     * A past one would not do: the bake drops sessions a day after they end, so
+     * it would silently stop being covered.
+     */
+    {
+      starts_at: isoDaysFromNow(10, 16),
+      title_fr: 'Séance annulée (jour férié)',
+      title_en: 'Session cancelled (public holiday)',
+      level: 'debutant',
+      status: 'cancelled',
+      created_by: createdBy,
+    },
   ];
 
-  /* Idempotent: clear previous seed sessions so re-running does not stack up
-     duplicates. Test project only — the interlock above guarantees that. */
-  await sb.from('sessions').delete().not('id', 'is', null);
+  /**
+   * Idempotent: clear previous seed sessions so re-running does not stack up
+   * duplicates. Test project only — the interlock above guarantees that.
+   *
+   * ⚠️ EXCEPT THE ROW MIGRATION 0006 INSERTED, WHICH THIS USED TO DESTROY.
+   *
+   * 0006 migrated the club's one git-collection session into `sessions` with a
+   * FIXED uuid, and this delete took `.not('id','is',null)` — every row. So on
+   * a freshly migrated project the seed silently removed real migrated content
+   * a moment after the migration created it, and `/agenda/` then rendered
+   * without it. Caught because `agenda.spec.ts` asserts that session is on the
+   * page; nothing else would have noticed.
+   *
+   * Seed data is the seed's to delete. Migrated data is not.
+   */
+  const MIGRATED_SESSION = '5e5e0912-0000-4000-8000-000000000912';
+  await sb.from('sessions').delete().not('id', 'is', null).neq('id', MIGRATED_SESSION);
   const { error } = await sb.from('sessions').insert(sessions);
   if (error) throw new Error(`sessions: ${error.message}`);
-  console.log(`  + ${sessions.length} sessions (2 published, 1 draft)`);
+  const tally = sessions.reduce((acc, s) => ({ ...acc, [s.status]: (acc[s.status] ?? 0) + 1 }), {});
+  console.log(
+    `  + ${sessions.length} sessions (${Object.entries(tally)
+      .map(([k, v]) => `${v} ${k}`)
+      .join(', ')}), migrated session preserved`,
+  );
 
   console.log('seed: done.');
 }

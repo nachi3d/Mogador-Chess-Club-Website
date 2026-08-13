@@ -190,26 +190,46 @@ test.describe('v2-S4 — a student cannot cross a role boundary', () => {
     expect(data?.length ?? 0).toBe(0);
   });
 
-  test('a student sees only published sessions, never drafts or cancellations', async () => {
-    const { data: hidden } = await adminClient()
+  /**
+   * ⚠️ THE RULE CHANGED IN 0006, DELIBERATELY, AND THIS TEST CHANGED WITH IT.
+   *
+   * It used to assert that a student sees ONLY `published`. That made Critical
+   * Feature 46 half true: `cancelSession()` never deletes, precisely so a
+   * student who was told a session was happening is not left wondering — and
+   * then the select policy hid the cancelled row from every surface they could
+   * reach, which produces exactly the vanishing the rule exists to prevent.
+   *
+   * The boundary that matters is unchanged and is still asserted here: a DRAFT
+   * is an unannounced session and must never leak.
+   */
+  test('a student sees published and cancelled sessions, never drafts', async () => {
+    const { data: seeded } = await adminClient()
       .from('sessions')
       .insert([
         { starts_at: '2027-01-01T16:00:00Z', title_fr: 'Brouillon', status: 'draft' },
         { starts_at: '2027-01-08T16:00:00Z', title_fr: 'Annulée', status: 'cancelled' },
       ])
       .select();
+    const ids = (seeded ?? []).map((s) => String(s['id']));
 
     const c = await clientFor(student);
     const { data } = await c.from('sessions').select('id,status');
+    const visible = data ?? [];
+
     expect(
-      (data ?? []).every((s) => s['status'] === 'published'),
-      'a draft or a cancellation leaked to a student',
+      visible.some((s) => s['status'] === 'draft'),
+      'a DRAFT leaked to a student — an unannounced session was published by accident',
+    ).toBe(false);
+
+    /* And the cancellation IS visible — asserted on the row this test seeded,
+       not on "some cancelled row exists", so it cannot pass on someone else's
+       leftovers. */
+    expect(
+      visible.some((s) => ids.includes(String(s['id'])) && s['status'] === 'cancelled'),
+      'a cancelled session was hidden from a student — CF46 only holds if they can see it',
     ).toBe(true);
 
-    await adminClient()
-      .from('sessions')
-      .delete()
-      .in('id', (hidden ?? []).map((s) => s['id']));
+    await adminClient().from('sessions').delete().in('id', ids);
   });
 
   /**

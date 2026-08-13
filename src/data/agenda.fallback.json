@@ -1,0 +1,19 @@
+{
+  "source": "committed-fallback",
+  "fetchedAt": "2026-08-13T00:00:00.000Z",
+  "timezone": "Africa/Casablanca",
+  "sessions": [
+    {
+      "id": "5e5e0912-0000-4000-8000-000000000912",
+      "startsAt": "2026-09-12T15:00:00.000Z",
+      "date": "2026-09-12",
+      "time": "16:00",
+      "status": "published",
+      "level": "debutant",
+      "venue": null,
+      "titleFr": null,
+      "noteFr": "Séance d'ouverture de la saison — initiation, matériel fourni. Venez comme vous êtes.",
+      "noteEn": "Season opening session — beginners welcome, sets provided. Just turn up."
+    }
+  ]
+}

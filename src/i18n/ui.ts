@@ -343,6 +343,9 @@ const fr = {
   'agenda.title': 'Agenda',
   'agenda.intro': 'Les prochaines séances du club.',
   'agenda.empty': 'Aucune séance programmée pour le moment.',
+  /* ⚠️ A WORD, NOT A COLOUR. A cancelled session stays on the agenda so nobody
+     wonders whether they misremembered — which only works if it SAYS so. */
+  'agenda.cancelled': 'Séance annulée',
 
   'contact.title': 'Contact',
   'contact.intro': 'Une question, une inscription, une envie de jouer ? Écrivez-nous.',
@@ -476,6 +479,49 @@ const fr = {
   'child.addLabel': 'Ajouter un élève',
   'child.add': 'Ajouter',
   'child.addError': 'Impossible d’ajouter cet élève. Réessayez.',
+  /* ── The family section itself, of which "Qui joue ?" is only one part ────
+     ⚠️ These are separate keys from `child.*` on purpose: the section renders
+     for every signed-in account and the picker does not. One string table
+     entry shared between them is how the two rules got coupled in the first
+     place. */
+  'family.heading': 'Mes élèves',
+  'family.intro':
+    'Les élèves inscrits sur ce compte. Vous pouvez en ajouter un, le renommer, ou le retirer.',
+  'family.rename': 'Renommer',
+  'family.renameLabel': 'Nouveau prénom pour %s',
+  'family.save': 'Enregistrer',
+  'family.cancel': 'Annuler',
+  'family.renameError': 'Impossible de renommer cet élève. Réessayez.',
+  'family.remove': 'Retirer',
+  'family.removeConfirm': 'Retirer %s ? Toute sa progression sera effacée.',
+  'family.removeYes': 'Oui, retirer',
+  'family.removeError': 'Impossible de retirer cet élève. Réessayez.',
+  'family.onlyChild': 'Un compte garde toujours au moins un élève.',
+  /* ── Suppression du compte ────────────────────────────────────────────
+     ⚠️ LA LISTE NOMME CE QUI PART, article par article. « Êtes-vous sûr ? »
+     ne dit rien : un parent doit lire les mots « progression » et
+     « présences » avant de confirmer, pas après. */
+  'account.delete.heading': 'Supprimer mon compte',
+  'account.delete.body':
+    'La suppression est définitive et immédiate. Il n’y a pas de corbeille et rien ne peut être restauré.',
+  'account.delete.listIntro': 'Sont effacés :',
+  'account.delete.item.account': 'le compte et son adresse e-mail ;',
+  'account.delete.item.children': 'les élèves rattachés à ce compte ;',
+  'account.delete.item.progress': 'leur progression et leurs parties ;',
+  'account.delete.item.points': 'leurs points et les points attribués par un professeur ;',
+  'account.delete.item.attendance': 'leurs présences aux séances.',
+  'account.delete.retained':
+    'Rien n’est conservé : ni statistique, ni archive, ni copie anonymisée. La progression enregistrée dans ce navigateur reste sur cet appareil — elle vous appartient, et vous pouvez l’effacer en vidant les données du site.',
+  'account.delete.start': 'Supprimer mon compte',
+  'account.delete.confirmHeading': 'Confirmer la suppression',
+  'account.delete.confirmPrompt': 'Pour confirmer, tapez %s ci-dessous.',
+  'account.delete.confirmWord': 'SUPPRIMER',
+  'account.delete.confirmLabel': 'Mot de confirmation',
+  'account.delete.confirm': 'Supprimer définitivement',
+  'account.delete.cancel': 'Annuler',
+  'account.delete.working': 'Suppression en cours…',
+  'account.delete.error':
+    'La suppression a échoué et votre compte est intact. Réessayez, ou écrivez au club.',
   'account.title': 'Mon compte',
   'account.intro': 'Votre nom affiché et votre langue. Rien d’autre n’est stocké ici.',
   'account.displayName': 'Prénom affiché',
@@ -537,8 +583,15 @@ const fr = {
   'privacy.retention.body':
     "Les données sont conservées tant que le compte existe. Un compte inactif depuis deux ans est supprimé. La progression enregistrée localement dans votre navigateur reste sous votre contrôle et peut être effacée à tout moment en vidant les données du site.",
   'privacy.erasure.heading': 'Effacement',
+  /* ⚠️ CETTE PAGE DÉCRIT CE QUE FAIT LE BOUTON, PAS UNE INTENTION. Le texte
+     disait « vous pouvez demander » tant que l'effacement passait par un
+     bénévole exécutant une requête SQL. Il y a maintenant un bouton, et la
+     phrase doit changer en même temps que lui — sinon la page promet moins que
+     ce que le site fait, ce qui est une autre façon d'être inexact. */
   'privacy.erasure.body':
-    "Vous pouvez demander la suppression de votre compte à tout moment. La suppression est en cascade : le compte, le profil, la progression et les présences sont effacés ensemble — il ne reste rien à récupérer.",
+    "Vous supprimez votre compte vous-même, depuis la page « Mon compte » : la suppression est immédiate et définitive. Elle est en cascade — le compte, les élèves qui y sont rattachés, leur progression, leurs parties, leurs points et leurs présences sont effacés ensemble. Rien n'est conservé : ni statistique, ni archive, ni copie anonymisée. Il ne reste rien à récupérer, y compris pour nous.",
+  'privacy.erasure.local':
+    "La progression enregistrée dans votre navigateur n'est pas concernée : elle est sur votre appareil, elle vous appartient, et vous l'effacez en vidant les données du site.",
   'privacy.processor.heading': 'Hébergement des données',
   'privacy.processor.body':
     "Les comptes et la progression sont hébergés par Supabase, en tant que sous-traitant, sur une infrastructure située dans l’Union européenne. Le site lui-même est servi par Cloudflare. Aucune donnée n’est transmise à d’autres tiers.",
@@ -845,6 +898,7 @@ const en: Record<keyof typeof fr, string> = {
   'agenda.title': 'Schedule',
   'agenda.intro': "The club's upcoming sessions.",
   'agenda.empty': 'No sessions scheduled at the moment.',
+  'agenda.cancelled': 'Session cancelled',
 
   'contact.title': 'Contact',
   'contact.intro': 'A question, a sign-up, or just want a game? Get in touch.',
@@ -971,6 +1025,40 @@ const en: Record<keyof typeof fr, string> = {
   'child.addLabel': 'Add a student',
   'child.add': 'Add',
   'child.addError': 'Could not add this student. Please try again.',
+  'family.heading': 'My students',
+  'family.intro':
+    'The students on this account. You can add one, rename one, or remove one.',
+  'family.rename': 'Rename',
+  'family.renameLabel': 'New first name for %s',
+  'family.save': 'Save',
+  'family.cancel': 'Cancel',
+  'family.renameError': 'Could not rename this student. Please try again.',
+  'family.remove': 'Remove',
+  'family.removeConfirm': 'Remove %s? All of their progress will be erased.',
+  'family.removeYes': 'Yes, remove',
+  'family.removeError': 'Could not remove this student. Please try again.',
+  'family.onlyChild': 'An account always keeps at least one student.',
+  'account.delete.heading': 'Delete my account',
+  'account.delete.body':
+    'Deletion is permanent and immediate. There is no bin, and nothing can be restored.',
+  'account.delete.listIntro': 'This erases:',
+  'account.delete.item.account': 'the account and its email address;',
+  'account.delete.item.children': 'the students attached to this account;',
+  'account.delete.item.progress': 'their progress and their games;',
+  'account.delete.item.points': 'their points, including points awarded by a teacher;',
+  'account.delete.item.attendance': 'their attendance at sessions.',
+  'account.delete.retained':
+    'Nothing is kept: no statistics, no archive, no anonymised copy. Progress saved in this browser stays on this device — it is yours, and you can clear it by clearing the site’s data.',
+  'account.delete.start': 'Delete my account',
+  'account.delete.confirmHeading': 'Confirm deletion',
+  'account.delete.confirmPrompt': 'To confirm, type %s below.',
+  'account.delete.confirmWord': 'DELETE',
+  'account.delete.confirmLabel': 'Confirmation word',
+  'account.delete.confirm': 'Delete permanently',
+  'account.delete.cancel': 'Cancel',
+  'account.delete.working': 'Deleting…',
+  'account.delete.error':
+    'Deletion failed and your account is intact. Try again, or message the club.',
   'account.title': 'My account',
   'account.intro': 'Your display name and language. Nothing else is stored here.',
   'account.displayName': 'Display first name',
@@ -1028,7 +1116,9 @@ const en: Record<keyof typeof fr, string> = {
     'Data is kept for as long as the account exists. An account inactive for two years is deleted. Progress stored locally in your browser stays under your control and can be cleared at any time by clearing the site’s data.',
   'privacy.erasure.heading': 'Erasure',
   'privacy.erasure.body':
-    'You can ask for your account to be deleted at any time. Deletion cascades: the account, the profile, the progress and the attendance records are erased together — nothing is left behind to recover.',
+    'You delete your account yourself, from the “My account” page: deletion is immediate and permanent. It cascades — the account, the students attached to it, their progress, their games, their points and their attendance are erased together. Nothing is kept: no statistics, no archive, no anonymised copy. Nothing is left to recover, including by us.',
+  'privacy.erasure.local':
+    'Progress saved in your browser is not affected: it is on your device, it is yours, and you clear it by clearing the site’s data.',
   'privacy.processor.heading': 'Where the data lives',
   'privacy.processor.body':
     'Accounts and progress are hosted by Supabase, acting as a processor, on infrastructure located in the European Union. The site itself is served by Cloudflare. No data is passed to any other third party.',
