@@ -39,7 +39,23 @@ test.describe('the public agenda', () => {
       const sessions = page.locator('.sessions .session');
       expect(await sessions.count(), 'the agenda rendered no sessions at all').toBeGreaterThan(0);
 
-      await page.waitForLoadState('networkidle');
+      /**
+       * ⚠️ NOT `networkidle`, AND THE REASON IS THIS FILE'S NAME.
+       *
+       * `agenda.spec.ts` sorts FIRST, so these two tests are the first page
+       * loads of every project run — the ones that pay for the service
+       * worker's cold precache: 150 files, ~6 MB of **first-party** assets.
+       * The network is genuinely not idle for tens of seconds, and waiting for
+       * it timed out at 30s on pixel-5 in the v0.12.0 matrix while proving
+       * nothing whatever about third parties.
+       *
+       * `goto` has already awaited `load`. What remains is a bounded grace for
+       * a late off-origin fetch — an analytics snippet, a font, a Supabase
+       * read added by a future session — none of which would wait on the
+       * precache before firing. The listener above has been recording since
+       * before navigation, so anything that fired earlier is already caught.
+       */
+      await page.waitForTimeout(1_000);
       expect(
         hits,
         `the public agenda contacted a third party:\n${hits.join('\n')}`,
@@ -117,17 +133,55 @@ test.describe('the public agenda', () => {
      * settles asymptotically — an exact check read `0.999775` and reported a
      * dimmed card that was not dimmed. The property under test is relative
      * anyway: a cancelled session must not be quieter than a live one.
+     *
+     * ⚠️ AND EACH CARD IS BROUGHT INTO VIEW AND SETTLED ON ITS OWN, rather
+     * than trusting the page-wide pass. Three things conspire here and only
+     * the third is obvious: `data-reveal-stagger` puts the two cards on
+     * different timelines (60ms × index, capped at six); the seeded test
+     * project has grown to **26 sessions**, so the cancelled one sits far down
+     * the list while the published one is first; and reveals are driven by an
+     * IntersectionObserver, which on WebKit did not fire for a card the
+     * page-wide scroll had swept past — leaving it at `opacity: 0` and
+     * reporting a perfectly well-behaved card as dimmed.
+     *
+     * Scrolling to the card and waiting for `is-revealed` is what a reader
+     * does, and it FAILS LOUDLY if the reveal never happens instead of
+     * folding that into the opacity verdict. Those are different defects and
+     * they must not share an error message.
      */
-    const alpha = (loc: ReturnType<typeof page.locator>) =>
-      loc.first().evaluate((el) => Number(getComputedStyle(el).opacity));
-    const [cancelledAlpha, publishedAlpha] = await Promise.all([
-      alpha(cancelled),
-      alpha(page.locator('.session[data-status="published"]')),
-    ]);
+    const settledAlpha = async (loc: ReturnType<typeof page.locator>): Promise<number> => {
+      const el = loc.first();
+      await el.evaluate((node) => node.scrollIntoView({ block: 'center' }));
+      await expect(el, 'the card never revealed — this is not an opacity verdict').toHaveClass(
+        /is-revealed/,
+        { timeout: 5_000 },
+      );
+      return el.evaluate(
+        (node) =>
+          new Promise((resolve) => {
+            let frames = 0;
+            const tick = () => {
+              const v = Number(getComputedStyle(node).opacity);
+              if (v >= 0.9999 || (frames += 1) > 240) return resolve(v);
+              requestAnimationFrame(tick);
+            };
+            requestAnimationFrame(tick);
+          }) as Promise<number>,
+      );
+    };
+    /* ⚠️ Sequential, not `Promise.all`: each call scrolls the page, and two
+       scrolls racing each other is how one of them measures the other's card. */
+    const cancelledAlpha = await settledAlpha(cancelled);
+    const publishedAlpha = await settledAlpha(page.locator('.session[data-status="published"]'));
+    /* The epsilon is not a weakening: `settleReveals` has already waited for
+       both to reach 1, and the property being defended is "not dimmed". A card
+       that is genuinely marked by opacity sits at 0.5–0.7, three orders of
+       magnitude outside this. What it buys is immunity to the last digit of a
+       compositor's arithmetic, which is what made this assertion flaky twice. */
     expect(
       cancelledAlpha,
       'a cancelled session is dimmed rather than labelled',
-    ).toBeGreaterThanOrEqual(publishedAlpha);
+    ).toBeGreaterThanOrEqual(publishedAlpha - 0.01);
     /* And no strikethrough — read aloud, it would say nothing at all. */
     const decoration = await cancelled
       .first()

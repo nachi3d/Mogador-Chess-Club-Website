@@ -37,6 +37,61 @@ The release also makes the gate honest again: `npm run test:release` runs its
 projects one at a time under a worker cap and is **expected to be green**, after
 two promotions that shipped on failures everybody had a good explanation for.
 
+### Fixed — the new agenda spec was measuring an animation, and it turned the gate red
+
+The v0.12.0 release matrix came back **5 failed across four projects**, every
+one of them in `agenda.spec.ts`. Neither cause was an application defect — both
+were checked against the source before anything was touched — and both are the
+same shape: **a spec asserting a value while the thing producing it was still
+moving.**
+
+**`a cancelled session renders as cancelled, in words` — `expected >= 1,
+received 0.999974`.** `.session-cancelled` sets `border-left-color` and
+`background-color` and nothing else: no opacity, no `text-decoration`. The card
+was not dimmed, it was mid-reveal. Three things had to line up, and the spec had
+already anticipated one of them:
+
+- `[data-reveal-stagger]` delays each card by `60ms × --reveal-i`, capped at
+  six — so cards settle up to **300ms apart**, and the two being compared are
+  the first card and one far down the list;
+- ⚠️ **`settleReveals` waited a flat 450ms**, described in its own comment as
+  "the transition itself". It had forgotten the stagger, so the tail of a long
+  list was still moving when it returned;
+- and the list is long because the **test project has accumulated 26 sessions**
+  from past suite runs, 21 of them junk rows created seconds apart. The
+  fixture grew until the race started losing.
+
+⚠️ **The first fix was wrong in an instructive way** and the re-run caught it:
+waiting for the opacities to stop *changing* read `0` on a card whose transition
+had not *started*. An element waiting out its stagger delay is perfectly stable.
+**Stability and settledness are different questions.** Reveals are one-shot
+(`io.unobserve`), so the helper now waits for the resolved end state — every
+target carrying `is-revealed` **and** every opacity at 1 — bounded at ~240
+frames, which strengthens every axe check that uses it.
+
+⚠️ **And WebKit then failed differently**, at `0`: its IntersectionObserver
+never fired for a card the page-wide scroll pass had swept past, so no amount of
+waiting would settle it. The spec now brings **each card into view on its own**
+and asserts `is-revealed` with its own message before reading any opacity — "the
+card never revealed" and "the card is dimmed" are different defects and must not
+share an error.
+
+**The two zero-third-party-request tests, timing out at 30s on `networkidle`.**
+⚠️ **The cause is this file's name.** `agenda.spec.ts` sorts first, so its two
+tests are the first page loads of every project run — the ones that pay for the
+service worker's cold precache, **150 files and ~6 MB of first-party assets**.
+The network is genuinely not idle, and waiting for it proved nothing whatever
+about third parties. Replaced with a bounded grace after `load`; the listener
+has been recording since before navigation, so nothing is missed.
+
+⚠️ **No timeout was raised to make a red gate green.** Verified serially on all
+five projects — 45 passed, and the two intermediate failures above were each
+watched to fail first.
+
+**Not fixed, and flagged rather than folded in:** those 21 leftover session rows
+in the test project. They are created by the suite and never purged, and they
+will keep growing.
+
 ### Documented — the agenda's credentials had nowhere to be set, and the docs said otherwise
 
 Found at this promotion, while confirming that the newly-configured Cloudflare
