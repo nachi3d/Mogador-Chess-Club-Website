@@ -1,0 +1,444 @@
+---
+/**
+ * The family section of `/compte/` — the students on this account.
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️ TWO RULES, AND COUPLING THEM IS THE BUG THIS FILE EXISTS TO HAVE FIXED.
+ *
+ * 1. THE SECTION RENDERS FOR EVERY SIGNED-IN ACCOUNT. Adding, renaming and
+ *    removing a student are things a parent does with one child exactly as
+ *    much as with three.
+ * 2. THE PICKER — "Qui joue ?" — IS THE CONDITIONAL HALF, and only it. Above
+ *    one child there is genuinely nothing to ask: `resolveChild()` adopts a
+ *    lone child silently, which is the autonomous-teenager path.
+ *
+ * Until v0.11.x these were one rule. The whole section was hidden whenever the
+ * account held one child or none — and a brand-new account is given exactly
+ * one — so the "Ajouter un élève" form was invisible to every account that had
+ * never had a second child inserted by SQL. A parent with two children could
+ * add a third; a parent with one could add none. RLS permitted the insert
+ * throughout; the form was simply unreachable, and nothing in the suite looked
+ * for it, which is how it stayed that way through two releases.
+ *
+ * ⚠️ THE ROSTER AND THE PICKER ARE TWO LISTS OF THE SAME NAMES, ON PURPOSE.
+ * The picker is tapped by a child on a shared family tablet. "Retirer" must not
+ * sit beside the button they are aiming for.
+ *
+ * ⚠️ A CHOICE, NOT A PASSWORD. There is no PIN, no lock and no "are you sure"
+ * on the picker. These are children in the same room as the parent who signed
+ * in; a lock would buy nothing and would put a credential in front of an
+ * eight-year-old who wants to solve a mate in one. The account is the security
+ * boundary. Which child is playing is a preference, exactly like the board
+ * theme. The two-step confirm on REMOVAL is a different thing entirely — that
+ * one erases a child's whole history by cascade.
+ *
+ * ⚠️ REMEMBERED PER DEVICE. A child's own phone answers the picker once, ever.
+ * The family tablet asks when the answer is genuinely unknown — which is why
+ * this is a section of `/compte/` rather than a modal that interrupts a board.
+ *
+ * ⚠️ UNREACHABLE WITH THE FLAG OFF. `/compte/` is not emitted at all when
+ * `PUBLIC_AUTH_ENABLED` is unset, so a guest never renders a byte of this.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+import type { Locale } from '@config/site';
+import { useTranslations } from '@i18n/ui';
+/* ⚠️ A REAL STYLESHEET, NOT A SCOPED `<style>`. Every row below is built at
+   runtime and would not carry Astro's build-time scoping attribute. See the
+   header of the file itself — this had already silently killed the picker's
+   own button styling. */
+import '@styles/family.css';
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const t = useTranslations(locale);
+---
+
+<section
+  class="family"
+  data-testid="family"
+  data-msg-add-error={t('child.addError')}
+  data-msg-rename={t('family.rename')}
+  data-msg-rename-label={t('family.renameLabel')}
+  data-msg-rename-error={t('family.renameError')}
+  data-msg-save={t('family.save')}
+  data-msg-cancel={t('family.cancel')}
+  data-msg-remove={t('family.remove')}
+  data-msg-remove-confirm={t('family.removeConfirm')}
+  data-msg-remove-yes={t('family.removeYes')}
+  data-msg-remove-error={t('family.removeError')}
+  data-msg-only-child={t('family.onlyChild')}
+  hidden
+>
+  <h2>{t('family.heading')}</h2>
+  <p class="family-intro">{t('family.intro')}</p>
+
+  {/* ── The conditional half. Hidden at one child, and ONLY this part. ──── */}
+  <div class="child-picker" data-testid="child-picker" hidden>
+    <h3>{t('child.heading')}</h3>
+    <p class="child-intro">{t('child.intro')}</p>
+    <ul class="child-list" data-testid="child-list"></ul>
+  </div>
+
+  {/* ── The roster. Always. ──────────────────────────────────────────────── */}
+  <ul class="child-roster" data-testid="child-roster"></ul>
+
+  <form class="child-add" data-testid="child-add">
+    <label for="child-name">{t('child.addLabel')}</label>
+    <input id="child-name" type="text" maxlength="40" autocomplete="off" data-testid="child-name" />
+    {/* ⚠️ `child-action` as well as `btn-ghost`: `controls.css` owns the 44px
+        target and the press but sets no colour at all, and this button's only
+        border used to come from a SCOPED rule that never matched it. It
+        rendered borderless and un-inked. */}
+    <button type="submit" class="btn-ghost child-action" data-testid="child-add-submit">
+      {t('child.add')}
+    </button>
+  </form>
+  <p class="child-status" role="status" data-testid="child-status"></p>
+</section>
+
+<script>
+  /* ⚠️ Through `@lib/child` only for RESOLUTION. This surface never decides for
+     itself who is playing — that rule lives in one file, exactly as the resume
+     rule lives in `ResumeResolver`. A second copy is how two surfaces come to
+     disagree about who is playing. The plain `child_profiles` reads and writes
+     below are roster management, which is not resolution. */
+  import {
+    CHILD_EVENT,
+    activeChild,
+    chooseChild,
+    forgetChild,
+    pendingChoices,
+    resolveChild,
+    type Child,
+  } from '@lib/child';
+
+  const root = document.querySelector('[data-testid="family"]') as HTMLElement | null;
+  const picker = document.querySelector('[data-testid="child-picker"]') as HTMLElement | null;
+  const list = document.querySelector('[data-testid="child-list"]') as HTMLElement | null;
+  const roster = document.querySelector('[data-testid="child-roster"]') as HTMLElement | null;
+  const form = document.querySelector('[data-testid="child-add"]') as HTMLFormElement | null;
+  const input = document.querySelector('[data-testid="child-name"]') as HTMLInputElement | null;
+  const status = document.querySelector('[data-testid="child-status"]') as HTMLElement | null;
+
+  let accountId = '';
+  let children: Child[] = [];
+  let active: Child | null = null;
+
+  /**
+   * ⚠️ TWO LOADS ARE ROUTINELY IN FLIGHT, AND THEY CAN LAND OUT OF ORDER.
+   *
+   * `resolveChild()` adopts or creates a child and fires `CHILD_EVENT`, whose
+   * listener re-enters `load()` — so the very first paint already has a second
+   * read behind it, and an add, a rename or a removal starts another. Whichever
+   * finishes last wins, which is not the same as the newest one winning: an
+   * older read that was issued before an insert committed will happily repaint
+   * the roster as it was, and the section then shows a list the database has
+   * already moved past.
+   *
+   * The counter is what makes "newest wins" true. It is not defensive
+   * decoration — it is the fix for a measured failure: under the full spec
+   * fan-out a removal left one name on screen and two rows in the table.
+   */
+  let generation = 0;
+
+  /**
+   * ⚠️ THE CHILD WHOSE ROW IS MID-EDIT, AND WHY REPAINTING IT IS FORBIDDEN.
+   *
+   * A background refresh landing while a parent is halfway through typing a new
+   * name replaces the input under them and loses what they wrote — measured as
+   * `element was detached from the DOM` before it was understood as a defect.
+   * Worse for a removal: the confirm they are reading is swapped for a fresh
+   * "Retirer" in the same place, under a thumb already moving.
+   *
+   * Whatever ends the edit calls `load()` itself, so nothing goes stale.
+   */
+  let editing: string | null = null;
+
+  const msg = (key: string) => root?.dataset[key] ?? '';
+
+  function setStatus(text: string) {
+    if (status) status.textContent = text;
+  }
+
+  function button(label: string, testid: string, extra = ''): HTMLButtonElement {
+    const el = document.createElement('button');
+    el.type = 'button';
+    /* ⚠️ `.btn-ghost` carries the 44px target and the press from controls.css.
+       A bare class of our own would be under the touch target on every phone,
+       which `motion.spec.ts` measures site-wide. */
+    el.className = `btn-ghost child-action${extra ? ` ${extra}` : ''}`;
+    el.textContent = label;
+    el.dataset['testid'] = testid;
+    return el;
+  }
+
+  /* ── "Qui joue ?" ──────────────────────────────────────────────────────── */
+
+  function paintChoices() {
+    if (!list) return;
+    list.replaceChildren(
+      ...children.map((child) => {
+        const li = document.createElement('li');
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn-ghost child-choice';
+        btn.textContent = child.name;
+        btn.dataset['childId'] = child.id;
+        /* ⚠️ `aria-pressed`, not a class alone — "which one is chosen" has to
+           reach someone who cannot see the highlight. */
+        btn.setAttribute('aria-pressed', String(active?.id === child.id));
+        btn.addEventListener('click', () => {
+          chooseChild(accountId, child);
+          active = child;
+          paint();
+        });
+        li.append(btn);
+        return li;
+      }),
+    );
+  }
+
+  /* ── The roster ────────────────────────────────────────────────────────── */
+
+  function paintRoster() {
+    if (!roster) return;
+    /* ⚠️ NEVER OVER A ROW THE READER IS IN THE MIDDLE OF. See `editing`. */
+    if (editing) return;
+    roster.replaceChildren(...children.map((child) => rosterRow(child)));
+  }
+
+  /** End an edit and redraw the row it was on, in one place. */
+  function endEdit() {
+    editing = null;
+    paintRoster();
+  }
+
+  function rosterRow(child: Child): HTMLLIElement {
+    const li = document.createElement('li');
+    li.className = 'child-row';
+    li.dataset['childId'] = child.id;
+
+    const name = document.createElement('span');
+    name.className = 'child-row-name';
+    name.textContent = child.name;
+    name.dataset['testid'] = 'child-row-name';
+
+    const actions = document.createElement('div');
+    actions.className = 'child-row-actions';
+
+    const rename = button(msg('msgRename'), 'child-rename');
+    /* Repeated per row, so the visible label alone is not a distinguishing
+       accessible name. */
+    rename.setAttribute('aria-label', `${msg('msgRename')} — ${child.name}`);
+    rename.addEventListener('click', () => startRename(li, child));
+    actions.append(rename);
+
+    /**
+     * ⚠️ NEVER THE LAST CHILD, AND THAT IS NOT TIMIDITY. `resolveChild()`
+     * creates a child from the profile name the instant an account has none,
+     * so "remove" on a lone child is a lie: it comes straight back, renamed,
+     * with its whole history gone by cascade. The button is absent rather than
+     * disabled — a disabled control with no explanation reads as a bug.
+     */
+    if (children.length > 1) {
+      const remove = button(msg('msgRemove'), 'child-remove');
+      remove.setAttribute('aria-label', `${msg('msgRemove')} — ${child.name}`);
+      remove.addEventListener('click', () => startRemove(li, child));
+      actions.append(remove);
+    } else {
+      const note = document.createElement('span');
+      note.className = 'child-note';
+      note.dataset['testid'] = 'child-only';
+      note.textContent = msg('msgOnlyChild');
+      actions.append(note);
+    }
+
+    li.append(name, actions);
+    return li;
+  }
+
+  /* ── Rename ────────────────────────────────────────────────────────────── */
+
+  function startRename(li: HTMLLIElement, child: Child) {
+    setStatus('');
+    editing = child.id;
+    const field = document.createElement('input');
+    field.type = 'text';
+    field.maxLength = 40;
+    field.value = child.name;
+    field.className = 'child-rename-input';
+    field.autocomplete = 'off';
+    field.dataset['testid'] = 'child-rename-input';
+    field.setAttribute('aria-label', msg('msgRenameLabel').replace('%s', child.name));
+
+    const save = button(msg('msgSave'), 'child-rename-save');
+    const cancel = button(msg('msgCancel'), 'child-rename-cancel');
+    save.addEventListener('click', () => void commitRename(child, field.value.trim()));
+    cancel.addEventListener('click', () => endEdit());
+    /* Enter is how a rename is finished by anyone who got here from the
+       keyboard; Escape is how it is abandoned. Neither may submit the add
+       form sitting below it. */
+    field.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        void commitRename(child, field.value.trim());
+      } else if (event.key === 'Escape') {
+        event.preventDefault();
+        endEdit();
+      }
+    });
+
+    const actions = document.createElement('div');
+    actions.className = 'child-row-actions';
+    actions.append(save, cancel);
+    li.replaceChildren(field, actions);
+    field.focus();
+    field.select();
+  }
+
+  async function commitRename(child: Child, name: string) {
+    if (!name || name === child.name) {
+      endEdit();
+      return;
+    }
+    const { getSupabase } = await import('@lib/supabase');
+    const supabase = await getSupabase();
+    const { error } = await supabase
+      .from('child_profiles')
+      .update({ display_name: name })
+      .eq('id', child.id);
+    editing = null;
+    if (error) {
+      setStatus(msg('msgRenameError'));
+      paintRoster();
+      return;
+    }
+    /* ⚠️ The remembered choice carries the NAME as well as the id, so a rename
+       that did not refresh it would leave this device's picker showing the old
+       one until the entry was replaced for some other reason. */
+    if (activeChild()?.id === child.id) chooseChild(accountId, { id: child.id, name });
+    await load();
+  }
+
+  /* ── Remove ────────────────────────────────────────────────────────────── */
+
+  /**
+   * ⚠️ TWO STEPS, IN PLACE — no modal, and no `window.confirm`.
+   *
+   * This is the one control on the site that destroys data a child earned:
+   * `child_profiles` is the FK target for progress, games, attendance and
+   * awards, all `on delete cascade`. The confirm therefore names the child and
+   * says what goes with them, rather than asking "are you sure?" about a row.
+   */
+  function startRemove(li: HTMLLIElement, child: Child) {
+    setStatus('');
+    editing = child.id;
+    const question = document.createElement('span');
+    question.className = 'child-row-name';
+    question.dataset['testid'] = 'child-remove-question';
+    question.textContent = msg('msgRemoveConfirm').replace('%s', child.name);
+
+    const yes = button(msg('msgRemoveYes'), 'child-remove-confirm', 'child-action-danger');
+    const no = button(msg('msgCancel'), 'child-remove-cancel');
+    yes.addEventListener('click', () => void commitRemove(child));
+    no.addEventListener('click', () => endEdit());
+
+    const actions = document.createElement('div');
+    actions.className = 'child-row-actions';
+    actions.append(yes, no);
+    li.replaceChildren(question, actions);
+    /* The confirm takes focus, so the keyboard path does not have to hunt for
+       the control the click path just revealed. */
+    yes.focus();
+  }
+
+  async function commitRemove(child: Child) {
+    const { getSupabase } = await import('@lib/supabase');
+    const supabase = await getSupabase();
+    const { error } = await supabase.from('child_profiles').delete().eq('id', child.id);
+    editing = null;
+    if (error) {
+      setStatus(msg('msgRemoveError'));
+      paintRoster();
+      return;
+    }
+    /* ⚠️ The device's remembered choice goes with it. Left behind, resolution
+       keeps handing progress to a child id RLS now refuses, and the offline
+       queue never drains — the same re-validation `resolveChild()` does for a
+       graduated child, done here because we already know. */
+    if (activeChild()?.id === child.id) {
+      forgetChild(accountId);
+      active = null;
+    }
+    await load();
+  }
+
+  /* ── Load and paint ────────────────────────────────────────────────────── */
+
+  function paint() {
+    if (!root) return;
+    /* ⚠️ THE TWO RULES, SPELLED SEPARATELY. Signed in ⇒ the section. More than
+       one child ⇒ the picker as well. Anything that re-couples these puts the
+       add form back out of reach. */
+    root.hidden = false;
+    if (picker) picker.hidden = children.length <= 1;
+    paintChoices();
+    paintRoster();
+  }
+
+  async function load() {
+    const mine = ++generation;
+    const { getUser, getSupabase } = await import('@lib/supabase');
+    const user = await getUser();
+    if (!user) return;
+    accountId = user.id;
+
+    /* Resolution decides silently where it can; only what it could not decide
+       comes back in `pendingChoices()`. */
+    const resolved = (await resolveChild()) ?? activeChild();
+    const supabase = await getSupabase();
+    const { data } = await supabase
+      .from('child_profiles')
+      .select('id,display_name')
+      .eq('account_id', user.id)
+      .order('created_at');
+
+    /* ⚠️ A NEWER LOAD HAS ALREADY ANSWERED — drop this one rather than paint
+       over it. See `generation`: this read may have been issued before an
+       insert or a delete that has since committed, and last-to-finish is not
+       the same as most-recent. */
+    if (mine !== generation) return;
+
+    active = resolved;
+    const rows: Child[] = (data ?? []).map((row) => ({
+      id: String(row['id']),
+      name: String(row['display_name'] ?? ''),
+    }));
+    children = rows.length > 0 ? rows : [...pendingChoices()];
+    paint();
+  }
+
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const name = (input?.value ?? '').trim();
+    if (!name) return;
+    const { getSupabase } = await import('@lib/supabase');
+    const supabase = await getSupabase();
+    const { error } = await supabase
+      .from('child_profiles')
+      .insert([{ account_id: accountId, display_name: name }]);
+    if (error) {
+      setStatus(msg('msgAddError'));
+      return;
+    }
+    if (input) input.value = '';
+    setStatus('');
+    await load();
+  });
+
+  window.addEventListener(CHILD_EVENT, () => void load());
+  void load();
+</script>

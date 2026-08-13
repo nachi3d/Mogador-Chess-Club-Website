@@ -288,6 +288,7 @@ it. Tags said one thing and the manifest said another.
 45. **The register is one tap per child, no modal, no save button.** Marking twenty teenagers in a room is the constraint the whole surface is shaped by, and it is measured rather than claimed.
 46. **A cancelled session is a STATE, never a deletion.** Deleting one cascades its register away; students who were told it was happening are left wondering.
 47. **There is ONE ledger summation** — `computeLedger()` — and the inline resolver's copy is pinned equal to it by a spec. A prof and a student must never read different totals.
+48. **A control a signed-in reader is entitled to use is REACHABLE, and a spec drives it.** The family section renders for every signed-in account; only the picker inside it is conditional. RLS saying yes is not the same as the reader being able to get there — see the family-section rule below.
 
 ---
 
@@ -360,9 +361,24 @@ time. No error, no warning, no visible red — just a border that computes to
 | `--mcc-border` | `--mcc-border-subtle` / `--mcc-border-strong` | 12 borderless elements across 7 files |
 | `--font-mono` | `--font-notation` | every inline notation in every lesson set in Inter |
 | `--font-display` | `--mcc-font-display` | a heading that never follows the theme |
+| `--mcc-text`, `--mcc-text-muted` | `--mcc-text-primary` / `--mcc-text-secondary` | the child picker's buttons and intro drew no colour at all |
 
 **The rule: assert the RESOLVED value, never that a rule exists.** A spec
-asserting the rule would have passed throughout all three bugs.
+asserting the rule would have passed throughout all four bugs.
+
+### ⚠️ A SCOPED `<style>` DOES NOT REACH AN ELEMENT THE SCRIPT CREATED
+
+Astro stamps `data-astro-cid-*` at **build** time onto the elements a component
+declares, and compiles `.child-choice` to `.child-choice[data-astro-cid-…]`. An
+element built at runtime carries the class and not the attribute, so **every
+rule silently misses it.** Nothing errors; the tell is a control that looks like
+it belongs to a different website.
+
+**Anything painted by script is styled from a real stylesheet** — `admin.css`,
+`family.css` — imported by the component, and structure still comes from
+`controls.css`. ⚠️ Prefix those rules with the section class (`.family .child-…`)
+so the cascade is settled by **specificity, not by stylesheet order**, which is
+not guaranteed for a component-imported sheet.
 
 ### The rest of the board
 
@@ -1079,13 +1095,46 @@ no-email magic link, becoming a prof, and the walkthrough of the picker,
 `/compte/` and the admin surfaces. **Read it before testing anything behind the
 flag** — and its §7, which is what is *not* built.
 
-⚠️ **A PARENT CANNOT ADD A SECOND CHILD FROM THE UI.** The "Ajouter un élève"
-form exists in `ChildPicker.astro` and RLS permits the insert, but the whole
-section is hidden whenever the account holds **one child or none** — and a new
-account is given exactly one. So the form is unreachable for every account that
-has never had a second child added by SQL. Nothing in the suite covers it, which
-is how it stayed that way. **It needs a design decision, not a quick fix**, and
-it is why `seed-test.mjs` gives one seeded family two children.
+#### ⚠️ THE FAMILY SECTION AND THE PICKER ARE TWO RULES, NOT ONE
+
+`FamilySection.astro` on `/compte/`. Coupling these is what made "Ajouter un
+élève" unreachable for every account that had never had a second child inserted
+by SQL — see Critical Feature 48 and
+[`docs/reference/supabase.md`](./docs/reference/supabase.md).
+
+1. **The section renders for every signed-in account.** Adding, renaming and
+   removing a student are things a parent does with one child exactly as much as
+   with three.
+2. **Only the "Qui joue ?" picker is conditional** — hidden at one child or
+   fewer, because `resolveChild()` adopts a lone child silently and there is
+   genuinely nothing to ask.
+
+- ⚠️ **The roster and the picker are two lists of the same names, deliberately.**
+  The picker is tapped by a child on a shared tablet; "Retirer" must not sit
+  beside the button they are aiming for.
+- ⚠️ **Removal is never offered for the last child.** `resolveChild()` creates
+  one from the profile name the instant an account has none, so the control
+  would be a lie: the child returns, renamed, with its history gone by cascade.
+  The button is **absent**, not disabled, and a sentence says why.
+- ⚠️ **Removal is the one control on the site that destroys what a child
+  earned** — `child_profiles` is the FK target of progress, games, attendance
+  and awards, all `on delete cascade`. Two steps, in place, naming the child and
+  what goes with them. That is not the same thing as the picker's no-PIN rule
+  (Critical Feature 42), which is about *choosing*, not *erasing*.
+- ⚠️ **A removal or a rename must update the device's remembered choice.** Left
+  behind, resolution keeps handing progress to a child id RLS now refuses and
+  the offline queue never drains.
+- ⚠️ **TWO LOADS ARE ROUTINELY IN FLIGHT AND CAN LAND OUT OF ORDER.**
+  `resolveChild()` fires `CHILD_EVENT`, whose listener re-enters `load()`, so
+  the first paint already has a second read behind it. **Last to finish is not
+  most recent** — a generation counter drops the older answer, and a repaint
+  never touches a row that is mid-edit. Both were measured failures, not
+  precautions: a removal left one name on screen and two rows in the table, and
+  a rename input was detached from under the typing.
+- ⚠️ **`family.spec.ts` is the UI spec and `child-profiles.spec.ts` is the
+  boundary spec.** RLS permitted every one of these writes throughout the whole
+  time the form was invisible, so an assertion about *reachability* belongs in
+  the first and can never live in the second.
 
 ### ⚠️ Symptoms that are the ENVIRONMENT, not the application
 

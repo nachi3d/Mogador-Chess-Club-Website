@@ -476,6 +476,24 @@ const fr = {
   'child.addLabel': 'Ajouter un élève',
   'child.add': 'Ajouter',
   'child.addError': 'Impossible d’ajouter cet élève. Réessayez.',
+  /* ── The family section itself, of which "Qui joue ?" is only one part ────
+     ⚠️ These are separate keys from `child.*` on purpose: the section renders
+     for every signed-in account and the picker does not. One string table
+     entry shared between them is how the two rules got coupled in the first
+     place. */
+  'family.heading': 'Mes élèves',
+  'family.intro':
+    'Les élèves inscrits sur ce compte. Vous pouvez en ajouter un, le renommer, ou le retirer.',
+  'family.rename': 'Renommer',
+  'family.renameLabel': 'Nouveau prénom pour %s',
+  'family.save': 'Enregistrer',
+  'family.cancel': 'Annuler',
+  'family.renameError': 'Impossible de renommer cet élève. Réessayez.',
+  'family.remove': 'Retirer',
+  'family.removeConfirm': 'Retirer %s ? Toute sa progression sera effacée.',
+  'family.removeYes': 'Oui, retirer',
+  'family.removeError': 'Impossible de retirer cet élève. Réessayez.',
+  'family.onlyChild': 'Un compte garde toujours au moins un élève.',
   'account.title': 'Mon compte',
   'account.intro': 'Votre nom affiché et votre langue. Rien d’autre n’est stocké ici.',
   'account.displayName': 'Prénom affiché',
@@ -971,6 +989,19 @@ const en: Record<keyof typeof fr, string> = {
   'child.addLabel': 'Add a student',
   'child.add': 'Add',
   'child.addError': 'Could not add this student. Please try again.',
+  'family.heading': 'My students',
+  'family.intro':
+    'The students on this account. You can add one, rename one, or remove one.',
+  'family.rename': 'Rename',
+  'family.renameLabel': 'New first name for %s',
+  'family.save': 'Save',
+  'family.cancel': 'Cancel',
+  'family.renameError': 'Could not rename this student. Please try again.',
+  'family.remove': 'Remove',
+  'family.removeConfirm': 'Remove %s? All of their progress will be erased.',
+  'family.removeYes': 'Yes, remove',
+  'family.removeError': 'Could not remove this student. Please try again.',
+  'family.onlyChild': 'An account always keeps at least one student.',
   'account.title': 'My account',
   'account.intro': 'Your display name and language. Nothing else is stored here.',
   'account.displayName': 'Display first name',

@@ -11,6 +11,86 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### Fixed — the add-a-child form existed, was permitted, and could not be reached
+
+`/compte/` carried an **Ajouter un élève** form that inserted into
+`child_profiles`. RLS permitted the insert. The markup was correct. And one line
+hid the **whole section**, form included, whenever the account held one child or
+none — while `resolveChild()` gives every brand-new account exactly one:
+
+```js
+if (children.length <= 1 && active) { root.hidden = true; return; }
+```
+
+A parent with two children could add a third; a parent with one could add none,
+and the only way onto the other side of that was SQL. ⚠️ **Two rules had been
+written as one**: "there is nothing to *ask*" and "there is nothing to *manage*"
+are different claims, and only the first is true at one child.
+
+⚠️ **Every check in the project passed the entire time.** `child-profiles.spec.ts`
+was green and could not have been otherwise — it asserts the boundary through
+PostgREST, where a form does not exist. Nothing rendered wrong, nothing 404'd,
+and nothing was missing from the page for a test to notice. **A permission model
+that says yes proves nothing about whether a reader can get there.**
+
+- **`ChildPicker.astro` → `FamilySection.astro`**, and the two rules are now
+  spelled separately: the section renders for every signed-in account; only the
+  **Qui joue ?** picker is conditional on holding more than one child.
+- **Rename and remove**, which did not exist in any form. The roster is a
+  **second list**, deliberately not the picker: the picker is what a child taps
+  on a shared tablet, and "Retirer" must not sit beside the button they aim for.
+- ⚠️ **Removal is never offered for the last child.** `resolveChild()` creates
+  one from the profile name the instant an account has none, so the control
+  would be a lie — the child returns, renamed, with its history gone by cascade.
+  The button is absent rather than disabled, and a sentence says why.
+- ⚠️ **Removal asks first, in place, naming the child and what goes with them.**
+  It is the one control on the site that destroys what a child earned:
+  `child_profiles` is the FK target of progress, games, attendance and awards,
+  all `on delete cascade`. That is not in tension with "Qui joue ? is a choice,
+  not a password" — one is about choosing, the other about erasing.
+- **`tests/e2e/family.spec.ts`** drives the browser as an account with exactly
+  one child and asserts against the row afterwards. ⚠️ It was verified by
+  restoring the coupled rule and watching all six tests fail on
+  `expect(family).toBeVisible() — unexpected value "hidden"`.
+- **Critical Feature 48** and a spec-map entry, so the file runs when the code
+  it covers moves.
+
+⚠️ **And the new spec immediately found a second defect, which is the argument
+for having written it.** Two `load()` calls are routinely in flight —
+`resolveChild()` fires `CHILD_EVENT`, whose listener re-enters `load()` — and
+they can land out of order. Passing alone, the family spec was green; run
+alongside the other ten mapped specs it failed twice, and neither was a flake:
+
+- a removal left **one name on screen and two rows in the table**, because a
+  read issued before the delete committed repainted the roster afterwards.
+  **Last to finish is not most recent**; a generation counter now drops the
+  older answer.
+- a rename input was **detached from the DOM under the typing** by a background
+  repaint. A repaint now never touches a row that is mid-edit — worse than lost
+  keystrokes would have been the removal confirm being swapped for a fresh
+  "Retirer" in the same place, under a thumb already moving.
+
+### Fixed — the picker's own styling had never applied to the picker
+
+Two defects that had lived in the same file for the same reason: nobody had
+looked at it in a browser signed in with one child, because they could not.
+
+⚠️ **A scoped `<style>` cannot reach an element the script created.** Astro
+stamps `data-astro-cid-*` at build time onto the elements a component declares,
+so `.child-choice` compiled to `.child-choice[data-astro-cid-hcrewwfn]` — and
+the choice buttons are built in JS, carrying the class and not the attribute.
+Every rule missed. Verified by building the previous commit and reading the
+emitted CSS. Same trap as `admin.css`; the styles are now
+`src/styles/family.css`, prefixed with `.family` so the cascade is settled by
+specificity rather than by stylesheet order.
+
+⚠️ **And two of those declarations named tokens that do not exist** —
+`--mcc-text` and `--mcc-text-muted`, against the real `--mcc-text-primary` and
+`--mcc-text-secondary`. An unknown custom property invalidates the whole
+declaration silently; this is the fourth and fifth entry in that table in
+CLAUDE.md. The add button, meanwhile, took its border from a scoped rule
+belonging to a *different* component and so had none at all.
+
 ### Added — testing accounts by hand is one command
 
 `npm run demo:accounts` builds and serves the site with `PUBLIC_AUTH_ENABLED=true`

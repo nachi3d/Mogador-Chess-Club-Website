@@ -1,0 +1,163 @@
+/**
+ * The family section of `/compte/` — the roster, the picker, the add form.
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️ A PLAIN STYLESHEET, NOT A SCOPED `<style>`, AND THAT IS LOAD-BEARING.
+ *
+ * Every row in here is built by script at runtime. Astro stamps its scoping
+ * attribute (`data-astro-cid-*`) at BUILD time onto the elements the component
+ * declares, so a scoped rule styles the template and silently skips every
+ * identical element the script creates. Same trap as `admin.css` — and it had
+ * already bitten here: `.child-choice` was styled in a scoped block while the
+ * buttons were created in JS, so the picker's choice buttons rendered as
+ * unstyled browser defaults for the whole life of that component.
+ *
+ * Nothing errors, nothing 404s. The tell is a control that looks like it
+ * belongs to a different website.
+ *
+ * ⚠️ THE CONTROLS.CSS BARGAIN APPLIES. Structure (the 44px target, the press)
+ * comes from `.btn-ghost` in `controls.css`; this file adds only colour and
+ * layout. The `.family` prefix on those rules settles the cascade by
+ * specificity rather than by stylesheet order, which is not guaranteed for a
+ * component-imported sheet.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+
+.family {
+  margin-block: 2rem;
+  padding: 1.25rem;
+  border-inline-start: 3px solid var(--mcc-border-subtle);
+}
+
+.family > h2 {
+  margin: 0 0 0.4rem;
+  font-size: 1.125rem;
+}
+
+.family-intro,
+.child-intro {
+  margin: 0 0 1rem;
+  color: var(--mcc-text-secondary);
+}
+
+/* ── "Qui joue ?" — the conditional half ─────────────────────────────────── */
+
+.child-picker {
+  margin-bottom: 1.75rem;
+}
+
+.child-picker h3 {
+  margin: 0 0 0.4rem;
+  font-size: 1rem;
+}
+
+.child-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 0;
+  margin-block: 1rem;
+  list-style: none;
+}
+
+.family .child-choice {
+  border: 2px solid var(--mcc-border-strong);
+  background-color: var(--mcc-surface-raised);
+  color: var(--mcc-text-primary);
+}
+
+/* The chosen one is marked by weight AND border, never colour alone. */
+.family .child-choice[aria-pressed='true'] {
+  border-color: var(--mcc-accent-strong);
+  font-weight: 600;
+}
+
+/* ── The roster — always present, and where the destructive controls live ── */
+
+/**
+ * ⚠️ DELIBERATELY NOT THE SAME LIST AS THE PICKER. The picker is tapped by a
+ * child on a shared tablet; "Retirer" must not sit beside the button they aim
+ * for. Two lists of the same names is the cost, and it is the cheap side of
+ * that trade.
+ */
+.child-roster {
+  padding: 0;
+  margin: 0 0 1.25rem;
+  list-style: none;
+}
+
+.child-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  align-items: center;
+  padding-block: 0.5rem;
+  border-block-start: 1px solid var(--mcc-border-subtle);
+}
+
+.child-row:last-child {
+  border-block-end: 1px solid var(--mcc-border-subtle);
+}
+
+.child-row-name {
+  flex: 1 1 8rem;
+  font-weight: 500;
+}
+
+.child-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.family .child-action {
+  padding-inline: 0.9rem;
+  border: 1px solid var(--mcc-border-strong);
+  background: none;
+  color: var(--mcc-link);
+}
+
+/* The CONFIRM step, never the first click — see the two-step rule in the
+   component. Bordered rather than filled: it is a question, not a call to
+   action, and a filled red button is exactly what gets tapped by reflex. */
+.family .child-action-danger {
+  border-color: var(--mcc-accent-strong);
+  font-weight: 600;
+}
+
+.child-note {
+  color: var(--mcc-text-secondary);
+  font-size: 0.875rem;
+}
+
+.family .child-rename-input,
+.family .child-add input {
+  flex: 1 1 10rem;
+  min-height: 2.75rem;
+  padding: 0.4rem 0.7rem;
+  border: 1px solid var(--mcc-border-strong);
+  border-radius: var(--radius-card);
+  background-color: var(--mcc-surface-page);
+  color: var(--mcc-text-primary);
+  font: inherit;
+}
+
+/* ── Add ─────────────────────────────────────────────────────────────────── */
+
+.child-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: end;
+}
+
+.child-add label {
+  flex-basis: 100%;
+  font-weight: 500;
+}
+
+.child-status {
+  margin: 0.75rem 0 0;
+  color: var(--mcc-text-secondary);
+}
