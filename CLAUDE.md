@@ -1058,6 +1058,35 @@ It clears the ports and sweeps orphaned previews and browsers first, **stops dea
 if the build fails**, and prints the branch, the last commit, the URL and the path
 to `docs/MANUAL-TESTS.md`. Do not hand-run `build && preview` any more.
 
+#### Accounts ON — `npm run demo:accounts`, and never a hand-typed env line
+
+```sh
+npm run demo:accounts     # + `-- --host` for a real phone
+```
+
+⚠️ **`.env.local` HOLDS THE PRODUCTION PROJECT**, because that is what a deploy
+build needs. So the dangerous mistake is not a build that fails — it is one that
+**succeeds** while wired to the live database, where signing in on localhost
+creates a real account and nothing announces it. `demo:accounts` reads the test
+credentials through the same interlock as the e2e suite and **fails closed**;
+never reconstruct it as `PUBLIC_SUPABASE_URL=… npm run demo`.
+
+⚠️ **Never put `PUBLIC_AUTH_ENABLED` in `.env.local`.** The default build on this
+machine must stay the shape production ships.
+
+**➡️ [`docs/LOCAL-ACCOUNTS.md`](./docs/LOCAL-ACCOUNTS.md)** — seeding, the
+no-email magic link, becoming a prof, and the walkthrough of the picker,
+`/compte/` and the admin surfaces. **Read it before testing anything behind the
+flag** — and its §7, which is what is *not* built.
+
+⚠️ **A PARENT CANNOT ADD A SECOND CHILD FROM THE UI.** The "Ajouter un élève"
+form exists in `ChildPicker.astro` and RLS permits the insert, but the whole
+section is hidden whenever the account holds **one child or none** — and a new
+account is given exactly one. So the form is unreachable for every account that
+has never had a second child added by SQL. Nothing in the suite covers it, which
+is how it stayed that way. **It needs a design decision, not a quick fix**, and
+it is why `seed-test.mjs` gives one seeded family two children.
+
 ### ⚠️ Symptoms that are the ENVIRONMENT, not the application
 
 Each of these has cost real debugging time. **Recognise the signature before

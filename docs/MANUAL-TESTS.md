@@ -412,22 +412,39 @@ not as "unavailable", so the state no longer exists.
 - [ ] The prerequisite line still goes to `/apprendre-les-bases/`, and the
       tutorial index still lists its 13 steps
 
-### v2-S4 — the role boundary (no UI yet)
+### v2-S4 — the role boundary and the admin surfaces
 
-The surfaces are not built, so there is nothing to click. What is checkable by
-hand is that nothing LEAKED into the site while accounts are off.
+**The surfaces ARE built** (part 2), and they are only reachable in a build with
+`PUBLIC_AUTH_ENABLED=true`. ⚠️ **Walking them needs a test project, a seed and a
+prof role — the whole procedure is [`docs/LOCAL-ACCOUNTS.md`](./LOCAL-ACCOUNTS.md),
+which is the single source for it.** Do not improvise the environment: `.env.local`
+holds the PRODUCTION project, and a hand-typed build wired to it would create real
+accounts in the live club's database.
 
-- [ ] With the flag off, nothing about admin, attendance or teacher points is
-      visible or reachable anywhere on the site
+What belongs on *this* list is what only a person can judge.
+
+With the flag **off** — the shape production ships, and what `npm run demo` gives
+you:
+
+- [ ] Nothing about admin, attendance or teacher points is visible or reachable
+      anywhere on the site
 - [ ] `/agenda` still renders from the git collection, unchanged
 
-When part 2 lands, the check that matters is the one only a real room can
-answer:
+With the flag **on** (`npm run demo:accounts`):
 
 - [ ] ⚠️ **Mark a full class on a phone, at Dar Souiri, during a real session.
       How long does it take?** Twenty teenagers, one tap each, standing up. If
       it needs a modal per student or a save button per row it has failed,
-      however correct it is
+      however correct it is. The suite measures 59 ms of UI per child; it cannot
+      measure a room
+- [ ] The "Qui joue ?" picker on a **shared family tablet**: does the right child
+      get asked for, and does a child's own phone stop asking?
+- [ ] The points a prof sees on `/admin/eleve/` and the points that child sees on
+      `/progres/` are **the same number**. Two plausible, different totals is the
+      worst failure this display can have
+- [ ] ⚠️ A parent cannot add a second child from anywhere in the UI — see
+      §7a of `docs/LOCAL-ACCOUNTS.md`. Confirm you agree that is the gap, and
+      decide where adding a child should live
 
 ### v2-S3 — progress sync (only once `PUBLIC_AUTH_ENABLED` is on)
 

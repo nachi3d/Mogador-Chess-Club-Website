@@ -11,6 +11,57 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### Added — testing accounts by hand is one command
+
+`npm run demo:accounts` builds and serves the site with `PUBLIC_AUTH_ENABLED=true`
+against the **test** Supabase project, then hands off to `npm run demo` so the
+port sweep, the orphan sweep and the Ctrl+C cleanup stay in one place.
+
+⚠️ **It is a script rather than a documented shell line because the failure mode
+is not a broken build.** `.env.local` holds the PRODUCTION project — that is what
+a deploy build needs — so omitting or fat-fingering the override produces a build
+that *succeeds* and is wired to the live database, where signing in on localhost
+creates a real account. Nothing would announce it. The script reads the test
+credentials through the same interlock the e2e suite uses and **fails closed**:
+missing config, a missing production ref, an unparseable URL, or a match against
+production all abort before anything is built.
+
+- **`docs/LOCAL-ACCOUNTS.md`** — the whole procedure: seed, sign in, become a
+  prof, and walk the picker, `/compte/` and the three admin surfaces. Its last
+  section is what is **not** built, which is the part most worth reading first.
+- **`supabase/seed/magic-link.mjs`** — mints a magic link for a seeded account
+  without email. The seeded accounts live on a domain with no inbox anywhere, so
+  the sign-in form can never reach them; `generateLink` skips the *delivery* and
+  leaves the real flow (verify → callback → tokens in the fragment) intact.
+- **`seed-test.mjs` now seeds child profiles**, and gives one family **two**
+  children. `child_profiles` was first populated by the one-off backfill in
+  migration 0005, so an account created afterwards has none until someone signs
+  in as them — a freshly seeded project came up with an **empty class list** at
+  `/admin/eleves/`, which reads as a broken surface rather than an unpopulated
+  one. And "Qui joue ?" only renders above one child, so with one child per
+  account the picker was untestable by construction.
+
+### Fixed — the e2e purge aborted every run that had anything to delete
+
+`tests/e2e/helpers/purge.ts` checked the delete cascade by querying `profile_id`
+on `exercise_progress` and `attendance`. ⚠️ **Migration 0005 repointed both at
+`child_profiles` and dropped that column**, so PostgREST answered `42703` and the
+helper threw — blaming the cascade for what was a stale query. Any run that
+actually deleted an e2e user aborted in global setup or teardown.
+
+⚠️ **It was invisible while the test project happened to be empty**, because the
+whole block is skipped when nothing was deleted. Found while setting up local
+account testing, and reproduced deliberately: a planted user with a child and an
+`exercise_progress` row made the next run abort, and passes on the fix.
+
+The check now follows the column — `child_id` on `exercise_progress`,
+`game_results`, `attendance` and `point_awards`, collected **before** the delete
+because afterwards there is nothing left to ask — and adds `child_profiles`
+itself, so the chain under test is the full one:
+`auth.users → profiles → child_profiles → progress/games/attendance/awards`.
+`lesson_progress` stays on `profile_id`: it is the deprecated 0001 table, it was
+never repointed, and it still hangs off the account.
+
 ### Fixed — the release gate is green again, and the cause was the machine
 
 **`npm run test:release` now runs one project at a time under a worker cap:
