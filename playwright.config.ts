@@ -76,6 +76,13 @@ export default defineConfig({
      * The retry does not mask anything real: a genuine failure is
      * deterministic and fails the retry too. If a Firefox spec fails twice,
      * believe it.
+     *
+     * ⚠️ THE RETRY IS NOT THE FIX, AND IT WAS NEVER ENOUGH. It absorbs one
+     * lost browser; it cannot absorb a machine that has run out of memory,
+     * which is what two consecutive release gates actually hit. That is fixed
+     * in `scripts/test-release.mjs` — the matrix runs one project at a time
+     * under a worker cap — and NOT here. ⚠️ `fullyParallel: false` on this
+     * project was measured and REJECTED: see MEASUREMENTS in that file.
      */
     {
       name: 'firefox',
