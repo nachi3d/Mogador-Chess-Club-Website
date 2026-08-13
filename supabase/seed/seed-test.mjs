@@ -60,6 +60,32 @@ const PEOPLE = [
   { email: at('seed-eleve-2'), name: 'Omar', role: 'eleve', locale: 'en' },
 ];
 
+/**
+ * ⚠️ THE CHILDREN ARE SEEDED, NOT LEFT TO THE MIGRATION.
+ *
+ * `child_profiles` got its first rows from the section-4 backfill in migration
+ * 0005, which is a ONE-OFF: it ran once, over the accounts that existed at that
+ * moment. A seed account created afterwards has no child until somebody signs in
+ * as them and `resolveChild()` adopts one. So a freshly re-seeded project — or a
+ * new test project — comes up with an EMPTY CLASS LIST at `/admin/eleves/`, and
+ * the surface looks broken when it is merely unpopulated.
+ *
+ * ⚠️ AND ONE FAMILY DELIBERATELY HAS TWO CHILDREN. "Qui joue ?" only renders
+ * when an account holds MORE THAN ONE — `resolveChild()` adopts a lone child
+ * silently, which is the autonomous-teenager path (see `src/lib/child.ts`). With
+ * one child per account the picker is unreachable and cannot be tested at all.
+ * Sara's account therefore holds two, Omar's holds one, and the two code paths
+ * are both walkable on a seeded project.
+ *
+ * Keyed by the account's seed address; matched by display_name so a re-run adds
+ * only what is missing. Never deletes: a child carries progress, and a seed
+ * script that dropped them would take attendance and awards with it by cascade.
+ */
+const CHILDREN = {
+  [at('seed-eleve-1')]: ['Sara', 'Yassine'],
+  [at('seed-eleve-2')]: ['Omar'],
+};
+
 async function upsertPerson(person) {
   const { data, error } = await sb.auth.admin.createUser({
     email: person.email,
@@ -101,6 +127,43 @@ async function upsertPerson(person) {
   return data.user.id;
 }
 
+/**
+ * One learner per name in CHILDREN, under the account that holds them.
+ *
+ * Idempotent by (account, display_name): a re-run inserts only what is absent.
+ * `child_profiles` has no unique constraint and must never gain one — a parent
+ * legitimately holds several children (see migration 0005 §4) — so the check is
+ * a read, not an `on conflict`.
+ */
+async function seedChildren(idByEmail) {
+  for (const [email, names] of Object.entries(CHILDREN)) {
+    const accountId = idByEmail.get(email);
+    if (!accountId) {
+      console.log(`  ! ${email} has no account id — skipping its children`);
+      continue;
+    }
+    const locale = PEOPLE.find((p) => p.email === email)?.locale ?? 'fr';
+
+    const { data: existing, error: readError } = await sb
+      .from('child_profiles')
+      .select('display_name')
+      .eq('account_id', accountId);
+    if (readError) throw new Error(`children of ${email}: ${readError.message}`);
+    const have = new Set((existing ?? []).map((row) => row.display_name));
+
+    const missing = names.filter((name) => !have.has(name));
+    if (missing.length === 0) {
+      console.log(`  = ${email}: ${names.length} child profile(s) already present`);
+      continue;
+    }
+    const { error } = await sb
+      .from('child_profiles')
+      .insert(missing.map((display_name) => ({ account_id: accountId, display_name, locale })));
+    if (error) throw new Error(`children of ${email}: ${error.message}`);
+    console.log(`  + ${email}: ${missing.join(', ')}`);
+  }
+}
+
 function isoDaysFromNow(days, hour) {
   const d = new Date();
   d.setUTCDate(d.getUTCDate() + days);
@@ -112,7 +175,14 @@ async function main() {
   console.log(`seed → project "${env.testRef}" (production is "${env.productionRef}")`);
 
   const ids = [];
-  for (const person of PEOPLE) ids.push(await upsertPerson(person));
+  const idByEmail = new Map();
+  for (const person of PEOPLE) {
+    const id = await upsertPerson(person);
+    ids.push(id);
+    if (id) idByEmail.set(person.email, id);
+  }
+
+  await seedChildren(idByEmail);
 
   const createdBy = ids[0] ?? null;
   const sessions = [

@@ -15,6 +15,7 @@
     "build": "node scripts/check-claude-md.mjs && node scripts/check-contrast.mjs && astro check && astro build && node scripts/build-sw.mjs",
     "preview": "astro preview",
     "demo": "node scripts/demo.mjs",
+    "demo:accounts": "node scripts/demo-accounts.mjs",
     "astro": "astro",
     "check": "astro check",
     "test:branch": "node scripts/test-branch.mjs",
