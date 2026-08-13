@@ -852,11 +852,52 @@ if (tutorialOrders.length > 0) {
   }
 }
 
-/* ─────────────────────────── agenda ────────────────────────────── */
+/* ─────────────────────────── agenda ──────────────────────────────
 
-for (const { file, data } of readCollection('agenda')) {
-  if (Number.isNaN(new Date(data.date).getTime())) fail(file, `unparseable date "${data.date}"`);
-  console.log(`  ok  ${file} — ${data.date} ${data.time}`);
+   ⚠️ NO LONGER A COLLECTION. Sessions come from the database, baked into
+   `src/data/agenda.json` by `scripts/fetch-agenda.mjs`. What is checkable here
+   is the SNAPSHOT — a file a person can hand-edit, that no Zod schema guards,
+   and that the whole public agenda is rendered from. */
+
+{
+  /* ⚠️ THE COMMITTED FILE, NOT THE ARTEFACT. `src/data/agenda.json` is
+     generated at build time and gitignored — checking it would mean checking
+     whatever the last build happened to fetch, which is not a property of this
+     repository. The fallback is what a person edits and what ships when a build
+     has no credentials. */
+  const snapshotPath = new URL('../src/data/agenda.fallback.json', import.meta.url).pathname.replace(
+    /^\/([A-Za-z]:)/,
+    '$1',
+  );
+  const file = 'src/data/agenda.fallback.json';
+  let snapshot = null;
+  try {
+    snapshot = JSON.parse(readFileSync(snapshotPath, 'utf8'));
+  } catch (error) {
+    fail(file, `unreadable or invalid JSON — ${error.message}`);
+  }
+  if (snapshot) {
+    if (!Array.isArray(snapshot.sessions)) {
+      fail(file, 'no `sessions` array — the agenda would render empty');
+    } else {
+      const seen = new Set();
+      for (const s of snapshot.sessions) {
+        const where = `${file} [${s?.id ?? '?'}]`;
+        if (!s?.id) fail(where, 'a session with no id');
+        else if (seen.has(s.id)) fail(where, 'duplicate session id');
+        else seen.add(s.id);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(s?.date ?? '')) fail(where, `bad date "${s?.date}"`);
+        if (!/^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(s?.time ?? '')) fail(where, `bad time "${s?.time}"`);
+        /* ⚠️ `draft` must never reach this file. The snapshot is public — it is
+           compiled into every visitor's HTML — so a draft here is an unannounced
+           session published by accident. */
+        if (!['published', 'cancelled'].includes(s?.status)) {
+          fail(where, `status "${s?.status}" is not publishable`);
+        }
+      }
+      console.log(`  ok  ${file} — ${snapshot.sessions.length} session(s), zone ${snapshot.timezone}`);
+    }
+  }
 }
 
 /* ───────────────────── the manual review queue ─────────────────── */

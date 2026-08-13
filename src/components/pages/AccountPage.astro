@@ -39,6 +39,9 @@ const t = useTranslations(locale);
     data-msg-synced={t('account.import.upToDate')}
     data-msg-sync-ok={t('account.sync.ok')}
     data-msg-sync-pending={t('account.sync.pending')}
+    data-msg-delete-word={t('account.delete.confirmWord')}
+    data-msg-delete-working={t('account.delete.working')}
+    data-msg-delete-error={t('account.delete.error')}
   >
     {/* Signed out — the default, because that is what a static page can prove. */}
     <div class="account-signed-out" data-testid="account-signed-out" hidden>
@@ -155,11 +158,76 @@ const t = useTranslations(locale);
           {t('auth.signOut')}
         </button>
       </p>
+
+      {/* ── Erasure ──────────────────────────────────────────────────────
+          ⚠️ LAST ON THE PAGE, AND BEHIND TWO DELIBERATE STEPS.
+
+          The privacy notice has always promised erasure on request; until now
+          that promise was kept by a volunteer remembering to run a SQL
+          statement. This is the button.
+
+          ⚠️ THE SECOND STEP IS A TYPED WORD, NOT A SECOND BUTTON. Two buttons
+          in the same place is one mis-tap on a phone, and this is the one
+          action on the site that a child could take on a family tablet and
+          nobody could undo. Typing costs a parent four seconds and costs a
+          curious eight-year-old the whole idea.
+
+          ⚠️ THE LIST NAMES WHAT GOES. "Are you sure?" tells a reader nothing;
+          the words "progression" and "présences" have to be read BEFORE the
+          confirmation, not discovered after it. */}
+      <section class="account-delete" data-testid="account-delete">
+        <h2>{t('account.delete.heading')}</h2>
+        <p>{t('account.delete.body')}</p>
+        <p>{t('account.delete.listIntro')}</p>
+        <ul>
+          <li>{t('account.delete.item.account')}</li>
+          <li>{t('account.delete.item.children')}</li>
+          <li>{t('account.delete.item.progress')}</li>
+          <li>{t('account.delete.item.points')}</li>
+          <li>{t('account.delete.item.attendance')}</li>
+        </ul>
+        <p class="account-delete-retained">{t('account.delete.retained')}</p>
+
+        <button type="button" class="btn-ghost" data-testid="account-delete-start">
+          {t('account.delete.start')}
+        </button>
+
+        <div class="account-delete-confirm" data-testid="account-delete-confirm" hidden>
+          <h3>{t('account.delete.confirmHeading')}</h3>
+          <label for="account-delete-word">
+            {t('account.delete.confirmPrompt').replace('%s', t('account.delete.confirmWord'))}
+          </label>
+          <input
+            id="account-delete-word"
+            type="text"
+            autocomplete="off"
+            autocapitalize="characters"
+            spellcheck="false"
+            data-testid="account-delete-word"
+          />
+          <p class="account-delete-actions">
+            {/* ⚠️ Disabled until the word matches. The control that cannot be
+                undone is the one that must not be reachable by reflex. */}
+            <button
+              type="button"
+              class="btn-ghost account-delete-go"
+              data-testid="account-delete-go"
+              disabled
+            >
+              {t('account.delete.confirm')}
+            </button>
+            <button type="button" class="btn-ghost" data-testid="account-delete-cancel">
+              {t('account.delete.cancel')}
+            </button>
+          </p>
+          <p class="account-status" role="status" data-testid="account-delete-status"></p>
+        </div>
+      </section>
     </div>
   </div>
 
   <script>
-    import { getProfile, getSession, signOut, updateProfile } from '@lib/supabase';
+    import { deleteOwnAccount, getProfile, getSession, signOut, updateProfile } from '@lib/supabase';
     /* ⚠️ v2-S3 — through `progress.ts` ONLY. This page never touches the sync
        module or Supabase for progress: `progress.ts` is still the single
        reader, and it is the one that decides what the durable copy does. */
@@ -267,6 +335,70 @@ const t = useTranslations(locale);
       await signOut();
       /* Full document load, not a client-side swap: it guarantees the header
          re-reads the (now cleared) flag from scratch. */
+      window.location.assign(root?.dataset.locale === 'en' ? '/en/' : '/');
+    });
+
+    /* ── Erasure ────────────────────────────────────────────────────────── */
+
+    const deleteStart = document.querySelector('[data-testid="account-delete-start"]') as HTMLButtonElement | null;
+    const deletePanel = document.querySelector('[data-testid="account-delete-confirm"]') as HTMLElement | null;
+    const deleteWord = document.querySelector('[data-testid="account-delete-word"]') as HTMLInputElement | null;
+    const deleteGo = document.querySelector('[data-testid="account-delete-go"]') as HTMLButtonElement | null;
+    const deleteCancel = document.querySelector('[data-testid="account-delete-cancel"]') as HTMLButtonElement | null;
+    const deleteStatus = document.querySelector('[data-testid="account-delete-status"]') as HTMLElement | null;
+
+    function closeDelete() {
+      if (deletePanel) deletePanel.hidden = true;
+      if (deleteWord) deleteWord.value = '';
+      if (deleteGo) deleteGo.disabled = true;
+      if (deleteStatus) deleteStatus.textContent = '';
+      if (deleteStart) deleteStart.hidden = false;
+      deleteStart?.focus();
+    }
+
+    deleteStart?.addEventListener('click', () => {
+      if (deletePanel) deletePanel.hidden = false;
+      /* The trigger goes away while the panel is open: leaving it there offers
+         a second "delete" beside the real one, which is a mis-tap waiting. */
+      if (deleteStart) deleteStart.hidden = true;
+      deleteWord?.focus();
+    });
+
+    deleteCancel?.addEventListener('click', closeDelete);
+
+    /**
+     * ⚠️ CASE-SENSITIVE, ACCENT-EXACT, TRIMMED ONLY AT THE EDGES.
+     *
+     * The word is deliberately shouted (`SUPPRIMER` / `DELETE`) and compared
+     * exactly. A case-insensitive match would accept a phone's autocapitalised
+     * first letter and nothing else typed on purpose — which is most of the
+     * friction this step exists to add.
+     */
+    deleteWord?.addEventListener('input', () => {
+      const expected = root?.dataset.msgDeleteWord ?? '';
+      if (deleteGo) deleteGo.disabled = deleteWord.value.trim() !== expected;
+    });
+
+    deleteGo?.addEventListener('click', async () => {
+      if (deleteGo.disabled) return;
+      /* Locked while it runs. A double tap on a slow connection would fire a
+         second RPC whose only possible answer is "no such user" — an error
+         message for an operation that in fact succeeded. */
+      deleteGo.disabled = true;
+      if (deleteCancel) deleteCancel.disabled = true;
+      if (deleteStatus) deleteStatus.textContent = root?.dataset.msgDeleteWorking ?? '';
+
+      const result = await deleteOwnAccount();
+
+      if (!result.ok) {
+        if (deleteStatus) deleteStatus.textContent = root?.dataset.msgDeleteError ?? '';
+        if (deleteCancel) deleteCancel.disabled = false;
+        if (deleteGo) deleteGo.disabled = false;
+        return;
+      }
+
+      /* Full document load, same reason as sign-out: the header must re-read a
+         world in which this account no longer exists. */
       window.location.assign(root?.dataset.locale === 'en' ? '/en/' : '/');
     });
   </script>
@@ -377,6 +509,85 @@ const t = useTranslations(locale);
   .account-soon p {
     margin: 0;
     color: var(--mcc-text-secondary);
+  }
+
+  /* ⚠️ MARKED BY ITS EDGE AND ITS WORDS, NOT BY RED FILL AND NOT BY OPACITY.
+     A red panel reads as "error" on a page that has an error line already, and
+     an alpha over an audited pair is exactly what `check-contrast.mjs` cannot
+     see. This is a section of the page a reader chose to scroll to; it needs to
+     be findable and unmistakable, not alarming. */
+  .account-delete {
+    margin-top: 2.5rem;
+    padding: 1.25rem;
+    border: 1px solid var(--mcc-border-strong);
+    border-inline-start: 4px solid var(--mcc-accent-strong);
+    border-radius: var(--radius-card);
+  }
+
+  .account-delete h2 {
+    margin: 0 0 0.5rem;
+    font-size: 1.125rem;
+  }
+
+  .account-delete h3 {
+    margin: 0 0 0.5rem;
+    font-size: 1rem;
+  }
+
+  .account-delete p {
+    margin: 0 0 0.6rem;
+    line-height: 1.55;
+  }
+
+  .account-delete ul {
+    margin: 0 0 0.75rem;
+    padding-inline-start: 1.25rem;
+    line-height: 1.6;
+  }
+
+  .account-delete-retained {
+    color: var(--mcc-text-secondary);
+    font-size: 0.9375rem;
+  }
+
+  .account-delete-confirm {
+    margin-top: 1.25rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--mcc-border-subtle);
+  }
+
+  .account-delete-confirm label {
+    display: block;
+    margin-bottom: 0.35rem;
+    font-weight: 500;
+  }
+
+  .account-delete-confirm input {
+    width: 100%;
+    max-width: 18rem;
+    min-height: 2.75rem;
+    padding: 0.55rem 0.7rem;
+    border: 1px solid var(--mcc-border-strong);
+    border-radius: var(--radius-card);
+    background-color: var(--mcc-surface-page);
+    color: var(--mcc-text-primary);
+    font: inherit;
+    letter-spacing: 0.08em;
+  }
+
+  .account-delete-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 1rem;
+  }
+
+  /* Disabled must LOOK unavailable without relying on colour alone — the
+     cursor and the border both change, and the label never greys below AA. */
+  .account-delete-go[disabled] {
+    border-style: dashed;
+    color: var(--mcc-text-secondary);
+    cursor: not-allowed;
   }
 
   .soon-badge {

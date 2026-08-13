@@ -71,3 +71,23 @@ export async function updateProfile(_patch: Partial<Profile>): Promise<Profile |
 export async function signOut(): Promise<void> {
   return;
 }
+
+/**
+ * ⚠️ THE STUB'S SHAPE IS NOT COSMETIC — A MISSING EXPORT FAILS THE BUILD.
+ *
+ * Adding `deleteOwnAccount()` to the real module and not to this one broke the
+ * accounts-OFF build outright (`[MISSING_EXPORT] "deleteOwnAccount" is not
+ * exported by "src/lib/supabase.disabled.ts"`), because the alias replaces the
+ * module for every importer including `/compte/`'s script — which is still
+ * BUILT in a disabled build even though the page is never emitted. Anything
+ * exported from `supabase.ts` and imported by a page script belongs here too.
+ *
+ * ⚠️ AND IT REPORTS FAILURE RATHER THAN SUCCESS. Every other stub here returns
+ * an empty answer, because "no session" is the truth in a disabled build. This
+ * one must not: `{ ok: true }` would mean "your account was deleted" to a
+ * caller that reached it, and the caller would then sign the reader out and
+ * send them home believing their data was gone.
+ */
+export async function deleteOwnAccount(): Promise<{ ok: false; message: string }> {
+  return { ok: false, message: 'Accounts are disabled in this build.' };
+}

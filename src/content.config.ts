@@ -466,27 +466,19 @@ const tutoriel = defineCollection({
     }),
 });
 
-/* ────────────────────────────── agenda ───────────────────────────── */
+/* ────────────────────────────── agenda ─────────────────────────────
 
-const agenda = defineCollection({
-  loader: glob({ base: './src/content/agenda', pattern: '**/*.{md,mdx,json}' }),
-  schema: z.object({
-    /** Session date. Coerced from an ISO `YYYY-MM-DD` string in frontmatter. */
-    date: z.coerce.date(),
-    /** Local start time, 24h `HH:MM`. Kept separate from `date` so the site
-        never has to reason about time zones for a walk-in club session. */
-    time: z.string().regex(/^([01][0-9]|2[0-3]):[0-5][0-9]$/, 'expected HH:MM'),
-    /**
-     * Venue name for THIS session. Defaults to `site.venue.name` at render
-     * time when omitted — a session can move without touching site config,
-     * and site config can move without rewriting past sessions.
-     */
-    venue: z.string().optional(),
-    level,
-    note_fr: z.string().optional(),
-    note_en: z.string().optional(),
-    draft: z.boolean().default(false),
-  }),
-});
+   ⚠️ RETIRED, AND NOT BY ACCIDENT — DO NOT RE-ADD IT.
 
-export const collections = { traps, cours, exercices, lessons, tutoriel, agenda };
+   The club's sessions live in the `sessions` table and reach the site through
+   `scripts/fetch-agenda.mjs` → `src/data/agenda.json` → `src/lib/agenda.ts`.
+   A git collection alongside that would be a second source of truth for one
+   list, which is the exact defect this replaced: `/admin/seances` wrote to the
+   database and `/agenda/` read from git, so a session a prof published
+   appeared nowhere and nothing said so.
+
+   Content still lives in git. A SESSION IS NOT CONTENT — it is operational
+   data a prof edits from a phone, and the one thing on this site that a person
+   other than Seàn is expected to change. */
+
+export const collections = { traps, cours, exercices, lessons, tutoriel };

@@ -102,13 +102,33 @@ typo'd address matches nothing and updates zero rows, which is a safe failure.
 
 ## Deleting an account (the erasure right)
 
+⚠️ **THE READER DOES THIS THEMSELVES NOW.** Since migration 0007 there is a
+**Supprimer mon compte** section on `/compte/`: two steps, the second a typed
+`SUPPRIMER`, and the confirmation names what goes. It calls
+`delete_own_account()`, which reads `auth.uid()` and takes **no target** — so
+there is no id to pass and none to get wrong.
+
+The SQL below is for the cases the button cannot cover: a request arriving by
+WhatsApp from someone who cannot sign in, or an account you must remove on
+their behalf.
+
 Delete the **auth user**, not the profile. Everything else follows by cascade —
-profile, exercise progress, lesson progress, attendance.
+profile, child profiles, exercise progress, games, points, attendance.
 
 ```sql
--- Deletes the user; profiles/progress/attendance cascade from here.
+-- Deletes the user; profiles/children/progress/attendance cascade from here.
 delete from auth.users where email = 'person@example.com';
 ```
+
+⚠️ **`delete_own_account()` is deliberately NOT granted to `service_role`.** It
+has no `auth.uid()` there and could only raise. Erasing somebody else's account
+is a different, deliberate act, and it is the statement above.
+
+**Audited live on the test project** (2026-08-13), one row seeded in every
+table: `auth.users`, `profiles`, `child_profiles`, `exercise_progress`,
+`game_results`, `point_awards`, `attendance` and `lesson_progress` all went
+1 → 0 in 453 ms. The club's own `sessions` row survived with `created_by` set to
+`null`, which is correct: a session is club data, not the reader's.
 
 Deleting only the profile row would leave an auth user that can still sign in
 and would silently get a fresh profile from the trigger on next login. The

@@ -154,8 +154,20 @@ test.describe('the family section on /compte/', () => {
     await expect(page.getByTestId('child-remove-question')).toContainText('Yassine');
     await page.getByTestId('child-remove-confirm').click();
 
+    /**
+     * ⚠️ WAIT FOR THE CONFIRM ROW TO GO, NOT FOR THE NAME COUNT.
+     *
+     * While the confirm is open, Yassine's row shows the QUESTION in place of
+     * the name — so the roster already has exactly one `child-row-name`
+     * ("Sara") the instant the button is clicked, and a name assertion passes
+     * before the delete has left the browser. This test read the database in
+     * that window and found two rows; it had been passing on timing.
+     */
+    await expect(page.getByTestId('child-remove-question')).toHaveCount(0);
     await expect(names(page)).toHaveText(['Sara']);
-    expect(await storedNames(user.id)).toEqual(['Sara']);
+    /* Polled, because the row disappearing from the roster is a repaint and the
+       delete is a round trip — the UI is allowed to be first. */
+    await expect.poll(() => storedNames(user.id)).toEqual(['Sara']);
     /* Back below the threshold, the picker goes away again — and the remove
        button with it. */
     await expect(page.getByTestId('child-picker')).toBeHidden();

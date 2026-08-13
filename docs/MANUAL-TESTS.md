@@ -463,6 +463,37 @@ this whole section used to be invisible. Procedure in
       the press. They are built by script, so a scoped `<style>` would silently
       miss every one of them; that is exactly what had happened to the picker
 
+#### Supprimer mon compte — the one that cannot be undone
+
+⚠️ **Use a throwaway seeded account, never your own.** There is no bin.
+
+- [ ] The section names what goes — élèves, progression, parties, points,
+      présences — **before** the confirmation, not after
+- [ ] **Supprimer** reveals a typed confirmation and the first button goes away.
+      Two delete buttons in the same place is one mis-tap on a family tablet
+- [ ] `Supprimer` in lower case does NOT arm it; `SUPPRIMER` does. A phone's
+      autocapitalisation must not be enough on its own
+- [ ] **Annuler** puts everything back and deletes nothing
+- [ ] After confirming: you land on the home page as a guest, and signing in
+      again with that address creates a **new, empty** account
+- [ ] ⚠️ Your **device-local** progress is still there, and still works. That is
+      correct and the notice says so — it is your copy, on your machine
+
+#### The public agenda — the staleness banner
+
+⚠️ **This is the half of the agenda feature a machine cannot judge**, because
+the question is whether a prof believes it.
+
+- [ ] Publish a session in `/admin/seances` **without rebuilding**. The banner
+      says the public agenda is not up to date, and gives the last build date
+- [ ] `/agenda/` does NOT show it yet — correct, and the banner is what makes
+      that honest rather than broken
+- [ ] Rebuild (`npm run demo:accounts`). The banner flips to "à jour" and the
+      session is on `/agenda/`
+- [ ] Cancel a session: it stays on `/agenda/` and **says** it is cancelled. Not
+      faded, not struck through — a parent must not squint at it and turn up
+- [ ] A **draft** never appears on `/agenda/` at all
+
 ### v2-S3 — progress sync (only once `PUBLIC_AUTH_ENABLED` is on)
 
 ⚠️ **THE CHECK THAT MATTERS IS THE FIRST ONE, AND IT IS THE ONLY ONE THAT

@@ -8,6 +8,7 @@
  */
 import type { Locale } from '@config/site';
 import { whatsappUrl } from '@config/site';
+import { AUTH_ENABLED } from '@config/auth';
 import { localizePath } from '@i18n/paths';
 import { useTranslations } from '@i18n/ui';
 import BaseLayout from '@layouts/BaseLayout.astro';
@@ -73,6 +74,19 @@ const updated = new Date().toISOString().slice(0, 10);
     <section data-reveal>
       <h2>{t('privacy.erasure.heading')}</h2>
       <p>{t('privacy.erasure.body')}</p>
+      <p>{t('privacy.erasure.local')}</p>
+      {
+        /* ⚠️ THE LINK ONLY EXISTS WHERE THE BUTTON DOES. With accounts off
+           `/compte/` is not emitted at all, so linking it unconditionally would
+           put a 404 in the privacy notice — on the one page whose whole job is
+           to be trustworthy. The sentence above still reads correctly without
+           it, because it names the page rather than depending on the link. */
+        AUTH_ENABLED && (
+          <p>
+            <a href={localizePath('/compte/', locale)}>{t('account.delete.heading')}</a>
+          </p>
+        )
+      }
     </section>
 
     <section data-reveal>

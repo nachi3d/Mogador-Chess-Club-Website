@@ -215,3 +215,58 @@ Production deploys run from `main`. A deploy from a `main` that predates
 `wrangler.jsonc` will hit the auto-config trap again regardless of what `dev` holds.
 
 ---
+
+---
+
+## ⚠️ The public agenda needs a deploy to change — and that is a Seàn step
+
+**Read when:** a prof says a session they published is not on the site, or you
+are setting up the production project.
+
+`/agenda/` is baked at build time from the `sessions` table (CLAUDE.md → the
+agenda rule, and the header of `scripts/fetch-agenda.mjs` for why a runtime read
+is not available to this site). The consequence is simple and unavoidable:
+
+> **A session published in `/admin/seances` reaches the public site at the next
+> production deploy, and not before.**
+
+### What is in the repo, and what is not
+
+In the repo, and done:
+
+- the build-time read, which fails the build if credentials are present and the
+  read fails — a stale agenda never ships believing it is fresh;
+- the committed fallback, so a build with no credentials is complete rather than
+  empty;
+- **the loud half**: `/admin/seances` compares what the deployed build baked
+  against the live table and tells the prof, in French, when the public agenda
+  has not caught up, with the date of the last build.
+
+Not in the repo, because it is dashboard configuration:
+
+1. ⚠️ **`PUBLIC_SUPABASE_URL` and `PUBLIC_SUPABASE_ANON_KEY` must be set as
+   Cloudflare BUILD variables** — independently of `PUBLIC_AUTH_ENABLED`, which
+   stays off. Without them every production build falls back to the committed
+   snapshot and **no prof can change the agenda at all**. The build says so
+   loudly in its log; nothing else will.
+2. **A Cloudflare deploy hook**, called from a Supabase database webhook on
+   `insert`/`update` of `public.sessions`. This is what turns "at the next
+   deploy" into "in a few minutes".
+3. **A scheduled rebuild** (nightly is ample for a weekly club) as the floor. It
+   is what makes a failed webhook self-healing instead of silent.
+
+### Why a hook rather than a runtime read — and what it costs
+
+The alternatives were weighed and the reasoning is closed in CLAUDE.md. What is
+worth writing down here is the honest cost of the one that was chosen:
+
+- ⚠️ **Publishing a session triggers a production deploy of whatever is on
+  `main`.** That is safe because `main` is the released state by definition —
+  but it does mean the deploy history fills with prof-triggered builds, and a
+  build that fails for an unrelated reason leaves the session invisible with
+  nothing announcing it. The staleness banner on `/admin/seances` is the
+  backstop for exactly that case, and it is the reason it exists.
+- ⚠️ **Do not "fix" a missing session by editing `src/data/agenda.fallback.json`.**
+  That file is the no-credentials fallback, not a content store; an entry added
+  there is invisible to `/admin/seances`, cannot be cancelled by a prof, and
+  will be silently overridden by the next successful build.

@@ -45,6 +45,11 @@ export interface AdminSession {
   readonly venue: string | null;
   readonly level: string | null;
   readonly status: SessionStatus;
+  /** ⚠️ Carried so `/admin/seances` can fingerprint what the PUBLIC agenda
+      would show. Every field the public card renders has to be here, or the
+      staleness check tells a prof their edit shipped when it did not. */
+  readonly noteFr: string | null;
+  readonly noteEn: string | null;
 }
 
 export interface AdminAward {
@@ -161,16 +166,21 @@ export async function listSessions(): Promise<AdminSession[]> {
   const supabase = await getSupabase();
   const { data } = await supabase
     .from('sessions')
-    .select('id,starts_at,duration_minutes,title_fr,venue,level,status')
+    .select('id,starts_at,duration_minutes,title_fr,venue,level,status,note_fr,note_en')
     .order('starts_at', { ascending: false });
   return (data ?? []).map((row) => ({
     id: String(row['id']),
-    startsAt: String(row['starts_at']),
+    /* ⚠️ Canonicalised, not passed through: PostgREST answers `+00:00` and the
+       baked snapshot writes `Z`, and the staleness check compares them as
+       strings. Same rule as the sync layer's timestamps. */
+    startsAt: new Date(String(row['starts_at'])).toISOString(),
     durationMinutes: Number(row['duration_minutes'] ?? 90),
     titleFr: row['title_fr'] ? String(row['title_fr']) : null,
     venue: row['venue'] ? String(row['venue']) : null,
     level: row['level'] ? String(row['level']) : null,
     status: String(row['status'] ?? 'draft') as SessionStatus,
+    noteFr: row['note_fr'] ? String(row['note_fr']) : null,
+    noteEn: row['note_en'] ? String(row['note_en']) : null,
   }));
 }
 

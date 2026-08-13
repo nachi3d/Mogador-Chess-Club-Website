@@ -37,7 +37,7 @@
  */
 import type { Locale } from '@config/site';
 import { site } from '@config/site';
-import { getCollection } from 'astro:content';
+import { nextSession } from '@lib/agenda';
 import { localizePath } from '@i18n/paths';
 import { useTranslations } from '@i18n/ui';
 
@@ -54,20 +54,28 @@ const t = useTranslations(locale);
 
    ⚠️ The venue comes from `site.venue` with a per-session override, never
    from a literal — the portability rule (CLAUDE.md). It renders nothing at
-   all when there is no venue to publish rather than an empty line. */
-const now = new Date();
-const nextSession = (await getCollection('agenda', ({ data }) => !data.draft))
-  .sort((a, b) => a.data.date.getTime() - b.data.date.getTime())
-  .find(({ data }) => data.date.getTime() >= now.setHours(0, 0, 0, 0));
+   all when there is no venue to publish rather than an empty line.
 
-const sessionDate = nextSession
+   ⚠️ From the baked session snapshot, not a content collection — the git
+   agenda retired when `/agenda/` started reading the database. `nextSession()`
+   skips CANCELLED sessions: this line answers "when is the next session", and
+   one that is not happening is the wrong answer to that. */
+
+/* ⚠️ "Today" in the CLUB'S zone, not the build machine's. Cloudflare builds in
+   UTC; at 00:30 in Essaouira that is still the previous day, and the dashboard
+   would go on offering a session that started hours ago. */
+const today = new Intl.DateTimeFormat('en-CA', { timeZone: site.timezone }).format(new Date());
+const session = nextSession(today);
+
+const sessionDate = session
   ? new Intl.DateTimeFormat(locale === 'fr' ? 'fr-FR' : 'en-GB', {
       weekday: 'long',
       day: 'numeric',
       month: 'long',
-    }).format(nextSession.data.date)
+      timeZone: 'UTC',
+    }).format(new Date(`${session.date}T12:00:00Z`))
   : null;
-const sessionVenue = nextSession ? (nextSession.data.venue ?? site.venue.name) : null;
+const sessionVenue = session ? (session.venue ?? site.venue.name) : null;
 ---
 
 {/* Every user-facing string the resolver needs, handed over as data — the
@@ -169,9 +177,9 @@ const sessionVenue = nextSession ? (nextSession.data.venue ?? site.venue.name) :
       <a class="dash-next" href={localizePath('/agenda/', locale)} data-testid="dash-next">
         <span class="dash-next-label">{t('home.dash.next.title')}</span>
         <span class="dash-next-value">
-          <time datetime={nextSession!.data.date.toISOString().slice(0, 10)}>{sessionDate}</time>
+          <time datetime={session!.date}>{sessionDate}</time>
           <span aria-hidden="true"> · </span>
-          {nextSession!.data.time}
+          {session!.time}
           {sessionVenue && <span class="dash-next-venue"> · {sessionVenue}</span>}
         </span>
       </a>
