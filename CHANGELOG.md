@@ -11,6 +11,32 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+---
+
+## [0.12.0] — 2026-08-13
+
+**The agenda a prof edits is the agenda a visitor reads, and an account can
+erase itself without asking anybody.**
+
+Two promises that were being kept by a person remembering to do something are
+now kept by the software. `/admin/seances` had let a prof publish a session
+since v2-S4 part 1, and `/agenda/` had gone on rendering a git collection that
+only a developer could change — so the surface that could be edited was the one
+nobody could see. And the privacy notice had always offered erasure, which in
+practice meant a volunteer running SQL. Both are closed here, and both closures
+are shaped by the same two constraints as everything else on this site: the
+build is static, and a public page makes no third-party request.
+
+⚠️ **Accounts remain built and switched off.** `PUBLIC_AUTH_ENABLED` is
+unchanged, so nothing in the account half of this release is in front of a
+reader yet — including the deletion button. The agenda half ships regardless,
+because its read happens at build time with the build's own credentials and
+puts nothing in the bundle.
+
+The release also makes the gate honest again: `npm run test:release` runs its
+projects one at a time under a worker cap and is **expected to be green**, after
+two promotions that shipped on failures everybody had a good explanation for.
+
 ### Changed — `/agenda` reads the database, and the git collection is retired
 
 v2-S4 part 1 built `/admin/seances` and left `/agenda/` reading a git content
@@ -3707,7 +3733,8 @@ Foundation only: no real content, no interactive board yet.
   `url()` references unresolved and the fonts silently 404 into a Georgia
   fallback. `scripts/build-fonts.mjs` self-hosts them instead. See CLAUDE.md.
 
-[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.11.1...HEAD
+[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.11.1...v0.12.0
 [0.11.1]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.9.0...v0.10.0

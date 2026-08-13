@@ -428,7 +428,8 @@ you:
 
 - [ ] Nothing about admin, attendance or teacher points is visible or reachable
       anywhere on the site
-- [ ] `/agenda` still renders from the git collection, unchanged
+- [ ] `/agenda` still renders, from the snapshot baked at build time — the git
+      collection is gone, and the flag being off changes nothing about it
 
 With the flag **on** (`npm run demo:accounts`):
 
