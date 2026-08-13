@@ -47,7 +47,8 @@
  * ⚠️ IT PROVES EVERY PROJECT ACTUALLY RAN. A project that silently runs zero
  * tests is the worst possible pass: the summary says "green" and one fifth of
  * the matrix never happened. Per-project counts are read from Playwright's
- * JSON reporter and checked against each other — see `report()`.
+ * JSON reporter and checked against each other — see the `── Report ──`
+ * section at the foot of this file.
  *
  * ═════════════════════════════════════════════════════════════════════════
  * MEASUREMENTS — the three candidates, and why this one won
@@ -173,7 +174,7 @@ function runPlaywright(args, label) {
     for (const suite of report.suites ?? []) walk(suite);
   } catch {
     /* No parseable JSON — the exit code below is then the only truth, and
-       `report()` will fail on the missing project rather than guess. */
+       the report below fails on the missing project rather than guessing. */
   }
 
   return { status: result.status ?? 1, tally, label };
