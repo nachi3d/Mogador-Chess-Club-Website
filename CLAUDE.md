@@ -289,6 +289,9 @@ it. Tags said one thing and the manifest said another.
 46. **A cancelled session is a STATE, never a deletion.** Deleting one cascades its register away; students who were told it was happening are left wondering.
 47. **There is ONE ledger summation** — `computeLedger()` — and the inline resolver's copy is pinned equal to it by a spec. A prof and a student must never read different totals.
 48. **A control a signed-in reader is entitled to use is REACHABLE, and a spec drives it.** The family section renders for every signed-in account; only the picker inside it is conditional. RLS saying yes is not the same as the reader being able to get there — see the family-section rule below.
+49. **The public agenda is BAKED at build time, never fetched at runtime.** Static output plus Critical Features 9 and 18 leave no other answer; the staleness that follows is made loud on `/admin/seances`, not hidden. See the agenda rule.
+50. **A cancelled session stays publicly visible with its state, and a draft never leaks.** CF46 is only half kept if the student who was told it was happening cannot see the cancellation.
+51. **`delete_own_account()` takes no target, and nothing is retained.** The parameter list is the security design; erasure leaves no statistics, no archive and no anonymised copy.
 
 ---
 
@@ -536,7 +539,6 @@ src/content/
   traps/        legal.json
   cours/        bien-ouvrir-une-partie.json
   exercices/    mat-de-l-escalier.json
-  agenda/       2026-09-12.json
 ```
 
 **All content is `.json`, not `.md`.** A Markdown body can only be in one language; this site has two. Keeping every field in typed frontmatter means the FR/EN pair is visible to the schema, and a missing translation is a validation error rather than a page that silently renders French to an English reader.
@@ -548,7 +550,6 @@ Astro 7 deltas to remember: config lives at `src/content.config.ts`, each collec
 | `traps` | `title_fr/_en`, `slug`, `eco?`, `level`, `themes[]`, `pgn`, `notes[]{ply,text_fr,text_en}`, `summary_fr/_en` |
 | `cours` | `title_fr/_en`, `slug`, `level`, `order`, `summary_fr/_en` |
 | `exercices` | `title_fr/_en`, `slug`, `fen`, `solution[]` (UCI), `opponentReplies[]` (UCI), `onlyMove`, `hint_fr/_en`, `level`, `themes[]` |
-| `agenda` | `date`, `time`, `venue?`, `level`, `note_fr/_en?` |
 
 `level` is `debutant | intermediaire | avance` everywhere. Every collection has `draft: boolean` (default false) so an entry can be parked without deleting it.
 
@@ -606,7 +607,7 @@ FR at the root, EN under `/en/...`. **Route segments are not translated** (`/en/
 | `/exercices/` | `/en/exercices/` | Exercise index — **no board mounted here**; solved ticks from `localStorage` |
 | `/exercices/[slug]/` | `/en/exercices/[slug]/` | Exercise detail — the interactive board, hint, attempts, outbound WhatsApp share |
 | `/jouer/` | `/en/jouer/` | Play the computer. Engine loaded on a click, never before. |
-| `/agenda/` | `/en/agenda/` | Sessions; venue falls back to site config |
+| `/agenda/` | `/en/agenda/` | Sessions, **from the `sessions` table, baked at build**. Venue falls back to site config. See the agenda rule below |
 | `/contact/` | `/en/contact/` | WhatsApp CTA, venue, socials |
 | `/mentions-legales/` | `/en/mentions-legales/` | Legal notice + credits. **Footer only, not in the nav.** |
 | `/parametres/` | `/en/parametres/` | Appearance settings. Reachable from the **desktop header** (gear, beside the theme toggle) and the footer. |
@@ -969,8 +970,83 @@ underneath is already proven" in BACKLOG meant.
 
 **Not built, deliberately:** creating a student from the admin UI (staff hold
 SELECT on `child_profiles` and nothing else — a teacher renaming a child is
-indistinguishable from a teacher inventing one), and the agenda still reads the
-git collection. Both in BACKLOG.
+indistinguishable from a teacher inventing one). ✅ **The agenda now reads the
+database** — see the rule below.
+
+### ⚠️ THE PUBLIC AGENDA IS BAKED AT BUILD TIME — AND THAT IS FORCED
+
+`/agenda/` reads the `sessions` table. **The git collection is retired and must
+not come back** (`src/content/agenda/` is gone; `content.config.ts` says why).
+
+The read happens in `scripts/fetch-agenda.mjs` at build, writing
+`src/data/agenda.json`, which `src/lib/agenda.ts` is the only reader of.
+**A runtime read is not available to this site** and the reasoning is closed:
+
+- static output, no adapter, no SSR — there is no server to ask;
+- **Critical Feature 9** — a public page makes no third-party request, so an
+  anonymous visitor would otherwise contact supabase.co to find out when a club
+  for children meets;
+- **Critical Feature 18** — accounts OFF ships no Supabase ref, host or anon key
+  at all, and a runtime read needs all three;
+- and gating it on `PUBLIC_AUTH_ENABLED` fixes nothing, because production
+  ships with accounts OFF — `/admin/seances` would go on silently doing nothing
+  in exactly the state it is broken in.
+
+⚠️ **THE FAILURE MODE IS STALENESS, AND IT IS MADE LOUD RATHER THAN SOLVED.** A
+session published after the last deploy is not on the site. The public page
+cannot know that; `/admin/seances` can, and says so — it is built in the same
+build, so it knows what was baked, and it compares that against the live table
+by fingerprint. **Anything added to the public agenda card must be added to
+`sessionFingerprint()` in the same commit**, or a prof edits that field,
+publishes, and is told the site is up to date.
+
+- ⚠️ **The credentials are the BUILD's, never the bundle's.** The script runs in
+  Node and exits; `anon` has held `select` on published sessions since 0001, so
+  the anon key is enough and the service role is not wanted.
+- ⚠️ **`src/data/agenda.json` is a GENERATED ARTEFACT and is gitignored.** The
+  committed source is `agenda.fallback.json`. One committed file would be a
+  footgun: a Playwright run builds against the TEST project, so `git add -A`
+  would ship test sessions to the club as the production fallback.
+- ⚠️ **No credentials is a dev build; broken credentials is a fatal build.**
+  Shipping a stale agenda while believing it fresh is the failure the feature
+  exists to remove, so that case exits non-zero.
+- ⚠️ **`site.timezone` is an IANA name, never `+01:00`** — Morocco drops to
+  UTC+0 for Ramadan and back. The snapshot records the zone it was baked in and
+  the build FAILS if it disagrees with the config.
+- ⚠️ **A cancelled session stays PUBLICLY visible with its state** (0006 widened
+  the select policy). Critical Feature 46 is only half kept if a student cannot
+  see the cancellation. **A draft never leaks.**
+- ⚠️ **The seed must not delete migrated rows.** `seed-test.mjs` cleared every
+  session, including the one 0006 inserted, moments after the migration created
+  it.
+
+### ⚠️ AN ACCOUNT DELETES ITSELF, AND THE FUNCTION TAKES NO TARGET
+
+`delete_own_account()` (migration 0007), reached from `/compte/`. The privacy
+notice always promised erasure; until now that promise was a volunteer
+remembering to run SQL.
+
+- ⚠️ **NO ARGUMENT, AND IT MUST NEVER GAIN ONE.** The id can only come from
+  `auth.uid()`. A `delete_account(target uuid)` with an ownership check inside
+  is one refactor away from deleting anybody — **the parameter list is the
+  guarantee, not the body.** `authenticated` only; not `service_role`.
+- ⚠️ **Two steps, and the second is a TYPED WORD** (`SUPPRIMER` / `DELETE`,
+  case-exact). Two buttons in one place is one mis-tap on a family tablet, on
+  the only action here nobody can undo.
+- ⚠️ **The confirmation NAMES what goes** — children, progress, games, points,
+  attendance. "Are you sure?" tells a reader nothing.
+- ⚠️ **NOTHING IS RETAINED.** No statistics, no archive, no anonymised copy —
+  and a spec asserts that rather than the notice claiming it. Device-local
+  progress is deliberately untouched: it is the reader's own copy, it is what a
+  guest has, and erasing it is not what the request asks for.
+- ⚠️ **Local state is cleared only AFTER the server confirms** — the opposite of
+  `signOut()`, which clears first. Wiping a device for a delete that did not
+  happen destroys data the account still holds.
+- ⚠️ **Anything exported from `supabase.ts` and imported by a page script must
+  also be exported by `supabase.disabled.ts`**, or the accounts-OFF build fails
+  outright — the alias replaces the module for scripts that are still *built*
+  behind unemitted routes. The stub returns `{ ok: false }`: a stubbed success
+  would tell a reader their data was erased.
 
 ### ⚠️ THE CHECKLIST FOR A MIGRATION THAT ADDS A TABLE
 
@@ -1235,7 +1311,8 @@ promotion rule.
 - A value change with no structural effect: a duration, a colour **already in
   the token set**, a link URL, a contact detail
 - **ONE** entry added to an **existing** collection using an **existing** shape
-  (one trap, one exercise, one agenda entry)
+  (one trap or one exercise). ⚠️ **An agenda entry is no longer content** — it
+  is a row a prof creates in `/admin/seances`, and it never touches this repo
 - Reverting a single previous commit
 
 ### What NEVER qualifies

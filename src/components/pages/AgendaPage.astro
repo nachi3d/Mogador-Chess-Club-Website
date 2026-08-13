@@ -1,7 +1,20 @@
 ---
-import { getCollection } from 'astro:content';
+/**
+ * /agenda — the club's sessions, from the database.
+ *
+ * ⚠️ BAKED AT BUILD TIME, AND THE READ IS NOT OPTIONAL TO UNDERSTAND. The list
+ * comes from `sessions` via `scripts/fetch-agenda.mjs`, not from a runtime
+ * fetch: this page is public, and Critical Feature 9 means an anonymous visitor
+ * makes no third-party request at all. The full argument is in the header of
+ * that script — read it before proposing a client-side read.
+ *
+ * ⚠️ THE FAILURE MODE IS STALENESS, AND IT IS HANDLED WHERE IT CAN BE. A
+ * session published after the last deploy is not here. This page cannot know
+ * that; `/admin/seances` can, and says so to the prof who published it.
+ */
 import type { Locale } from '@config/site';
 import { site } from '@config/site';
+import { publicSessions } from '@lib/agenda';
 import { useTranslations } from '@i18n/ui';
 import BaseLayout from '@layouts/BaseLayout.astro';
 import PageIntro from '@components/PageIntro.astro';
@@ -14,15 +27,21 @@ interface Props {
 const { locale } = Astro.props;
 const t = useTranslations(locale);
 
-const sessions = (await getCollection('agenda', ({ data }) => !data.draft)).sort(
-  (a, b) => a.data.date.getTime() - b.data.date.getTime(),
-);
+const sessions = publicSessions();
+
+/* ⚠️ `T12:00:00Z` rather than the bare date. `new Date('2026-09-12')` is parsed
+   as midnight UTC, and formatting that in a zone behind UTC prints the 11th.
+   Midday is far enough from either edge that no zone on earth moves the day.
+   The date string itself is already local to the club — the resolving was done
+   at bake time, in `site.timezone`, exactly once. */
+const asDate = (date: string) => new Date(`${date}T12:00:00Z`);
 
 const dateFormat = new Intl.DateTimeFormat(locale === 'fr' ? 'fr-FR' : 'en-GB', {
   weekday: 'long',
   day: 'numeric',
   month: 'long',
   year: 'numeric',
+  timeZone: 'UTC',
 });
 ---
 
@@ -34,21 +53,29 @@ const dateFormat = new Intl.DateTimeFormat(locale === 'fr' ? 'fr-FR' : 'en-GB', 
       <p class="empty">{t('agenda.empty')}</p>
     ) : (
       <ul class="sessions" data-reveal-stagger>
-        {sessions.map(({ data }) => {
-          const note = locale === 'fr' ? data.note_fr : data.note_en;
+        {sessions.map((session) => {
+          const note = locale === 'fr' ? session.noteFr : session.noteEn;
           // A session's own venue wins; otherwise fall back to site config.
           // Nothing venue-related is hardcoded here.
-          const venue = data.venue ?? site.venue.name;
+          const venue = session.venue ?? site.venue.name;
+          const cancelled = session.status === 'cancelled';
           return (
-            <li class="session" data-reveal>
+            <li
+              class:list={['session', cancelled && 'session-cancelled']}
+              data-reveal
+              data-status={session.status}
+            >
               <div class="session-when">
-                <time datetime={data.date.toISOString().slice(0, 10)}>
-                  {dateFormat.format(data.date)}
-                </time>
-                <span class="session-time">{data.time}</span>
+                <time datetime={session.date}>{dateFormat.format(asDate(session.date))}</time>
+                <span class="session-time">{session.time}</span>
               </div>
               <div class="session-what">
-                <LevelBadge locale={locale} level={data.level} />
+                {/* ⚠️ THE STATE IS A WORD, NOT A COLOUR AND NOT A STRIKETHROUGH.
+                    A cancelled session that reads as "faded" is a session a
+                    parent squints at and turns up to. It says so, first, in
+                    the reading order, and the badge carries its own ink. */}
+                {cancelled && <p class="session-cancelled-tag">{t('agenda.cancelled')}</p>}
+                {session.level && <LevelBadge locale={locale} level={session.level} />}
                 {venue && <p class="session-venue">{venue}</p>}
                 {note && <p class="session-note">{note}</p>}
               </div>
@@ -105,6 +132,31 @@ const dateFormat = new Intl.DateTimeFormat(locale === 'fr' ? 'fr-FR' : 'en-GB', 
     font-family: var(--font-notation);
     font-size: 0.875rem;
     font-variant-numeric: tabular-nums;
+  }
+
+  /**
+   * ⚠️ A CANCELLED SESSION IS MARKED BY ITS EDGE AND A WORD — never by opacity
+   * and never by a strikethrough.
+   *
+   * `check-contrast.mjs` proves the token pair and cannot see an alpha applied
+   * on top of it, so a faded card is an unaudited card (CLAUDE.md: 0.9 once
+   * dropped a proved pair to 4.42:1). And a struck-through date is read as
+   * decoration by half of readers and by no screen reader at all. The card
+   * keeps full contrast; the edge changes colour and the state is written out.
+   */
+  .session-cancelled {
+    border-left-color: var(--mcc-text-secondary);
+    background-color: var(--mcc-surface-sunken);
+  }
+
+  .session-cancelled-tag {
+    margin: 0 0 0.4rem;
+    color: var(--mcc-text-primary);
+    font-family: var(--font-display);
+    font-size: 0.9375rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
   }
 
   .session-venue {

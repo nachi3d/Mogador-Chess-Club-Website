@@ -210,14 +210,53 @@ async function main() {
       status: 'draft',
       created_by: createdBy,
     },
+    /**
+     * ⚠️ A CANCELLED SESSION, SEEDED ON PURPOSE — and it is in the FUTURE.
+     *
+     * `/agenda/` must show it with its state (Critical Feature 46's public
+     * half), and `agenda.spec.ts` asserts that against the built page. Without
+     * a seeded one the spec could only skip, and "no cancelled session was
+     * found, so the cancelled-session rendering is fine" is the vacuous pass
+     * this project has been bitten by before.
+     *
+     * A past one would not do: the bake drops sessions a day after they end, so
+     * it would silently stop being covered.
+     */
+    {
+      starts_at: isoDaysFromNow(10, 16),
+      title_fr: 'Séance annulée (jour férié)',
+      title_en: 'Session cancelled (public holiday)',
+      level: 'debutant',
+      status: 'cancelled',
+      created_by: createdBy,
+    },
   ];
 
-  /* Idempotent: clear previous seed sessions so re-running does not stack up
-     duplicates. Test project only — the interlock above guarantees that. */
-  await sb.from('sessions').delete().not('id', 'is', null);
+  /**
+   * Idempotent: clear previous seed sessions so re-running does not stack up
+   * duplicates. Test project only — the interlock above guarantees that.
+   *
+   * ⚠️ EXCEPT THE ROW MIGRATION 0006 INSERTED, WHICH THIS USED TO DESTROY.
+   *
+   * 0006 migrated the club's one git-collection session into `sessions` with a
+   * FIXED uuid, and this delete took `.not('id','is',null)` — every row. So on
+   * a freshly migrated project the seed silently removed real migrated content
+   * a moment after the migration created it, and `/agenda/` then rendered
+   * without it. Caught because `agenda.spec.ts` asserts that session is on the
+   * page; nothing else would have noticed.
+   *
+   * Seed data is the seed's to delete. Migrated data is not.
+   */
+  const MIGRATED_SESSION = '5e5e0912-0000-4000-8000-000000000912';
+  await sb.from('sessions').delete().not('id', 'is', null).neq('id', MIGRATED_SESSION);
   const { error } = await sb.from('sessions').insert(sessions);
   if (error) throw new Error(`sessions: ${error.message}`);
-  console.log(`  + ${sessions.length} sessions (2 published, 1 draft)`);
+  const tally = sessions.reduce((acc, s) => ({ ...acc, [s.status]: (acc[s.status] ?? 0) + 1 }), {});
+  console.log(
+    `  + ${sessions.length} sessions (${Object.entries(tally)
+      .map(([k, v]) => `${v} ${k}`)
+      .join(', ')}), migrated session preserved`,
+  );
 
   console.log('seed: done.');
 }

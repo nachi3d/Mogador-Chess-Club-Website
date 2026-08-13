@@ -28,7 +28,17 @@ export const SPEC_MAP = [
   [/^src\/content\/exercices\//, ['exercise.spec.ts', 'index-cards.spec.ts']],
   [/^src\/content\/(cours|lessons)\//, ['lessons.spec.ts', 'index-cards.spec.ts']],
   [/^src\/content\/tutoriel\//, ['tutorial.spec.ts']],
-  [/^src\/content\/agenda\//, ['smoke.spec.ts']],
+  /* The public agenda. ⚠️ The git collection is GONE — sessions come from the
+     database via `scripts/fetch-agenda.mjs`, so the things that can break it
+     are the script, the snapshot, the reader and the page. `main-menu` and
+     `mobile-app` ride along because the home dashboard prints the next
+     session from the same module. */
+  [
+    /^(scripts\/fetch-agenda\.|src\/data\/agenda|src\/lib\/agenda\.)/,
+    ['agenda.spec.ts', 'main-menu.spec.ts', 'mobile-app.spec.ts', 'admin.spec.ts'],
+  ],
+  [/^src\/components\/pages\/AgendaPage\./, ['agenda.spec.ts', 'themes.spec.ts']],
+  [/^src\/components\/pages\/PrivacyPage\./, ['auth.spec.ts', 'legal.spec.ts']],
   [/^src\/i18n\/ui\./, ['smoke.spec.ts', 'nav-coords.spec.ts', 'main-menu.spec.ts']],
   [/^src\/config\/site\./, ['legal.spec.ts', 'smoke.spec.ts']],
   [/^src\/config\/(board-themes|site-themes|piece-sets)\./, ['themes.spec.ts', 'theme.spec.ts']],
@@ -78,7 +88,13 @@ export const SPEC_MAP = [
   [/^src\/components\/progress\//, ['resume.spec.ts', 'main-menu.spec.ts', 'mobile-app.spec.ts']],
   [/^src\/lib\/theme\./, ['theme.spec.ts', 'themes.spec.ts']],
   [/^src\/lib\/motion\./, ['feel.spec.ts', 'motion.spec.ts']],
-  [/^src\/lib\/(auth-flag|supabase)/, ['auth.spec.ts', 'auth-disabled.spec.ts']],
+  /* ⚠️ `supabase.ts` now carries `deleteOwnAccount()`, so the erasure spec is
+     mapped from it as well — the one path on this site that cannot be undone
+     must not be able to change without its test running. */
+  [
+    /^src\/lib\/(auth-flag|supabase)/,
+    ['auth.spec.ts', 'auth-disabled.spec.ts', 'account-deletion.spec.ts'],
+  ],
 
   /* 0005 — the parent/child model. `child.ts` decides WHO progress belongs to,
      so it reaches the sync suite as well as its own; `progress-sync.ts` is the
@@ -102,10 +118,16 @@ export const SPEC_MAP = [
     /^src\/components\/account\//,
     ['child-profiles.spec.ts', 'family.spec.ts', 'auth.spec.ts', 'auth-disabled.spec.ts'],
   ],
+  [
+    /^src\/components\/pages\/AccountPage\./,
+    ['account-deletion.spec.ts', 'family.spec.ts', 'auth.spec.ts', 'admin.spec.ts'],
+  ],
   [/^src\/styles\/family\./, ['family.spec.ts', 'themes.spec.ts']],
   [
     /^supabase\/migrations\//,
     [
+      'account-deletion.spec.ts',
+      'agenda.spec.ts',
       'child-profiles.spec.ts',
       'role-separation.spec.ts',
       'progress-sync.spec.ts',

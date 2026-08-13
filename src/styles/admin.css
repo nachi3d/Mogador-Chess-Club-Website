@@ -448,3 +448,49 @@
     padding-block: 0.3rem;
   }
 }
+
+/* ── Is the public agenda up to date? ─────────────────────────────────────
+   ⚠️ HERE AND NOT IN A SCOPED `<style>`: the whole box is written with
+   `innerHTML` at runtime, and Astro stamps its scoping attribute at build
+   time — a scoped rule would style the empty template and silently skip every
+   element the script creates. Same reason the session cards' buttons live in
+   this file.
+
+   ⚠️ THE WARNING STATE IS A BORDER AND A WORD, NEVER A COLOUR ALONE, and it
+   carries NO opacity — `check-contrast.mjs` proves the token pair and cannot
+   see an alpha laid over it. */
+.agenda-sync {
+  margin: 0 0 1.25rem;
+  padding: 0.85rem 1rem;
+  border-inline-start: 4px solid var(--mcc-border-strong);
+  border-radius: var(--radius-card);
+  background-color: var(--mcc-surface-sunken);
+}
+
+.agenda-sync[data-state='pending'] {
+  border-inline-start-color: var(--mcc-accent-strong);
+}
+
+.agenda-sync .agenda-sync-title {
+  margin: 0 0 0.3rem;
+  color: var(--mcc-text-primary);
+  font-weight: 600;
+}
+
+.agenda-sync .agenda-sync-body {
+  margin: 0 0 0.4rem;
+  color: var(--mcc-text-primary);
+  line-height: 1.55;
+}
+
+.agenda-sync .agenda-sync-when {
+  margin: 0;
+  color: var(--mcc-text-secondary);
+  font-size: 0.875rem;
+}
+
+.agenda-sync a {
+  color: var(--mcc-link);
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}

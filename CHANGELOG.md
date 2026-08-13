@@ -11,6 +11,137 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### Changed — `/agenda` reads the database, and the git collection is retired
+
+v2-S4 part 1 built `/admin/seances` and left `/agenda/` reading a git content
+collection. Two sources of truth for one list, and **the one a prof could edit
+was the one nobody could see**: publishing a session changed nothing a visitor
+could reach, and nothing said so.
+
+⚠️ **THE READ IS AT BUILD TIME, AND THAT IS FORCED RATHER THAN CHOSEN.** The
+three options were weighed and two are unavailable to this site:
+
+- a **runtime read** would have every anonymous visitor contact supabase.co on
+  page load — Critical Feature 9, on a page that tells children when a club
+  meets — and needs the ref, host and anon key in a bundle that Critical
+  Feature 18 says carries none of them;
+- **gating that read on `PUBLIC_AUTH_ENABLED`** fixes nothing where it matters,
+  because production ships with accounts OFF: `/admin/seances` would go on
+  silently doing nothing in exactly the state it is broken in.
+
+Static output plus "no third-party request" leaves one answer, so the content is
+fixed at build. `scripts/fetch-agenda.mjs` reads `sessions` over plain PostgREST
+and writes `src/data/agenda.json`; `src/lib/agenda.ts` is its only reader. ⚠️ The
+credentials are the **build's** and are never shipped — the bundle is
+byte-for-byte as clean as before, and `auth-disabled.spec.ts` still proves it.
+
+⚠️ **THE FAILURE MODE IS STALENESS, AND THE WORK WAS MAKING IT LOUD.** A session
+published after the last deploy is not on the site, and the public page cannot
+know. `/admin/seances` can: it is built in the same build, so it knows what was
+baked, compares it against the live table by fingerprint, and tells the prof — in
+French, on the screen they published from, with the date of the last build.
+Without that, the failure is exactly as silent as the bug being fixed.
+
+- **Migration 0006** widens the public select policy to `published, cancelled`.
+  ⚠️ **Critical Feature 46 was only half kept**: `cancelSession()` never deletes
+  so a student is not left wondering — and the policy then hid the cancelled row
+  from every surface they could reach, producing the vanishing the rule exists
+  to prevent. `role-separation.spec.ts` changed with the rule and still proves
+  a **draft** never leaks.
+- The one git entry is migrated with a **fixed uuid**, so the committed fallback
+  and the database agree and it never reads as a pending change.
+- ⚠️ **`seed-test.mjs` was deleting it.** The seed cleared every session row,
+  including the one 0006 had just inserted. Caught only because `agenda.spec.ts`
+  asserts that session is on the page.
+- ⚠️ **`src/data/agenda.json` is generated and gitignored**; the committed source
+  is `agenda.fallback.json`. One file would be a footgun with a short fuse: a
+  Playwright run builds against the TEST project, so `git add -A` would have
+  shipped "Séance découverte" to the real club.
+- ⚠️ **`site.timezone` is an IANA name, never `+01:00`** — Morocco drops to UTC+0
+  for Ramadan. The snapshot records the zone it was baked in and the build fails
+  if it disagrees with the config.
+- **No credentials is a dev build; broken credentials is a fatal build.**
+  Shipping a stale agenda while believing it fresh is the whole defect.
+
+**What is not in the repo, because it is dashboard configuration:** the Supabase
+webhook → Cloudflare deploy hook that makes the wait minutes rather than "the
+next deploy", a nightly rebuild as the self-healing floor, and
+`PUBLIC_SUPABASE_*` as Cloudflare **build** variables — without which every
+production build falls back to the committed snapshot and no prof can change the
+agenda at all. All three in `docs/reference/deployment.md`.
+
+### Added — an account can delete itself
+
+The privacy notice has always promised erasure; `docs/ADMIN.md` has always had
+the SQL; there has never been a button, so the promise was kept by a volunteer
+remembering to run a statement.
+
+**Migration 0007** adds `delete_own_account()`. ⚠️ **It takes no target, and the
+parameter list is the security design** — the id can only come from
+`auth.uid()`. A `delete_account(target uuid)` with an ownership check inside is
+one refactor away from a function that deletes anybody. `authenticated` only,
+and deliberately not `service_role`, which has no `auth.uid()` and could only
+raise.
+
+- **Two steps, the second a typed word** (`SUPPRIMER` / `DELETE`, case-exact).
+  Two buttons in one place is one mis-tap on a family tablet, on the only action
+  on the site nobody can undo — and a phone's autocapitalisation must not be
+  enough on its own to arm it.
+- **The confirmation names what goes**: children, progress, games, points,
+  attendance. "Are you sure?" tells a reader nothing.
+- ⚠️ **Local state is cleared only after the server confirms** — the opposite of
+  `signOut()`, which clears first. Wiping a device for a delete that did not
+  happen destroys data the account still holds.
+- ⚠️ **Nothing is retained**: no statistics, no archive, no anonymised copy — and
+  `account-deletion.spec.ts` asserts that rather than the notice claiming it.
+  Device-local progress is untouched on purpose: it is the reader's own copy, it
+  is what a guest has, and erasing it is not what the request asks for.
+- `/politique-confidentialite` changed in the same commit: it said "you can
+  **ask** for your account to be deleted", which stopped being what the site
+  does. The link to `/compte/` renders only where that page is emitted.
+
+**Live audit, test project, 2026-08-13.** One row seeded in every table, deleted
+through the RPC as the signed-in user: `auth.users`, `profiles`,
+`child_profiles`, `exercise_progress`, `game_results`, `point_awards`,
+`attendance` and `lesson_progress` all **1 → 0 in 453 ms**. The club's own
+`sessions` row survived with `created_by` nulled — correct, because a session is
+club data and not the reader's.
+
+### Added — `npm run db:push`, so migrations reach the test project at all
+
+Applying a migration needed `supabase link`, which needs a personal access token
+nobody has on this machine and fails with a privileges error that reads like a
+broken project. `scripts/db-push.mjs` goes through `--db-url` instead, takes its
+credentials from `.env.test` through `assertNotProduction()`, refuses if the ref
+matches production, probes for the project's pooler host (the direct
+`db.<ref>.supabase.co` no longer resolves on IPv4-less projects) with a **dry
+run**, and redacts the password from everything it prints. ⚠️ There is no flag
+that points it at production, and adding one would be the bug.
+
+### Fixed — the accounts-OFF build broke on a missing stub export
+
+`deleteOwnAccount()` was added to `supabase.ts` and not to
+`supabase.disabled.ts`, and the accounts-OFF build failed outright with
+`[MISSING_EXPORT]`. ⚠️ **The alias replaces the module for page scripts that are
+still BUILT behind routes that are never emitted**, so anything exported from
+one belongs in the other. The stub returns `{ ok: false }` rather than the empty
+answer every other stub returns: a stubbed success would tell a reader their
+data had been erased.
+
+### Fixed — two specs that were passing on timing
+
+Both found by the new suites, both mine, and neither a flake:
+
+- `family.spec.ts` read the database immediately after confirming a removal.
+  While the confirm is open the row shows the QUESTION in place of the name, so
+  the roster already has exactly one name the instant the button is clicked —
+  the assertion passed before the delete had left the browser.
+- `account-deletion.spec.ts` read `{profile: 1, children: 0, …}` under the full
+  fan-out. ⚠️ **That is not a reachable state**: `child_profiles` cascades from
+  `profiles` and nothing else deletes a child, so the parent cannot outlive
+  them. A stale read across pooled connections, confirmed by the same test
+  passing in isolation and against the RPC called directly.
+
 ### Fixed — the add-a-child form existed, was permitted, and could not be reached
 
 `/compte/` carried an **Ajouter un élève** form that inserted into

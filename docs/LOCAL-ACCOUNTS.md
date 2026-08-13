@@ -411,9 +411,9 @@ should be designed with that.
 
 | | State |
 |---|---|
-| Self-service account deletion | The cascade works and `docs/ADMIN.md` has the SQL. What is missing is a button and a confirmation a child cannot trip over |
+| ~~Self-service account deletion~~ | ✅ **Built.** `/compte/` → **Supprimer mon compte**, two steps, the second a typed `SUPPRIMER`. Nothing is retained |
 | Attendance history on `/compte/` | Shows "À venir". The register writes it; the family-facing view is not built |
-| The agenda | Still reads the git collection, not `sessions`. `/admin/seances/` and `/agenda/` are **two different sources of truth** today |
+| ~~The agenda~~ | ✅ **Built.** `/agenda/` is baked from `sessions` at build time and the git collection is gone. ⚠️ A published session appears at the next DEPLOY — `/admin/seances` says so when it has not caught up |
 | Points/rank on `/progres/` for a signed-in child | Derived and shown; but the balance is still computed **client-side**. ⚠️ When accounts go live it must be computed server-side — no endpoint may ever accept a total, a rank or an achievement list as input |
 | Graduating a child to their own account | `graduate_child()` exists, is proven, and is `service_role` only. There is no UI, by design |
 | The shop (E8) | Not started. One purse per child, never a shared family wallet |
