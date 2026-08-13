@@ -76,6 +76,23 @@ and asserts `is-revealed` with its own message before reading any opacity — "t
 card never revealed" and "the card is dimmed" are different defects and must not
 share an error.
 
+⚠️⚠️ **AND THE FIX ITSELF THEN BROKE THE GATE, WHICH IS THE ENTRY WORTH
+KEEPING.** The settle loop counted 240 `requestAnimationFrame`s inside a
+`page.evaluate`. **WebKit stalls rAF** — so the loop never advanced, and a raw
+`evaluate` carries no Playwright-side deadline, so it hung until the **30s test
+timeout**. That took down every home-page spec that calls the helper: **13
+failures across webkit and iphone-13**, in three spec files with nothing to do
+with the agenda. The `240` cap looked like a bound and was worthless, because
+reaching it required the very clock that had stopped.
+
+**The rule that comes out of it: a wait is bounded by Playwright or it is not
+bounded.** `waitForFunction` takes `polling: 100` (a timer, not the animation
+clock) and a deadline the harness enforces however dead the page is; where a
+page-side loop is genuinely needed it runs on `setTimeout` against a wall clock.
+The old flat `waitForTimeout` was immune to all of this for one reason nobody
+had written down — **it waits outside the page** — and that is why replacing it
+needed more care than it got.
+
 **The two zero-third-party-request tests, timing out at 30s on `networkidle`.**
 ⚠️ **The cause is this file's name.** `agenda.spec.ts` sorts first, so its two
 tests are the first page loads of every project run — the ones that pay for the

@@ -156,17 +156,23 @@ test.describe('the public agenda', () => {
         /is-revealed/,
         { timeout: 5_000 },
       );
+      /* ⚠️ A TIMER AND A WALL CLOCK, NOT `requestAnimationFrame`. WebKit stalls
+         rAF, and a loop that advances on it inside a raw `evaluate` is bounded
+         by nothing on the Playwright side — it hangs to the test timeout. The
+         same mistake in `settleReveals` cost 13 failures on the two WebKit
+         projects. `setTimeout` still fires when the animation clock does not,
+         and the deadline resolves regardless. */
       return el.evaluate(
         (node) =>
-          new Promise((resolve) => {
-            let frames = 0;
+          new Promise<number>((resolve) => {
+            const started = Date.now();
             const tick = () => {
               const v = Number(getComputedStyle(node).opacity);
-              if (v >= 0.9999 || (frames += 1) > 240) return resolve(v);
-              requestAnimationFrame(tick);
+              if (v >= 0.9999 || Date.now() - started > 3_000) return resolve(v);
+              setTimeout(tick, 50);
             };
-            requestAnimationFrame(tick);
-          }) as Promise<number>,
+            tick();
+          }),
       );
     };
     /* ⚠️ Sequential, not `Promise.all`: each call scrolls the page, and two

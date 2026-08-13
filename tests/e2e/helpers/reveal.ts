@@ -40,21 +40,7 @@ export async function settleReveals(page: Page): Promise<void> {
   });
 
   /* Wait for the mechanism to have finished rather than for a fixed duration:
-     every target must carry the class, and the transition must have run out. */
-  await page
-    .waitForFunction(
-      () => {
-        const targets = Array.from(document.querySelectorAll('[data-reveal]'));
-        return targets.every((el) => el.classList.contains('is-revealed'));
-      },
-      undefined,
-      { timeout: 5_000 },
-    )
-    .catch(() => {
-      /* A page whose reveals never complete is a real problem, but it is not
-         THIS helper's problem to report — the axe assertion that follows will
-         fail on the still-transparent text, which is the honest signal. */
-    });
+     every target must carry the class, AND its transition must have run out. */
 
   /**
    * ⚠️ THE CLASS LANDING IS NOT THE TRANSITION ENDING, AND A FIXED WAIT CANNOT
@@ -83,24 +69,38 @@ export async function settleReveals(page: Page): Promise<void> {
    * questions, and only one of them is the one being asked. Reveals are
    * one-shot (`io.unobserve` in BaseLayout), so the end state is unambiguous:
    * every target carries `is-revealed` and every opacity has reached 1.
+   *
+   * ⚠️⚠️ AND THE WAIT IS BOUNDED BY PLAYWRIGHT, NOT BY THE PAGE. This started
+   * as a `page.evaluate` counting 240 `requestAnimationFrame`s, which looked
+   * bounded and was not: **WebKit stalls rAF**, the loop then never advanced,
+   * and a raw `evaluate` has no timeout of its own — so it hung until the 30s
+   * TEST timeout. That took the home page's specs down on webkit and
+   * iphone-13, 13 failures, in a spec file that had nothing to do with it. A
+   * fixed `waitForTimeout` was immune only because it waits OUTSIDE the page.
+   *
+   * `waitForFunction` fixes both halves: `polling` on a timer rather than on
+   * rAF, and a deadline Playwright enforces however dead the page's animation
+   * clock is. Nothing inside a browser may be trusted to end a wait.
    */
-  await page.evaluate(async () => {
-    const frame = () => new Promise((r) => requestAnimationFrame(() => r(null)));
-    const settled = () =>
-      Array.from(document.querySelectorAll('[data-reveal]')).every(
-        (el) =>
-          el.classList.contains('is-revealed') &&
-          /* Not `=== '1'`: the comparison is against a value a compositor
-             produced, and 0.9999 is settled for every purpose this helper
-             serves. A card that is actually dimmed sits far below it. */
-          Number(getComputedStyle(el).opacity) >= 0.9999,
-      );
-
-    /* ~240 frames ≈ 4s at 60Hz. A ceiling, not a target: the longest
-       legitimate settle is the stagger cap (5 × 60ms) plus one transition,
-       comfortably under a second. Falling out of the loop leaves the assertion
-       that follows to report whatever it actually found, which is the honest
-       signal — the same reasoning as the `catch` above. */
-    for (let i = 0; i < 240 && !settled(); i += 1) await frame();
-  });
+  await page
+    .waitForFunction(
+      () =>
+        Array.from(document.querySelectorAll('[data-reveal]')).every(
+          (el) =>
+            el.classList.contains('is-revealed') &&
+            /* Not `=== '1'`: the comparison is against a value a compositor
+               produced, and 0.9999 is settled for every purpose this helper
+               serves. A card that is actually dimmed sits far below it. */
+            Number(getComputedStyle(el).opacity) >= 0.9999,
+        ),
+      undefined,
+      /* The longest legitimate settle is the stagger cap (5 × 60ms) plus one
+         transition, comfortably under a second. 5s is a ceiling, not a target. */
+      { timeout: 5_000, polling: 100 },
+    )
+    .catch(() => {
+      /* A page whose reveals never complete is a real problem, but it is not
+         THIS helper's problem to report — the assertion that follows will fail
+         on the still-transparent text, which is the honest signal. */
+    });
 }
