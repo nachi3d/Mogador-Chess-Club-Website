@@ -1003,6 +1003,17 @@ publishes, and is told the site is up to date.
 - ⚠️ **The credentials are the BUILD's, never the bundle's.** The script runs in
   Node and exits; `anon` has held `select` on published sessions since 0001, so
   the anon key is enough and the service role is not wanted.
+- ⚠️⚠️ **AND AS OF v0.12.0 THE BUILD DOES NOT HAVE THEM, SO PRODUCTION SHIPS THE
+  FALLBACK.** Two facts, both verified rather than assumed: **nothing on
+  Cloudflare builds this site** — every deployment is a `wrangler` CLI upload of
+  a `dist/` built here, so dashboard build variables are never read — and
+  `fetch-agenda.mjs` reads `process.env` in **its own process**, which
+  `.env.local` never reaches. A normal `npm run build` bakes the committed
+  fallback and says so in yellow. ⚠️ **Production is also missing migrations
+  0005–0007**, so wiring the credentials in *before* applying them ships an
+  **empty** `/agenda/`. Order matters: migrations, then credentials. Neither
+  half is a bug to fix in passing — see
+  [`docs/reference/deployment.md`](./docs/reference/deployment.md).
 - ⚠️ **`src/data/agenda.json` is a GENERATED ARTEFACT and is gitignored.** The
   committed source is `agenda.fallback.json`. One committed file would be a
   footgun: a Playwright run builds against the TEST project, so `git add -A`

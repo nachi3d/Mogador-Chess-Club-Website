@@ -37,6 +37,42 @@ The release also makes the gate honest again: `npm run test:release` runs its
 projects one at a time under a worker cap and is **expected to be green**, after
 two promotions that shipped on failures everybody had a good explanation for.
 
+### Documented — the agenda's credentials had nowhere to be set, and the docs said otherwise
+
+Found at this promotion, while confirming that the newly-configured Cloudflare
+build variables had been picked up. **They had not, and structurally could not
+have been.** Two independent facts, both verified rather than reasoned:
+
+- ⚠️ **Nothing on Cloudflare builds this site.** `npx wrangler deployments list`
+  reports every deployment this project has ever had as `Source: Unknown
+  (deployment)` — a **CLI upload**. `npm run build` runs here and
+  `npx wrangler deploy` uploads the finished `dist/`, so Cloudflare never runs a
+  build command and a variable in its build-variables panel is never read.
+- ⚠️ **`.env.local` does not fill the gap either**, which is the part most likely
+  to be assumed away. `scripts/fetch-agenda.mjs` is a plain Node script reading
+  `process.env` in its **own process**, before `astro build`; Astro's dotenv
+  loading feeds `import.meta.env` inside the Astro build and reaches it never.
+  A normal build on this machine bakes the committed fallback and says so in
+  yellow — which is what every production build to date has shipped.
+
+**And production's database is behind the repo.** Read-only probes against the
+live project: `sessions` is empty to `anon` *and* to `service_role` (so it is
+genuinely empty, not RLS hiding rows), and `child_profiles` **404s — the table
+does not exist**. Migrations 0005–0007 have never been applied there.
+
+⚠️ **So switching the credentials on today would have shipped an EMPTY
+`/agenda/`**, replacing the season-opening session a visitor can currently see,
+with no `/admin/seances` in production to restore it because accounts are off.
+**v0.12.0 therefore deploys from the committed fallback, deliberately** — the
+database-backed agenda is *dormant* in production rather than broken, and
+nothing is lost while accounts are off, because no prof can publish there
+anyway. The order when it is switched on is **migrations first, credentials
+second**; reversed, the agenda empties.
+
+`docs/reference/deployment.md` said "set them in the Cloudflare dashboard",
+which was wrong in a way that would read as done. It now carries the deployment
+topology, the probe results and both routes to a live agenda.
+
 ### Changed — `/agenda` reads the database, and the git collection is retired
 
 v2-S4 part 1 built `/admin/seances` and left `/agenda/` reading a git content
