@@ -139,6 +139,79 @@ moment is to skip the check rather than to do it.
 ⚠️ And the converse still holds and matters more: **a serial re-run that fails is
 a real defect**, whatever the log says about compositors.
 
+#### ⚠️ AND THEN THE DIAGNOSIS STOPPED BEING GOOD ENOUGH — the matrix runs one project at a time
+
+Two consecutive gates were promoted on the reasoning above: **v0.11.0, 4
+failures in 43.9m; v0.11.1, 7 failures in 58.3m.** Every one a bare timeout with
+no failed assertion, on a different spec each run, across firefox, webkit and
+iphone-13 — and every one green on a serial re-run (v0.11.1: 335 tests across
+the three projects, first time). The diagnosis was right both times and both
+promotions were sound.
+
+**The trend was the defect, not the runs.** A gate that is expected to be red
+teaches the next session to wave failures through, and that is precisely how a
+real regression ships — the reader of the fifth red gate has no way to tell it
+from the first four.
+
+**The cause was measured rather than argued.** Playwright shares **one worker
+pool across every project**, so at its default six workers this machine was
+running six *mixed* browsers side by side. Sampled during a run:
+
+| | |
+|---|---|
+| peak browser processes | 80 |
+| peak browser memory | 6.68 GB |
+| minimum free RAM | 2.08 GB of 15.8 GB |
+
+At roughly 2 GB free, Firefox's software compositor cannot allocate its
+framebuffer. ⚠️ **The failure is MEMORY EXHAUSTION — not a browser bug and not a
+test bug**, which is exactly why it moved between specs and projects and why
+every one of them passed serially.
+
+##### The three candidates, and what each measured
+
+| | Change | Result |
+|---|---|---|
+| **A** | per-project runs, 3 workers | 5 projects, **0 failures, 66.8 min** — **shipped** |
+| **B** | `fullyParallel: false` on firefox | **rejected without a run** |
+| **C** | pooled, 3 workers | 3 projects, 0 failures, 51.7 min |
+
+⚠️ **C's 51.7 minutes is not a win, and the row is the trap.** It ran only
+firefox, webkit and iphone-13 — the three projects that produced every failure
+in both red gates — and still spent 51.7 of A's 66.8 minutes. The two it skipped
+are ~1190 further test executions with no idle capacity to absorb them at the
+same worker count, so pooled-over-five lands **above** A. It looked cheaper
+because it did less.
+
+⚠️ **B was rejected on evidence already in the repository.** `fullyParallel:
+false` is what **webkit and iphone-13 already carry**, and they were two of the
+three projects failing both gates. A setting already in force on the failing
+projects cannot be the thing that would have saved them; measuring it would have
+bought an hour of confirming what `playwright.config.ts` states in its own
+source.
+
+⚠️ **The honest caveat, recorded so nobody has to rediscover it:** C came back
+green, and both red gates ran at **six** workers. So the **worker cap** is very
+likely the half of A that does the work, and the per-project split is very
+likely not load-bearing for stability at all. That is one pooled run and not a
+proof. The split is kept anyway, because it buys something the cap does not:
+**per-project accounting** — the gate reads counts off the JSON reporter and
+compares the projects against each other, so a project that runs zero tests is
+caught. The old check ("the total must divide by 5") could not see that: four
+projects of 100 and one of 0 divides just as neatly as five of 80.
+
+Peak load under C, for comparison with the table above: **59 processes, 5.55 GB,
+4.33 GB free at the floor** — about half the pressure, and never near the ~2 GB
+where the compositor starts failing.
+
+⚠️ **Do not "fix" a red matrix by raising timeouts.** It was tried on
+`play.spec.ts` and the failure count went **up**: a starved browser given longer
+to answer is still starved, and every test now waits longer to find out.
+
+⚠️ **`--workers=3` is not a tuning knob.** It is roughly half the peak memory,
+which is the measured difference between green and red. The numbers live in
+`scripts/test-release.mjs` → MEASUREMENTS; re-measure before re-arguing.
+
 ### `auth.spec.ts` hard-fails under the Firefox fan-out — and it is the NETWORK, not the browser
 
 Found in E1's full-matrix run. Six `auth.spec.ts` "signed in" tests failed on

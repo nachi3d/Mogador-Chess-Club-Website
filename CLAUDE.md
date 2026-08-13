@@ -1076,6 +1076,13 @@ touching application code.**
 with an assertion naming a value.** WebKit and Firefox carry one local retry;
 chromium has none. A run reporting `N passed, 1 flaky` on WebKit is green.
 
+⚠️ **THE TWO BROWSER-CRASH ROWS ARE NOW A FINDING WHEN THEY COME FROM
+`test:release`.** They belong to a raw `npx playwright test`, which still pools
+every project at the default fan-out. The matrix caps its workers and runs one
+project at a time precisely so it never reaches that state — so a compositor
+death *from the gate* means the cap has stopped being enough, and the next step
+is to check free RAM during the run, not to re-run and hope.
+
 ⚠️ **THE LOCAL RETRY IS NOT THE ARBITER — `--workers=1` IS.** The v0.11.0 gate
 failed four Firefox specs that also failed their retries, in four unrelated
 files, and all 102 tests in those files then passed serially first time: when the
@@ -1085,9 +1092,11 @@ nothing. Read the errors rather than counting them — bare timeouts and
 value is a defect. See [`docs/reference/testing.md`](./docs/reference/testing.md).
 
 ⚠️ **Never pipe the test run into `tail`** — it reports tail's exit code, so 14
-failures read as "196 passed, exit 0". Redirect to a file, check the status, and
-sanity-check the arithmetic: 5 projects means the total must be `5 ×` the
-per-project count.
+failures read as "196 passed, exit 0". Redirect to a file and check the status.
+`test:release` does both for you, and it also **compares the projects against
+each other** and fails if one ran zero tests — a hole the old "the total must be
+a multiple of 5" check could not see, since four projects of 100 and one of 0
+divides just as neatly as five of 80.
 
 ### ⚠️ Driving a board from a spec — the four gates
 
@@ -1199,11 +1208,45 @@ overrides the comparison branch; it exists for testing the script itself.
 | | Command | When | Cost |
 |---|---|---|---|
 | **Every feature branch** | `npm run test:branch` | every session, before merging to `dev` | ~1-3 min |
-| **Promotion only** | `npm run test:release` | once, when promoting `dev` → `main` | 30-45 min |
+| **Promotion only** | `npm run test:release` | once, when promoting `dev` → `main` | ~65-70 min |
 
 `npm run test:branch` is **chromium only** and runs the specs mapped from what
 actually changed (`scripts/spec-map.mjs`). `--all` runs every chromium spec for
 a sweeping refactor — still one browser.
+
+#### ⚠️ THE MATRIX RUNS ONE PROJECT AT A TIME, UNDER A WORKER CAP
+
+`test:release` does **not** hand the whole matrix to Playwright at once. It runs
+each project on its own, sequentially, at **three** workers. That is slower than
+the old single pooled run and it is the reason the gate is green.
+
+**Why: the red gates were MEMORY EXHAUSTION, not browser bugs and not test
+bugs.** Playwright shares one worker pool across every project, so at the
+default six workers this machine ran six *mixed* browsers side by side — 80
+processes, 6.68 GB of browser memory, 2.08 GB of 15.8 GB free. At that point
+Firefox's software compositor cannot allocate, the browser stops answering, and
+whatever test was in flight dies of a bare timeout. That is why it landed on a
+different spec every run and why every one of them passed serially.
+
+- ⚠️ **`--workers=3` IS NOT A TUNING KNOB.** Three is roughly half the peak
+  memory, which is the difference between green and red. Raising it back
+  towards six reintroduces the entire problem.
+- ⚠️ **DO NOT "FIX" A RED MATRIX BY RAISING TIMEOUTS.** Tried on
+  `play.spec.ts`; the failure count went **up**. A starved browser given longer
+  to answer is still starved, and every test now waits longer to find out.
+- ⚠️ **A GATE THAT IS EXPECTED TO BE RED IS WORTH NOTHING.** v0.11.0 shipped on
+  4 waved-through failures and v0.11.1 on 7. Both diagnoses were right and both
+  promotions were sound — and that is exactly the habit that lets a real
+  regression through. The trend was the defect, not the individual runs.
+- **It proves every project actually ran.** Counts come from the JSON reporter
+  and are compared **project against project**, because the old "is the total a
+  multiple of five" check passes perfectly on four projects of 100 and one of 0.
+- ⚠️ **The alternatives were MEASURED and the numbers are in
+  `scripts/test-release.mjs` → MEASUREMENTS.** Pooling at three workers was
+  green too but not cheaper, and `fullyParallel: false` on firefox was rejected
+  without a run — webkit and iphone-13 already carry it and were two of the
+  three projects failing both gates. Re-measure before re-arguing; do not
+  re-reason.
 
 #### ⚠️ DO NOT RUN THE MATRIX ON A FEATURE BRANCH. EVER. NOT "TO BE SAFE".
 
@@ -1215,7 +1258,9 @@ already done:
   the cost from one run per release to one run per session.
 - **It was costing 30-45 minutes per session**, routinely, because it *felt*
   prudent. That is not caution. It is a tax that discourages small fixes, and
-  unfixed small things are what a visitor actually sees.
+  unfixed small things are what a visitor actually sees. ⚠️ **The tax is now
+  ~65-70 minutes**, since the matrix runs its projects one at a time — so this
+  rule matters more than when it was written, not less.
 - **A chromium failure is a failure.** If `test:branch` fails, fix it. Do not
   run the matrix to find out whether it is "really" broken.
 - **A chromium pass is enough to merge to `dev`.** `dev` is not production.
@@ -1281,8 +1326,9 @@ Run `npm run demo`, which prints its path, and work down it. The release gate is
 □ node scripts/check-claude-md.mjs — green (CLAUDE.md under the size limit)
 □ node scripts/check-contrast.mjs — green
 □ node scripts/check-content.mjs — green
-□ npm run test:release — green (the full matrix; see the known environmental
-  flakes above. This is the ONE place it runs.)
+□ npm run test:release — green, meaning ZERO failures. ⚠️ It runs its projects
+  one at a time and it is EXPECTED TO BE GREEN now; a red matrix is a finding
+  to chase, not a known flake to wave through. This is the ONE place it runs.
 □ docs/MANUAL-TESTS.md — worked through on desktop AND a real phone
 □ Lighthouse ≥ 90 (Performance, Accessibility, SEO)
 □ package.json "version" matches the tag about to be cut

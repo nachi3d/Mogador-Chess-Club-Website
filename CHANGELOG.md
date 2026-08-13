@@ -11,6 +11,90 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### Fixed — the release gate is green again, and the cause was the machine
+
+**`npm run test:release` now runs one project at a time under a worker cap:
+0 failures in 66.8 minutes**, against **v0.11.0's 4 failures in 43.9m** and
+**v0.11.1's 7 in 58.3m**. No test and no application code changed.
+
+⚠️ **The failures were MEMORY EXHAUSTION — not a browser bug, not a test bug.**
+Playwright shares **one worker pool across every project**, so at its default of
+six workers this machine was running six *mixed* browsers side by side.
+Sampled during a run: **80 browser processes, 6.68 GB of browser memory, 2.08 GB
+free of 15.8 GB.** At roughly 2 GB free, Firefox's software compositor cannot
+allocate its framebuffer, the browser stops answering, and whatever test was in
+flight dies of a bare timeout. That is the whole explanation for the two
+signatures this project has been documenting for several sessions: the failure
+**moves between specs and projects each run**, and **every one of them passes
+serially**.
+
+**Why this was worth a session at all, given both promotions were sound.** They
+were: the diagnosis was right each time, and the serial re-runs were green. But
+a gate that is *expected* to be red teaches the next session to wave failures
+through, and the reader of the fifth red gate cannot tell it from the first
+four. ⚠️ **The trend was the defect, not the individual runs.**
+
+### The three candidates, and why the cheap-looking one lost
+
+| | Change | Result |
+|---|---|---|
+| **A** | per-project runs, 3 workers | 5 projects, **0 failures, 66.8 min** — **shipped** |
+| **B** | `fullyParallel: false` on firefox | **rejected without a run** |
+| **C** | pooled, 3 workers | 3 projects, 0 failures, 51.7 min |
+
+⚠️ **C's 51.7 minutes is the trap in that table, not the winner.** It ran only
+firefox, webkit and iphone-13 — the three projects that produced every failure
+in both red gates — and still spent 51.7 of A's 66.8 minutes. The two projects
+it skipped are ~1190 further test executions with no idle capacity to absorb
+them at the same worker count, so pooled-over-five lands **above** A. It looked
+cheaper because it did less.
+
+⚠️ **B was rejected on evidence already in the repository, not on a hunch.**
+`fullyParallel: false` is what **webkit and iphone-13 already carry** — and they
+were two of the three projects failing both gates. A setting already in force on
+the failing projects cannot be the thing that would have saved them. Measuring
+it would have bought an hour of confirming what `playwright.config.ts` states in
+its own source.
+
+⚠️ **The caveat is recorded rather than glossed:** C came back green, and both
+red gates ran at **six** workers — so the **worker cap** is very likely the half
+of A that does the work, and the per-project split may not be load-bearing for
+stability at all. That is one pooled run and not a proof. The split is kept
+regardless, because it buys something the cap does not — see below.
+
+### Added — the gate proves every project actually ran
+
+Counts are read from Playwright's **JSON reporter** and compared **project
+against project**, so a project that contributes **zero tests** fails the gate by
+name.
+
+⚠️ **This replaces a check that could not see that hole.** The old rule was "the
+total must be a multiple of 5" — but four projects of 100 and one of 0 divides
+just as neatly as five of 80, and a project silently dropped from the config
+divides perfectly. A silent zero is the worst possible pass: the summary says
+green and a fifth of the matrix never happened.
+
+### Changed — the numbers in the docs
+
+- The release gate now costs **~65-70 min**, not 30-45. ⚠️ That makes *"do not
+  run the matrix on a feature branch"* matter **more** than when it was written,
+  not less.
+- The pre-PR checklist now reads **"green, meaning ZERO failures"**, and says
+  plainly that **a red matrix is a finding to chase, not a known flake to wave
+  through**.
+- The two browser-crash rows in *"Symptoms that are the ENVIRONMENT"* still
+  describe a raw `npx playwright test`, which pools everything at full fan-out.
+  ⚠️ **From `test:release` they are now a finding**: it means the cap has
+  stopped being enough, and the next step is to check free RAM during the run,
+  not to re-run and hope.
+- The measurements live in `scripts/test-release.mjs` → **MEASUREMENTS** and the
+  narrative in `docs/reference/testing.md`. ⚠️ `--workers=3` **is not a tuning
+  knob** — it is roughly half the peak memory, which is the measured difference
+  between green and red. Re-measure before re-arguing; do not re-reason.
+- ⚠️ **Not fixed by loosening timeouts.** That was tried on `play.spec.ts` and
+  the failure count went **up**: a starved browser given longer to answer is
+  still starved, and every test now waits longer to find out.
+
 ---
 
 ## [0.11.1] — 2026-08-12
