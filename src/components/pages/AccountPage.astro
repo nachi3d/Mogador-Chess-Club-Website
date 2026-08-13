@@ -15,7 +15,7 @@ import { localizePath } from '@i18n/paths';
 import { useTranslations } from '@i18n/ui';
 import BaseLayout from '@layouts/BaseLayout.astro';
 import PageIntro from '@components/PageIntro.astro';
-import ChildPicker from '@components/account/ChildPicker.astro';
+import FamilySection from '@components/account/FamilySection.astro';
 
 interface Props {
   locale: Locale;
@@ -80,7 +80,12 @@ const t = useTranslations(locale);
         <p class="account-status" role="status" data-testid="account-status"></p>
       </form>
 
-      <ChildPicker locale={locale} />
+      {/* ⚠️ ALWAYS RENDERED FOR A SIGNED-IN ACCOUNT — the section reveals
+          itself once it knows who is signed in, and only the "Qui joue ?"
+          picker inside it is conditional on holding more than one child.
+          Those two rules were one until v0.11.x, which made "Ajouter un
+          élève" unreachable for every normal account. */}
+      <FamilySection locale={locale} />
 
       {/* ── v2-S3 — the real progress section ────────────────────────────
           ⚠️ EVERY NUMBER HERE IS DERIVED, NOT STORED. The counts come from the

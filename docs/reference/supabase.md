@@ -432,6 +432,61 @@ re-validated against what the account actually holds: a child who was graduated
 away must not keep receiving this device's progress, or the queue would fill
 with rows RLS then refuses and never drain.
 
+#### ⚠️ THE FORM THAT EXISTED, WAS PERMITTED, AND COULD NOT BE REACHED
+
+The narrative behind Critical Feature 48, kept because it is the most
+instructive failure the account work has produced so far.
+
+`ChildPicker.astro` shipped an **Ajouter un élève** form that inserted into
+`child_profiles`. RLS permitted the insert — `child_profiles_own` is `for all`,
+a parent may do anything to their own children — and the markup was correct. But
+one line hid the **whole section**, form included, whenever the account held one
+child or none:
+
+```js
+if (children.length <= 1 && active) { root.hidden = true; return; }
+```
+
+- a brand-new account has **zero** children, so `resolveChild()` silently
+  creates **one** from the profile name;
+- at exactly one child the section hid itself, because there was nothing to ask;
+- so the form was invisible to **every account that had never had a second child
+  inserted by SQL**.
+
+A parent with two children could add a third; a parent with one could add none.
+**Two rules had been written as one** — "there is nothing to ask" and "there is
+nothing to manage" are different claims, and only the first is true at one child.
+
+⚠️ **EVERY CHECK IN THE PROJECT PASSED THROUGHOUT.** The build was clean.
+`child-profiles.spec.ts` was green — and could not have been anything else,
+because it asserts the boundary through **PostgREST**, where the form does not
+exist. `admin.spec.ts` was green. Nothing renders wrong; nothing 404s; nothing
+is missing from the page for a test to notice. It was found by a human trying to
+add a second child on a seeded project and failing.
+
+**The lesson, and the reason CF48 is phrased about reachability rather than
+about this component:** a permission model that says *yes* proves nothing about
+whether a reader can get there, and a spec that talks to the database can never
+tell you. `family.spec.ts` drives the browser and asserts against the row
+afterwards; it fails on the shape of account **every signup produces**.
+
+Two smaller defects lived in the same file for the same reason — nobody had
+looked at it in a browser signed in with one child:
+
+- ⚠️ **its scoped `<style>` could not reach its own buttons.** The choice
+  buttons are built by script and carry no `data-astro-cid-*`, so
+  `.child-choice[data-astro-cid-hcrewwfn]{…}` matched nothing. Same trap as
+  `admin.css`; the styles now live in `src/styles/family.css`.
+- ⚠️ **and two of those declarations named tokens that do not exist** —
+  `--mcc-text` and `--mcc-text-muted`, against the real
+  `--mcc-text-primary`/`--mcc-text-secondary`. The fourth and fifth entries in
+  CLAUDE.md's unknown-custom-property table.
+
+**Still not built, and still deliberate:** creating a student from the *admin*
+UI. Staff hold `SELECT` on `child_profiles` and nothing else — a teacher
+renaming a child is indistinguishable from a teacher inventing one. That is the
+"guest attendance" backlog item and should be designed with it.
+
 #### ⚠️ DROPPING A COLUMN DROPS ITS PRIMARY KEY AND ITS INDEXES, SILENTLY
 
 `exercise_progress` was keyed `(profile_id, exercise_slug)`. Dropping the column

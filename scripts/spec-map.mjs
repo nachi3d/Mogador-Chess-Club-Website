@@ -86,12 +86,23 @@ export const SPEC_MAP = [
      a guest must download none of it. */
   [
     /^src\/lib\/(child|progress-sync)\./,
-    ['child-profiles.spec.ts', 'progress-sync.spec.ts', 'auth.spec.ts', 'auth-disabled.spec.ts'],
+    [
+      'child-profiles.spec.ts',
+      /* ⚠️ BOTH, and the split is the point: `child-profiles` proves the RLS
+         boundary through PostgREST, `family` proves a browser can actually
+         reach the controls. The add-a-child form was unreachable for two
+         releases with the first of those fully green. */
+      'family.spec.ts',
+      'progress-sync.spec.ts',
+      'auth.spec.ts',
+      'auth-disabled.spec.ts',
+    ],
   ],
   [
     /^src\/components\/account\//,
-    ['child-profiles.spec.ts', 'auth.spec.ts', 'auth-disabled.spec.ts'],
+    ['child-profiles.spec.ts', 'family.spec.ts', 'auth.spec.ts', 'auth-disabled.spec.ts'],
   ],
+  [/^src\/styles\/family\./, ['family.spec.ts', 'themes.spec.ts']],
   [
     /^supabase\/migrations\//,
     [

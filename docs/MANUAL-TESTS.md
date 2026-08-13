@@ -442,9 +442,26 @@ With the flag **on** (`npm run demo:accounts`):
 - [ ] The points a prof sees on `/admin/eleve/` and the points that child sees on
       `/progres/` are **the same number**. Two plausible, different totals is the
       worst failure this display can have
-- [ ] ⚠️ A parent cannot add a second child from anywhere in the UI — see
-      §7a of `docs/LOCAL-ACCOUNTS.md`. Confirm you agree that is the gap, and
-      decide where adding a child should live
+
+#### The family section on `/compte/` — walk it as an account with ONE child
+
+⚠️ **Sign in as `seed-eleve-2` (Omar, one child), not as the two-child family.**
+One child is the shape every real signup produces, and it is the shape in which
+this whole section used to be invisible. Procedure in
+[`docs/LOCAL-ACCOUNTS.md`](./LOCAL-ACCOUNTS.md) §6a.
+
+- [ ] **Mes élèves** is there, with the child listed and **Ajouter un élève**
+      reachable — the regression that shipped for two releases
+- [ ] **Qui joue ?** is *not* there at one child, and appears as soon as a second
+      is added. Two rules, and only the picker is the conditional one
+- [ ] There is no **Retirer** at one child, and a sentence explains it rather than
+      a greyed-out button explaining nothing
+- [ ] **Retirer** on a second child asks first, **names the child**, and says the
+      progress goes with them. Cancel leaves everything alone
+- [ ] **Renommer** works, and the new name is what the picker's button says
+- [ ] ⚠️ **The buttons look like this site's buttons** — border, ink, 44px, and
+      the press. They are built by script, so a scoped `<style>` would silently
+      miss every one of them; that is exactly what had happened to the picker
 
 ### v2-S3 — progress sync (only once `PUBLIC_AUTH_ENABLED` is on)
 

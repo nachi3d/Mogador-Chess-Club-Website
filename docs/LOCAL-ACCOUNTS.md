@@ -230,21 +230,47 @@ from the profile the page fetched.
 Sign in as **`seed-eleve-1@mcc-seed.test`** for the family half, then as
 **`seed-prof@mcc-seed.test`** (or yourself, once promoted) for the staff half.
 
-### 6a. "Qui joue ?" — the child picker
+### 6a. **Mes élèves** — the family section, and "Qui joue ?" inside it
 
-Sign in as `seed-eleve-1` (holds **two** children). On `/compte/` there is a
-**Qui joue ?** section listing *Sara* and *Yassine* as buttons.
+⚠️ **Two rules, and they used to be one.** The family section renders for
+**every** signed-in account; only the **Qui joue ?** picker inside it is
+conditional on holding more than one child. Coupling them is what made
+"Ajouter un élève" unreachable for every normal account — see §7a, which is now
+a record of a fixed bug rather than an open gap.
+
+Sign in as `seed-eleve-2` (holds **one** child) first, because that is the shape
+every real signup produces:
+
+- **Mes élèves** is there, with *Omar* in it, an **Ajouter un élève** field, and
+  a **Renommer** button
+- **Qui joue ?** is **not** there, and that is correct — a lone child is adopted
+  silently, so an autonomous teenager is the family case with a list of one. One
+  code path, not two
+- There is no **Retirer** button either, and a sentence says why: an account
+  always keeps at least one student. Removing the only one is a lie — the
+  resolver would create a replacement from the profile name, renamed, with the
+  history gone
+- Add a second child. The picker appears. Remove them again: the first tap
+  **asks**, naming the child and saying the progress goes with them, and the
+  picker disappears again
+
+Now sign in as `seed-eleve-1` (holds **two**). The **Qui joue ?** block lists
+*Sara* and *Yassine* as buttons.
 
 - Tapping one marks it `aria-pressed="true"` — chosen by **weight and border**,
   never colour alone
 - The choice is remembered **per device, per account**. A child's own phone
   answers once, ever; the family tablet asks when the answer is genuinely unknown
 - ⚠️ **There is no PIN and there will not be one.** The account is the security
-  boundary; which child is playing is a preference, exactly like the board theme
-- Now sign in as `seed-eleve-2` (holds **one** child): the picker **does not
-  appear at all**. That is correct — a lone child is adopted silently, so an
-  autonomous teenager is the family case with a list of one. One code path, not
-  two
+  boundary; which child is playing is a preference, exactly like the board theme.
+  ⚠️ The two-step confirm on **Retirer** is a different thing entirely — that one
+  erases a child's whole history by cascade
+- ⚠️ **The picker and the roster are two lists of the same names, on purpose.**
+  The picker is what a child taps on a shared tablet; **Retirer** must not sit
+  beside the button they are aiming for
+- Rename a child from the roster and check the picker follows. The device's
+  remembered choice carries the name as well as the id, and a rename that did not
+  refresh it would leave the old name on that button
 - Nothing syncs until the question is answered, when it has to be asked. Writing
   a solved exercise to the wrong sibling is worse than waiting
 
@@ -347,33 +373,32 @@ with the form nowhere in the picture.
 
 Read this before concluding something is broken.
 
-### 7a. A parent adding their own children — effectively no UI
+### 7a. ✅ A parent adding their own children — FIXED, and worth reading anyway
 
-**This is the gap that matters most, and it is not quite "no UI" — it is worse
-than that, because the UI exists and cannot be reached.**
+**This was the gap that mattered most, and it was not "no UI" — it was worse,
+because the UI existed and could not be reached.** It is fixed; the entry stays
+because the *shape* of the failure is the useful part.
 
-`ChildPicker.astro` does contain an **Ajouter un élève** form that inserts into
-`child_profiles`, and RLS permits it (a parent may do anything to their own
-children). But the whole `<section>` — form included — is hidden whenever the
-account holds **one child or none**:
+`ChildPicker.astro` contained an **Ajouter un élève** form that inserted into
+`child_profiles`, and RLS permitted it. But one line hid the whole `<section>`,
+form included, whenever the account held **one child or none** — and a brand-new
+account is given exactly one by `resolveChild()`. A parent with two children
+could add a third; a parent with one could add none.
 
-- a brand-new account has **zero** children, so `resolveChild()` silently creates
-  **one** from the profile name;
-- with exactly one child the picker hides itself, because there is nothing to ask;
-- so the add-a-child form is invisible to **every account that has never had a
-  second child added by other means**.
+The fix is the design decision this entry used to ask for: **the family section
+always renders for a signed-in account, and only the picker is conditional.**
+`FamilySection.astro`, plus rename and remove on the roster, plus
+`tests/e2e/family.spec.ts` — which drives the browser as an account with exactly
+one child, the shape every signup produces.
 
-The result is a bootstrap deadlock: a parent with two children can add a third,
-and a parent with one child can add none. **The only way to get a second child
-onto an account today is SQL or the seed script** — which is exactly why
-`seed-test.mjs` now creates two for one family. Without that you cannot see the
-picker at all.
+⚠️ **Every check in the project passed the whole time.** `child-profiles.spec.ts`
+was green and could not have been otherwise: it asserts the boundary through
+PostgREST, where a form does not exist. **A permission model that says yes proves
+nothing about whether a reader can get there.** Full narrative in
+`docs/reference/supabase.md`.
 
-Nothing in the e2e suite covers the add form, which is how it stayed unreachable
-without anything going red. **This needs a design decision from you, not just a
-fix**: whether the family section on `/compte/` should always render for a
-signed-in parent (with the *picker* being the conditional part), or whether
-adding a child belongs somewhere else entirely.
+The seed still gives one family two children — not to work around anything now,
+but so both sides of the picker's threshold are walkable without clicking.
 
 ### 7b. Creating a student from the admin UI — deliberately absent
 
