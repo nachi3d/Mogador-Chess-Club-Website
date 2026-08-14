@@ -11,6 +11,35 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+---
+
+## [0.13.0] — 2026-08-14
+
+**A parent can now be handed this site, and the account they get explains
+itself.**
+
+Accounts are built, tested and still switched OFF — this release is the work
+that has to be true *before* the flag is turned on, which is a separate and
+explicit decision. Until now a parent would have signed up, silently received one
+student profile named from the local part of their email address, and been left
+to discover on their own that it could be renamed or that a sibling could be
+added. The account page said "Rien d'autre n'est stocké ici" while storing
+children, points, games and attendance, and the privacy notice predated every one
+of those. None of that was a bug any check could see; the pages rendered
+perfectly throughout.
+
+Alongside it, three repairs from a production audit that had nothing to do with
+onboarding and everything to do with the same habit: a documented invariant that
+had quietly stopped being true, and nothing anywhere reporting it.
+
+⚠️ **`PUBLIC_AUTH_ENABLED` stays OFF in this release.** No auth route is in
+`dist/`, no Supabase ref, host or anon key is in any bundle, and
+`@supabase/supabase-js` is not bundled at all — asserted, not assumed.
+
+⚠️ **Migrations 0008 and 0009 are NOT applied to production**, deliberately:
+nothing in this release needs them, because everything they serve is behind the
+flag. They are a prerequisite for turning it on — see BACKLOG → Accounts.
+
 ### Added — parent onboarding, before accounts open to real families (v2-S5)
 
 **`/bienvenue/` — one screen, once per account, skippable.** A parent signed up,
@@ -4080,7 +4109,8 @@ Foundation only: no real content, no interactive board yet.
   `url()` references unresolved and the fonts silently 404 into a Georgia
   fallback. `scripts/build-fonts.mjs` self-hosts them instead. See CLAUDE.md.
 
-[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.11.1...v0.12.0
 [0.11.1]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.10.0...v0.11.0
