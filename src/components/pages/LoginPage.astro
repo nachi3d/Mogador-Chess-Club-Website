@@ -43,6 +43,7 @@ const t = useTranslations(locale);
       data-msg-error={t('login.error')}
       data-msg-invalid={t('login.invalidEmail')}
       data-msg-unconfigured={t('login.unconfigured')}
+      data-msg-retry={t('login.retry')}
       data-callback-path="/auth/callback"
     >
       <label for="login-email">{t('login.emailLabel')}</label>
@@ -55,6 +56,46 @@ const t = useTranslations(locale);
         required
         data-testid="login-email"
       />
+
+      {/* ── The honeypot ───────────────────────────────────────────────────
+          ⚠️⚠️ THIS IS NOT SECURITY, AND NOTHING HERE MAY BE TREATED AS SUCH.
+
+          The anon key ships to every browser by design, so anyone who wants an
+          account can POST to Supabase's `/auth/v1/otp` endpoint and never load
+          this page at all. Any check written into this form is bypassed by not
+          using the form. What this buys is the cheap half: the naive scrapers
+          that fill every input they find stop creating rows. That is noise
+          reduction, and calling it anything more would be the same mistake as
+          treating `isStaff()` as a gate.
+
+          The real answers to junk sign-ups are elsewhere and are named in
+          CLAUDE.md: Supabase's own per-address and per-IP rate limits, and
+          `/admin/comptes/`, where an admin can SEE the sign-ups and remove one.
+
+          ⚠️ IT FAILS VISIBLY AND RECOVERABLY — NEVER AS A FAKE SUCCESS. The
+          usual honeypot advice is to pretend the send worked, which denies the
+          bot its signal. It also means a parent whose password manager filled
+          this field waits forever for an email that was never sent, with the
+          page cheerfully telling them to check their inbox. On this site that
+          trade goes the other way: show the error, CLEAR the field, and let the
+          second press through. A bot loops; a human presses twice.
+
+          ⚠️ HIDDEN FOR EVERYONE, INCLUDING ASSISTIVE TECH. `aria-hidden` plus
+          `tabindex="-1"` keeps it out of the accessibility tree and out of the
+          tab order, so it is not a mystery field a screen-reader user must
+          skip. Positioned off-screen rather than `display: none`, because the
+          scrapers worth catching skip what is explicitly not displayed. */}
+      <div class="auth-hp" aria-hidden="true">
+        <label for="login-website">{t('login.hpLabel')}</label>
+        <input
+          id="login-website"
+          name="website"
+          type="text"
+          tabindex="-1"
+          autocomplete="off"
+          data-testid="login-hp"
+        />
+      </div>
 
       <button type="submit" class="btn-primary" data-testid="login-submit">
         {t('login.submit')}
@@ -88,12 +129,15 @@ const t = useTranslations(locale);
     const errorEl = document.querySelector('[data-testid="login-error"]') as HTMLElement | null;
     const sentEl = document.querySelector('[data-testid="login-sent"]') as HTMLElement | null;
 
+    const honeypot = document.querySelector('[data-testid="login-hp"]') as HTMLInputElement | null;
+
     const msg = {
       sending: form?.dataset.msgSending ?? '',
       submit: form?.dataset.msgSubmit ?? '',
       error: form?.dataset.msgError ?? '',
       invalid: form?.dataset.msgInvalid ?? '',
       unconfigured: form?.dataset.msgUnconfigured ?? '',
+      retry: form?.dataset.msgRetry ?? '',
     };
     const callbackPath = form?.dataset.callbackPath ?? '/auth/callback';
 
@@ -107,6 +151,21 @@ const t = useTranslations(locale);
       event.preventDefault();
       if (!email || !submit) return;
       if (errorEl) errorEl.hidden = true;
+
+      /**
+       * ⚠️ THE HONEYPOT, AND THE ONE BEHAVIOUR THAT MATTERS: IT CLEARS ITSELF.
+       *
+       * A filled hidden field means a scraper — or, rarely, a password manager
+       * that ignored `autocomplete="off"`. Refusing once and emptying the field
+       * makes the second press succeed for the human and changes nothing for
+       * the bot, which will fill it again. Pretending the link was sent would
+       * be kinder to the bot and cruel to the parent.
+       */
+      if (honeypot && honeypot.value !== '') {
+        honeypot.value = '';
+        showError(msg.retry);
+        return;
+      }
 
       const value = email.value.trim();
       /* Deliberately loose. The server is the real validator; this only catches
@@ -193,6 +252,20 @@ const t = useTranslations(locale);
   .btn-primary:disabled {
     opacity: 0.7;
     cursor: default;
+  }
+
+  /* ⚠️ OFF-SCREEN, NOT `display: none` AND NOT `visibility: hidden`. A scraper
+     worth catching skips a field the page has explicitly hidden; one that is
+     merely positioned away still looks like a field to fill. The element is
+     already out of the accessibility tree and out of the tab order via
+     `aria-hidden` and `tabindex="-1"` on the markup, so nothing here is what
+     keeps it from a screen reader. */
+  .auth-hp {
+    position: absolute;
+    left: -9999px;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
   }
 
   .auth-error {

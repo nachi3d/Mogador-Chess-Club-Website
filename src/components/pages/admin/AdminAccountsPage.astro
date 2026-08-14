@@ -1,0 +1,274 @@
+---
+/**
+ * /admin/comptes — who has signed up, and how to remove a junk one.
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️ FRENCH ONLY. See `AdminShell.astro` and CLAUDE.md — the missing English is
+ * the decision, not an omission.
+ *
+ * ⚠️ ADMIN ONLY, AND THAT IS A NARROWER GATE THAN THE REST OF `/admin*`. A prof
+ * marks a register and reads the class; seeing every family's email address and
+ * erasing an account is not the same class of act. `requires="admin"` decides
+ * what to DRAW; `is_admin_direct()` inside `admin_list_accounts()` and
+ * `admin_delete_account()` is what actually refuses, and
+ * `role-separation.spec.ts` proves it with a prof's own token rather than by
+ * driving this page.
+ *
+ * ⚠️ THIS IS THE ANSWER TO JUNK SIGN-UPS, AND THE FORM-SIDE HONEYPOT IS NOT.
+ * Anyone can create an account on a public static site — the anon key is
+ * published by design, so the sign-up endpoint is reachable without ever
+ * loading `/connexion/`. Client-side friction is noise reduction. What actually
+ * scales for a club of twenty families is being able to SEE the list and delete
+ * a row, which is this page.
+ *
+ * ⚠️ WHAT A JUNK SIGN-UP LOOKS LIKE, AND WHY THE COLUMNS ARE THESE ONES. An
+ * address that was typed into the form but never confirmed leaves a row with no
+ * `confirmed_at`, no children beyond the auto-created one and nothing solved.
+ * The table therefore leads with confirmation state and activity rather than
+ * with names: those three facts together are the judgement, and a prof-facing
+ * "last seen" column would not be.
+ *
+ * ⚠️ NOTHING HERE IS A LEADERBOARD. `solved` is present so an admin can tell a
+ * real family from a bounced address before erasing one, and for no other
+ * reason. It is not ordered by it and never should be — same rule as the
+ * dashboard's "activité récente".
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+import AdminShell from '@components/admin/AdminShell.astro';
+---
+
+<AdminShell
+  title="Comptes"
+  current="comptes"
+  requires="admin"
+  intro="Les inscriptions, les plus récentes en premier."
+>
+  <ul class="admin-tiles">
+    <li class="admin-tile"><b data-tile="total">–</b><span>comptes</span></li>
+    <li class="admin-tile"><b data-tile="unconfirmed">–</b><span>jamais confirmés</span></li>
+    <li class="admin-tile"><b data-tile="week">–</b><span>cette semaine</span></li>
+  </ul>
+
+  <section class="admin-block">
+    <h2 class="admin-block-title">Inscriptions</h2>
+    <div data-accounts>
+      <p class="admin-empty">Chargement…</p>
+    </div>
+  </section>
+
+  <section class="admin-block">
+    <h2 class="admin-block-title">Suppressions</h2>
+    {/* ⚠️ THE JOURNAL NAMES NOBODY, AND THAT IS DELIBERATE. Critical Feature 51
+        says erasure leaves no statistic, no archive and no anonymised copy —
+        written for the self-service button, and it binds a volunteer pressing
+        this one exactly as hard. So the audit records the ACT (who, when, why)
+        and holds no reference at all to the account that was removed. It is
+        enough to notice twenty deletions nobody authorised; it is not enough to
+        reconstruct anything, and nothing on this site is. */}
+    <p class="admin-note">
+      Le journal enregistre l’acte, jamais la personne : aucun identifiant, aucune adresse,
+      aucun compteur du compte supprimé.
+    </p>
+    <div data-deletions>
+      <p class="admin-empty">Chargement…</p>
+    </div>
+  </section>
+</AdminShell>
+
+<script>
+  import { deleteAccount, listAccounts, listDeletions, validateDeletion } from '@lib/admin';
+  import type { AdminAccount } from '@lib/admin';
+
+  const set = (name: string, value: string | number) => {
+    const el = document.querySelector(`[data-tile="${name}"]`);
+    if (el) el.textContent = String(value);
+  };
+
+  const dateFmt = new Intl.DateTimeFormat('fr-FR', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+
+  /** Escape everything reaching innerHTML — every value below is user text. */
+  function esc(value: string): string {
+    const div = document.createElement('div');
+    div.textContent = value;
+    return div.innerHTML;
+  }
+
+  const when = (iso: string | null) => (iso ? dateFmt.format(new Date(iso)) : '—');
+
+  function row(account: AdminAccount): string {
+    /* ⚠️ THE STATE IS A WORD, NOT A COLOUR. Same rule the public agenda follows
+       for a cancelled session: an admin scanning a list on a phone in a bright
+       room must not have to distinguish two greys. */
+    const confirmed = account.confirmedAt
+      ? '<span class="account-state" data-state="confirmed">confirmé</span>'
+      : '<span class="account-state" data-state="pending">jamais confirmé</span>';
+    return `
+      <li class="account-row" data-account-id="${esc(account.accountId)}">
+        <div class="account-main">
+          <span class="account-email">${esc(account.email)}</span>
+          ${confirmed}
+        </div>
+        <p class="account-meta">
+          inscrit le ${esc(when(account.createdAt))}
+          · ${account.children} élève${account.children > 1 ? 's' : ''}
+          · ${account.solved} exercice${account.solved > 1 ? 's' : ''} résolu${account.solved > 1 ? 's' : ''}
+          ${account.role && account.role !== 'eleve' ? `· <b>${esc(account.role)}</b>` : ''}
+        </p>
+        <div class="account-actions" data-actions></div>
+      </li>`;
+  }
+
+  function paint(selector: string, html: string) {
+    const el = document.querySelector(selector);
+    if (el) el.innerHTML = html;
+  }
+
+  let accounts: AdminAccount[] = [];
+
+  /**
+   * ⚠️ TWO STEPS, IN PLACE, AND THE SECOND ONE REQUIRES TYPING A REASON.
+   *
+   * The reason is not paperwork: it is the whole content of the audit row, and
+   * the database refuses a blank one (`length(btrim(reason)) >= 3`). Making it
+   * the thing that unlocks the button means an admin cannot delete by reflex,
+   * which matters more here than on `/compte/` — there, a reader erases their
+   * own account; here, somebody erases a family's.
+   *
+   * ⚠️ NO MODAL. Same reasoning as the family roster: a dialog over a list on a
+   * phone hides the row being acted on, which is the one thing that must stay
+   * visible while confirming.
+   */
+  function startDelete(li: HTMLElement, account: AdminAccount) {
+    const actions = li.querySelector('[data-actions]') as HTMLElement | null;
+    if (!actions) return;
+
+    const wrap = document.createElement('div');
+    wrap.className = 'account-confirm';
+
+    const question = document.createElement('p');
+    question.className = 'account-confirm-q';
+    question.textContent =
+      `Supprimer ${account.email} ? Le compte, ses ${account.children} élève(s), ` +
+      'leur progression, leurs points et leurs présences seront effacés. Irréversible.';
+
+    const label = document.createElement('label');
+    label.className = 'account-confirm-label';
+    label.textContent = 'Raison (journalisée)';
+    const field = document.createElement('input');
+    field.type = 'text';
+    field.maxLength = 120;
+    field.autocomplete = 'off';
+    field.className = 'account-reason';
+    field.dataset['testid'] = 'account-reason';
+    const fieldId = `reason-${account.accountId}`;
+    field.id = fieldId;
+    label.htmlFor = fieldId;
+
+    const go = document.createElement('button');
+    go.type = 'button';
+    go.className = 'btn-ghost account-danger';
+    go.textContent = 'Supprimer définitivement';
+    go.dataset['testid'] = 'account-delete-go';
+    go.disabled = true;
+
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.className = 'btn-ghost';
+    cancel.textContent = 'Annuler';
+
+    const status = document.createElement('p');
+    status.className = 'account-status';
+    status.setAttribute('role', 'status');
+
+    field.addEventListener('input', () => {
+      go.disabled = validateDeletion(field.value) !== null;
+    });
+
+    cancel.addEventListener('click', () => void render());
+
+    go.addEventListener('click', async () => {
+      if (go.disabled) return;
+      /* Locked while it runs: a double tap on mobile data would fire a second
+         RPC whose only possible answer is "no such user" — an error message for
+         an operation that in fact succeeded. */
+      go.disabled = true;
+      cancel.disabled = true;
+      status.textContent = 'Suppression en cours…';
+      const result = await deleteAccount(account.accountId, field.value);
+      if (!result.ok) {
+        status.textContent = result.error ?? 'La suppression a échoué.';
+        go.disabled = false;
+        cancel.disabled = false;
+        return;
+      }
+      await render();
+    });
+
+    const buttons = document.createElement('p');
+    buttons.className = 'account-confirm-actions';
+    buttons.append(go, cancel);
+
+    wrap.append(question, label, field, buttons, status);
+    actions.replaceChildren(wrap);
+    field.focus();
+  }
+
+  function attachActions() {
+    for (const li of document.querySelectorAll('[data-account-id]')) {
+      const el = li as HTMLElement;
+      const account = accounts.find((a) => a.accountId === el.dataset['accountId']);
+      if (!account) continue;
+      const actions = el.querySelector('[data-actions]') as HTMLElement | null;
+      if (!actions) continue;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn-ghost';
+      btn.textContent = 'Supprimer ce compte';
+      btn.dataset['testid'] = 'account-delete-start';
+      /* Repeated per row, so the visible label alone is not a distinguishing
+         accessible name — the same rule the family roster follows. */
+      btn.setAttribute('aria-label', `Supprimer le compte ${account.email}`);
+      btn.addEventListener('click', () => startDelete(el, account));
+      actions.replaceChildren(btn);
+    }
+  }
+
+  async function render() {
+    const [rows, deletions] = await Promise.all([listAccounts(), listDeletions()]);
+    accounts = rows;
+
+    const weekAgo = Date.now() - 7 * 86_400_000;
+    set('total', rows.length);
+    set('unconfirmed', rows.filter((a) => !a.confirmedAt).length);
+    set('week', rows.filter((a) => Date.parse(a.createdAt) >= weekAgo).length);
+
+    paint(
+      '[data-accounts]',
+      rows.length === 0
+        ? '<p class="admin-empty">Aucun compte pour le moment.</p>'
+        : `<ul class="account-list" data-testid="account-list">${rows.map(row).join('')}</ul>`,
+    );
+    attachActions();
+
+    paint(
+      '[data-deletions]',
+      deletions.length === 0
+        ? '<p class="admin-empty">Aucune suppression enregistrée.</p>'
+        : `<ul class="mark-list">${deletions
+            .map(
+              (d) => `
+              <li class="mark-row">
+                <span class="mark-name">${esc(d.reason)}</span>
+                <span class="admin-rank">${esc(when(d.deletedAt))}</span>
+              </li>`,
+            )
+            .join('')}</ul>`,
+    );
+  }
+
+  window.addEventListener('mcc:admin-ready', () => void render());
+</script>

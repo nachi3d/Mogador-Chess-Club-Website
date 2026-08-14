@@ -49,22 +49,47 @@ interface Props {
   /** Shown as the page heading and in the document title. */
   title: string;
   /** Which nav entry is current. */
-  current: 'dashboard' | 'eleves' | 'seances';
+  current: 'dashboard' | 'eleves' | 'seances' | 'comptes';
   /** One sentence under the heading. Optional. */
   intro?: string;
+  /**
+   * Which role this surface draws for. Default `staff` (prof or admin).
+   *
+   * ⚠️ STILL UX, EXACTLY LIKE THE STAFF GATE. `admin_list_accounts()` and
+   * `admin_delete_account()` each call `is_admin_direct()` themselves and raise
+   * for anybody else, so a prof who forces this open reaches a page whose every
+   * call fails. What this buys is a sentence instead of a broken-looking table.
+   */
+  requires?: 'staff' | 'admin';
 }
 
-const { title, current, intro } = Astro.props;
+const { title, current, intro, requires = 'staff' } = Astro.props;
 
+/**
+ * ⚠️ `adminOnly` HIDES A DESTINATION A PROF CANNOT USE — it does not protect it.
+ *
+ * Every other entry here renders for all staff. Showing a prof a "Comptes" tab
+ * that denies them on arrival is worse UX than not showing it, and the site's
+ * own rule (hidden is UX, RLS is security) is satisfied either way. Critical
+ * Feature 36 is untouched: the link is hidden by ROLE, identically at every
+ * width, so the phone and desktop lists still match.
+ */
 const NAV = [
-  { id: 'dashboard', href: '/admin/', label: 'Tableau de bord' },
-  { id: 'eleves', href: '/admin/eleves/', label: 'Élèves' },
-  { id: 'seances', href: '/admin/seances/', label: 'Séances' },
+  { id: 'dashboard', href: '/admin/', label: 'Tableau de bord', adminOnly: false },
+  { id: 'eleves', href: '/admin/eleves/', label: 'Élèves', adminOnly: false },
+  { id: 'seances', href: '/admin/seances/', label: 'Séances', adminOnly: false },
+  { id: 'comptes', href: '/admin/comptes/', label: 'Comptes', adminOnly: true },
 ] as const;
 ---
 
 <BaseLayout locale="fr" title={title} description="Espace encadrants." singleLocale>
-  <div class="admin" data-admin data-state="checking" data-testid="admin">
+  <div
+    class="admin"
+    data-admin
+    data-state="checking"
+    data-testid="admin"
+    data-requires={requires}
+  >
     {/* ⚠️ The nav renders in every state, including "not staff". A reader who
         is signed in as a prof in another tab must not be stranded on a page
         with no way out; and it is one element, so the CF36 list cannot differ
@@ -73,7 +98,7 @@ const NAV = [
       <ul>
         {
           NAV.map((item) => (
-            <li>
+            <li data-admin-only={item.adminOnly ? 'true' : undefined} hidden={item.adminOnly}>
               <a
                 href={item.href}
                 class:list={['admin-nav-link', { 'is-current': item.id === current }]}
@@ -95,7 +120,7 @@ const NAV = [
     {/* Not staff, or not signed in. One sentence and a way out. */}
     <div class="admin-denied" data-admin-denied hidden data-testid="admin-denied">
       <h1>Espace encadrants</h1>
-      <p>Cet espace est réservé aux professeurs du club.</p>
+      <p data-admin-denied-text>Cet espace est réservé aux professeurs du club.</p>
       <p class="admin-denied-note">
         Si vous êtes professeur, connectez-vous avec le compte concerné.
       </p>
@@ -116,13 +141,16 @@ const NAV = [
 </BaseLayout>
 
 <script>
-  import { isStaff } from '@lib/admin';
+  import { currentRole } from '@lib/admin';
   import { getSession } from '@lib/supabase';
 
   const root = document.querySelector('[data-admin]') as HTMLElement | null;
   const checking = document.querySelector('[data-admin-checking]') as HTMLElement | null;
   const denied = document.querySelector('[data-admin-denied]') as HTMLElement | null;
+  const deniedText = document.querySelector('[data-admin-denied-text]') as HTMLElement | null;
   const body = document.querySelector('[data-admin-body]') as HTMLElement | null;
+
+  const requires = root?.dataset.requires === 'admin' ? 'admin' : 'staff';
 
   function show(state: 'staff' | 'denied') {
     root?.setAttribute('data-state', state);
@@ -142,7 +170,27 @@ const NAV = [
        holding the phone. */
     try {
       const session = await getSession();
-      show(session && (await isStaff()) ? 'staff' : 'denied');
+      const role = session ? await currentRole() : null;
+      const isAdmin = role === 'admin';
+      const isStaffRole = isAdmin || role === 'prof';
+
+      /* The Comptes tab is revealed for admins only — a destination a prof
+         cannot use is worse than one they cannot see. Hidden identically at
+         every width, so Critical Feature 36's phone/desktop comparison is
+         unaffected. */
+      if (isAdmin) {
+        for (const li of document.querySelectorAll('[data-admin-only]')) {
+          (li as HTMLElement).hidden = false;
+        }
+      }
+
+      const allowed = requires === 'admin' ? isAdmin : isStaffRole;
+      /* ⚠️ A PROF DENIED ON AN ADMIN-ONLY PAGE IS NOT THE SAME MESSAGE. "Réservé
+         aux professeurs" would be baffling to somebody who IS a professeur. */
+      if (!allowed && isStaffRole && deniedText) {
+        deniedText.textContent = 'Cette page est réservée aux administrateurs du club.';
+      }
+      show(allowed ? 'staff' : 'denied');
     } catch {
       show('denied');
     }

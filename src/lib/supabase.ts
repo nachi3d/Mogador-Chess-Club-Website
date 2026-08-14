@@ -47,6 +47,16 @@ export interface Profile {
   readonly display_name: string | null;
   readonly locale: string;
   readonly guardian_phone: string | null;
+  /**
+   * When the first-run onboarding was completed OR dismissed; null means the
+   * parent has never been guided.
+   *
+   * ⚠️ SERVER-SIDE, NOT `localStorage`, AND THAT IS THE POINT. "Shown once" is a
+   * claim about a person, not a browser: kept on the device, a parent who signs
+   * up on a phone would be walked through naming an already-named child the
+   * first time they open the family tablet. See migration 0009.
+   */
+  readonly onboarded_at: string | null;
 }
 
 let client: SupabaseClient | null = null;
@@ -257,13 +267,43 @@ export async function getProfile(): Promise<Profile | null> {
 
     const { data, error } = await sb
       .from('profiles')
-      .select('id, role, display_name, locale, guardian_phone')
+      .select('id, role, display_name, locale, guardian_phone, onboarded_at')
       .eq('id', id)
       .single();
     if (error) return null;
     return data as Profile;
   } catch {
     return null;
+  }
+}
+
+/**
+ * Record that the parent has been guided — completed or dismissed, the same
+ * write either way.
+ *
+ * ⚠️ IT DOES NOT RECORD WHICH, DELIBERATELY. Storing "they skipped" invites a
+ * later session to re-ask them, which is the exact behaviour the column exists
+ * to prevent. A parent who dismissed the screen made a choice; the family
+ * section on `/compte/` does the whole job without it.
+ *
+ * ⚠️ FAILURE IS NOT SURFACED TO THE READER, AND MUST NOT BE. The worst outcome
+ * of a lost write is being offered the welcome screen once more; telling a
+ * parent their onboarding "failed" would be alarming about nothing. The caller
+ * navigates on regardless.
+ */
+export async function markOnboarded(): Promise<{ ok: boolean }> {
+  try {
+    const sb = await getSupabase();
+    const { data: userData } = await sb.auth.getUser();
+    const id = userData.user?.id;
+    if (!id) return { ok: false };
+    const { error } = await sb
+      .from('profiles')
+      .update({ onboarded_at: new Date().toISOString() })
+      .eq('id', id);
+    return { ok: !error };
+  } catch {
+    return { ok: false };
   }
 }
 

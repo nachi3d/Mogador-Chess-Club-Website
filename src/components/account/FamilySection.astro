@@ -70,10 +70,21 @@ const t = useTranslations(locale);
   data-msg-remove-yes={t('family.removeYes')}
   data-msg-remove-error={t('family.removeError')}
   data-msg-only-child={t('family.onlyChild')}
+  data-msg-intro-one={t('family.introOne')}
+  data-msg-intro-many={t('family.introMany')}
   hidden
 >
   <h2>{t('family.heading')}</h2>
-  <p class="family-intro">{t('family.intro')}</p>
+  {/* ⚠️ REPLACED BY A COUNT-SPECIFIC SENTENCE ONCE THE ROSTER LOADS. The
+      server-rendered text is the neutral one, because a static page cannot know
+      how many children an account holds — and it has to read correctly for the
+      half-second before it is swapped, and in the (unreachable) no-JS case.
+
+      ⚠️ THE BRANCH IS ON THE COUNT AND NOTHING ELSE. There is no "account type"
+      to test: an autonomous teenager IS an account with one child (Critical
+      Feature 40), which is why the one-child sentence has to be true for a
+      parent and for a student reading about themselves. */}
+  <p class="family-intro" data-testid="family-intro">{t('family.intro')}</p>
 
   {/* ── The conditional half. Hidden at one child, and ONLY this part. ──── */}
   <div class="child-picker" data-testid="child-picker" hidden>
@@ -122,6 +133,7 @@ const t = useTranslations(locale);
   const form = document.querySelector('[data-testid="child-add"]') as HTMLFormElement | null;
   const input = document.querySelector('[data-testid="child-name"]') as HTMLInputElement | null;
   const status = document.querySelector('[data-testid="child-status"]') as HTMLElement | null;
+  const intro = document.querySelector('[data-testid="family-intro"]') as HTMLElement | null;
 
   let accountId = '';
   let children: Child[] = [];
@@ -385,8 +397,28 @@ const t = useTranslations(locale);
        add form back out of reach. */
     root.hidden = false;
     if (picker) picker.hidden = children.length <= 1;
+    paintIntro();
     paintChoices();
     paintRoster();
+  }
+
+  /**
+   * ⚠️ ONE CHILD AND SEVERAL ARE DIFFERENT SENTENCES, NOT A PLURAL "s".
+   *
+   * The one-child case has to read correctly for two people the site cannot
+   * tell apart — a parent who has enrolled one child, and a teenager who signed
+   * up for themselves — so it names the STRUCTURE ("this account has a single
+   * student profile") and then covers both readings in one clause. A naive
+   * "Your child: %s" is wrong for the second, and there is no flag to branch on
+   * because an autonomous teenager is deliberately not a different kind of
+   * account (Critical Feature 40).
+   */
+  function paintIntro() {
+    if (!intro) return;
+    intro.textContent =
+      children.length <= 1
+        ? msg('msgIntroOne')
+        : msg('msgIntroMany').replace('%s', String(children.length));
   }
 
   async function load() {

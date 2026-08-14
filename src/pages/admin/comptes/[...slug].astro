@@ -1,0 +1,20 @@
+---
+/**
+ * /admin/comptes/ — emitted ONLY when accounts are enabled.
+ *
+ * ⚠️ NO `/en/admin/comptes/`. The admin surfaces are French only — a decision,
+ * not an omission. See `AdminShell.astro` and CLAUDE.md.
+ *
+ * ⚠️ The rest parameter is what lets `getStaticPaths()` decline to emit the
+ * page at all; a plain `.astro` route has no such switch. Same pattern as the
+ * other three admin routes.
+ */
+import { AUTH_ENABLED } from '@config/auth';
+import AdminAccountsPage from '@components/pages/admin/AdminAccountsPage.astro';
+
+export function getStaticPaths() {
+  return AUTH_ENABLED ? [{ params: { slug: undefined } }] : [];
+}
+---
+
+<AdminAccountsPage />

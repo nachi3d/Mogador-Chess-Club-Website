@@ -55,11 +55,14 @@ test.describe('accounts disabled — the default build', () => {
       'compte',
       'en/connexion',
       'en/compte',
+      'bienvenue',
+      'en/bienvenue',
       'auth/callback',
       'admin',
       'admin/eleves',
       'admin/eleve',
       'admin/seances',
+      'admin/comptes',
     ]) {
       const page = join(DIST, route, 'index.html');
       expect(
@@ -81,11 +84,14 @@ test.describe('accounts disabled — the default build', () => {
     '/compte/',
     '/en/connexion/',
     '/en/compte/',
+    '/bienvenue/',
+    '/en/bienvenue/',
     '/auth/callback/',
     '/admin/',
     '/admin/eleves/',
     '/admin/eleve/',
     '/admin/seances/',
+    '/admin/comptes/',
   ]) {
     test(`${route} is not served`, async ({ request }) => {
       const response = await request.get(route, { maxRedirects: 0 });

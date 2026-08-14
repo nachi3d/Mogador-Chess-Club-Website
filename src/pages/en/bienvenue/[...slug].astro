@@ -1,0 +1,16 @@
+---
+/**
+ * /en/bienvenue/ — emitted ONLY when accounts are enabled.
+ *
+ * ⚠️ `bienvenue`, NOT `welcome`. Route segments are never translated on this
+ * site; the visible copy is. See `src/i18n/paths.ts` and the FR route file.
+ */
+import { AUTH_ENABLED } from '@config/auth';
+import OnboardingPage from '@components/pages/OnboardingPage.astro';
+
+export function getStaticPaths() {
+  return AUTH_ENABLED ? [{ params: { slug: undefined } }] : [];
+}
+---
+
+<OnboardingPage locale="en" />

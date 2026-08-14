@@ -91,9 +91,25 @@ export const SPEC_MAP = [
   /* ⚠️ `supabase.ts` now carries `deleteOwnAccount()`, so the erasure spec is
      mapped from it as well — the one path on this site that cannot be undone
      must not be able to change without its test running. */
+  /* ⚠️ AND `markOnboarded()` — the first-run screen is the only caller, and the
+     landing rule in the auth callback reads `onboarded_at` off the profile this
+     module fetches. A change here moves where every new parent lands. */
   [
     /^src\/lib\/(auth-flag|supabase)/,
-    ['auth.spec.ts', 'auth-disabled.spec.ts', 'account-deletion.spec.ts'],
+    [
+      'auth.spec.ts',
+      'auth-disabled.spec.ts',
+      'account-deletion.spec.ts',
+      'onboarding.spec.ts',
+    ],
+  ],
+  /* The welcome screen, its two routes, and the callback that decides between
+     `/bienvenue/` and `/compte/`. ⚠️ `family.spec.ts` is here because skipping
+     onboarding must leave the family section doing the whole job — guidance,
+     not a gate — and that claim spans the two files. */
+  [
+    /^src\/(components\/pages\/OnboardingPage\.|pages\/(en\/)?bienvenue\/|pages\/auth\/callback\/)/,
+    ['onboarding.spec.ts', 'family.spec.ts', 'auth.spec.ts', 'auth-disabled.spec.ts'],
   ],
 
   /* 0005 — the parent/child model. `child.ts` decides WHO progress belongs to,
@@ -122,6 +138,10 @@ export const SPEC_MAP = [
     /^src\/components\/pages\/AccountPage\./,
     ['account-deletion.spec.ts', 'family.spec.ts', 'auth.spec.ts', 'admin.spec.ts'],
   ],
+  /* The sign-up form. ⚠️ `auth.spec.ts` covers the honeypot, and the honeypot's
+     one load-bearing behaviour is that it CLEARS itself so a false positive
+     costs a parent one extra press rather than an email that never comes. */
+  [/^src\/components\/pages\/LoginPage\./, ['auth.spec.ts', 'auth-disabled.spec.ts']],
   [/^src\/styles\/family\./, ['family.spec.ts', 'themes.spec.ts']],
   [
     /^supabase\/migrations\//,
