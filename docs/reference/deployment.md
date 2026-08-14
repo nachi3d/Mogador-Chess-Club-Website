@@ -399,6 +399,15 @@ A new version with the deployment unmoved is the invariant holding. A moved
 deployment means the setting has drifted back, and the live site is now whatever
 `dev` happens to hold.
 
+**Verified 2026-08-14.** `dev` ← `07465fb` pushed at `12:48:42Z`; Cloudflare
+built it into version `1a687f0c` at `12:49:56Z`, **74 seconds later**; and
+`deployments status` still reported `45e06d08`, created `2026-08-13T23:41:11Z`,
+at 100 %. ⚠️ **Note what that proves and what it does not.** Cloudflare still
+*builds* every branch — the build did run, with production credentials — so the
+protection is entirely in the *command*. Changing it back to `deploy` for any
+branch restores the old behaviour with no other visible difference, which is why
+this is checked by output at every promotion rather than trusted once.
+
 ### ⚠️ Telling a Cloudflare build from a CLI upload
 
 `Source: Unknown (deployment)` in `wrangler deployments list`, and

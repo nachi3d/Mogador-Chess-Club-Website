@@ -33,6 +33,12 @@ still missing 0006, it is what baked the empty agenda and overwrote two CLI
 restores. `dev` → `main` needing Seàn's approval was worth nothing for as long as
 that setting held. Non-`main` branches now run `npx wrangler versions upload`.
 
+✅ **The fix was verified by pushing.** `dev` ← `07465fb` at `12:48:42Z`, built
+into version `1a687f0c` at `12:49:56Z`, and the deployment stayed on `45e06d08`
+from the night before. ⚠️ Cloudflare still **builds** every branch, with
+production credentials — the protection lives entirely in the command, so it is
+checked by output at every promotion rather than trusted once.
+
 - ⚠️ **The 12 September card CANNOT tell the deploy paths apart.** 0006 seeds it
   with the same fixed id and text as `agenda.fallback.json`, deliberately, so it
   is byte-identical from either source. What discriminates is **emptiness** —
