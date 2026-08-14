@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { movePiece, typeMove } from './helpers/board';
+import { settleAnimations } from './helpers/reveal';
 
 /**
  * E2 — sound.
@@ -517,6 +518,21 @@ test.describe('accessibility', () => {
     await openExercise(page);
     await movePiece(page, 'a1', 'a8');
     await expect(page.getByTestId('sound-invite')).toBeVisible({ timeout: 15_000 });
+    /**
+     * ⚠️ `toBeVisible()` IS NOT "SETTLED", AND THIS COST A RELEASE GATE.
+     *
+     * The panel appears beside a solve, so the correct-move pulse and the
+     * verdict are still animating when it becomes visible. Under matrix load
+     * axe sampled mid-flight and reported `color-contrast` — on pixel-5 as a
+     * hard failure, on webkit as a flake — while the same test passed 4/4
+     * standalone with zero violations. A half-faded element really does have
+     * poor contrast for the instant it is half-faded; that is a measurement
+     * artefact, not a defect a reader can experience.
+     *
+     * The assertion is unchanged and keeps its teeth: any violation that
+     * survives the animation still fails.
+     */
+    await settleAnimations(page);
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
       .analyze();
