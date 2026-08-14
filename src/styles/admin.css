@@ -494,3 +494,136 @@
   text-decoration: underline;
   text-underline-offset: 0.15em;
 }
+
+/* ── /admin/comptes — the sign-up list ────────────────────────────────────
+   ⚠️ A REAL STYLESHEET, NOT A SCOPED `<style>`. Every row below is built with
+   `innerHTML` at runtime, and Astro stamps its `data-astro-cid-*` scoping
+   attribute at BUILD time onto the elements a component DECLARES. A scoped rule
+   would compile to `.account-row[data-astro-cid-…]`, match nothing the script
+   creates, and fail silently — which has already cost this project a borderless
+   button and an un-inked picker. Every selector is prefixed so the cascade is
+   settled by specificity rather than by stylesheet order. */
+.admin .account-list {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.admin .account-row {
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--mcc-border-subtle);
+  border-radius: var(--radius-card);
+  background-color: var(--mcc-surface-raised);
+}
+
+.admin .account-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+
+.admin .account-email {
+  font-weight: 600;
+  /* An address is long and a phone is narrow; breaking anywhere beats a row
+     that scrolls the whole page sideways. */
+  overflow-wrap: anywhere;
+}
+
+/* ⚠️ THE STATE IS A WORD IN A CHIP, NEVER A COLOUR ALONE — the same rule the
+   public agenda follows for a cancelled session, and the reason `.admin-tile`
+   and `.session-status` are shaped this way too. The fills are audited token
+   pairs; no `opacity` is applied over them, because `check-contrast.mjs` proves
+   the pair and cannot see an alpha laid on top. */
+.admin .account-state {
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.admin .account-state[data-state='confirmed'] {
+  background-color: var(--mcc-surface-sunken);
+  color: var(--mcc-text-secondary);
+}
+
+.admin .account-state[data-state='pending'] {
+  background-color: var(--color-brass-300);
+  color: var(--color-ink-950);
+}
+
+.admin .account-meta {
+  margin: 0.4rem 0 0;
+  color: var(--mcc-text-secondary);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+
+.admin .account-actions {
+  margin-top: 0.6rem;
+}
+
+.admin .account-confirm {
+  margin-top: 0.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--mcc-border-subtle);
+}
+
+.admin .account-confirm-q {
+  margin: 0 0 0.75rem;
+  line-height: 1.55;
+}
+
+.admin .account-confirm-label {
+  display: block;
+  margin-bottom: 0.3rem;
+  font-weight: 500;
+}
+
+.admin .account-reason {
+  width: 100%;
+  /* 44px minimum, and 1rem so iOS Safari does not zoom the page on focus. */
+  min-height: 2.75rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--mcc-border-strong);
+  border-radius: var(--radius-card);
+  background-color: var(--mcc-surface-page);
+  color: var(--mcc-text-primary);
+  font: inherit;
+  font-size: 1rem;
+}
+
+.admin .account-confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin: 0.75rem 0 0;
+}
+
+/* Disabled must READ as unavailable without relying on colour: the border
+   style and the cursor both change, and the label never drops below AA. */
+.admin .account-danger[disabled] {
+  border-style: dashed;
+  color: var(--mcc-text-secondary);
+  cursor: not-allowed;
+}
+
+.admin .account-danger:not([disabled]) {
+  border-color: var(--mcc-accent-strong);
+}
+
+.admin .account-status {
+  margin: 0.6rem 0 0;
+  color: var(--mcc-text-secondary);
+}
+
+.admin .admin-note {
+  margin: 0 0 0.75rem;
+  color: var(--mcc-text-secondary);
+  font-size: 0.9375rem;
+  line-height: 1.55;
+}

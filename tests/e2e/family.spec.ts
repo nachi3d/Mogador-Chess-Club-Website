@@ -9,6 +9,7 @@ import {
   magicLinkFor,
 } from './helpers/supabase-admin';
 import { AUTH_ENABLED, AUTH_OFF_REASON } from './helpers/auth-mode';
+import { reachAccountPage } from './helpers/auth';
 
 /**
  * The family section of `/compte/` — REACHABILITY, through the browser.
@@ -55,7 +56,7 @@ test.describe('the family section on /compte/', () => {
     const user = await createConfirmedUser({ email, displayName });
     created.push(user.id);
     await page.goto(await magicLinkFor(email));
-    await page.waitForURL(/\/(en\/)?compte\//, { timeout: 30_000 });
+    await reachAccountPage(page);
     await expect(page.getByTestId('family')).toBeVisible();
     return user;
   }
@@ -208,5 +209,75 @@ test.describe('the family section on /compte/', () => {
       const summary = results.violations.map((v) => `${v.id} (${v.nodes.length}×): ${v.help}`);
       expect(summary, `${path}\n${summary.join('\n')}`).toEqual([]);
     }
+  });
+
+  /* ── The model, in words a parent can act on ───────────────────────────── */
+
+  /**
+   * ⚠️ THE ONE-CHILD SENTENCE MUST BE TRUE FOR TWO DIFFERENT PEOPLE.
+   *
+   * An account holding exactly one child is the SAME OBJECT whether it belongs
+   * to a parent who enrolled one child or to a teenager who signed up for
+   * themselves — Critical Feature 40 makes that deliberate, and there is no flag
+   * to branch on. So the copy names the structure ("this account has a single
+   * student profile") and covers both readings in one clause, and it must never
+   * regress to a possessive like "your child", which is simply false for the
+   * autonomous teenager reading about themselves.
+   */
+  test('one child reads as a profile on the account, never as "your child"', async ({ page }) => {
+    await signInFresh(page, 'family-one', 'Sara');
+    await expect(names(page)).toHaveText(['Sara']);
+
+    const intro = page.getByTestId('family-intro');
+    await expect(intro).toContainText(/un seul profil d’élève/i);
+    /* The picker has nothing to ask at one child — `resolveChild()` adopts a
+       lone child silently, which is the autonomous-teenager path. */
+    await expect(page.getByTestId('child-picker')).toBeHidden();
+
+    /* ⚠️ The heading is structural in both locales. "Mes élèves" was the old
+       wording and is wrong for a teenager; a regression to it fails here. */
+    await expect(page.getByTestId('family')).toContainText(/Les élèves de ce compte/i);
+
+    await page.goto('/en/compte/');
+    await expect(page.getByTestId('family-intro')).toContainText(/a single student profile/i);
+    await expect(page.getByTestId('family')).toContainText(/Students on this account/i);
+  });
+
+  /**
+   * ⚠️ SEVERAL CHILDREN IS A DIFFERENT SENTENCE, NOT A PLURAL "s" — and it
+   * carries the count, because "how many students does this account hold" is the
+   * question the section exists to answer at a glance.
+   */
+  test('several children read as a count of profiles, in both locales', async ({ page }) => {
+    const user = await signInFresh(page, 'family-many', 'Sara');
+    await page.getByTestId('child-name').fill('Yassine');
+    await page.getByTestId('child-add-submit').click();
+    await expect(names(page)).toHaveText(['Sara', 'Yassine']);
+    expect(await storedNames(user.id)).toEqual(['Sara', 'Yassine']);
+
+    await expect(page.getByTestId('family-intro')).toContainText(/2 profils d’élève/i);
+    await expect(page.getByTestId('child-picker')).toBeVisible();
+
+    await page.goto('/en/compte/');
+    await expect(page.getByTestId('family-intro')).toContainText(/2 student profiles/i);
+  });
+
+  /**
+   * ⚠️ WHOSE ACCOUNT IS THIS? The page has to say so in a label, not leave a
+   * parent to infer it from an email address sitting under "Prénom affiché" —
+   * which is what made "Mon compte" read as "my child's account".
+   */
+  test('/compte/ states that the reader holds the account', async ({ page }) => {
+    await signInFresh(page, 'family-model', 'Sara');
+    const model = page.getByTestId('account-model');
+    await expect(model).toBeVisible();
+    await expect(model).toContainText(/titulaire de ce compte/i);
+    /* The teenager case is named out loud rather than left ambiguous. */
+    await expect(model).toContainText(/adolescent/i);
+    await expect(page.getByTestId('account-panel')).toContainText(/Titulaire du compte/i);
+
+    await page.goto('/en/compte/');
+    await expect(page.getByTestId('account-model')).toContainText(/you hold this account/i);
+    await expect(page.getByTestId('account-model')).toContainText(/teenager/i);
   });
 });

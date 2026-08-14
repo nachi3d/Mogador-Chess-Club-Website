@@ -11,6 +11,113 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### Added — parent onboarding, before accounts open to real families (v2-S5)
+
+**`/bienvenue/` — one screen, once per account, skippable.** A parent signed up,
+silently received one child profile **named from the local part of their email
+address**, and nothing anywhere suggested it could be renamed — so `nachiketas3d`
+was on course for a prof's attendance sheet. The welcome screen asks the one
+question the site cannot answer for itself, and offers "Ajouter un autre enfant"
+at the moment a parent of two is thinking about it.
+
+- ⚠️ **"ONCE" IS RECORDED ON THE ACCOUNT** — `profiles.onboarded_at`, migration
+  0009 — **not on the device.** In `localStorage` it would mean once per browser,
+  and the same parent would be walked through naming an already-named child the
+  first time they opened the family tablet. Set by **both** outcomes, and
+  deliberately not recording which: writing down "they skipped" is an invitation
+  for a later session to re-ask them.
+- ⚠️ **GUIDANCE, NOT A GATE.** Everything on the screen is also on `/compte/`,
+  "Passer" is a real button rather than small grey text, and a spec asserts that
+  a skipped onboarding leaves the family section doing the whole job.
+- ⚠️ **THE PLACEHOLDER IS NEVER PRE-FILLED.** Detection is an **exact match
+  against the email local part**, not a guess about what names look like — the
+  guess is the version that tells someone genuinely called `Alex99` that their
+  name is not a name.
+- ⚠️ **The sibling fields are server-rendered and hidden, not built by script.**
+  Astro stamps its scoping attribute at build time, so a runtime-created element
+  misses every scoped rule — a trap this project has already paid for twice.
+
+**The account model is now stated rather than inferred.** `/compte/` opens with
+who holds the account and what the students are, and the email is labelled
+« Titulaire du compte ».
+
+- ⚠️ **THE COPY NAMES THE STRUCTURE, NEVER THE RELATIONSHIP.** An account holding
+  exactly one child is the **same object** whether it belongs to a parent or to a
+  teenager who signed up alone (Critical Feature 40) — the site cannot tell and
+  must not guess. The heading is « Les élèves de ce compte », never « Mes
+  élèves »; the one-child sentence is « Ce compte porte **un seul profil
+  d'élève** … le vôtre si c'est vous qui jouez, celui de votre enfant si vous
+  l'inscrivez »; several children get a **count**, not a plural "s". The teenager
+  case is named out loud in the model block rather than left to vague copy.
+
+**Sign-up hygiene — and an honest account of what it is not.**
+
+- ⚠️ **The honeypot on `/connexion/` is NOISE REDUCTION, NOT SECURITY**, and the
+  code says so. The anon key ships to every browser by design, so the sign-up
+  endpoint is reachable with `curl` and never touches the form.
+- ⚠️ **A CAPTCHA is not a drop-in here.** It is a third-party script on a public
+  page, which Critical Feature 9 forbids outright — adopting one is a policy
+  decision, not a wiring task, and it would be the site's only third-party
+  request.
+- ⚠️ **It fails VISIBLY and CLEARS ITSELF — never a fake success.** The usual
+  advice denies the bot its signal and leaves a parent whose password manager
+  filled the field waiting for an email that was never sent. Here the trade goes
+  the other way: show the error, empty the field, let the second press through.
+- **`/admin/comptes/` is the actual answer** — sign-ups newest first with
+  confirmation state and activity, and a two-step removal requiring a typed
+  reason. **Admin only, not prof**: a prof marks a register; seeing every
+  family's address and erasing an account is not the same class of act.
+- ⚠️ **`admin_delete_account()` IS NOT A SECOND ROUTE TO `delete_own_account()`.**
+  Different name, `is_admin_direct()` only, and it **refuses `auth.uid()`** —
+  which is what keeps Critical Feature 51's "the parameter list is the guarantee"
+  true for the function that rule is about. An admin erasing themselves goes
+  through `/compte/` and the typed word like everybody else.
+- ⚠️ **THE AUDIT RECORDS THE ACT, NOT THE PERSON.** `account_deletions` holds
+  `deleted_at`, `deleted_by`, `reason` and **no reference at all** to the removed
+  account. CF51's "no statistics, no archive, no anonymised copy" was written for
+  the self-service button and binds a volunteer pressing this one just as hard.
+  A spec asserts the **column list**, so a helpful `target_id` fails a test
+  rather than quietly changing what erasure means.
+
+### Changed — the privacy notice caught up with what the site does
+
+It was written before child profiles, points and games existed and did not
+mention any of them. **A notice that under-declares is inaccurate in the only
+direction that matters**, and nothing in a build can catch it — the page
+rendered perfectly throughout. Re-read against `supabase/migrations/`; every
+table now has a line.
+
+The minors section is now four claims in their own paragraphs, because they are
+the four questions a parent asks before enrolling a child: **what is stored about
+a child** (first name, progress, attendance, points — no surname, no date of
+birth, no address), **that the parent holds the account** and the child is a
+profile beneath it, **that deletion removes everything**, and **that no
+photograph is ever stored, published or requested.**
+
+`account.intro` on `/compte/` also stopped claiming "Rien d'autre n'est stocké
+ici", which became false the moment child profiles landed.
+
+### Verified — the deletion cascade, live, with two children
+
+⚠️ **Two rather than one, because one proves less than it looks.** An
+implementation that deleted "the child" rather than "the children" — a
+`.single()`, a `limit(1)`, a loop that stopped early — passes the one-child test
+perfectly and leaves a real family's second child in the database forever.
+
+A real parent account with two children and every learner table seeded for each,
+erased through `delete_own_account()` with the parent's own token:
+
+```
+BEFORE  profiles 1 · child_profiles 2 · auth.users 1
+        Amine  progress 2 · games 1 · awards 1 · attendance 1
+        Salma  progress 2 · games 1 · awards 1 · attendance 1
+delete_own_account() → 198 ms, no arguments passed
+AFTER   every count 0 · auth user gone · club session kept with created_by nulled
+        account_deletions rows mentioning the account: 0
+```
+
+`account-deletion.spec.ts` now carries both shapes.
+
 ### Fixed — the three findings from the production audit
 
 **Migration 0008 — `anon` gets nothing, in the grants and not only in effect.**

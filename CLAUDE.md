@@ -292,6 +292,11 @@ it. Tags said one thing and the manifest said another.
 49. **The public agenda is BAKED at build time, never fetched at runtime.** Static output plus Critical Features 9 and 18 leave no other answer; the staleness that follows is made loud on `/admin/seances`, not hidden. See the agenda rule.
 50. **A cancelled session stays publicly visible with its state, and a draft never leaks.** CF46 is only half kept if the student who was told it was happening cannot see the cancellation.
 51. **`delete_own_account()` takes no target, and nothing is retained.** The parameter list is the security design; erasure leaves no statistics, no archive and no anonymised copy.
+52. **The first-run screen is shown once PER ACCOUNT, and skipping it is a first-class outcome.** `profiles.onboarded_at`, never `localStorage`. A skipped onboarding leaves a fully usable account — it is guidance, not a gate.
+53. **The auto-created child's name is a PLACEHOLDER and must never be pre-filled as if it were a name.** It is the email local part, and it ends up on the attendance sheet.
+54. **Copy about the account model names the STRUCTURE, never the relationship.** An account with one child is the same object for a parent and for an autonomous teenager; "your child" is false for the second and there is nothing to branch on.
+55. **`admin_delete_account()` is a different function from `delete_own_account()`, and refuses `auth.uid()`.** Admin only, reason required, audited — and the audit names nobody.
+56. **Anti-bot measures on the sign-up form are NOISE REDUCTION, never security.** The anon key is public; the endpoint is reachable without the form. Visibility and removal in `/admin/comptes/` are the actual answer.
 
 ---
 
@@ -614,11 +619,13 @@ FR at the root, EN under `/en/...`. **Route segments are not translated** (`/en/
 | `/progres/` | `/en/progres/` | Local progress: three group bars, exercises by level and by theme, what is left, and a resume card. Read from `localStorage`, no account. **Rank and points say "bientôt" and print no number** — nothing computes one. |
 | `/connexion/` | `/en/connexion/` | **NOT EMITTED by default** — see the account flag below |
 | `/compte/` | `/en/compte/` | **NOT EMITTED by default** — see the account flag below |
+| `/bienvenue/` | `/en/bienvenue/` | **NOT EMITTED by default.** The first-run screen, once per account. ⚠️ The segment is NOT translated |
 | `/auth/callback/` | — | **NOT EMITTED by default.** The only unlocalised route |
 | `/admin/` | — | **NOT EMITTED by default.** Staff dashboard. **FR only** — see Critical Feature 43 |
 | `/admin/eleves/` | — | **NOT EMITTED by default.** The class list — **children, not accounts** |
 | `/admin/eleve/` | — | **NOT EMITTED by default.** One learner, by `?id=` — a query param, not a segment, and forced by the static build |
 | `/admin/seances/` | — | **NOT EMITTED by default.** Sessions + the attendance register |
+| `/admin/comptes/` | — | **NOT EMITTED by default.** Sign-ups + account removal. ⚠️ **ADMIN only**, not prof |
 | `/manifest.webmanifest` | — | Generated from `src/config/site.ts` |
 
 ⚠️ **`/auth/callback/` is no longer the only unlocalised route** — the four
@@ -1240,6 +1247,82 @@ machine must stay the shape production ships.
 no-email magic link, becoming a prof, and the walkthrough of the picker,
 `/compte/` and the admin surfaces. **Read it before testing anything behind the
 flag** — and its §7, which is what is *not* built.
+
+### ⚠️ PARENT ONBOARDING — `/bienvenue/`, ONCE PER ACCOUNT (v2-S5)
+
+A parent signed up and silently received one child profile named from their
+email address, with nothing anywhere suggesting it could be renamed. The welcome
+screen asks the one question the site cannot answer for itself.
+
+- ⚠️ **"ONCE" IS RECORDED ON THE ACCOUNT** (`profiles.onboarded_at`), **not on
+  the device** (Critical Feature 52). In `localStorage` it would mean once per
+  browser, and the family tablet would re-ask a parent to name an already-named
+  child. Set by **both** outcomes, and it deliberately does not record which —
+  writing down "they skipped" is an invitation to re-ask them.
+- ⚠️ **GUIDANCE, NOT A GATE.** Everything on it is also on `/compte/`, "Passer"
+  is a real button rather than small grey text, and `onboarding.spec.ts` asserts
+  that a skipped onboarding leaves the family section doing the whole job.
+- ⚠️ **THE PLACEHOLDER IS NEVER PRE-FILLED** (Critical Feature 53). Detection is
+  an **exact match against the email local part**, not a guess about what names
+  look like — the guess is the version that insults someone called `Alex99`.
+- ⚠️ **THE EXTRA NAME FIELDS ARE SERVER-RENDERED AND HIDDEN**, not built by
+  script: Astro stamps its scoping attribute at build time, so a runtime element
+  misses every scoped rule. Four slots is a limit on a welcome screen, not on a
+  family — the roster adds a fifth.
+- ⚠️ **`onboarded_at` IS AN ADDITION TO 0001's COLUMN GRANT LIST**, which is what
+  stops a client writing `role`. Never "tidy" it into `grant update on
+  public.profiles`.
+- ⚠️ **The callback defaults to `/compte/`.** A profile that could not be read
+  must not land on a one-time prompt.
+
+### ⚠️ THE ACCOUNT MODEL IS STATED, NOT INFERRED
+
+`/compte/` says whose account it is and what the students are. Without it a
+parent reads "Prénom affiché" at the top and reasonably concludes it is their
+child's.
+
+⚠️ **THE COPY NAMES THE STRUCTURE, NEVER THE RELATIONSHIP** (Critical Feature
+54). An account holding exactly one child is the **same object** whether it
+belongs to a parent or to a teenager who signed up alone (Critical Feature 40) —
+the site cannot tell and must not guess. So:
+
+| | |
+|---|---|
+| Heading | « Les élèves de ce compte » / "Students on this account" — **never** « Mes élèves » |
+| One child | « Ce compte porte **un seul profil d'élève** … le vôtre si c'est vous qui jouez, celui de votre enfant si vous l'inscrivez » |
+| Several | « Ce compte porte **%s profils d'élève**. Chacun garde sa propre progression … » |
+
+The teenager case is **named out loud** in the model block rather than left
+ambiguous, which is cheaper than copy vague enough to cover it.
+
+### ⚠️ SIGN-UP HYGIENE — AND WHAT IT IS NOT
+
+⚠️ **The honeypot on `/connexion/` is NOISE REDUCTION, NOT SECURITY** (Critical
+Feature 56). The anon key ships to every browser by design, so the sign-up
+endpoint is reachable with `curl` and never touches the form. **A CAPTCHA is not
+a drop-in** — it is a third-party script on a public page, which Critical
+Feature 9 forbids; adopting one is a policy decision, not a wiring task.
+
+- ⚠️ **IT FAILS VISIBLY AND CLEARS ITSELF — never a fake success.** The usual
+  advice denies the bot its signal and leaves a parent whose password manager
+  filled the field waiting for an email that was never sent. Here: show the
+  error, empty the field, let the second press through.
+- **The real answer is `/admin/comptes/`** — seeing the sign-ups and removing
+  one. For twenty families that beats any amount of friction, and it is the only
+  half that works against a determined human.
+- ⚠️ **`admin_delete_account()` IS NOT A SECOND ROUTE TO `delete_own_account()`**
+  (Critical Feature 55). Different name, admin only, reason required, and it
+  **refuses `auth.uid()`** — which is what keeps CF51's "the parameter list is
+  the guarantee" true for the function that rule is about.
+- ⚠️ **THE AUDIT RECORDS THE ACT, NOT THE PERSON.** `account_deletions` holds
+  `deleted_at`, `deleted_by`, `reason` and nothing else. An "anonymised"
+  reference to somebody who exercised their erasure right is exactly the copy
+  CF51 forbids, and a spec asserts the **column list** so a helpful `target_id`
+  fails a test rather than quietly changing what erasure means.
+
+**➡️ [`docs/reference/supabase.md`](./docs/reference/supabase.md)** — migration
+0009 in full, the two delete functions side by side, the CAPTCHA reasoning, and
+the live two-child deletion audit.
 
 #### ⚠️ THE FAMILY SECTION AND THE PICKER ARE TWO RULES, NOT ONE
 

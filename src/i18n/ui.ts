@@ -469,10 +469,49 @@ const fr = {
   'login.invalidEmail': 'Cette adresse e-mail ne semble pas valide.',
   'login.unconfigured': "La connexion n'est pas encore disponible sur cette version du site.",
   'login.guestNote': 'Continuer sans compte',
+  /* ── Le champ-piège ───────────────────────────────────────────────────────
+     ⚠️ CE N'EST PAS UNE SÉCURITÉ, ET LE CODE LE DIT AUSSI. La clé anon est
+     publique : n'importe qui peut appeler Supabase sans passer par ce
+     formulaire. Le champ ne fait que réduire le bruit des robots qui remplissent
+     tout ce qu'ils trouvent.
+     ⚠️ L'ÉCHEC EST VISIBLE ET RATTRAPABLE, jamais un faux succès : un parent
+     dont le gestionnaire de mots de passe aurait rempli le champ doit voir un
+     message et réussir au second essai, pas attendre un e-mail qui ne viendra
+     jamais. */
+  'login.hpLabel': 'Laissez ce champ vide',
+  'login.retry': 'Vérification impossible. Appuyez à nouveau sur le bouton.',
   'callback.title': 'Connexion…',
   'callback.working': 'Connexion en cours…',
   'callback.failed': "Ce lien n'est plus valide. Demandez-en un nouveau.",
   'callback.retry': 'Retourner à la connexion',
+  /* ── /bienvenue — le premier passage, une seule fois ──────────────────────
+     ⚠️ UN ÉCRAN, PAS UN TUNNEL. Il pose la seule question à laquelle le site ne
+     peut pas répondre tout seul — le prénom de l'élève — et propose la seule
+     chose qu'un parent de fratrie voudra faire tout de suite. Tout le reste se
+     fait depuis « Mon compte », et la page le dit avant de demander quoi que ce
+     soit. */
+  'welcome.title': 'Bienvenue au club',
+  'welcome.intro': 'Une seule étape, et nous ne vous la redemanderons pas.',
+  'welcome.nameHeading': 'Le prénom de l’élève',
+  /* ⚠️ DEUX VERSIONS : le profil créé automatiquement porte la partie gauche de
+     l'adresse e-mail. Ce n'est pas un prénom, et le texte doit le dire au lieu
+     de laisser le parent valider un « nachiketas3d » qui apparaîtra ensuite sur
+     la feuille de présence. */
+  'welcome.nameBodyPlaceholder':
+    'Nous avons créé un profil d’élève à partir de votre adresse e-mail. Ce n’est pas un prénom — remplacez-le.',
+  'welcome.nameBodyNamed':
+    'Vérifiez le prénom de l’élève. Il apparaît sur sa progression et sur la feuille de présence.',
+  'welcome.nameLabel': 'Prénom de l’élève',
+  'welcome.otherLabel': 'Prénom d’un autre élève',
+  'welcome.addAnother': 'Ajouter un autre enfant',
+  'welcome.removeField': 'Retirer ce champ',
+  'welcome.save': 'Enregistrer et continuer',
+  'welcome.saving': 'Enregistrement…',
+  'welcome.skip': 'Passer cette étape',
+  'welcome.skipNote':
+    'Vous pourrez ajouter, renommer ou retirer un élève à tout moment depuis « Mon compte ».',
+  'welcome.needName': 'Indiquez un prénom, ou passez cette étape.',
+  'welcome.error': 'Impossible d’enregistrer. Réessayez, ou passez cette étape.',
   'child.heading': 'Qui joue ?',
   'child.intro':
     'Choisissez l’élève. Ce choix est retenu sur cet appareil : le téléphone d’un enfant ne le demande qu’une fois.',
@@ -484,9 +523,22 @@ const fr = {
      for every signed-in account and the picker does not. One string table
      entry shared between them is how the two rules got coupled in the first
      place. */
-  'family.heading': 'Mes élèves',
+  /* ⚠️ « LES ÉLÈVES DE CE COMPTE », PAS « MES ÉLÈVES ».
+     Le titre doit être vrai dans les deux lectures : un parent qui inscrit ses
+     enfants, ET un adolescent autonome dont le compte ne porte qu'un profil —
+     le sien. « Mes élèves » est faux pour le second, et il n'y a aucun moyen de
+     savoir dans quel cas on est : un compte à un profil est exactement le même
+     objet dans les deux cas (CF40). On nomme donc la STRUCTURE, jamais la
+     relation. */
+  'family.heading': 'Les élèves de ce compte',
   'family.intro':
     'Les élèves inscrits sur ce compte. Vous pouvez en ajouter un, le renommer, ou le retirer.',
+  /* ⚠️ DEUX INTROS, CHOISIES PAR LE NOMBRE — jamais par un réglage « type de
+     compte », qui n'existe pas et ne doit pas exister. */
+  'family.introOne':
+    'Ce compte porte un seul profil d’élève. C’est lui qui garde la progression, les points et les présences — le vôtre si c’est vous qui jouez, celui de votre enfant si vous l’inscrivez.',
+  'family.introMany':
+    'Ce compte porte %s profils d’élève. Chacun garde sa propre progression, ses points et ses présences.',
   'family.rename': 'Renommer',
   'family.renameLabel': 'Nouveau prénom pour %s',
   'family.save': 'Enregistrer',
@@ -522,8 +574,27 @@ const fr = {
   'account.delete.working': 'Suppression en cours…',
   'account.delete.error':
     'La suppression a échoué et votre compte est intact. Réessayez, ou écrivez au club.',
+  /* ── Comment le compte est organisé ───────────────────────────────────────
+     ⚠️ CE BLOC EXISTE PARCE QUE LE MODÈLE N'EST PAS DEVINABLE. Le compte
+     appartient à l'adulte ; l'élève est un profil en dessous. Un parent qui ne
+     comprend pas cela cherche « son » enfant dans les réglages du compte et ne
+     l'y trouve pas. Trois phrases, en haut de la page, une fois. */
+  'account.model.heading': 'Comment ce compte est organisé',
+  'account.model.body':
+    'Vous êtes titulaire de ce compte, identifié par votre adresse e-mail. Les élèves sont des profils rattachés à ce compte : chacun garde sa propre progression, ses points et ses présences.',
+  /* ⚠️ LA PHRASE QUI DÉSAMORCE LE CAS DE L'ADOLESCENT. Sans elle, quelqu'un qui
+     s'inscrit pour lui-même lit « les élèves rattachés à votre compte » et se
+     demande s'il a mal fait quelque chose. On le nomme explicitement. */
+  'account.model.teen':
+    'Un adolescent qui s’inscrit seul est simplement un compte avec un seul profil : c’est le cas prévu, pas une exception.',
+  'account.holder': 'Titulaire du compte',
   'account.title': 'Mon compte',
-  'account.intro': 'Votre nom affiché et votre langue. Rien d’autre n’est stocké ici.',
+  /* ⚠️ CORRIGÉ. Disait « Rien d'autre n'est stocké ici », ce qui était vrai
+     avant les profils d'élève, les points et les présences — et faux depuis. Une
+     page de compte qui sous-déclare ce qu'elle garde est le même défaut qu'une
+     politique de confidentialité périmée. */
+  'account.intro':
+    'Votre compte, les élèves qui y sont rattachés, et la suppression définitive.',
   'account.displayName': 'Prénom affiché',
   'account.locale': 'Langue',
   'account.save': 'Enregistrer',
@@ -564,8 +635,20 @@ const fr = {
   'privacy.stored.email': "Votre adresse e-mail, qui sert uniquement à vous envoyer le lien de connexion.",
   'privacy.stored.guardian':
     "Éventuellement un numéro de téléphone de parent, à titre de contact du club. Il ne sert jamais à se connecter et ne reçoit aucun message automatique.",
-  'privacy.stored.progress': 'Votre progression : exercices résolus, tentatives, indices utilisés.',
-  'privacy.stored.attendance': 'Votre présence aux séances, saisie par un professeur.',
+  /* ⚠️ CETTE LISTE A ÉTÉ ÉCRITE AVANT LES PROFILS D'ÉLÈVE, LES POINTS ET LES
+     PARTIES, et elle ne les mentionnait pas. Une politique qui sous-déclare est
+     inexacte dans la seule direction qui compte. Trois entrées ajoutées, et
+     « votre » est devenu « de chaque élève » — parce que ce qui est stocké est
+     rattaché au profil, pas au titulaire du compte. */
+  'privacy.stored.children':
+    'Le prénom de chaque élève rattaché au compte — un prénom seul, jamais un nom de famille, jamais une date de naissance.',
+  'privacy.stored.progress':
+    'La progression de chaque élève : exercices résolus, tentatives, indices utilisés, leçons terminées.',
+  'privacy.stored.points':
+    'Ses points : ceux gagnés sur le site et ceux attribués par un professeur, avec la raison indiquée.',
+  'privacy.stored.games':
+    'Ses parties contre l’ordinateur : le niveau et le résultat, jamais le détail des coups.',
+  'privacy.stored.attendance': 'Sa présence aux séances, saisie par un professeur.',
   'privacy.why.heading': 'Pourquoi',
   'privacy.why.body':
     "Retrouver votre progression sur tous vos appareils, et permettre aux professeurs de suivre l’avancement du groupe et la présence. Rien n’est utilisé à d’autres fins : pas de publicité, pas de revente, pas de profilage.",
@@ -576,9 +659,25 @@ const fr = {
   'privacy.no.tracking':
     "Aucun cookie publicitaire et aucun traceur tiers. La mesure d’audience, quand elle est activée, est anonyme et sans cookie.",
   'privacy.no.passwords': 'Aucun mot de passe n’est créé ni stocké : la connexion se fait par lien e-mail.',
+  /* ── Mineurs ──────────────────────────────────────────────────────────────
+     ⚠️ QUATRE CHOSES DOIVENT Y ÊTRE ÉCRITES NOIR SUR BLANC, parce que ce sont
+     les quatre questions qu'un parent se pose avant d'inscrire son enfant : ce
+     qui est stocké sur l'enfant, qui détient le compte, ce que la suppression
+     emporte, et les photos. L'ancien paragraphe répondait à la première à moitié
+     et ne connaissait ni les profils d'élève, ni les points, ni les présences. */
   'privacy.minors.heading': 'Mineurs',
   'privacy.minors.body':
-    "Le club enseigne à des enfants. Les données sont réduites au strict minimum : un prénom, une adresse e-mail, la progression. Pour un élève sans adresse personnelle, le compte est créé par un professeur avec l’adresse d’un parent, qui reste le point de contact. Aucune photo n’est publiée et aucun échange direct n’est possible sur le site.",
+    'Le club enseigne à des enfants, et tout ici est dimensionné pour cela : le strict minimum, et rien qui permette à un inconnu d’atteindre un enfant.',
+  'privacy.minors.stored':
+    'Sur un enfant, nous stockons quatre choses et pas une de plus : son prénom, sa progression, ses présences aux séances et ses points. Pas de nom de famille, pas de date de naissance, pas d’adresse, pas de photo.',
+  'privacy.minors.holder':
+    'L’enfant n’a pas de compte. Le compte appartient au parent — c’est son adresse e-mail qui sert à se connecter, et l’enfant est un profil rattaché à ce compte. Un adolescent peut détenir son propre compte : c’est alors un compte avec un seul profil.',
+  'privacy.minors.deletion':
+    'Supprimer le compte efface tout, d’un coup et sans délai : le compte, chaque enfant qui y est rattaché, leur progression, leurs parties, leurs points et leurs présences. Il ne reste rien, pas même une copie anonymisée.',
+  'privacy.minors.photos':
+    'Aucune photo d’enfant n’est stockée, publiée ni demandée, à aucun endroit du site. Il n’y a aucun moyen d’en envoyer une.',
+  'privacy.minors.contact':
+    'Aucune messagerie, aucun commentaire, aucun contenu publié : personne ne peut écrire à un enfant depuis ce site, et c’est une décision permanente, pas une limite de la version actuelle.',
   'privacy.retention.heading': 'Durée de conservation',
   'privacy.retention.body':
     "Les données sont conservées tant que le compte existe. Un compte inactif depuis deux ans est supprimé. La progression enregistrée localement dans votre navigateur reste sous votre contrôle et peut être effacée à tout moment en vidant les données du site.",
@@ -1015,19 +1114,48 @@ const en: Record<keyof typeof fr, string> = {
   'login.invalidEmail': 'That email address does not look valid.',
   'login.unconfigured': 'Signing in is not available yet on this version of the site.',
   'login.guestNote': 'Continue without an account',
+  /* ⚠️ Noise reduction, NOT security — the anon key is public. See the FR note. */
+  'login.hpLabel': 'Leave this field empty',
+  'login.retry': 'Could not verify. Press the button again.',
   'callback.title': 'Signing in…',
   'callback.working': 'Signing you in…',
   'callback.failed': 'This link is no longer valid. Request a new one.',
   'callback.retry': 'Back to sign in',
+  /* ── /en/bienvenue — first run, once. See the FR note. */
+  'welcome.title': 'Welcome to the club',
+  'welcome.intro': 'One step, and we will not ask again.',
+  'welcome.nameHeading': 'The student’s first name',
+  'welcome.nameBodyPlaceholder':
+    'We created a student profile from your email address. That is not a name — please replace it.',
+  'welcome.nameBodyNamed':
+    'Check the student’s first name. It appears on their progress and on the attendance sheet.',
+  'welcome.nameLabel': 'Student’s first name',
+  'welcome.otherLabel': 'Another student’s first name',
+  'welcome.addAnother': 'Add another child',
+  'welcome.removeField': 'Remove this field',
+  'welcome.save': 'Save and continue',
+  'welcome.saving': 'Saving…',
+  'welcome.skip': 'Skip this step',
+  'welcome.skipNote':
+    'You can add, rename or remove a student at any time from “My account”.',
+  'welcome.needName': 'Enter a first name, or skip this step.',
+  'welcome.error': 'Could not save. Try again, or skip this step.',
   'child.heading': 'Who is playing?',
   'child.intro':
     'Choose the student. The choice is remembered on this device: a child’s own phone only asks once.',
   'child.addLabel': 'Add a student',
   'child.add': 'Add',
   'child.addError': 'Could not add this student. Please try again.',
-  'family.heading': 'My students',
+  /* ⚠️ "Students on this account", never "My students" — see the FR note. The
+     heading has to be true for a teenager whose account holds one profile: their
+     own. Name the structure, never the relationship. */
+  'family.heading': 'Students on this account',
   'family.intro':
     'The students on this account. You can add one, rename one, or remove one.',
+  'family.introOne':
+    'This account has a single student profile. It keeps the progress, the points and the attendance — yours if you are the one playing, your child’s if you are enrolling them.',
+  'family.introMany':
+    'This account has %s student profiles. Each one keeps its own progress, points and attendance.',
   'family.rename': 'Rename',
   'family.renameLabel': 'New first name for %s',
   'family.save': 'Save',
@@ -1059,8 +1187,16 @@ const en: Record<keyof typeof fr, string> = {
   'account.delete.working': 'Deleting…',
   'account.delete.error':
     'Deletion failed and your account is intact. Try again, or message the club.',
+  'account.model.heading': 'How this account is organised',
+  'account.model.body':
+    'You hold this account, identified by your email address. Students are profiles attached to it: each one keeps its own progress, points and attendance.',
+  'account.model.teen':
+    'A teenager signing up on their own is simply an account with a single profile: that is the expected case, not an exception.',
+  'account.holder': 'Account holder',
   'account.title': 'My account',
-  'account.intro': 'Your display name and language. Nothing else is stored here.',
+  /* ⚠️ Corrected — see the FR note. It claimed "Nothing else is stored here",
+     which stopped being true when child profiles, points and attendance landed. */
+  'account.intro': 'Your account, the students attached to it, and permanent deletion.',
   'account.displayName': 'Display first name',
   'account.locale': 'Language',
   'account.save': 'Save',
@@ -1096,8 +1232,18 @@ const en: Record<keyof typeof fr, string> = {
   'privacy.stored.email': 'Your email address, used only to send you the sign-in link.',
   'privacy.stored.guardian':
     'Optionally a parent phone number, as a contact for the club. It is never used to sign in and receives no automated messages.',
-  'privacy.stored.progress': 'Your progress: exercises solved, attempts, hints used.',
-  'privacy.stored.attendance': 'Your attendance at sessions, recorded by a teacher.',
+  /* ⚠️ Written before student profiles, points and games existed — see the FR
+     note. Three entries added, and "your" became "each student's", because what
+     is stored hangs off the profile and not off the account holder. */
+  'privacy.stored.children':
+    'The first name of each student attached to the account — a first name only, never a surname, never a date of birth.',
+  'privacy.stored.progress':
+    'Each student’s progress: exercises solved, attempts, hints used, lessons finished.',
+  'privacy.stored.points':
+    'Their points: those earned on the site and those awarded by a teacher, with the stated reason.',
+  'privacy.stored.games':
+    'Their games against the computer: the level and the result, never the moves.',
+  'privacy.stored.attendance': 'Their attendance at sessions, recorded by a teacher.',
   'privacy.why.heading': 'Why',
   'privacy.why.body':
     'To keep your progress across your devices, and to let teachers follow the group and attendance. Nothing is used for anything else: no advertising, no resale, no profiling.',
@@ -1108,9 +1254,21 @@ const en: Record<keyof typeof fr, string> = {
   'privacy.no.tracking':
     'No advertising cookies and no third-party trackers. Audience measurement, when enabled, is anonymous and cookie-free.',
   'privacy.no.passwords': 'No password is created or stored: signing in is by email link.',
+  /* ⚠️ Four things must be spelled out — see the FR note: what is stored about a
+     child, who holds the account, what deletion takes, and photographs. */
   'privacy.minors.heading': 'Minors',
   'privacy.minors.body':
-    'The club teaches children. Data is kept to the strict minimum: a first name, an email address, progress. For a student without their own address, a teacher creates the account using a parent’s address, and that parent remains the point of contact. No photographs are published and no direct contact is possible on the site.',
+    'The club teaches children, and everything here is sized for that: the strict minimum, and nothing that would let a stranger reach a child.',
+  'privacy.minors.stored':
+    'About a child we store four things and not one more: their first name, their progress, their attendance at sessions, and their points. No surname, no date of birth, no address, no photograph.',
+  'privacy.minors.holder':
+    'The child has no account. The account belongs to the parent — it is their email address that signs in, and the child is a profile attached to that account. A teenager may hold their own account: that is then an account with a single profile.',
+  'privacy.minors.deletion':
+    'Deleting the account erases everything, at once and with no delay: the account, every child attached to it, their progress, their games, their points and their attendance. Nothing remains, not even an anonymised copy.',
+  'privacy.minors.photos':
+    'No photograph of a child is stored, published or requested, anywhere on the site. There is no way to send one.',
+  'privacy.minors.contact':
+    'No messaging, no comments, no user-published content: nobody can write to a child from this site, and that is a permanent decision rather than a limit of the current version.',
   'privacy.retention.heading': 'How long we keep it',
   'privacy.retention.body':
     'Data is kept for as long as the account exists. An account inactive for two years is deleted. Progress stored locally in your browser stays under your control and can be cleared at any time by clearing the site’s data.',

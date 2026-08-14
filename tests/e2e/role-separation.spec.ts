@@ -49,6 +49,9 @@ test.describe('v2-S4 — a student cannot cross a role boundary', () => {
   let student = { id: '', email: '', password: '' };
   let other = { id: '', email: '', password: '' };
   let prof = { id: '', email: '', password: '' };
+  /* Named `superadmin` rather than `admin` so it cannot be confused with
+     `adminClient()`, which is the SERVICE ROLE and bypasses every policy. */
+  let superadmin = { id: '', email: '', password: '' };
   let sessionId = '';
   /* ⚠️ Since 0005 the LEARNER is a child profile, not the account, so every
      assertion below addresses a child id. A student account is an account
@@ -96,6 +99,10 @@ test.describe('v2-S4 — a student cannot cross a role boundary', () => {
     student = await mk('student');
     other = await mk('other');
     prof = await mk('prof');
+    /* ⚠️ A THIRD ROLE, because `/admin/comptes/` is narrower than the rest of
+       `/admin*`: seeing every family's email address and erasing an account is
+       admin-only, and "a prof is refused" is the assertion that proves it. */
+    superadmin = await mk('admin');
 
     /* ⚠️ Promoted via `admin_set_role`, the ONLY sanctioned path — column
        grants and a trigger refuse everything else, including the service role
@@ -105,6 +112,11 @@ test.describe('v2-S4 — a student cannot cross a role boundary', () => {
       new_role: 'prof',
     });
     expect(error, `admin_set_role failed: ${error?.message}`).toBeNull();
+    const { error: adminError } = await adminClient().rpc('admin_set_role', {
+      target_id: superadmin.id,
+      new_role: 'admin',
+    });
+    expect(adminError, `admin_set_role (admin) failed: ${adminError?.message}`).toBeNull();
 
     const kid = async (account: string, name: string) => {
       const { data, error } = await adminClient()
@@ -452,5 +464,151 @@ test.describe('v2-S4 — a student cannot cross a role boundary', () => {
     expect(after?.length, 'a student deleted an award').toBe(1);
 
     await adminClient().from('point_awards').delete().in('child_id', [studentChild, otherChild]);
+  });
+
+  /* ── /admin/comptes — the narrower gate (0009) ─────────────────────────── */
+
+  /**
+   * ⚠️ THE ACCOUNT LIST IS ADMIN-ONLY, AND A PROF IS THE INTERESTING CASE.
+   *
+   * A student being refused proves little — they are refused everywhere. The
+   * boundary this asserts is the new one: `auth.users` holds every family's
+   * email address, and a prof who marks registers has no business reading it.
+   * `AdminShell`'s `requires="admin"` decides what to DRAW; this is the part
+   * that actually refuses, called with each person's own token and the page
+   * nowhere in the picture.
+   */
+  test('admin_list_accounts is refused to a student and to a prof, and answers an admin', async () => {
+    for (const [who, user] of [
+      ['a student', student],
+      ['a prof', prof],
+    ] as const) {
+      const c = await clientFor(user);
+      const { data, error } = await c.rpc('admin_list_accounts');
+      /* ⚠️ IT RAISES RATHER THAN RETURNING NOTHING, deliberately: an empty list
+         is indistinguishable from a club with no members, and the UI would then
+         show "aucun compte" to somebody who is simply not allowed. */
+      expect(error, `${who} was not refused the account list`).not.toBeNull();
+      expect(data ?? null, `${who} received account rows`).toBeNull();
+    }
+
+    const admin = await clientFor(superadmin);
+    const { data, error } = await admin.rpc('admin_list_accounts');
+    expect(error, `an admin was refused: ${error?.message}`).toBeNull();
+    expect(Array.isArray(data), 'the account list was not an array').toBe(true);
+    /* The three accounts this file created are in there, with their addresses —
+       which is precisely why the two refusals above matter. */
+    const emails = (data ?? []).map((row: Record<string, unknown>) => String(row['email']));
+    expect(emails).toContain(student.email);
+  });
+
+  /**
+   * ⚠️ ERASING SOMEBODY ELSE'S ACCOUNT IS ADMIN-ONLY. A prof holds SELECT on
+   * children and writes none of them; this is the same line drawn one step
+   * further out.
+   */
+  test('admin_delete_account is refused to a student and to a prof', async () => {
+    for (const [who, user] of [
+      ['a student', student],
+      ['a prof', prof],
+    ] as const) {
+      const c = await clientFor(user);
+      const { error } = await c.rpc('admin_delete_account', {
+        target: other.id,
+        reason: 'tentative',
+      });
+      expect(error, `${who} was allowed to delete an account`).not.toBeNull();
+    }
+
+    /* And the target is untouched — the refusal has to be real, not cosmetic. */
+    const { data } = await adminClient().auth.admin.listUsers();
+    expect(
+      data.users.some((u) => u.id === other.id),
+      'the account was deleted by somebody who should have been refused',
+    ).toBe(true);
+  });
+
+  /**
+   * ⚠️ THE FUNCTION REFUSES `auth.uid()`, AND THAT IS WHAT KEEPS CRITICAL
+   * FEATURE 51 TRUE.
+   *
+   * `delete_own_account()` takes no target precisely so it cannot be aimed;
+   * an admin function that accepted its own caller's id would be a second,
+   * weaker route to the same irreversible act, with no typed-word confirmation
+   * in front of it. The admin's own account must go through `/compte/`.
+   */
+  test('an admin cannot delete their OWN account through the admin function', async () => {
+    const admin = await clientFor(superadmin);
+    const { error } = await admin.rpc('admin_delete_account', {
+      target: superadmin.id,
+      reason: 'auto-suppression',
+    });
+    expect(error, 'the admin function accepted its own caller as a target').not.toBeNull();
+
+    const { data } = await adminClient().auth.admin.listUsers();
+    expect(data.users.some((u) => u.id === superadmin.id), 'the admin erased themselves').toBe(true);
+  });
+
+  /**
+   * ⚠️ A BLANK REASON IS REFUSED BY THE DATABASE, WITH THE FORM NOWHERE IN THE
+   * PICTURE. `validateDeletion()` in `admin.ts` is a mirror so the UI can say no
+   * before a round trip; this is the copy that actually decides — same
+   * arrangement as the award bounds above.
+   */
+  test('a deletion with no reason is refused, and writes no audit row', async () => {
+    const before = (await adminClient().from('account_deletions').select('id')).data?.length ?? 0;
+
+    const admin = await clientFor(superadmin);
+    const { error } = await admin.rpc('admin_delete_account', { target: other.id, reason: '  ' });
+    expect(error, 'a blank reason was accepted').not.toBeNull();
+
+    const after = (await adminClient().from('account_deletions').select('id')).data?.length ?? 0;
+    expect(after, 'a refused deletion still wrote to the audit log').toBe(before);
+  });
+
+  /**
+   * ⚠️ THE AUDIT IS ADMIN-READABLE AND NAMES NOBODY.
+   *
+   * Critical Feature 51 says erasure retains no statistic, no archive and no
+   * anonymised copy — written for the self-service button, and binding just as
+   * hard when a volunteer presses this one. So the row records the ACT and holds
+   * no reference to the account that was removed. This asserts the SHAPE of the
+   * table rather than trusting the migration's comment: a future session adding
+   * a `target_id` column "because it would be useful" fails here.
+   */
+  test('the deletion audit is admin-only and holds no reference to the deleted account', async () => {
+    const student_ = await clientFor(student);
+    const { data: denied } = await student_.from('account_deletions').select('id');
+    expect(denied?.length ?? 0, 'a student read the deletion audit').toBe(0);
+
+    const admin = await clientFor(superadmin);
+    /* Do a real deletion so there is a row to inspect. `other` is expendable —
+       it is recreated per run and its id is already in `created`. */
+    const { error } = await admin.rpc('admin_delete_account', {
+      target: other.id,
+      reason: 'inscription de test',
+    });
+    expect(error, `the admin deletion failed: ${error?.message}`).toBeNull();
+
+    const { data: rows } = await admin
+      .from('account_deletions')
+      .select('*')
+      .order('deleted_at', { ascending: false })
+      .limit(1);
+    const row = rows?.[0] as Record<string, unknown> | undefined;
+    expect(row, 'no audit row was written').toBeTruthy();
+    expect(String(row!['reason'])).toBe('inscription de test');
+    expect(String(row!['deleted_by'])).toBe(superadmin.id);
+
+    /* ⚠️ THE COLUMN LIST IS THE ASSERTION. Nothing here may identify the erased
+       account — not an id, not an address, not a count. */
+    expect(Object.keys(row!).sort()).toEqual(['deleted_at', 'deleted_by', 'id', 'reason']);
+    const serialised = JSON.stringify(row);
+    expect(serialised, 'the audit row carries the deleted account id').not.toContain(other.id);
+    expect(serialised, 'the audit row carries the deleted email').not.toContain(other.email);
+
+    /* And the deletion really happened — the audit must not be the only effect. */
+    const { data: users } = await adminClient().auth.admin.listUsers();
+    expect(users.users.some((u) => u.id === other.id), 'the account survived').toBe(false);
   });
 });

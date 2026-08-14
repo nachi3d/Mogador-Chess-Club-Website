@@ -7,7 +7,7 @@ import {
   e2eEmail,
   magicLinkFor,
 } from './helpers/supabase-admin';
-import { anonClientAsUser } from './helpers/auth';
+import { anonClientAsUser, reachAccountPage } from './helpers/auth';
 import { AUTH_ENABLED, AUTH_OFF_REASON } from './helpers/auth-mode';
 
 /**
@@ -96,7 +96,7 @@ test.describe('self-service account deletion', () => {
 
   async function signIn(page: Page, email: string) {
     await page.goto(await magicLinkFor(email));
-    await page.waitForURL(/\/(en\/)?compte\//, { timeout: 30_000 });
+    await reachAccountPage(page);
     await expect(page.getByTestId('account-panel')).toBeVisible();
   }
 
@@ -164,6 +164,104 @@ test.describe('self-service account deletion', () => {
     expect(
       data.users.some((u) => u.id === account.id),
       'the auth user outlived the deletion — it would sign in again tomorrow',
+    ).toBe(false);
+  });
+
+  /**
+   * ⚠️ TWO CHILDREN, BECAUSE ONE PROVES LESS THAN IT LOOKS.
+   *
+   * The cascade above walks `auth.users → profiles → child_profiles → …` for a
+   * single learner. A family account is the shape the club actually has, and it
+   * is the shape where a partial erasure would be plausible: an implementation
+   * that deleted "the child" rather than "the children" — a `.single()`, a
+   * `limit(1)`, a loop that stopped early — passes the one-child test perfectly
+   * and leaves a real family's second child in the database forever.
+   *
+   * Both children are seeded with rows in EVERY learner table, and both are
+   * asserted to zero independently. The privacy notice now promises this in as
+   * many words ("every child attached to it"), so it is a claim under test
+   * rather than a hope.
+   */
+  test('an account holding TWO children erases both, and everything under each', async ({
+    page,
+  }) => {
+    const email = e2eEmail('del-two');
+    const user = await createConfirmedUser({ email, displayName: 'Nadia' });
+    created.push(user.id);
+
+    const sb = adminClient();
+    const { data: rows } = await sb
+      .from('child_profiles')
+      .insert([
+        { account_id: user.id, display_name: 'Amine' },
+        { account_id: user.id, display_name: 'Salma' },
+      ])
+      .select('id');
+    const childIds = (rows ?? []).map((r) => String(r['id']));
+    expect(childIds, 'the two children were not created — the test would prove nothing').toHaveLength(2);
+
+    const { data: session } = await sb
+      .from('sessions')
+      .insert([{ starts_at: new Date(Date.now() + 86_400_000).toISOString(), status: 'published' }])
+      .select('id');
+    const sessionId = String(session![0]!['id']);
+
+    /* Every learner table, for EACH child. A cascade that misses one table for
+       one child is exactly the failure this is shaped to catch. */
+    for (const [index, childId] of childIds.entries()) {
+      await sb.from('exercise_progress').insert([
+        { child_id: childId, exercise_slug: `mat-du-couloir-${index}`, kind: 'exercise', solved: true },
+      ]);
+      await sb
+        .from('game_results')
+        .insert([{ child_id: childId, id: `e2e-del-two-${index}`, level: 'debutant', outcome: 'win' }]);
+      await sb
+        .from('point_awards')
+        .insert([{ child_id: childId, points: 3, reason: 'progrès régulier', awarded_by: user.id }]);
+      await sb
+        .from('attendance')
+        .insert([{ session_id: sessionId, child_id: childId, status: 'present' }]);
+    }
+
+    for (const childId of childIds) {
+      expect(await survivors(user.id, childId), 'seeding did not take').toEqual({
+        profile: 1,
+        children: 2,
+        progress: 1,
+        games: 1,
+        awards: 1,
+        attendance: 1,
+      });
+    }
+
+    await signIn(page, email);
+    /* ⚠️ The confirmation must NAME the children before the word is typed —
+       "les élèves rattachés à ce compte" is the sentence a parent of two reads
+       and reconsiders. Asserted here rather than trusted, because it is the
+       whole reason the list exists. */
+    await expect(page.getByTestId('account-delete')).toContainText(/élèves rattachés/i);
+
+    await page.getByTestId('account-delete-start').click();
+    await page.getByTestId('account-delete-word').fill('SUPPRIMER');
+    await page.getByTestId('account-delete-go').click();
+    await page.waitForURL(/\/(en\/)?$/, { timeout: 30_000 });
+
+    /* Polled for the same reason as the single-child case: pooled PostgREST
+       connections can serve a stale read, and a row that genuinely survives
+       never reaches zero however long we wait. */
+    for (const childId of childIds) {
+      await expect
+        .poll(() => survivors(user.id, childId), {
+          message: `rows survived the erasure for child ${childId}`,
+          timeout: 20_000,
+        })
+        .toEqual({ profile: 0, children: 0, progress: 0, games: 0, awards: 0, attendance: 0 });
+    }
+
+    const { data } = await adminClient().auth.admin.listUsers();
+    expect(
+      data.users.some((u) => u.id === user.id),
+      'the auth user outlived the deletion',
     ).toBe(false);
   });
 

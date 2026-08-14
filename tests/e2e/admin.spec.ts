@@ -3,6 +3,15 @@ import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { AUTH_ENABLED, AUTH_OFF_REASON } from './helpers/auth-mode';
 import { computeLedger, type LedgerCatalogue } from '../../src/lib/ledger';
+import { isSupabaseConfigured } from './env';
+import {
+  adminClient,
+  createConfirmedUser,
+  deleteUser,
+  e2eEmail,
+  magicLinkFor,
+} from './helpers/supabase-admin';
+import { reachAccountPage } from './helpers/auth';
 
 /**
  * v2-S4 part 2 — the admin surfaces.
@@ -22,7 +31,13 @@ import { computeLedger, type LedgerCatalogue } from '../../src/lib/ledger';
  * ═════════════════════════════════════════════════════════════════════════
  */
 
-const ADMIN_ROUTES = ['/admin/', '/admin/eleves/', '/admin/eleve/', '/admin/seances/'];
+const ADMIN_ROUTES = [
+  '/admin/',
+  '/admin/eleves/',
+  '/admin/eleve/',
+  '/admin/seances/',
+  '/admin/comptes/',
+];
 
 /* ── With the flag OFF — the artefact that actually ships ────────────────── */
 
@@ -79,6 +94,78 @@ test.describe('v2-S4 — the admin surfaces', () => {
    * the same nav at desktop width; hard-coding three known paths would pass
    * throughout the bug it exists to catch.
    */
+  /**
+   * ⚠️ REACHABILITY, WHICH RLS CANNOT SEE — Critical Feature 48.
+   *
+   * `role-separation.spec.ts` proves who the DATABASE lets near the account
+   * list. It cannot prove an admin can get to the page, and this project has
+   * already shipped the mirror-image bug: the add-a-child form was permitted by
+   * every policy and invisible to every real account for two releases, with the
+   * boundary spec fully green throughout.
+   *
+   * So this asserts the UX half in both directions: an admin finds the tab and
+   * the page loads; a prof is told, in words that make sense to somebody who IS
+   * a professeur, rather than being shown "réservé aux professeurs".
+   */
+  test.describe('the accounts surface is reachable by an admin and not by a prof', () => {
+    test.skip(!isSupabaseConfigured(), 'no .env.test — see .env.test.example (visible skip)');
+
+    const created: string[] = [];
+
+    test.afterAll(async () => {
+      for (const id of created) await deleteUser(id);
+    });
+
+    async function signInAs(page: import('@playwright/test').Page, role: 'admin' | 'prof') {
+      const email = e2eEmail(`comptes-${role}`);
+      const user = await createConfirmedUser({ email, displayName: role });
+      created.push(user.id);
+      /* Promoted through the only sanctioned path — column grants and a trigger
+         refuse everything else, including the service role going direct. */
+      const { error } = await adminClient().rpc('admin_set_role', {
+        target_id: user.id,
+        new_role: role,
+      });
+      expect(error, `admin_set_role failed: ${error?.message}`).toBeNull();
+      await page.goto(await magicLinkFor(email));
+      await reachAccountPage(page);
+      return user;
+    }
+
+    test('an admin sees the Comptes tab and the sign-up list', async ({ page }) => {
+      await signInAs(page, 'admin');
+
+      await page.goto('/admin/');
+      /* ⚠️ FOUND BY NAVIGATING, not by typing the URL. A destination nothing
+         links to is a destination nobody finds. */
+      const tab = page.locator('[data-testid="admin-nav"] a[href="/admin/comptes/"]');
+      await expect(tab).toBeVisible();
+      await tab.click();
+
+      await page.waitForURL(/\/admin\/comptes\//);
+      await expect(page.getByTestId('admin')).toHaveAttribute('data-state', 'staff');
+      /* The list actually renders rows — a page that draws an empty state for an
+         admin would pass a "does it load" check and be useless. */
+      await expect(page.getByTestId('account-list')).toBeVisible();
+      await expect(page.getByTestId('account-list')).toContainText('@');
+    });
+
+    test('a prof is denied, and told something that makes sense to a prof', async ({ page }) => {
+      await signInAs(page, 'prof');
+
+      await page.goto('/admin/');
+      await expect(page.getByTestId('admin')).toHaveAttribute('data-state', 'staff');
+      /* The tab is not offered — a destination a prof cannot use is worse shown
+         than hidden. */
+      await expect(page.locator('[data-testid="admin-nav"] a[href="/admin/comptes/"]')).toBeHidden();
+
+      await page.goto('/admin/comptes/');
+      await expect(page.getByTestId('admin-denied')).toBeVisible();
+      /* ⚠️ NOT "réservé aux professeurs", which is baffling to a professeur. */
+      await expect(page.getByTestId('admin-denied')).toContainText(/administrateurs/i);
+    });
+  });
+
   test('the admin nav is identical at phone and desktop widths', async ({ page }) => {
     const hrefs = async () =>
       page.locator('[data-testid="admin-nav"] [data-admin-nav]').evaluateAll((nodes) =>

@@ -35,13 +35,22 @@ const updated = new Date().toISOString().slice(0, 10);
       <p>{t('privacy.guest.body')}</p>
     </section>
 
+    {/* ⚠️ THIS LIST WAS WRITTEN BEFORE CHILD PROFILES, POINTS AND GAMES
+        EXISTED, and it did not mention any of them. A privacy notice that
+        under-declares is inaccurate in the only direction that matters, and it
+        is the kind of inaccuracy nothing in a build can catch — the page
+        rendered perfectly throughout. Re-read against the schema on
+        2026-08-14; every table in `supabase/migrations/` now has a line here. */}
     <section data-reveal>
       <h2>{t('privacy.stored.heading')}</h2>
       <ul>
         <li>{t('privacy.stored.name')}</li>
         <li>{t('privacy.stored.email')}</li>
         <li>{t('privacy.stored.guardian')}</li>
+        <li>{t('privacy.stored.children')}</li>
         <li>{t('privacy.stored.progress')}</li>
+        <li>{t('privacy.stored.points')}</li>
+        <li>{t('privacy.stored.games')}</li>
         <li>{t('privacy.stored.attendance')}</li>
       </ul>
     </section>
@@ -61,9 +70,26 @@ const updated = new Date().toISOString().slice(0, 10);
       </ul>
     </section>
 
+    {/* ── Mineurs ──────────────────────────────────────────────────────────
+        ⚠️ FOUR CLAIMS, EACH IN ITS OWN PARAGRAPH, BECAUSE EACH IS A QUESTION A
+        PARENT ASKS BEFORE ENROLLING A CHILD: what is stored about them, who
+        holds the account, what deletion takes, and photographs. The previous
+        version was one paragraph that answered the first half-way and predated
+        child profiles, points and attendance entirely.
+
+        ⚠️ THE PHOTO SENTENCE IS ABSOLUTE AND MUST STAY ABSOLUTE. There is no
+        photo column, no upload control and no storage bucket anywhere in this
+        project; the claim is checkable against the schema, which is why it can
+        be written without hedging. If a future feature ever needs an image,
+        this paragraph is what has to change first. */}
     <section data-reveal>
       <h2>{t('privacy.minors.heading')}</h2>
       <p>{t('privacy.minors.body')}</p>
+      <p>{t('privacy.minors.stored')}</p>
+      <p>{t('privacy.minors.holder')}</p>
+      <p>{t('privacy.minors.deletion')}</p>
+      <p>{t('privacy.minors.photos')}</p>
+      <p>{t('privacy.minors.contact')}</p>
     </section>
 
     <section data-reveal>

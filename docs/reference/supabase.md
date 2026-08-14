@@ -701,7 +701,11 @@ select proname, prosecdef, proconfig
  where n.nspname = 'public' and proname in ('is_staff','is_admin_direct','owns_child');
 
 -- 0001 · `role` is NOT client-updatable. The mechanism is COLUMN privileges,
---        not RLS — this must return display_name and locale, and nothing else.
+--        not RLS — this must return exactly display_name, locale and
+--        onboarded_at (0009 added the third), and NEVER `role`.
+-- ⚠️ THE ASSERTION IS THE ABSENCE OF `role`, not a fixed list: the list grows
+--    whenever a genuinely self-editable field lands, and updating it here is
+--    part of that migration.
 select column_name from information_schema.column_privileges
  where table_schema='public' and table_name='profiles'
    and grantee='authenticated' and privilege_type='UPDATE';
@@ -786,3 +790,140 @@ pg_temp`, and the seeded 12 September row. Two findings:
 ⚠️ **Neither finding is visible from this repository**, which is the whole point
 of the invariant: nothing in `npm run build`, `npm run quick` or
 `npm run test:release` can go red for either one.
+
+---
+
+## Parent onboarding and account hygiene (migration 0009)
+
+**Read when:** touching `/bienvenue/`, the account model copy, the sign-up form,
+or `/admin/comptes/`.
+
+### `profiles.onboarded_at` — why the server and not the device
+
+"Shown once" is a claim about a **person**, not a browser. In `localStorage` it
+would mean "once per device": a parent who signs up on their phone and later
+opens the site on the family tablet would be walked through naming a child who
+already has a name — and the site would look like it had forgotten them.
+
+The column is set by **both** outcomes, completing and dismissing, and
+deliberately does not record which. Storing "they skipped" is an invitation for
+a later session to re-ask them, which is the exact behaviour the column exists
+to prevent. A parent who dismissed the screen made a choice.
+
+It required one line of privilege: `grant update (onboarded_at) … to
+authenticated`. ⚠️ **That is an addition to 0001's column list, not a
+replacement.** The list — `display_name, locale, onboarded_at` — is what stops a
+client writing `role`, because RLS operates on rows and would happily allow it.
+A future session that "tidies" this into `grant update on public.profiles` hands
+every reader their own role column.
+
+### The placeholder problem, stated exactly
+
+`handle_new_user()` seeds `display_name` from the **email local part** when no
+provider supplied a real name. `resolveChild()` then copies that into the first
+child profile the moment an account has none. So a brand-new account silently
+contains a student called `nachiketas3d`, and that string goes on to appear on
+`/progres/` and on a prof's attendance sheet.
+
+The detection is an **exact comparison against the email local part**, not a
+heuristic about what names look like — the heuristic version is the one that
+tells somebody genuinely called `Alex99` that their name is not a name. When it
+matches, the field is rendered **empty**: prefilling the placeholder invites a
+parent to press Save and ship it, which is the whole failure being fixed.
+
+### `admin_delete_account()` vs `delete_own_account()` — two functions, on purpose
+
+Critical Feature 51 says the parameter list of `delete_own_account()` **is** its
+security design, and warns that "a `delete_account(target uuid)` with an
+ownership check inside is one refactor away from deleting anybody". That warning
+is about **that function**, and it still holds: it takes no argument and must
+never grow one.
+
+`admin_delete_account(target, reason)` is a second, differently named function
+for a different actor:
+
+| | `delete_own_account()` | `admin_delete_account()` |
+|---|---|---|
+| Arguments | none, ever | target + reason |
+| EXECUTE | `authenticated` | `authenticated` |
+| Who it serves | any reader, on themselves | `is_admin_direct()` only |
+| Own account | this is the only route | **refused** — `target = auth.uid()` raises |
+| Audit | none at all | one row in `account_deletions` |
+
+⚠️ **Refusing the caller's own id is what keeps the no-target rule true.** An
+admin erasing themselves has exactly one route — the zero-argument function,
+behind the typed-word confirmation. Without that guard this would be a second,
+weaker path to the same irreversible act.
+
+⚠️ **`is_admin_direct()`, not `is_staff()`.** A prof marks a register; removing a
+family's account is not the same class of act.
+
+### What the audit may hold when erasure is absolute
+
+`account_deletions` has four columns: `id`, `deleted_at`, `deleted_by`,
+`reason`. **There is no reference to the deleted account** — no id, no address,
+no counts.
+
+That is a deliberate reading of CF51's "nothing is retained: no statistics, no
+archive, no anonymised copy". It was written for the self-service button and it
+binds just as hard when a volunteer presses the admin one: an "anonymised"
+reference to somebody who exercised their erasure right is precisely the copy
+CF51 forbids.
+
+What survives is enough to notice twenty deletions nobody authorised, and not
+enough to reconstruct anything. `role-separation.spec.ts` asserts the **column
+list**, so a future session adding `target_id` "because it would be useful"
+fails a test rather than quietly changing what erasure means. If a fuller trail
+is ever wanted it is a privacy decision, and it is in BACKLOG as one.
+
+⚠️ **Self-service erasure writes NO audit row at all.** Only the admin path does.
+
+### Junk sign-ups — what was decided, and the tradeoff
+
+Anyone can create an account on a public static site. **The anon key ships to
+every browser by design**, so the sign-up endpoint is reachable with `curl` and
+never touches `/connexion/`. Every consequence follows from that:
+
+- **Client-side checks are noise reduction, not security.** The honeypot on the
+  form catches scrapers that fill every input they find. It is bypassed by not
+  using the form, and the code says so in as many words.
+- **A CAPTCHA is not a drop-in here.** hCaptcha and Turnstile are third-party
+  script loads on a public page, which Critical Feature 9 forbids outright. It
+  is not a wiring problem — it is a policy decision that would have to be taken
+  first, and it would be the site's only third-party request.
+- **The honeypot fails VISIBLY and CLEARS ITSELF.** Standard advice is to fake
+  success, denying the bot its signal; that also leaves a parent whose password
+  manager filled the field waiting forever for an email that was never sent. The
+  trade goes the other way here: show the error, empty the field, let the second
+  press through. A bot loops, a human presses twice.
+- **The real answer is visibility plus removal.** For twenty families, being
+  able to see the list and delete a row beats any amount of friction — and it is
+  the only half that works against a determined human. That is `/admin/comptes/`.
+
+⚠️ **What is NOT done, and is a configuration task rather than a code one:**
+Supabase's own per-address and per-IP rate limits on the OTP endpoint are the
+server-side half, and they live in the dashboard. Recorded in BACKLOG.
+
+### Live deletion audit — 2026-08-14
+
+A real parent account holding **two** children, every learner table seeded for
+each, erased through `delete_own_account()` with the parent's own token on the
+test project:
+
+```
+BEFORE  profiles 1 · child_profiles 2 · auth.users 1
+        Amine  exercise_progress 2 · game_results 1 · point_awards 1 · attendance 1
+        Salma  exercise_progress 2 · game_results 1 · point_awards 1 · attendance 1
+
+delete_own_account() → 198 ms, no arguments passed
+
+AFTER   every count 0, auth user gone
+        club session kept, created_by nulled
+        account_deletions rows mentioning the account: 0
+```
+
+⚠️ **Two children rather than one, because one proves less than it looks.** An
+implementation that deleted "the child" rather than "the children" — a
+`.single()`, a `limit(1)`, a loop that stopped early — passes the one-child test
+perfectly and leaves a real family's second child in the database forever.
+`account-deletion.spec.ts` now carries both shapes.

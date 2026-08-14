@@ -54,8 +54,28 @@ const t = useTranslations(locale);
     </div>
 
     <div class="account-panel" data-testid="account-panel" hidden>
+      {/* ── What this account IS ──────────────────────────────────────────
+          ⚠️ THE MODEL IS NOT GUESSABLE, AND A PARENT WHO GUESSES IT WRONG
+          LOOKS FOR THEIR CHILD IN THE WRONG PLACE. The account belongs to the
+          adult and is identified by their email; a student is a profile
+          underneath it. Without this block a parent reads "Prénom affiché" at
+          the top of the page and reasonably concludes it is their child's.
+
+          ⚠️ THE THIRD SENTENCE IS FOR THE AUTONOMOUS TEENAGER. An account
+          holding exactly one child is the same object whether it belongs to a
+          parent or to the student themselves (Critical Feature 40) — the site
+          cannot tell and must not guess. Naming that case out loud is cheaper
+          and more honest than copy that tries to be vague enough to cover it. */}
+      <section class="account-model" data-testid="account-model">
+        <h2>{t('account.model.heading')}</h2>
+        <p>{t('account.model.body')}</p>
+        <p class="account-model-teen">{t('account.model.teen')}</p>
+      </section>
+
       <dl class="account-facts">
-        <dt>{t('account.email')}</dt>
+        {/* "Titulaire du compte", not "Adresse e-mail": the label is where the
+            ownership is stated, and the value happens to be the address. */}
+        <dt>{t('account.holder')}</dt>
         <dd data-testid="account-email"></dd>
         <dt>{t('account.role')}</dt>
         <dd data-testid="account-role"></dd>
@@ -405,6 +425,36 @@ const t = useTranslations(locale);
 </BaseLayout>
 
 <style>
+  /* Context, not a warning: the same quiet sunken panel with an accent edge
+     that the staff block uses. No opacity over an audited token pair — the
+     contrast checker proves the pair and cannot see an alpha laid on top. */
+  .account-model {
+    margin-bottom: 1.5rem;
+    padding: 1rem 1.25rem;
+    border-inline-start: 3px solid var(--mcc-accent);
+    border-radius: var(--radius-card);
+    background-color: var(--mcc-surface-sunken);
+  }
+
+  .account-model h2 {
+    margin: 0 0 0.5rem;
+    font-size: 1.125rem;
+  }
+
+  .account-model p {
+    margin: 0 0 0.6rem;
+    line-height: 1.6;
+  }
+
+  .account-model p:last-child {
+    margin-bottom: 0;
+  }
+
+  .account-model-teen {
+    color: var(--mcc-text-secondary);
+    font-size: 0.9375rem;
+  }
+
   .account-facts {
     display: grid;
     grid-template-columns: auto 1fr;
