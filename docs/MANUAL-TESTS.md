@@ -495,6 +495,21 @@ the question is whether a prof believes it.
       faded, not struck through — a parent must not squint at it and turn up
 - [ ] A **draft** never appears on `/agenda/` at all
 
+#### ⚠️ After ANY production deploy — the agenda is not empty
+
+⚠️ **This is the one that actually bit.** On 2026-08-14 `/agenda/` told the
+public "Aucune séance programmée pour le moment" for about fourteen hours. Every
+check was green, the page rendered perfectly, and the database was already
+correct — the deployed build simply predated the row by thirteen hours.
+
+- [ ] `npm run smoke:prod` — `/agenda/` reports a **session count**, and the
+      count is not zero. It now fails on an empty agenda rather than passing
+- [ ] The count matches what `/admin/seances` lists as published or cancelled.
+      ⚠️ **The check cannot know the count is right, only that it is non-zero**
+- [ ] Open `/agenda/` and `/en/agenda/` in a browser and read them. A build that
+      baked before a session existed looks identical to a club with nothing
+      scheduled — **the page cannot tell you which it is, and neither can a 200**
+
 ### v2-S3 — progress sync (only once `PUBLIC_AUTH_ENABLED` is on)
 
 ⚠️ **THE CHECK THAT MATTERS IS THE FIRST ONE, AND IT IS THE ONLY ONE THAT

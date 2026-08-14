@@ -1015,11 +1015,11 @@ publishes, and is told the site is up to date.
 - ⚠️⚠️ **A CREDENTIALED BUILD EMPTIES THE PUBLIC AGENDA WHENEVER PRODUCTION IS
   BEHIND ON MIGRATIONS.** It did exactly that on 2026-08-14: production was
   missing 0005–0007, so `sessions` held no readable row, and `/agenda/` rendered
-  "Aucune séance programmée". 0003–0007 are applied now and `anon` reads the 12
-  September session — but **the deployed build still predates them**, so the
-  live agenda stays empty until a build runs. **The order is migrations FIRST,
-  credentials SECOND, a build THIRD**, and the third step is the one that looks
-  optional and is not.
+  "Aucune séance programmée" to the public for roughly fourteen hours.
+  **Resolved** — 0003–0007 applied at `12:29Z`, deployment `d580b90c` at
+  `13:15Z`, and the 12 September session is live. **The order is migrations
+  FIRST, credentials SECOND, a build THIRD**, and the third step is the one that
+  looks optional and is not: the fix was invisible until something rebuilt.
 - ⚠️⚠️ **THE AGENDA'S CONTENT CANNOT TELL THE TWO PATHS APART — ONLY ITS
   EMPTINESS CAN.** 0006 seeds the 12 September row with the **same fixed id and
   the same text** as `agenda.fallback.json`, deliberately (a random id would
@@ -1036,11 +1036,13 @@ publishes, and is told the site is up to date.
   the paths apart by their OUTPUT, per the rule above, or by correlating
   deployment timestamps against a push. See
   [`docs/reference/deployment.md`](./docs/reference/deployment.md).
-- ⚠️ **`npm run smoke:prod` PASSES ON A BLANK AGENDA.** Its `/agenda/` sentinel
-  is `/class="(sessions|empty)"/`, so it accepts the empty state — it did, green,
-  while the club's one session was off the site. That is not a bug in the check
-  (a static probe cannot know how many sessions exist), it is the reason **the
-  agenda must be verified against the database, not against a 200**.
+- ⚠️ **`npm run smoke:prod` ASSERTS A SESSION IS LISTED, AND AN EMPTY AGENDA IS
+  A FAILURE.** It used to accept `/class="(sessions|empty)"/` — the list *or*
+  the empty state — and passed green, all 14 routes, while the club's one
+  session was off the site. The sentinel is now `/<li class="session\b/` and the
+  route reports its count. **Zero sessions is never correct for a club that
+  meets weekly**, so it is a deploy fault, not a scheduling fact, and it now
+  reads as one.
 - ⚠️ **`src/data/agenda.json` is a GENERATED ARTEFACT and is gitignored.** The
   committed source is `agenda.fallback.json`. One committed file would be a
   footgun: a Playwright run builds against the TEST project, so `git add -A`
@@ -1114,20 +1116,35 @@ by re-reading the migration. Reading the file is what produced the bug both time
 
 ⚠️ **`anon` gets nothing** — deliberate: a guest writes to their own device only.
 
-⚠️⚠️ **AND IN PRODUCTION THAT IS CURRENTLY FALSE, BECAUSE A `grant` IS NOT THE
-ONLY WAY A PRIVILEGE ARRIVES.** A Supabase project ships
-`alter default privileges in schema public grant all on tables to anon,
-authenticated`, so **every `create table` hands `anon` the full set before any
-migration says a word**. Only `profiles` is clean, because 0001 is the one place
-that wrote `revoke all ... from anon, authenticated` *before* granting. Every
-other table — `sessions`, `child_profiles`, `exercise_progress`,
-`lesson_progress`, `game_results`, `attendance`, `point_awards` — leaves `anon`
-holding **TRUNCATE, REFERENCES and TRIGGER**, verified against the live catalog.
-**TRUNCATE is not filtered by RLS.** It is not reachable through PostgREST, which
-exposes no such verb, so this is defence-in-depth rather than a live hole — but
-the invariant above is written as though the grants say it, and they do not.
-**A new table therefore starts with `revoke all ... from anon, authenticated;`
-as step 0**, and step 4's `service_role` line still applies.
+⚠️⚠️ **A `grant` IS NOT THE ONLY WAY A PRIVILEGE ARRIVES, AND FOR SEVEN TABLES
+IT WAS NOT.** A Supabase project ships `alter default privileges in schema
+public grant all on tables to anon, authenticated`, so **every `create table`
+hands `anon` the full set before any migration says a word** — a later
+`grant select` narrows nothing, because it adds to a set that already contains
+it. Only `profiles` was clean, because 0001 is the one place that wrote
+`revoke all … from anon, authenticated` *before* granting; `sessions`,
+`child_profiles`, `exercise_progress`, `lesson_progress`, `game_results`,
+`attendance` and `point_awards` all left `anon` holding **TRUNCATE, REFERENCES
+and TRIGGER**, found against the live catalog. **TRUNCATE is not filtered by
+RLS** — what was actually preventing it is that PostgREST exposes no verb
+reaching it, and **reachability is not authorisation**.
+
+**Migration 0008 repairs it**: `anon` now holds `select` on `sessions` and
+nothing anywhere else, and the default-privilege entry no longer grants it.
+⚠️ **The `grant select on public.sessions to anon` in 0008 is not optional** —
+`fetch-agenda.mjs` bakes the public agenda with the anon key, so a bare
+`revoke all` there empties `/agenda/` on every future build.
+
+- ⚠️ **A new table starts with `revoke all … from anon, authenticated;` as step
+  0**, and step 4's `service_role` line still applies. 0008 cancels the default
+  for `anon` so this is belt-and-braces there, and load-bearing for
+  `authenticated`, which **still inherits TRUNCATE** — deliberately out of
+  0008's scope, and in BACKLOG.
+- ⚠️ **Do not audit the default-privilege half by reading `pg_default_acl`.**
+  Two entries govern `public`: one owned by `supabase_admin` and one by
+  `postgres`. Only the second applies to what a migration creates, and the
+  first still lists `anon`, correctly and permanently. **Exercise it** — create
+  a throwaway table and read its grants; the query is in 0008's footer.
 
 Migrations are numbered and **never edited after merge** — a fix is the next
 number. Also binding:
@@ -1547,8 +1564,9 @@ Run `npm run demo`, which prints its path, and work down it. The release gate is
 □ ⚠️ Cloudflare Workers Builds deploys `main` ONLY; every other branch runs
   `npx wrangler versions upload`. Prove it by output: after the last `dev`
   push, `npx wrangler deployments status` did not move.
-□ ⚠️ /agenda/ on the live site matches the `sessions` table. `smoke:prod`
-  passes on a BLANK agenda, so this one is checked by hand.
+□ ⚠️ /agenda/ on the live site matches the `sessions` table. `smoke:prod` now
+  fails on a blank agenda and prints the count, but it cannot know the count is
+  RIGHT — compare it against the table.
 ```
 
 It is a **living document**: keep it in step with the site, in the same commit as the feature. See the session finish routine under Conventions.
@@ -1616,12 +1634,16 @@ re-asked.
    and `npx wrangler deployments status` is **unchanged**.
 
 ⚠️ **`supabase_migrations.schema_migrations` IS NOT A RECORD OF WHAT PRODUCTION
-HOLDS.** Production's ledger lists **0001 and 0002 only**, while the schema
-demonstrably contains everything through 0007 — 0003–0007 were applied by some
+HOLDS.** Production's ledger listed **0001 and 0002 only**, while the schema
+demonstrably contained everything through 0007 — 0003–0007 were applied by some
 path that did not write the ledger. Two consequences: reading the ledger to
 answer "is production current" gives the **wrong answer in the dangerous
 direction**, and a future `supabase db push` would try to **replay** five
-applied migrations, including 0005's unguarded `drop constraint`. Ask the
+applied migrations, including 0005's unguarded `drop constraint`.
+⚠️ **The backfill SQL is in [`docs/ADMIN.md`](./docs/ADMIN.md) and is Seàn's to
+run** — it records history and executes nothing, because everything those five
+migrations contain is already in the database. Until it is run, the hazard
+stands. Ask the
 catalog what exists; never ask the ledger.
 
 **Service worker:** generated by Workbox **after** `astro build` (it fingerprints

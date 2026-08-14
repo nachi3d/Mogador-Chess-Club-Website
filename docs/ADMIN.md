@@ -149,3 +149,81 @@ above. There is no admin yet, so `is_admin_direct()` cannot be true for anybody,
 which makes the trigger refuse **every** first promotion by construction.
 Standing it down for the transaction is the only way in, and that is intentional:
 it means gaining `admin` always requires database access, never a session.
+
+---
+
+## ⚠️ One-off repair — recording migrations 0003–0007 as applied
+
+**Run once, on PRODUCTION only, in the Supabase SQL editor.** Skip it on the test
+project, where the ledger is already correct.
+
+### The problem
+
+`supabase_migrations.schema_migrations` on production lists **`0001` and `0002`
+only**, while the database demonstrably carries everything through `0007` —
+0003–0007 were applied by a path that did not write the ledger. Audited against
+the catalog on 2026-08-14; the queries are in
+[`reference/supabase.md`](./reference/supabase.md).
+
+The schema is right and the bookkeeping is wrong, so nothing is broken today.
+What it breaks is the **next** person who runs `supabase db push` at production:
+the CLI decides what to apply by reading this table, sees five migrations
+missing, and replays them. Most statements are guarded (`create table if not
+exists`, `create or replace function`, `drop policy if exists`) — but **0005 is
+not**:
+
+```sql
+alter table public.exercise_progress drop constraint exercise_progress_pkey;
+```
+
+No `if exists`. On a second run that raises `42704` and aborts the transaction,
+so the damage is a failed push rather than a mangled schema — but it fails
+**halfway through a promotion**, on the one table the whole child-profile model
+hangs off, and the person reading the error has no reason to suspect the ledger.
+
+### The fix
+
+⚠️ **This records history; it does not run anything.** Every statement 0003–0007
+contains is already in the database — that is the finding. Running the
+migrations again is exactly what this exists to prevent.
+
+⚠️ **`statements` is left NULL, deliberately.** It is nullable, older CLI
+versions wrote nothing there, and `db push` reads `version` to decide what to
+apply. Inventing a statement array would be fabricating a record of an execution
+that this database has no true account of.
+
+```sql
+-- Verify the starting state first. Expect exactly 0001 and 0002.
+select version, name from supabase_migrations.schema_migrations order by version;
+
+-- Record 0003–0007 as applied. Idempotent: re-running changes nothing.
+insert into supabase_migrations.schema_migrations (version, name)
+values
+  ('0003', 'progress_kind_and_games'),
+  ('0004', 'teacher_awarded_points'),
+  ('0005', 'child_profiles'),
+  ('0006', 'public_agenda'),
+  ('0007', 'delete_own_account')
+on conflict (version) do nothing;
+
+-- Confirm. Expect seven rows, 0001 … 0007, and NOTHING else.
+select version, name from supabase_migrations.schema_migrations order by version;
+```
+
+⚠️ **The `name` values are not cosmetic.** They must equal each migration's
+filename with the `NNNN_` prefix and the `.sql` suffix removed — that is what
+the CLI writes and what it prints when listing. Compare against
+`supabase/migrations/` before running, and if a file has been renamed since,
+the file wins.
+
+⚠️ **Do not add a production path to `scripts/db-push.mjs` to do this.** That
+script refuses production by construction and the refusal is the design; this is
+a deliberate act against a ref typed by a human, which is the same rule.
+
+### Afterwards
+
+Re-run the per-migration verification in
+[`reference/supabase.md`](./reference/supabase.md). Two independent things must
+both hold: the **catalog** contains 0003–0007's objects (it already did), and the
+**ledger** now says so. The ledger agreeing on its own has never been evidence —
+that is the whole reason this section exists.

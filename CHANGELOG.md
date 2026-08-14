@@ -11,6 +11,53 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### Fixed — the three findings from the production audit
+
+**Migration 0008 — `anon` gets nothing, in the grants and not only in effect.**
+The invariant has been written in CLAUDE.md since 0001 and was false on seven of
+the eight public tables. ⚠️ **No migration granted them**: a Supabase project
+ships `alter default privileges in schema public grant all on tables to anon,
+authenticated`, which fires on `create table` *before* a migration's own
+`grant select` is reached — so the narrow grant narrowed nothing, it added to a
+set that already contained it. `profiles` was clean only because 0001 happens to
+`revoke all` first.
+
+- ⚠️ **`grant select on public.sessions to anon` is restored in the same
+  migration and is not optional.** `fetch-agenda.mjs` bakes the public agenda
+  with the anon key; a bare `revoke all` there would empty `/agenda/` on every
+  future build — the exact production failure this release spent a day on.
+- ⚠️ **The default-privilege entry is cancelled too**, so the next table cannot
+  inherit the set. Without it the sweep has to be remembered again, and
+  "remember to write the revoke" is the discipline that failed seven times.
+- ⚠️ **`authenticated` is deliberately untouched** and still inherits
+  `TRUNCATE`. It is a different question with a different answer; it is in
+  BACKLOG rather than bundled into a migration about guests.
+- **Verified by exercise, not by reading ACLs.** `anon` now appears exactly once
+  in the whole schema — `sessions`, `SELECT`. A throwaway table created as
+  `postgres` grants it nothing. ⚠️ Auditing the default-privilege half by
+  reading `pg_default_acl` is misleading: two entries govern `public`, and the
+  `supabase_admin` one still lists `anon`, correctly and permanently.
+- ⚠️ **Applied to the TEST project only.** Production is a hand-run act, as
+  always. 28 accounts-on specs pass, including the whole RLS boundary suite.
+
+**`npm run smoke:prod` now fails on a blank agenda.** The `/agenda/` sentinel
+accepted `/class="(sessions|empty)"/` — the list *or* the empty state — which is
+how it passed green on all 14 routes while the club's one session was off the
+site. Now `/<li class="session\b/`, with the count printed and a failure message
+naming the real cause rather than claiming the list is "missing" from a page
+that rendered its empty state perfectly. ⚠️ **Zero sessions is never correct for
+a club that meets weekly**, which is why this needed no database access to fix.
+
+**The `schema_migrations` backfill is written and waiting in `docs/ADMIN.md`.**
+Production's ledger lists `0001,0002` on a database holding all seven, so a
+future `supabase db push` would replay 0003–0007 including 0005's unguarded
+`drop constraint`. The SQL records history and executes nothing — `statements`
+left NULL, deliberately, because this database has no true account of those
+executions. Seàn's to run, alongside 0008.
+
+**And the agenda is live.** Deployment `d580b90c` at `2026-08-14T13:15:08Z`;
+`smoke:prod` reports `1 session(s)`.
+
 ### Verified — production audited end to end, and two invariants written down that no check in this repo can see
 
 Migrations 0003–0007 were applied to production and the whole surface was audited
