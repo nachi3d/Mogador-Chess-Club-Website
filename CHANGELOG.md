@@ -11,6 +11,55 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### Verified — production audited end to end, and two invariants written down that no check in this repo can see
+
+Migrations 0003–0007 were applied to production and the whole surface was audited
+against the live catalog rather than against the migration files. **26 of 29
+checks passed and the three misses are all findings, not regressions.** The
+queries are now recorded in `docs/reference/supabase.md` so the next promotion
+does not reinvent them.
+
+⚠️ **The public agenda is still blank, and no code change will fix it.** The
+serving version `45e06d08` was created `2026-08-13T23:41:11Z`; the `sessions` row
+was inserted `2026-08-14T12:29:54Z`. A build baked thirteen hours before a row
+exists cannot contain it — **a production build needs to run**, which is Seàn's
+call and is now the top entry in BACKLOG → Deployment.
+
+⚠️ **A `dev` push was reaching production, and this is how it was proved.**
+Workers Builds was set to deploy *every* branch: `dev`'s `61030c4`, a
+documentation-only commit, became the live site **108 seconds after its push** —
+and, carrying the dashboard's Supabase credentials against a database that was
+still missing 0006, it is what baked the empty agenda and overwrote two CLI
+restores. `dev` → `main` needing Seàn's approval was worth nothing for as long as
+that setting held. Non-`main` branches now run `npx wrangler versions upload`.
+
+- ⚠️ **The 12 September card CANNOT tell the deploy paths apart.** 0006 seeds it
+  with the same fixed id and text as `agenda.fallback.json`, deliberately, so it
+  is byte-identical from either source. What discriminates is **emptiness** —
+  only a credentialed build can bake zero sessions — plus the row's `created_at`
+  against the deployment timestamp. Recorded, because reaching for the card's
+  text is the obvious first move and it answers nothing.
+- ⚠️ **`npm run smoke:prod` passes on a blank agenda.** Its `/agenda/` sentinel
+  is `/class="(sessions|empty)"/`; it ran green on all 14 routes while the club's
+  only session was off the site.
+- ⚠️ **`supabase_migrations.schema_migrations` is not a record of what production
+  holds** — it lists `0001,0002` on a database containing all seven. A future
+  `supabase db push` would try to replay 0003–0007, including 0005's unguarded
+  `drop constraint`.
+- ⚠️ **`anon` holds `TRUNCATE`, `REFERENCES` and `TRIGGER` on every public table
+  except `profiles`** — never granted by a migration, inherited from the
+  project's `alter default privileges … grant all … to anon, authenticated`,
+  which fires on `create table`. `TRUNCATE` is not filtered by RLS. Not reachable
+  through PostgREST, so defence-in-depth rather than an incident; the new-table
+  checklist now starts with `revoke all … from anon, authenticated`.
+
+Everything 0003–0007 declares is present and correct: tables, RLS, policies,
+every `child_id` FK cascading, `graduate_child()` `service_role`-only,
+`delete_own_account()` at `pronargs = 0` with `authenticated`-only EXECUTE and a
+pinned `search_path`, `sessions_select_public` admitting published and cancelled
+but not draft, and `role` still absent from `authenticated`'s column privileges
+on `profiles`.
+
 ### Fixed — the v0.12.0 deploy notes were wrong, and production proved it within the hour
 
 ⚠️ **`docs/reference/deployment.md` shipped in v0.12.0 asserting "nothing on

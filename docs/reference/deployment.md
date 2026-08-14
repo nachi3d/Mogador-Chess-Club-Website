@@ -348,3 +348,79 @@ worth writing down here is the honest cost of the one that was chosen:
   That file is the no-credentials fallback, not a content store; an entry added
   there is invisible to `/admin/seances`, cannot be cancelled by a prof, and
   will be silently overridden by the next successful build.
+
+## ⚠️ Which branch reaches production — the invariant, and how it broke
+
+**Read when:** promoting, or any time a deployment appears that nobody
+remembers making. This is the second of the two configuration invariants in
+CLAUDE.md → Deployment.
+
+### What happened on 2026-08-13/14
+
+Workers Builds was connected with **every branch set to deploy**, not just
+`main`. The timeline below is `git` commit times against
+`npx wrangler versions list`, all UTC — it is the only way to tell the paths
+apart, because `wrangler` labels every source `Unknown` here.
+
+| Time (UTC) | Event |
+|---|---|
+| `23:27:32` | `main` ← `6cfb118`, the v0.12.0 merge, pushed |
+| `23:29:18` | version `96cee8b0` — a Cloudflare build of `main`, ~106 s later |
+| `23:30:49` | version `91d6fa18` — a CLI `wrangler deploy` (the restore) |
+| `23:31:11` | version `a4bb8313` — a second Cloudflare build, **21 s later**, overwriting it |
+| `23:34:31` | version `872239da` — another CLI restore |
+| `23:39:23` | **`dev`** ← `61030c4`, a docs-only commit, pushed |
+| `23:41:11` | version `45e06d08` — built from **`dev`**, 108 s later, deployed at **100 %** |
+
+⚠️ **The last row is the whole finding.** A documentation commit on `dev`
+became the live site. `dev` → `main` requiring Seàn's explicit approval — the
+oldest rule in this project — was worth nothing for as long as that setting
+held, and nothing in the repository could have reported it.
+
+It also explains the blank agenda that survived two CLI restores: the `dev`
+build carried the dashboard's Supabase credentials, production was still missing
+0005–0007, so it baked **zero sessions** and won the race.
+
+### The fix, and how to verify it
+
+The non-production branch command is now **`npx wrangler versions upload`**,
+which uploads a version and assigns it **no traffic**. `main` alone deploys.
+
+**Verify by output, never by re-reading the dashboard:**
+
+```sh
+npx wrangler deployments status   # note the Created timestamp
+git push origin dev               # any commit
+npx wrangler versions list        # a NEW version must appear
+npx wrangler deployments status   # must be UNCHANGED
+```
+
+A new version with the deployment unmoved is the invariant holding. A moved
+deployment means the setting has drifted back, and the live site is now whatever
+`dev` happens to hold.
+
+### ⚠️ Telling a Cloudflare build from a CLI upload
+
+`Source: Unknown (deployment)` in `wrangler deployments list`, and
+`Source: Unknown (version_upload)` in `wrangler versions list`, are shown for
+**both** paths on this account. This project published the conclusion "nothing
+on Cloudflare builds this site" from that label once and had to retract it.
+
+Two things do discriminate:
+
+1. **Timing.** A Cloudflare build lands ~100–130 s after the push that triggered
+   it. A CLI upload lands whenever a person ran it, correlated with nothing.
+2. **Output — but not the output you would reach for first.** The 12 September
+   card is byte-identical from either source, because migration 0006 seeds it
+   with the same fixed id and text as `src/data/agenda.fallback.json`, on
+   purpose. What separates them is **an empty agenda**: only a credentialed
+   build can produce zero sessions, since the fallback always yields one. Once
+   production's `sessions` table is populated and every build agrees, this
+   discriminator disappears too — at which point only timing remains.
+
+⚠️ **`npm run smoke:prod` cannot referee this.** Its `/agenda/` sentinel is
+`/class="(sessions|empty)"/` and passes on the empty state; it ran green, all
+14 routes, while the club's only published session was off the site. That is
+not a defect in the probe — a static check cannot know how many sessions ought
+to exist — but it does mean **the agenda is verified against the `sessions`
+table, by hand, and never against a 200.**

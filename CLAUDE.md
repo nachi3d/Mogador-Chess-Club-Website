@@ -1012,21 +1012,35 @@ publishes, and is told the site is up to date.
   and says so in yellow. **The two produce different agendas, and last writer
   wins.** At the v0.12.0 promotion a Cloudflare build landed **21 seconds
   after** a CLI deploy and replaced it.
-- ⚠️⚠️ **AND THE CLOUDFLARE BUILD CURRENTLY EMPTIES THE PUBLIC AGENDA**, because
-  **production is missing migrations 0005–0007** — its `sessions` table has no
-  rows, so a credentialed build bakes zero sessions and `/agenda/` renders
-  "Aucune séance programmée". It did exactly that in production on 2026-08-14
-  and was restored by redeploying the local build. **Order matters: migrations
-  to production FIRST, credentials second.** Until then, a push to `main` takes
-  the club's one published session off the site.
+- ⚠️⚠️ **A CREDENTIALED BUILD EMPTIES THE PUBLIC AGENDA WHENEVER PRODUCTION IS
+  BEHIND ON MIGRATIONS.** It did exactly that on 2026-08-14: production was
+  missing 0005–0007, so `sessions` held no readable row, and `/agenda/` rendered
+  "Aucune séance programmée". 0003–0007 are applied now and `anon` reads the 12
+  September session — but **the deployed build still predates them**, so the
+  live agenda stays empty until a build runs. **The order is migrations FIRST,
+  credentials SECOND, a build THIRD**, and the third step is the one that looks
+  optional and is not.
+- ⚠️⚠️ **THE AGENDA'S CONTENT CANNOT TELL THE TWO PATHS APART — ONLY ITS
+  EMPTINESS CAN.** 0006 seeds the 12 September row with the **same fixed id and
+  the same text** as `agenda.fallback.json`, deliberately (a random id would
+  read as a pending change forever), so the rendered card is byte-identical
+  whichever source produced it. What actually discriminates: **zero sessions is
+  a credentialed build**, because the fallback can never yield zero; and the
+  row's `created_at` compared against the deployment timestamp settles which
+  came first. Do not reach for the card's text — it is the one field guaranteed
+  not to answer.
 - ⚠️ **`Source: Unknown (deployment)` IN `wrangler deployments list` IS NOT
   EVIDENCE OF A CLI UPLOAD.** Workers Builds deployments carry the same label
   here, and reading it as "nothing on Cloudflare builds this site" is a
-  conclusion this project has already published once and had to retract. **Tell
-  the paths apart by their OUTPUT** — a credentialed build has an empty or
-  database-shaped agenda; a local one has the fallback's 12 September session —
-  or by correlating deployment timestamps against a push. See
+  conclusion this project has already published once and had to retract. Tell
+  the paths apart by their OUTPUT, per the rule above, or by correlating
+  deployment timestamps against a push. See
   [`docs/reference/deployment.md`](./docs/reference/deployment.md).
+- ⚠️ **`npm run smoke:prod` PASSES ON A BLANK AGENDA.** Its `/agenda/` sentinel
+  is `/class="(sessions|empty)"/`, so it accepts the empty state — it did, green,
+  while the club's one session was off the site. That is not a bug in the check
+  (a static probe cannot know how many sessions exist), it is the reason **the
+  agenda must be verified against the database, not against a 200**.
 - ⚠️ **`src/data/agenda.json` is a GENERATED ARTEFACT and is gitignored.** The
   committed source is `agenda.fallback.json`. One committed file would be a
   footgun: a Playwright run builds against the TEST project, so `git add -A`
@@ -1099,6 +1113,21 @@ missing grant and never a policy bug.
 by re-reading the migration. Reading the file is what produced the bug both times.
 
 ⚠️ **`anon` gets nothing** — deliberate: a guest writes to their own device only.
+
+⚠️⚠️ **AND IN PRODUCTION THAT IS CURRENTLY FALSE, BECAUSE A `grant` IS NOT THE
+ONLY WAY A PRIVILEGE ARRIVES.** A Supabase project ships
+`alter default privileges in schema public grant all on tables to anon,
+authenticated`, so **every `create table` hands `anon` the full set before any
+migration says a word**. Only `profiles` is clean, because 0001 is the one place
+that wrote `revoke all ... from anon, authenticated` *before* granting. Every
+other table — `sessions`, `child_profiles`, `exercise_progress`,
+`lesson_progress`, `game_results`, `attendance`, `point_awards` — leaves `anon`
+holding **TRUNCATE, REFERENCES and TRIGGER**, verified against the live catalog.
+**TRUNCATE is not filtered by RLS.** It is not reachable through PostgREST, which
+exposes no such verb, so this is defence-in-depth rather than a live hole — but
+the invariant above is written as though the grants say it, and they do not.
+**A new table therefore starts with `revoke all ... from anon, authenticated;`
+as step 0**, and step 4's `service_role` line still applies.
 
 Migrations are numbered and **never edited after merge** — a fix is the next
 number. Also binding:
@@ -1512,6 +1541,14 @@ Run `npm run demo`, which prints its path, and work down it. The release gate is
 □ Lighthouse ≥ 90 (Performance, Accessibility, SEO)
 □ package.json "version" matches the tag about to be cut
 □ CHANGELOG.md stamped, [Unreleased] emptied, compare-links updated
+□ ⚠️ Production's SCHEMA holds every migration in supabase/migrations/ — asked
+  of the catalog, per migration, NOT of schema_migrations and NOT of a push
+  that exited 0. See Deployment → the two configuration invariants.
+□ ⚠️ Cloudflare Workers Builds deploys `main` ONLY; every other branch runs
+  `npx wrangler versions upload`. Prove it by output: after the last `dev`
+  push, `npx wrangler deployments status` did not move.
+□ ⚠️ /agenda/ on the live site matches the `sessions` table. `smoke:prod`
+  passes on a BLANK agenda, so this one is checked by hand.
 ```
 
 It is a **living document**: keep it in step with the site, in the same commit as the feature. See the session finish routine under Conventions.
@@ -1547,6 +1584,45 @@ It is a **living document**: keep it in step with the site, in the same commit a
   lands, change it in the same commit.
 - ⚠️ **The fix must reach `main` before the next production deploy** — production
   deploys run from `main`, whatever `dev` holds.
+
+### ⚠️ TWO CONFIGURATION INVARIANTS — VERIFY THEM AT EVERY PROMOTION
+
+Both of these were **once correct and silently stopped being so**, and neither
+lives in this repository, so nothing here can fail when one drifts. They are not
+settings that were configured and are therefore fine; they are **claims about
+the outside world that expire**, and the promotion gate is where they are
+re-asked.
+
+1. ⚠️ **PRODUCTION'S SCHEMA IS NOT AHEAD OF ITSELF, AND `dev` DOES NOT MOVE IT.**
+   Production ran **three migrations behind** the repo (0005–0007 unapplied)
+   while `dev` and the test project advanced through all seven, and the only
+   symptom was a blank public agenda that every check called healthy. Migrations
+   reach production by a **deliberate human act against a ref typed by hand** —
+   `scripts/db-push.mjs` refuses production by design and must keep refusing —
+   so nothing automatic will ever close the gap. **Verify the schema, not the
+   push:** ask production what it holds, per migration, with the queries in
+   [`docs/reference/supabase.md`](./docs/reference/supabase.md).
+   ⚠️ **And `supabase_migrations.schema_migrations` is NOT the answer** — see
+   below.
+2. ⚠️ **THE BRANCH CLOUDFLARE DEPLOYS IS A DASHBOARD SETTING, AND IT HAS BEEN
+   WRONG.** Workers Builds was configured to **deploy every branch**, so a push
+   to `dev` built and took **100% of production traffic** — the exact deployment
+   currently serving the site came from a `dev` push, 108 seconds after it, not
+   from `main`. That is a change to the promotion policy wearing the clothes of
+   a build setting, and `dev` → `main` needing Seàn's approval means nothing
+   while it holds. The non-production branch command must be
+   **`npx wrangler versions upload`** (a version with no traffic), never
+   `deploy`. **Verify by output:** after a `dev` push, a new **version** appears
+   and `npx wrangler deployments status` is **unchanged**.
+
+⚠️ **`supabase_migrations.schema_migrations` IS NOT A RECORD OF WHAT PRODUCTION
+HOLDS.** Production's ledger lists **0001 and 0002 only**, while the schema
+demonstrably contains everything through 0007 — 0003–0007 were applied by some
+path that did not write the ledger. Two consequences: reading the ledger to
+answer "is production current" gives the **wrong answer in the dangerous
+direction**, and a future `supabase db push` would try to **replay** five
+applied migrations, including 0005's unguarded `drop constraint`. Ask the
+catalog what exists; never ask the ledger.
 
 **Service worker:** generated by Workbox **after** `astro build` (it fingerprints
 the real `dist/`). ⚠️ **Stockfish is never precached** — `globIgnores` excludes it

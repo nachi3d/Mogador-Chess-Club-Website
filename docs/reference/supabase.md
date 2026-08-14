@@ -660,3 +660,129 @@ So when the test project is created:
 Read the ref, never the vibe of the ref.
 
 ---
+
+## ⚠️ Verifying PRODUCTION's schema — per migration, against the catalog
+
+**Read when:** promoting `dev` → `main`, or any time the question "is production
+current?" is asked. This is one of the two configuration invariants in
+CLAUDE.md → Deployment, and it exists because production ran **three migrations
+behind** the repo while every local check stayed green.
+
+### Why the obvious answers are all wrong
+
+| Tempting check | Why it does not answer |
+|---|---|
+| `supabase db push` exited 0 | It cannot have run against production — `scripts/db-push.mjs` refuses production by design, and that refusal stays |
+| `supabase_migrations.schema_migrations` | **Production's ledger lists 0001 and 0002 only**, while the schema holds everything through 0007. The ledger records what a *tool* applied, not what the database *contains* |
+| The site looks fine | The failure mode of a behind-schema production is a **blank agenda**, and `npm run smoke:prod` passes on one |
+| Re-reading the migration files | This is exactly what produced the missing-`service_role`-grant bug twice |
+
+**Ask the catalog what exists.** Below is what was run on 2026-08-14, in the
+Supabase SQL editor against the production project — which is where it belongs:
+no credentials on disk, and the ref is typed by a human, on the same principle
+that keeps `db:push` pointed away from production.
+
+⚠️ **These are all `SELECT`s. Open the editor's session read-only if you can.
+Nothing here may be adapted into a script that writes.**
+
+### The queries
+
+```sql
+-- 0001 · the five base tables exist and every one has RLS ON
+select c.relname, c.relrowsecurity
+  from pg_class c join pg_namespace n on n.oid = c.relnamespace
+ where n.nspname = 'public'
+   and c.relname in ('profiles','exercise_progress','lesson_progress','sessions','attendance');
+
+-- 0001 · is_staff() is SECURITY DEFINER with a PINNED search_path
+--        (without both, a policy on `profiles` re-enters itself: 42P17)
+select proname, prosecdef, proconfig
+  from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+ where n.nspname = 'public' and proname in ('is_staff','is_admin_direct','owns_child');
+
+-- 0001 · `role` is NOT client-updatable. The mechanism is COLUMN privileges,
+--        not RLS — this must return display_name and locale, and nothing else.
+select column_name from information_schema.column_privileges
+ where table_schema='public' and table_name='profiles'
+   and grantee='authenticated' and privilege_type='UPDATE';
+
+-- 0002 · ⚠️ THE LINE FORGOTTEN TWICE. Every public table must show 4.
+select t.tablename, count(distinct g.privilege_type) as service_role_dml
+  from pg_tables t
+  left join information_schema.role_table_grants g
+         on g.table_name = t.tablename and g.table_schema = 'public'
+        and g.grantee = 'service_role'
+        and g.privilege_type in ('SELECT','INSERT','UPDATE','DELETE')
+ where t.schemaname = 'public'
+ group by t.tablename order by 2, 1;
+
+-- 0003/0004 · the added column and the two added tables
+select table_name, column_name from information_schema.columns
+ where table_schema='public'
+   and (table_name, column_name) in (('exercise_progress','kind'));
+select relname, relrowsecurity from pg_class c join pg_namespace n on n.oid=c.relnamespace
+ where n.nspname='public' and relname in ('game_results','point_awards');
+
+-- 0005 · THE LEARNER IS A CHILD. profile_id must be GONE from all four, child_id
+--        present on all four, and every FK must cascade (CF41's blast radius).
+select table_name, column_name from information_schema.columns
+ where table_schema='public' and column_name in ('profile_id','child_id')
+   and table_name in ('exercise_progress','game_results','attendance','point_awards')
+ order by 1,2;
+select conrelid::regclass as tbl, conname, confdeltype  -- 'c' = CASCADE
+  from pg_constraint where contype='f' and confrelid='public.child_profiles'::regclass;
+
+-- 0005 · graduate_child is service_role ONLY (CF41)
+-- 0007 · delete_own_account is `authenticated` ONLY, and takes ZERO arguments —
+--        the parameter list IS the security design, so pronargs must be 0.
+select p.proname, p.pronargs, p.prosecdef, p.proconfig
+  from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+ where n.nspname='public' and p.proname in ('graduate_child','delete_own_account','admin_set_role');
+select routine_name, grantee from information_schema.routine_privileges
+ where routine_schema='public'
+   and routine_name in ('graduate_child','delete_own_account','admin_set_role');
+
+-- 0006 · the public agenda. sessions_select_published must be GONE, replaced by
+--        sessions_select_public admitting published AND cancelled and NOT draft.
+select policyname, qual from pg_policies
+ where schemaname='public' and tablename='sessions';
+select id, starts_at, status from public.sessions
+ where id = '5e5e0912-0000-4000-8000-000000000912';
+
+-- what anon and authenticated actually hold, everywhere. See the warning below.
+select table_name, grantee, string_agg(privilege_type, ',' order by privilege_type)
+  from information_schema.role_table_grants
+ where table_schema='public' and grantee in ('anon','authenticated')
+ group by 1,2 order by 1,2;
+```
+
+### What the 2026-08-14 run found
+
+**26 of 29 checks passed.** Everything 0003–0007 declares is present in
+production — tables, RLS, policies, cascades, both function grants,
+`delete_own_account()` at `pronargs = 0` with `search_path=public, auth,
+pg_temp`, and the seeded 12 September row. Two findings:
+
+1. **The ledger is five migrations behind the schema** (`0001,0002` only). The
+   schema is right and the bookkeeping is wrong, which is the harmless direction
+   for the site and the dangerous direction for tooling: a future
+   `supabase db push` at production would try to **replay 0003–0007**, and 0005
+   contains `alter table … drop constraint exercise_progress_pkey` with no
+   `if exists`. It would abort rather than corrupt — but it is a landmine, and
+   nobody should discover it during a promotion.
+2. **`anon` holds `TRUNCATE`, `REFERENCES` and `TRIGGER` on every public table
+   except `profiles`.** Not granted by any migration — it arrives from the
+   project's `alter default privileges … grant all on tables to anon,
+   authenticated`, which fires on `create table` before a migration's own
+   `grant` line is reached. `profiles` escaped only because 0001 happens to
+   `revoke all` first. **TRUNCATE is not filtered by RLS**, so the row-level
+   design is not what is stopping it; what is stopping it is that PostgREST
+   exposes no verb that reaches it. Reachability is not the same as
+   authorisation, and CLAUDE.md's "`anon` gets nothing" should be true in the
+   grants as well as in effect. The repair is a migration that revokes the
+   default-privilege set from `anon` on the seven tables, plus
+   `revoke all … from anon, authenticated;` as step 0 of the new-table checklist.
+
+⚠️ **Neither finding is visible from this repository**, which is the whole point
+of the invariant: nothing in `npm run build`, `npm run quick` or
+`npm run test:release` can go red for either one.
