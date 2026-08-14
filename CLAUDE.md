@@ -292,6 +292,11 @@ it. Tags said one thing and the manifest said another.
 49. **The public agenda is BAKED at build time, never fetched at runtime.** Static output plus Critical Features 9 and 18 leave no other answer; the staleness that follows is made loud on `/admin/seances`, not hidden. See the agenda rule.
 50. **A cancelled session stays publicly visible with its state, and a draft never leaks.** CF46 is only half kept if the student who was told it was happening cannot see the cancellation.
 51. **`delete_own_account()` takes no target, and nothing is retained.** The parameter list is the security design; erasure leaves no statistics, no archive and no anonymised copy.
+52. **The first-run screen is shown once PER ACCOUNT, and skipping it is a first-class outcome.** `profiles.onboarded_at`, never `localStorage`. A skipped onboarding leaves a fully usable account — it is guidance, not a gate.
+53. **The auto-created child's name is a PLACEHOLDER and must never be pre-filled as if it were a name.** It is the email local part, and it ends up on the attendance sheet.
+54. **Copy about the account model names the STRUCTURE, never the relationship.** An account with one child is the same object for a parent and for an autonomous teenager; "your child" is false for the second and there is nothing to branch on.
+55. **`admin_delete_account()` is a different function from `delete_own_account()`, and refuses `auth.uid()`.** Admin only, reason required, audited — and the audit names nobody.
+56. **Anti-bot measures on the sign-up form are NOISE REDUCTION, never security.** The anon key is public; the endpoint is reachable without the form. Visibility and removal in `/admin/comptes/` are the actual answer.
 
 ---
 
@@ -614,11 +619,13 @@ FR at the root, EN under `/en/...`. **Route segments are not translated** (`/en/
 | `/progres/` | `/en/progres/` | Local progress: three group bars, exercises by level and by theme, what is left, and a resume card. Read from `localStorage`, no account. **Rank and points say "bientôt" and print no number** — nothing computes one. |
 | `/connexion/` | `/en/connexion/` | **NOT EMITTED by default** — see the account flag below |
 | `/compte/` | `/en/compte/` | **NOT EMITTED by default** — see the account flag below |
+| `/bienvenue/` | `/en/bienvenue/` | **NOT EMITTED by default.** The first-run screen, once per account. ⚠️ The segment is NOT translated |
 | `/auth/callback/` | — | **NOT EMITTED by default.** The only unlocalised route |
 | `/admin/` | — | **NOT EMITTED by default.** Staff dashboard. **FR only** — see Critical Feature 43 |
 | `/admin/eleves/` | — | **NOT EMITTED by default.** The class list — **children, not accounts** |
 | `/admin/eleve/` | — | **NOT EMITTED by default.** One learner, by `?id=` — a query param, not a segment, and forced by the static build |
 | `/admin/seances/` | — | **NOT EMITTED by default.** Sessions + the attendance register |
+| `/admin/comptes/` | — | **NOT EMITTED by default.** Sign-ups + account removal. ⚠️ **ADMIN only**, not prof |
 | `/manifest.webmanifest` | — | Generated from `src/config/site.ts` |
 
 ⚠️ **`/auth/callback/` is no longer the only unlocalised route** — the four
@@ -862,6 +869,13 @@ The whole auth stack — including v2-S3 sync and the v2-S4 role foundation — 
 built, tested and merged; it is simply not shipped. Turning it on is a release
 decision and **Seàn's call**, not a side effect of a session.
 
+⚠️⚠️ **AND IT IS NOT ONE VARIABLE ANY MORE — THE MIGRATIONS COME FIRST.**
+Production is behind (0008, 0009), and `getProfile()` selects `onboarded_at`: on
+a database without that column **every profile read fails**, so the flag would
+ship an account page with no name, no role and no way past `/bienvenue/`. Order:
+ledger backfill → 0008 + 0009 → verify against the catalog → then the variable.
+See BACKLOG → "Turn accounts back on".
+
 **OFF means NOT BUILT** (Critical Feature 18): the routes are not in `dist/`,
 there is **no Supabase ref, host or anon key anywhere in the bundle**,
 `@supabase/supabase-js` is not bundled at all, and `AccountButton` renders
@@ -1003,17 +1017,46 @@ publishes, and is told the site is up to date.
 - ⚠️ **The credentials are the BUILD's, never the bundle's.** The script runs in
   Node and exits; `anon` has held `select` on published sessions since 0001, so
   the anon key is enough and the service role is not wanted.
-- ⚠️⚠️ **AND AS OF v0.12.0 THE BUILD DOES NOT HAVE THEM, SO PRODUCTION SHIPS THE
-  FALLBACK.** Two facts, both verified rather than assumed: **nothing on
-  Cloudflare builds this site** — every deployment is a `wrangler` CLI upload of
-  a `dist/` built here, so dashboard build variables are never read — and
-  `fetch-agenda.mjs` reads `process.env` in **its own process**, which
-  `.env.local` never reaches. A normal `npm run build` bakes the committed
-  fallback and says so in yellow. ⚠️ **Production is also missing migrations
-  0005–0007**, so wiring the credentials in *before* applying them ships an
-  **empty** `/agenda/`. Order matters: migrations, then credentials. Neither
-  half is a bug to fix in passing — see
+- ⚠️⚠️ **THERE ARE TWO DEPLOY PATHS AND THEY OVERWRITE EACH OTHER.**
+  **Cloudflare Workers Builds IS connected**: a push to `main` triggers a
+  Cloudflare-side `npm run build` with the **dashboard build variables**, which
+  deploys on its own. `npx wrangler deploy` uploads a `dist/` built **here**,
+  where `fetch-agenda.mjs` reads `process.env` in its own process and
+  `.env.local` never reaches it — so a local build bakes the committed fallback
+  and says so in yellow. **The two produce different agendas, and last writer
+  wins.** At the v0.12.0 promotion a Cloudflare build landed **21 seconds
+  after** a CLI deploy and replaced it.
+- ⚠️⚠️ **A CREDENTIALED BUILD EMPTIES THE PUBLIC AGENDA WHENEVER PRODUCTION IS
+  BEHIND ON MIGRATIONS.** It did exactly that on 2026-08-14: production was
+  missing 0005–0007, so `sessions` held no readable row, and `/agenda/` rendered
+  "Aucune séance programmée" to the public for roughly fourteen hours.
+  **Resolved** — 0003–0007 applied at `12:29Z`, deployment `d580b90c` at
+  `13:15Z`, and the 12 September session is live. **The order is migrations
+  FIRST, credentials SECOND, a build THIRD**, and the third step is the one that
+  looks optional and is not: the fix was invisible until something rebuilt.
+- ⚠️⚠️ **THE AGENDA'S CONTENT CANNOT TELL THE TWO PATHS APART — ONLY ITS
+  EMPTINESS CAN.** 0006 seeds the 12 September row with the **same fixed id and
+  the same text** as `agenda.fallback.json`, deliberately (a random id would
+  read as a pending change forever), so the rendered card is byte-identical
+  whichever source produced it. What actually discriminates: **zero sessions is
+  a credentialed build**, because the fallback can never yield zero; and the
+  row's `created_at` compared against the deployment timestamp settles which
+  came first. Do not reach for the card's text — it is the one field guaranteed
+  not to answer.
+- ⚠️ **`Source: Unknown (deployment)` IN `wrangler deployments list` IS NOT
+  EVIDENCE OF A CLI UPLOAD.** Workers Builds deployments carry the same label
+  here, and reading it as "nothing on Cloudflare builds this site" is a
+  conclusion this project has already published once and had to retract. Tell
+  the paths apart by their OUTPUT, per the rule above, or by correlating
+  deployment timestamps against a push. See
   [`docs/reference/deployment.md`](./docs/reference/deployment.md).
+- ⚠️ **`npm run smoke:prod` ASSERTS A SESSION IS LISTED, AND AN EMPTY AGENDA IS
+  A FAILURE.** It used to accept `/class="(sessions|empty)"/` — the list *or*
+  the empty state — and passed green, all 14 routes, while the club's one
+  session was off the site. The sentinel is now `/<li class="session\b/` and the
+  route reports its count. **Zero sessions is never correct for a club that
+  meets weekly**, so it is a deploy fault, not a scheduling fact, and it now
+  reads as one.
 - ⚠️ **`src/data/agenda.json` is a GENERATED ARTEFACT and is gitignored.** The
   committed source is `agenda.fallback.json`. One committed file would be a
   footgun: a Playwright run builds against the TEST project, so `git add -A`
@@ -1086,6 +1129,36 @@ missing grant and never a policy bug.
 by re-reading the migration. Reading the file is what produced the bug both times.
 
 ⚠️ **`anon` gets nothing** — deliberate: a guest writes to their own device only.
+
+⚠️⚠️ **A `grant` IS NOT THE ONLY WAY A PRIVILEGE ARRIVES, AND FOR SEVEN TABLES
+IT WAS NOT.** A Supabase project ships `alter default privileges in schema
+public grant all on tables to anon, authenticated`, so **every `create table`
+hands `anon` the full set before any migration says a word** — a later
+`grant select` narrows nothing, because it adds to a set that already contains
+it. Only `profiles` was clean, because 0001 is the one place that wrote
+`revoke all … from anon, authenticated` *before* granting; `sessions`,
+`child_profiles`, `exercise_progress`, `lesson_progress`, `game_results`,
+`attendance` and `point_awards` all left `anon` holding **TRUNCATE, REFERENCES
+and TRIGGER**, found against the live catalog. **TRUNCATE is not filtered by
+RLS** — what was actually preventing it is that PostgREST exposes no verb
+reaching it, and **reachability is not authorisation**.
+
+**Migration 0008 repairs it**: `anon` now holds `select` on `sessions` and
+nothing anywhere else, and the default-privilege entry no longer grants it.
+⚠️ **The `grant select on public.sessions to anon` in 0008 is not optional** —
+`fetch-agenda.mjs` bakes the public agenda with the anon key, so a bare
+`revoke all` there empties `/agenda/` on every future build.
+
+- ⚠️ **A new table starts with `revoke all … from anon, authenticated;` as step
+  0**, and step 4's `service_role` line still applies. 0008 cancels the default
+  for `anon` so this is belt-and-braces there, and load-bearing for
+  `authenticated`, which **still inherits TRUNCATE** — deliberately out of
+  0008's scope, and in BACKLOG.
+- ⚠️ **Do not audit the default-privilege half by reading `pg_default_acl`.**
+  Two entries govern `public`: one owned by `supabase_admin` and one by
+  `postgres`. Only the second applies to what a migration creates, and the
+  first still lists `anon`, correctly and permanently. **Exercise it** — create
+  a throwaway table and read its grants; the query is in 0008's footer.
 
 Migrations are numbered and **never edited after merge** — a fix is the next
 number. Also binding:
@@ -1181,6 +1254,82 @@ machine must stay the shape production ships.
 no-email magic link, becoming a prof, and the walkthrough of the picker,
 `/compte/` and the admin surfaces. **Read it before testing anything behind the
 flag** — and its §7, which is what is *not* built.
+
+### ⚠️ PARENT ONBOARDING — `/bienvenue/`, ONCE PER ACCOUNT (v2-S5)
+
+A parent signed up and silently received one child profile named from their
+email address, with nothing anywhere suggesting it could be renamed. The welcome
+screen asks the one question the site cannot answer for itself.
+
+- ⚠️ **"ONCE" IS RECORDED ON THE ACCOUNT** (`profiles.onboarded_at`), **not on
+  the device** (Critical Feature 52). In `localStorage` it would mean once per
+  browser, and the family tablet would re-ask a parent to name an already-named
+  child. Set by **both** outcomes, and it deliberately does not record which —
+  writing down "they skipped" is an invitation to re-ask them.
+- ⚠️ **GUIDANCE, NOT A GATE.** Everything on it is also on `/compte/`, "Passer"
+  is a real button rather than small grey text, and `onboarding.spec.ts` asserts
+  that a skipped onboarding leaves the family section doing the whole job.
+- ⚠️ **THE PLACEHOLDER IS NEVER PRE-FILLED** (Critical Feature 53). Detection is
+  an **exact match against the email local part**, not a guess about what names
+  look like — the guess is the version that insults someone called `Alex99`.
+- ⚠️ **THE EXTRA NAME FIELDS ARE SERVER-RENDERED AND HIDDEN**, not built by
+  script: Astro stamps its scoping attribute at build time, so a runtime element
+  misses every scoped rule. Four slots is a limit on a welcome screen, not on a
+  family — the roster adds a fifth.
+- ⚠️ **`onboarded_at` IS AN ADDITION TO 0001's COLUMN GRANT LIST**, which is what
+  stops a client writing `role`. Never "tidy" it into `grant update on
+  public.profiles`.
+- ⚠️ **The callback defaults to `/compte/`.** A profile that could not be read
+  must not land on a one-time prompt.
+
+### ⚠️ THE ACCOUNT MODEL IS STATED, NOT INFERRED
+
+`/compte/` says whose account it is and what the students are. Without it a
+parent reads "Prénom affiché" at the top and reasonably concludes it is their
+child's.
+
+⚠️ **THE COPY NAMES THE STRUCTURE, NEVER THE RELATIONSHIP** (Critical Feature
+54). An account holding exactly one child is the **same object** whether it
+belongs to a parent or to a teenager who signed up alone (Critical Feature 40) —
+the site cannot tell and must not guess. So:
+
+| | |
+|---|---|
+| Heading | « Les élèves de ce compte » / "Students on this account" — **never** « Mes élèves » |
+| One child | « Ce compte porte **un seul profil d'élève** … le vôtre si c'est vous qui jouez, celui de votre enfant si vous l'inscrivez » |
+| Several | « Ce compte porte **%s profils d'élève**. Chacun garde sa propre progression … » |
+
+The teenager case is **named out loud** in the model block rather than left
+ambiguous, which is cheaper than copy vague enough to cover it.
+
+### ⚠️ SIGN-UP HYGIENE — AND WHAT IT IS NOT
+
+⚠️ **The honeypot on `/connexion/` is NOISE REDUCTION, NOT SECURITY** (Critical
+Feature 56). The anon key ships to every browser by design, so the sign-up
+endpoint is reachable with `curl` and never touches the form. **A CAPTCHA is not
+a drop-in** — it is a third-party script on a public page, which Critical
+Feature 9 forbids; adopting one is a policy decision, not a wiring task.
+
+- ⚠️ **IT FAILS VISIBLY AND CLEARS ITSELF — never a fake success.** The usual
+  advice denies the bot its signal and leaves a parent whose password manager
+  filled the field waiting for an email that was never sent. Here: show the
+  error, empty the field, let the second press through.
+- **The real answer is `/admin/comptes/`** — seeing the sign-ups and removing
+  one. For twenty families that beats any amount of friction, and it is the only
+  half that works against a determined human.
+- ⚠️ **`admin_delete_account()` IS NOT A SECOND ROUTE TO `delete_own_account()`**
+  (Critical Feature 55). Different name, admin only, reason required, and it
+  **refuses `auth.uid()`** — which is what keeps CF51's "the parameter list is
+  the guarantee" true for the function that rule is about.
+- ⚠️ **THE AUDIT RECORDS THE ACT, NOT THE PERSON.** `account_deletions` holds
+  `deleted_at`, `deleted_by`, `reason` and nothing else. An "anonymised"
+  reference to somebody who exercised their erasure right is exactly the copy
+  CF51 forbids, and a spec asserts the **column list** so a helpful `target_id`
+  fails a test rather than quietly changing what erasure means.
+
+**➡️ [`docs/reference/supabase.md`](./docs/reference/supabase.md)** — migration
+0009 in full, the two delete functions side by side, the CAPTCHA reasoning, and
+the live two-child deletion audit.
 
 #### ⚠️ THE FAMILY SECTION AND THE PICKER ARE TWO RULES, NOT ONE
 
@@ -1499,6 +1648,15 @@ Run `npm run demo`, which prints its path, and work down it. The release gate is
 □ Lighthouse ≥ 90 (Performance, Accessibility, SEO)
 □ package.json "version" matches the tag about to be cut
 □ CHANGELOG.md stamped, [Unreleased] emptied, compare-links updated
+□ ⚠️ Production's SCHEMA holds every migration in supabase/migrations/ — asked
+  of the catalog, per migration, NOT of schema_migrations and NOT of a push
+  that exited 0. See Deployment → the two configuration invariants.
+□ ⚠️ Cloudflare Workers Builds deploys `main` ONLY; every other branch runs
+  `npx wrangler versions upload`. Prove it by output: after the last `dev`
+  push, `npx wrangler deployments status` did not move.
+□ ⚠️ /agenda/ on the live site matches the `sessions` table. `smoke:prod` now
+  fails on a blank agenda and prints the count, but it cannot know the count is
+  RIGHT — compare it against the table.
 ```
 
 It is a **living document**: keep it in step with the site, in the same commit as the feature. See the session finish routine under Conventions.
@@ -1534,6 +1692,49 @@ It is a **living document**: keep it in step with the site, in the same commit a
   lands, change it in the same commit.
 - ⚠️ **The fix must reach `main` before the next production deploy** — production
   deploys run from `main`, whatever `dev` holds.
+
+### ⚠️ TWO CONFIGURATION INVARIANTS — VERIFY THEM AT EVERY PROMOTION
+
+Both of these were **once correct and silently stopped being so**, and neither
+lives in this repository, so nothing here can fail when one drifts. They are not
+settings that were configured and are therefore fine; they are **claims about
+the outside world that expire**, and the promotion gate is where they are
+re-asked.
+
+1. ⚠️ **PRODUCTION'S SCHEMA IS NOT AHEAD OF ITSELF, AND `dev` DOES NOT MOVE IT.**
+   Production ran **three migrations behind** the repo (0005–0007 unapplied)
+   while `dev` and the test project advanced through all seven, and the only
+   symptom was a blank public agenda that every check called healthy. Migrations
+   reach production by a **deliberate human act against a ref typed by hand** —
+   `scripts/db-push.mjs` refuses production by design and must keep refusing —
+   so nothing automatic will ever close the gap. **Verify the schema, not the
+   push:** ask production what it holds, per migration, with the queries in
+   [`docs/reference/supabase.md`](./docs/reference/supabase.md).
+   ⚠️ **And `supabase_migrations.schema_migrations` is NOT the answer** — see
+   below.
+2. ⚠️ **THE BRANCH CLOUDFLARE DEPLOYS IS A DASHBOARD SETTING, AND IT HAS BEEN
+   WRONG.** Workers Builds was configured to **deploy every branch**, so a push
+   to `dev` built and took **100% of production traffic** — the exact deployment
+   currently serving the site came from a `dev` push, 108 seconds after it, not
+   from `main`. That is a change to the promotion policy wearing the clothes of
+   a build setting, and `dev` → `main` needing Seàn's approval means nothing
+   while it holds. The non-production branch command must be
+   **`npx wrangler versions upload`** (a version with no traffic), never
+   `deploy`. **Verify by output:** after a `dev` push, a new **version** appears
+   and `npx wrangler deployments status` is **unchanged**.
+
+⚠️ **`supabase_migrations.schema_migrations` IS NOT A RECORD OF WHAT PRODUCTION
+HOLDS.** Production's ledger listed **0001 and 0002 only**, while the schema
+demonstrably contained everything through 0007 — 0003–0007 were applied by some
+path that did not write the ledger. Two consequences: reading the ledger to
+answer "is production current" gives the **wrong answer in the dangerous
+direction**, and a future `supabase db push` would try to **replay** five
+applied migrations, including 0005's unguarded `drop constraint`.
+⚠️ **The backfill SQL is in [`docs/ADMIN.md`](./docs/ADMIN.md) and is Seàn's to
+run** — it records history and executes nothing, because everything those five
+migrations contain is already in the database. Until it is run, the hazard
+stands. Ask the
+catalog what exists; never ask the ledger.
 
 **Service worker:** generated by Workbox **after** `astro build` (it fingerprints
 the real `dist/`). ⚠️ **Stockfish is never precached** — `globIgnores` excludes it

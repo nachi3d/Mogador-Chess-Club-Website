@@ -1,0 +1,22 @@
+---
+/**
+ * /bienvenue/ — emitted ONLY when accounts are enabled.
+ *
+ * ⚠️ THE REST PARAMETER IS WHY THIS FILE HAS A STRANGE NAME. Astro's static
+ * build has no "skip this page" switch on a plain `.astro` route; a DYNAMIC
+ * route decides for itself, so `getStaticPaths()` returning `[]` emits nothing
+ * and the URL 404s exactly as an unwritten one does. Same pattern as `/compte/`.
+ *
+ * ⚠️ THE SEGMENT IS NOT TRANSLATED — the EN counterpart is `/en/bienvenue/`,
+ * not `/en/welcome/`. One segment vocabulary is what makes the language
+ * switcher a pure prefix swap that cannot fail to find its counterpart.
+ */
+import { AUTH_ENABLED } from '@config/auth';
+import OnboardingPage from '@components/pages/OnboardingPage.astro';
+
+export function getStaticPaths() {
+  return AUTH_ENABLED ? [{ params: { slug: undefined } }] : [];
+}
+---
+
+<OnboardingPage locale="fr" />

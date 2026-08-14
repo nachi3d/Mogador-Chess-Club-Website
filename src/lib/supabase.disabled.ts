@@ -33,6 +33,7 @@ export interface Profile {
   readonly display_name: string | null;
   readonly locale: string;
   readonly guardian_phone: string | null;
+  readonly onboarded_at: string | null;
 }
 
 /** Always false: there is no configuration in a disabled build, by design. */
@@ -90,4 +91,18 @@ export async function signOut(): Promise<void> {
  */
 export async function deleteOwnAccount(): Promise<{ ok: false; message: string }> {
   return { ok: false, message: 'Accounts are disabled in this build.' };
+}
+
+/**
+ * ⚠️ HERE FOR THE SAME REASON AS `deleteOwnAccount()` ABOVE — `/bienvenue/`'s
+ * script imports it, and that script is still BUILT in a disabled build even
+ * though the route emits nothing. A missing export fails the whole build with
+ * `[MISSING_EXPORT]`.
+ *
+ * Unlike the deletion stub this one may safely report failure without misleading
+ * anybody: nothing is claimed to have happened, and the only consequence of
+ * `ok: false` is a screen that is never reachable in this build anyway.
+ */
+export async function markOnboarded(): Promise<{ ok: boolean }> {
+  return { ok: false };
 }

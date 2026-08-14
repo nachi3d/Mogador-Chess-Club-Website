@@ -660,3 +660,270 @@ So when the test project is created:
 Read the ref, never the vibe of the ref.
 
 ---
+
+## ⚠️ Verifying PRODUCTION's schema — per migration, against the catalog
+
+**Read when:** promoting `dev` → `main`, or any time the question "is production
+current?" is asked. This is one of the two configuration invariants in
+CLAUDE.md → Deployment, and it exists because production ran **three migrations
+behind** the repo while every local check stayed green.
+
+### Why the obvious answers are all wrong
+
+| Tempting check | Why it does not answer |
+|---|---|
+| `supabase db push` exited 0 | It cannot have run against production — `scripts/db-push.mjs` refuses production by design, and that refusal stays |
+| `supabase_migrations.schema_migrations` | **Production's ledger lists 0001 and 0002 only**, while the schema holds everything through 0007. The ledger records what a *tool* applied, not what the database *contains* |
+| The site looks fine | The failure mode of a behind-schema production is a **blank agenda**, and `npm run smoke:prod` passes on one |
+| Re-reading the migration files | This is exactly what produced the missing-`service_role`-grant bug twice |
+
+**Ask the catalog what exists.** Below is what was run on 2026-08-14, in the
+Supabase SQL editor against the production project — which is where it belongs:
+no credentials on disk, and the ref is typed by a human, on the same principle
+that keeps `db:push` pointed away from production.
+
+⚠️ **These are all `SELECT`s. Open the editor's session read-only if you can.
+Nothing here may be adapted into a script that writes.**
+
+### The queries
+
+```sql
+-- 0001 · the five base tables exist and every one has RLS ON
+select c.relname, c.relrowsecurity
+  from pg_class c join pg_namespace n on n.oid = c.relnamespace
+ where n.nspname = 'public'
+   and c.relname in ('profiles','exercise_progress','lesson_progress','sessions','attendance');
+
+-- 0001 · is_staff() is SECURITY DEFINER with a PINNED search_path
+--        (without both, a policy on `profiles` re-enters itself: 42P17)
+select proname, prosecdef, proconfig
+  from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+ where n.nspname = 'public' and proname in ('is_staff','is_admin_direct','owns_child');
+
+-- 0001 · `role` is NOT client-updatable. The mechanism is COLUMN privileges,
+--        not RLS — this must return exactly display_name, locale and
+--        onboarded_at (0009 added the third), and NEVER `role`.
+-- ⚠️ THE ASSERTION IS THE ABSENCE OF `role`, not a fixed list: the list grows
+--    whenever a genuinely self-editable field lands, and updating it here is
+--    part of that migration.
+select column_name from information_schema.column_privileges
+ where table_schema='public' and table_name='profiles'
+   and grantee='authenticated' and privilege_type='UPDATE';
+
+-- 0002 · ⚠️ THE LINE FORGOTTEN TWICE. Every public table must show 4.
+select t.tablename, count(distinct g.privilege_type) as service_role_dml
+  from pg_tables t
+  left join information_schema.role_table_grants g
+         on g.table_name = t.tablename and g.table_schema = 'public'
+        and g.grantee = 'service_role'
+        and g.privilege_type in ('SELECT','INSERT','UPDATE','DELETE')
+ where t.schemaname = 'public'
+ group by t.tablename order by 2, 1;
+
+-- 0003/0004 · the added column and the two added tables
+select table_name, column_name from information_schema.columns
+ where table_schema='public'
+   and (table_name, column_name) in (('exercise_progress','kind'));
+select relname, relrowsecurity from pg_class c join pg_namespace n on n.oid=c.relnamespace
+ where n.nspname='public' and relname in ('game_results','point_awards');
+
+-- 0005 · THE LEARNER IS A CHILD. profile_id must be GONE from all four, child_id
+--        present on all four, and every FK must cascade (CF41's blast radius).
+select table_name, column_name from information_schema.columns
+ where table_schema='public' and column_name in ('profile_id','child_id')
+   and table_name in ('exercise_progress','game_results','attendance','point_awards')
+ order by 1,2;
+select conrelid::regclass as tbl, conname, confdeltype  -- 'c' = CASCADE
+  from pg_constraint where contype='f' and confrelid='public.child_profiles'::regclass;
+
+-- 0005 · graduate_child is service_role ONLY (CF41)
+-- 0007 · delete_own_account is `authenticated` ONLY, and takes ZERO arguments —
+--        the parameter list IS the security design, so pronargs must be 0.
+select p.proname, p.pronargs, p.prosecdef, p.proconfig
+  from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+ where n.nspname='public' and p.proname in ('graduate_child','delete_own_account','admin_set_role');
+select routine_name, grantee from information_schema.routine_privileges
+ where routine_schema='public'
+   and routine_name in ('graduate_child','delete_own_account','admin_set_role');
+
+-- 0006 · the public agenda. sessions_select_published must be GONE, replaced by
+--        sessions_select_public admitting published AND cancelled and NOT draft.
+select policyname, qual from pg_policies
+ where schemaname='public' and tablename='sessions';
+select id, starts_at, status from public.sessions
+ where id = '5e5e0912-0000-4000-8000-000000000912';
+
+-- what anon and authenticated actually hold, everywhere. See the warning below.
+select table_name, grantee, string_agg(privilege_type, ',' order by privilege_type)
+  from information_schema.role_table_grants
+ where table_schema='public' and grantee in ('anon','authenticated')
+ group by 1,2 order by 1,2;
+```
+
+### What the 2026-08-14 run found
+
+**26 of 29 checks passed.** Everything 0003–0007 declares is present in
+production — tables, RLS, policies, cascades, both function grants,
+`delete_own_account()` at `pronargs = 0` with `search_path=public, auth,
+pg_temp`, and the seeded 12 September row. Two findings:
+
+1. **The ledger is five migrations behind the schema** (`0001,0002` only). The
+   schema is right and the bookkeeping is wrong, which is the harmless direction
+   for the site and the dangerous direction for tooling: a future
+   `supabase db push` at production would try to **replay 0003–0007**, and 0005
+   contains `alter table … drop constraint exercise_progress_pkey` with no
+   `if exists`. It would abort rather than corrupt — but it is a landmine, and
+   nobody should discover it during a promotion.
+2. **`anon` holds `TRUNCATE`, `REFERENCES` and `TRIGGER` on every public table
+   except `profiles`.** Not granted by any migration — it arrives from the
+   project's `alter default privileges … grant all on tables to anon,
+   authenticated`, which fires on `create table` before a migration's own
+   `grant` line is reached. `profiles` escaped only because 0001 happens to
+   `revoke all` first. **TRUNCATE is not filtered by RLS**, so the row-level
+   design is not what is stopping it; what is stopping it is that PostgREST
+   exposes no verb that reaches it. Reachability is not the same as
+   authorisation, and CLAUDE.md's "`anon` gets nothing" should be true in the
+   grants as well as in effect. The repair is a migration that revokes the
+   default-privilege set from `anon` on the seven tables, plus
+   `revoke all … from anon, authenticated;` as step 0 of the new-table checklist.
+
+⚠️ **Neither finding is visible from this repository**, which is the whole point
+of the invariant: nothing in `npm run build`, `npm run quick` or
+`npm run test:release` can go red for either one.
+
+---
+
+## Parent onboarding and account hygiene (migration 0009)
+
+**Read when:** touching `/bienvenue/`, the account model copy, the sign-up form,
+or `/admin/comptes/`.
+
+### `profiles.onboarded_at` — why the server and not the device
+
+"Shown once" is a claim about a **person**, not a browser. In `localStorage` it
+would mean "once per device": a parent who signs up on their phone and later
+opens the site on the family tablet would be walked through naming a child who
+already has a name — and the site would look like it had forgotten them.
+
+The column is set by **both** outcomes, completing and dismissing, and
+deliberately does not record which. Storing "they skipped" is an invitation for
+a later session to re-ask them, which is the exact behaviour the column exists
+to prevent. A parent who dismissed the screen made a choice.
+
+It required one line of privilege: `grant update (onboarded_at) … to
+authenticated`. ⚠️ **That is an addition to 0001's column list, not a
+replacement.** The list — `display_name, locale, onboarded_at` — is what stops a
+client writing `role`, because RLS operates on rows and would happily allow it.
+A future session that "tidies" this into `grant update on public.profiles` hands
+every reader their own role column.
+
+### The placeholder problem, stated exactly
+
+`handle_new_user()` seeds `display_name` from the **email local part** when no
+provider supplied a real name. `resolveChild()` then copies that into the first
+child profile the moment an account has none. So a brand-new account silently
+contains a student called `nachiketas3d`, and that string goes on to appear on
+`/progres/` and on a prof's attendance sheet.
+
+The detection is an **exact comparison against the email local part**, not a
+heuristic about what names look like — the heuristic version is the one that
+tells somebody genuinely called `Alex99` that their name is not a name. When it
+matches, the field is rendered **empty**: prefilling the placeholder invites a
+parent to press Save and ship it, which is the whole failure being fixed.
+
+### `admin_delete_account()` vs `delete_own_account()` — two functions, on purpose
+
+Critical Feature 51 says the parameter list of `delete_own_account()` **is** its
+security design, and warns that "a `delete_account(target uuid)` with an
+ownership check inside is one refactor away from deleting anybody". That warning
+is about **that function**, and it still holds: it takes no argument and must
+never grow one.
+
+`admin_delete_account(target, reason)` is a second, differently named function
+for a different actor:
+
+| | `delete_own_account()` | `admin_delete_account()` |
+|---|---|---|
+| Arguments | none, ever | target + reason |
+| EXECUTE | `authenticated` | `authenticated` |
+| Who it serves | any reader, on themselves | `is_admin_direct()` only |
+| Own account | this is the only route | **refused** — `target = auth.uid()` raises |
+| Audit | none at all | one row in `account_deletions` |
+
+⚠️ **Refusing the caller's own id is what keeps the no-target rule true.** An
+admin erasing themselves has exactly one route — the zero-argument function,
+behind the typed-word confirmation. Without that guard this would be a second,
+weaker path to the same irreversible act.
+
+⚠️ **`is_admin_direct()`, not `is_staff()`.** A prof marks a register; removing a
+family's account is not the same class of act.
+
+### What the audit may hold when erasure is absolute
+
+`account_deletions` has four columns: `id`, `deleted_at`, `deleted_by`,
+`reason`. **There is no reference to the deleted account** — no id, no address,
+no counts.
+
+That is a deliberate reading of CF51's "nothing is retained: no statistics, no
+archive, no anonymised copy". It was written for the self-service button and it
+binds just as hard when a volunteer presses the admin one: an "anonymised"
+reference to somebody who exercised their erasure right is precisely the copy
+CF51 forbids.
+
+What survives is enough to notice twenty deletions nobody authorised, and not
+enough to reconstruct anything. `role-separation.spec.ts` asserts the **column
+list**, so a future session adding `target_id` "because it would be useful"
+fails a test rather than quietly changing what erasure means. If a fuller trail
+is ever wanted it is a privacy decision, and it is in BACKLOG as one.
+
+⚠️ **Self-service erasure writes NO audit row at all.** Only the admin path does.
+
+### Junk sign-ups — what was decided, and the tradeoff
+
+Anyone can create an account on a public static site. **The anon key ships to
+every browser by design**, so the sign-up endpoint is reachable with `curl` and
+never touches `/connexion/`. Every consequence follows from that:
+
+- **Client-side checks are noise reduction, not security.** The honeypot on the
+  form catches scrapers that fill every input they find. It is bypassed by not
+  using the form, and the code says so in as many words.
+- **A CAPTCHA is not a drop-in here.** hCaptcha and Turnstile are third-party
+  script loads on a public page, which Critical Feature 9 forbids outright. It
+  is not a wiring problem — it is a policy decision that would have to be taken
+  first, and it would be the site's only third-party request.
+- **The honeypot fails VISIBLY and CLEARS ITSELF.** Standard advice is to fake
+  success, denying the bot its signal; that also leaves a parent whose password
+  manager filled the field waiting forever for an email that was never sent. The
+  trade goes the other way here: show the error, empty the field, let the second
+  press through. A bot loops, a human presses twice.
+- **The real answer is visibility plus removal.** For twenty families, being
+  able to see the list and delete a row beats any amount of friction — and it is
+  the only half that works against a determined human. That is `/admin/comptes/`.
+
+⚠️ **What is NOT done, and is a configuration task rather than a code one:**
+Supabase's own per-address and per-IP rate limits on the OTP endpoint are the
+server-side half, and they live in the dashboard. Recorded in BACKLOG.
+
+### Live deletion audit — 2026-08-14
+
+A real parent account holding **two** children, every learner table seeded for
+each, erased through `delete_own_account()` with the parent's own token on the
+test project:
+
+```
+BEFORE  profiles 1 · child_profiles 2 · auth.users 1
+        Amine  exercise_progress 2 · game_results 1 · point_awards 1 · attendance 1
+        Salma  exercise_progress 2 · game_results 1 · point_awards 1 · attendance 1
+
+delete_own_account() → 198 ms, no arguments passed
+
+AFTER   every count 0, auth user gone
+        club session kept, created_by nulled
+        account_deletions rows mentioning the account: 0
+```
+
+⚠️ **Two children rather than one, because one proves less than it looks.** An
+implementation that deleted "the child" rather than "the children" — a
+`.single()`, a `limit(1)`, a loop that stopped early — passes the one-child test
+perfectly and leaves a real family's second child in the database forever.
+`account-deletion.spec.ts` now carries both shapes.

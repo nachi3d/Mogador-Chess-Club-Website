@@ -86,6 +86,118 @@ export async function currentRole(): Promise<string | null> {
   return (await getProfile())?.role ?? null;
 }
 
+/**
+ * Is the signed-in account an ADMIN specifically?
+ *
+ * ⚠️ A DIFFERENT QUESTION FROM `isStaff()`, AND THE DIFFERENCE IS THE POINT. A
+ * prof marks a register and reads the class; seeing every family's email address
+ * and removing an account is not the same class of act. `/admin/comptes/` is the
+ * one surface gated on this. Still UX — `is_admin_direct()` inside the two
+ * functions below is what actually refuses.
+ */
+export async function isAdmin(): Promise<boolean> {
+  return (await getProfile())?.role === 'admin';
+}
+
+/* ── accounts (admin only) ─────────────────────────────────────────────── */
+
+export interface AdminAccount {
+  readonly accountId: string;
+  readonly email: string;
+  readonly createdAt: string;
+  /** Null when the magic link was never opened — the shape a junk sign-up has. */
+  readonly confirmedAt: string | null;
+  readonly lastSignInAt: string | null;
+  readonly displayName: string | null;
+  readonly role: string | null;
+  readonly children: number;
+  readonly solved: number;
+}
+
+/**
+ * Every sign-up, newest first.
+ *
+ * ⚠️ THROUGH AN RPC BECAUSE `auth.users` IS NOT READABLE BY A CLIENT, and must
+ * not become readable: the email address and the confirmation state live in the
+ * `auth` schema, where `authenticated` holds no privilege at all. See migration
+ * 0009 — the function raises for a non-admin rather than returning an empty
+ * list, so "not allowed" and "no accounts" cannot be confused.
+ */
+export async function listAccounts(): Promise<AdminAccount[]> {
+  const supabase = await getSupabase();
+  const { data, error } = await supabase.rpc('admin_list_accounts');
+  if (error) return [];
+  return (data ?? []).map((row: Record<string, unknown>) => ({
+    accountId: String(row['account_id']),
+    email: String(row['email'] ?? ''),
+    createdAt: String(row['created_at'] ?? ''),
+    confirmedAt: row['confirmed_at'] ? String(row['confirmed_at']) : null,
+    lastSignInAt: row['last_sign_in_at'] ? String(row['last_sign_in_at']) : null,
+    displayName: row['display_name'] ? String(row['display_name']) : null,
+    role: row['role'] ? String(row['role']) : null,
+    children: Number(row['children'] ?? 0),
+    solved: Number(row['solved'] ?? 0),
+  }));
+}
+
+/**
+ * What the form may refuse before a round trip — a mirror of the CHECK
+ * constraint and the guards inside `admin_delete_account()`, never the rule.
+ */
+export function validateDeletion(reason: string): string | null {
+  if (reason.trim().length < 3) return 'Une raison est obligatoire — elle est journalisée.';
+  return null;
+}
+
+/**
+ * Erase another account, with a reason, as an admin.
+ *
+ * ⚠️ THIS IS NOT A SECOND ROUTE TO `delete_own_account()`. The function refuses
+ * `auth.uid()`: an admin erasing themselves goes through `/compte/` and the
+ * typed-word confirmation like everybody else, which is what keeps Critical
+ * Feature 51's "the parameter list is the guarantee" true for the function that
+ * rule is about.
+ *
+ * ⚠️ THE REASON IS AUDITED AND THE ACCOUNT IS NOT. `account_deletions` records
+ * who acted, when and why — and holds no reference to the deleted account at
+ * all, because CF51's "nothing is retained" binds a volunteer pressing the
+ * button exactly as hard as it binds the parent.
+ */
+export async function deleteAccount(
+  target: string,
+  reason: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const invalid = validateDeletion(reason);
+  if (invalid) return { ok: false, error: invalid };
+  const supabase = await getSupabase();
+  const { error } = await supabase.rpc('admin_delete_account', {
+    target,
+    reason: reason.trim(),
+  });
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+
+export interface AccountDeletion {
+  readonly id: string;
+  readonly deletedAt: string;
+  readonly reason: string;
+}
+
+/** The audit trail. Admin-only by policy, not by this function. */
+export async function listDeletions(): Promise<AccountDeletion[]> {
+  const supabase = await getSupabase();
+  const { data } = await supabase
+    .from('account_deletions')
+    .select('id,deleted_at,reason')
+    .order('deleted_at', { ascending: false })
+    .limit(50);
+  return (data ?? []).map((row) => ({
+    id: String(row['id']),
+    deletedAt: String(row['deleted_at'] ?? ''),
+    reason: String(row['reason'] ?? ''),
+  }));
+}
+
 /* ── the class ─────────────────────────────────────────────────────────── */
 
 /**

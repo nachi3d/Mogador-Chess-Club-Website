@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { isSupabaseConfigured, loadE2EEnv } from './env';
 import { createConfirmedUser, deleteUser, e2eEmail, magicLinkFor } from './helpers/supabase-admin';
-import { AUTH_FLAG } from './helpers/auth';
+import { AUTH_FLAG, reachAccountPage } from './helpers/auth';
 import { AUTH_ENABLED, AUTH_OFF_REASON } from './helpers/auth-mode';
 import { settleReveals } from './helpers/reveal';
 
@@ -179,6 +179,74 @@ test.describe('the sign-in page', () => {
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
     await expect(page.getByTestId('login-submit')).toHaveText(/Send the link/i);
   });
+
+  /* ── The honeypot ──────────────────────────────────────────────────────── */
+
+  /**
+   * ⚠️ THE FIELD MUST BE INVISIBLE TO A HUMAN AND TO ASSISTIVE TECH ALIKE.
+   *
+   * A honeypot that a screen-reader user meets as a mystery input, or that a
+   * keyboard user tabs into, has traded a real accessibility defect for a small
+   * amount of bot noise. `aria-hidden` keeps it out of the accessibility tree
+   * and `tabindex="-1"` out of the tab order; neither is what hides it visually,
+   * which is deliberate — it is positioned off-screen rather than `display:
+   * none`, because the scrapers worth catching skip what is explicitly hidden.
+   */
+  test('the honeypot is out of sight, out of the tab order and out of the a11y tree', async ({
+    page,
+  }) => {
+    await page.goto('/connexion/');
+    const hp = page.getByTestId('login-hp');
+
+    /**
+     * ⚠️ NOT `toBeHidden()`, AND THE REASON IS THE FEATURE. Playwright calls an
+     * element hidden when it is `display: none`, `visibility: hidden` or has no
+     * box — and this one deliberately has all three of those the other way
+     * round, because a scraper worth catching skips a field the page has
+     * explicitly hidden. It is pushed off-screen instead, so the honest
+     * assertion is about its POSITION, not about Playwright's visibility model.
+     */
+    const box = await hp.boundingBox();
+    expect(box, 'the honeypot has no box at all — it would be skipped by a bot').not.toBeNull();
+    expect(box!.x + box!.width, 'the honeypot is on screen').toBeLessThan(0);
+
+    await expect(hp).toHaveAttribute('tabindex', '-1');
+    await expect(page.locator('.auth-hp')).toHaveAttribute('aria-hidden', 'true');
+
+    /* Tabbing from the email field must reach the submit button, not the trap. */
+    await page.getByTestId('login-email').focus();
+    await page.keyboard.press('Tab');
+    await expect(page.getByTestId('login-submit')).toBeFocused();
+  });
+
+  /**
+   * ⚠️ THE ONE BEHAVIOUR THAT MATTERS: IT FAILS VISIBLY AND CLEARS ITSELF.
+   *
+   * Standard honeypot advice is to fake success, which denies the bot its
+   * signal — and leaves a parent whose password manager filled the field
+   * waiting forever for an email that was never sent, while the page tells them
+   * to check their inbox. On a site for a twenty-family club that trade goes the
+   * other way: show the error, empty the field, and let the second press
+   * through. A bot re-fills and loops; a human presses twice.
+   *
+   * ⚠️ AND NOTHING IS SENT ON THE REFUSED ATTEMPT — the "check your inbox" panel
+   * must stay hidden, or the message is a lie in the other direction.
+   */
+  test('a filled honeypot is refused visibly, and the retry succeeds', async ({ page }) => {
+    await page.goto('/connexion/');
+    await page.getByTestId('login-email').fill('parent@example.test');
+    /* Filled the way a password manager would — the element is off-screen, so a
+       real click is not available and is not what is being simulated. */
+    await page.getByTestId('login-hp').evaluate((el) => {
+      (el as HTMLInputElement).value = 'https://spam.example';
+    });
+    await page.getByTestId('login-submit').click();
+
+    await expect(page.getByTestId('login-error')).toBeVisible();
+    await expect(page.getByTestId('login-sent'), 'a refused attempt claimed to have sent a link').toBeHidden();
+    /* ⚠️ CLEARED — this is what makes the second press work for a human. */
+    await expect(page.getByTestId('login-hp')).toHaveValue('');
+  });
 });
 
 test.describe('signed in', () => {
@@ -195,7 +263,7 @@ test.describe('signed in', () => {
   async function signIn(page: Page, email: string) {
     const link = await magicLinkFor(email);
     await page.goto(link);
-    await page.waitForURL(/\/(en\/)?compte\//, { timeout: 30_000 });
+    await reachAccountPage(page);
   }
 
   test('signup creates a profile via the trigger, with a clamped locale', async () => {

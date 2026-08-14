@@ -80,16 +80,33 @@ const t = useTranslations('fr');
         /* Land the reader in their own locale. The profile is the record of
            record; the fallback is French, which is the site default. */
         let locale = 'fr';
+        /**
+         * ⚠️ FIRST SIGN-IN GOES TO `/bienvenue/`, EVERY LATER ONE TO `/compte/`.
+         *
+         * `onboarded_at` is null until the welcome screen is completed OR
+         * dismissed, so this branch fires exactly once per ACCOUNT — not once
+         * per device, which is what a `localStorage` bookmark would have given.
+         *
+         * ⚠️ THE DEFAULT IS `/compte/`. A profile that could not be read must
+         * send the reader to the page that always works rather than to a screen
+         * whose whole purpose is a one-time prompt: re-showing onboarding to an
+         * established parent because a fetch hiccuped is the failure worth
+         * avoiding, and `/bienvenue/` sends an already-onboarded account
+         * straight back here anyway.
+         */
+        let first = false;
         try {
           const { getProfile } = await import('@lib/supabase');
           const profile = await getProfile();
           if (profile?.locale === 'en') locale = 'en';
+          first = profile ? profile.onboarded_at === null : false;
         } catch {
           /* A missing profile should not strand a signed-in reader. */
         }
 
         root?.setAttribute('data-state', 'done');
-        window.location.replace(locale === 'en' ? '/en/compte/' : '/compte/');
+        const prefix = locale === 'en' ? '/en' : '';
+        window.location.replace(`${prefix}${first ? '/bienvenue/' : '/compte/'}`);
       } catch {
         fail();
       }

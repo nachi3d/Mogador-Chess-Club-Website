@@ -257,20 +257,37 @@ Not in the repo, because it is dashboard configuration:
 3. **A scheduled rebuild** (nightly is ample for a weekly club) as the floor. It
    is what makes a failed webhook self-healing instead of silent.
 
-### ⚠️ NOTHING ON CLOUDFLARE BUILDS THIS SITE — so a build variable set there is never read
+### ⚠️ TWO DEPLOY PATHS, AND THE LAST WRITER WINS
 
-**Verified at the v0.12.0 promotion, 2026-08-13.** `npx wrangler deployments
-list` reports **every** deployment this project has ever had with
-`Source: Unknown (deployment)` — wrangler's label for a **CLI upload**. There is
-no Workers Builds git integration, and there never has been.
+⚠️ **This section said the opposite for the length of one evening, and the
+retraction is the most useful thing in it.** Mid-promotion it read *"nothing on
+Cloudflare builds this site — so a build variable set there is never read"*, on
+the evidence that `npx wrangler deployments list` labels **every** deployment
+`Source: Unknown (deployment)`, which is wrangler's label for a CLI upload.
 
-That matters more than it sounds, because it inverts where the agenda's
-credentials have to live:
+**That evidence is worthless.** Workers Builds deployments carry the same label
+in this account. The claim was falsified within the hour by the site itself:
 
-> **`npm run build` runs on Seàn's machine and `npx wrangler deploy` uploads the
-> `dist/` it produced.** Cloudflare receives finished files. It never runs a
-> build command, so **`PUBLIC_SUPABASE_URL` / `PUBLIC_SUPABASE_ANON_KEY` entered
-> in the dashboard's build-variables panel have no effect on anything.**
+| UTC, 2026-08-13/14 | What | Result |
+|---|---|---|
+| 23:29:19 | build triggered by `git push origin main` | deployed |
+| 23:30:51 | `npx wrangler deploy` from this machine | deployed |
+| **23:31:12** | **another Cloudflare build** | **overwrote the CLI deploy 21s later** |
+
+The served page settled the question where the labels could not: it carried this
+release's `<p class="empty">` markup — so it was a v0.12.0 build — with **zero
+sessions**, which only a build holding production credentials can produce.
+
+> **Both paths are live.** A push to `main` makes Cloudflare run `npm run build`
+> with the **dashboard build variables**; `npx wrangler deploy` uploads a
+> `dist/` built here, where `fetch-agenda.mjs` reads `process.env` in its own
+> process and **`.env.local` never reaches it**, so it bakes the committed
+> fallback. **The two produce different agendas and silently replace each
+> other.**
+
+⚠️ **TELL THEM APART BY OUTPUT, NEVER BY THE SOURCE LABEL** — the fallback's
+12 September session means a local build; an empty or database-shaped agenda
+means a Cloudflare one.
 
 ⚠️ **AND `.env.local` DOES NOT FILL THE GAP EITHER, WHICH IS THE TRAP.**
 `scripts/fetch-agenda.mjs` is a plain Node script reading `process.env`, run as
@@ -280,20 +297,12 @@ there is no `dotenv` dependency. So a normal `npm run build` on this machine
 bakes the **committed fallback** no matter what `.env.local` holds, and says so
 in yellow. That is the state every production build to date has shipped in.
 
-Whoever wants a database-backed public agenda has to pick one:
-
-- **export the two variables into the shell that runs the build**, by hand or
-  from a script that reads `.env.local` — and accept that the agenda is only as
-  fresh as the last deploy from that shell; or
-- **connect Workers Builds** to the repo, at which point the dashboard build
-  variables become real and the deploy hook in the list above becomes possible.
-  ⚠️ That also changes the deploy from "the tree Seàn tested" to "whatever
-  `main` holds", which is a promotion-policy change, not a settings change.
-
-⚠️ **Until one of those happens, `/admin/seances`'s staleness banner is
-comparing against a snapshot that CANNOT track the database**, and the honest
-reading of a "not up to date" warning is *"this site does not read the agenda
-from the database yet"*, not *"someone needs to deploy"*.
+Workers Builds **is** connected, so the dashboard variables are already real and
+the deploy hook above is already possible. ⚠️ **Note what that changed without
+anyone deciding it: the deployed tree is now "whatever `main` holds", not "the
+tree Seàn tested and uploaded".** That is a promotion-policy change wearing the
+clothes of a settings change, and the CLI path still exists alongside it — so a
+`wrangler deploy` is only live until the next push to `main`.
 
 #### The production database is behind the repo, and that is the other half
 
@@ -309,17 +318,20 @@ live database):
 | `profiles` | 1 row | 0001-era schema is there |
 
 So **migrations 0005, 0006 and 0007 have never been applied to production**;
-0006's migrated session row is not there. Building production *with* credentials
-today would therefore bake **zero** sessions and ship an **empty** `/agenda/`,
-replacing the season-opening entry a visitor can currently see — with no
-`/admin/seances` in production to put it back, because accounts are off.
+0006's migrated session row is not there. A credentialed build therefore bakes
+**zero** sessions and ships an **empty** `/agenda/`.
 
-⚠️ **This is why v0.12.0 deployed from the committed fallback, deliberately, and
-that was Seàn's call at the promotion.** The DB-backed agenda is dormant in
-production rather than broken: with accounts OFF no prof can publish there
-anyway, so nothing is lost by waiting. **Applying the migrations to production is
-the prerequisite for switching the credentials on, and it must happen first —
-in that order, or the public agenda empties.**
+⚠️⚠️ **THAT IS NOT HYPOTHETICAL — IT HAPPENED, IN PRODUCTION, AT THIS
+PROMOTION.** The Workers Build triggered by pushing `main` emptied the public
+agenda: "Aucune séance programmée pour le moment" replaced the club's one
+published session, with no `/admin/seances` in production to put it back
+because accounts are off. It was restored by redeploying the local
+fallback build, and **that restoration is fragile — the next push to `main`
+undoes it.**
+
+**The order is not a preference: migrations to production FIRST, then let a
+credentialed build run.** Reversed, the club's agenda goes blank and only a
+developer can notice.
 
 ### Why a hook rather than a runtime read — and what it costs
 
@@ -336,3 +348,88 @@ worth writing down here is the honest cost of the one that was chosen:
   That file is the no-credentials fallback, not a content store; an entry added
   there is invisible to `/admin/seances`, cannot be cancelled by a prof, and
   will be silently overridden by the next successful build.
+
+## ⚠️ Which branch reaches production — the invariant, and how it broke
+
+**Read when:** promoting, or any time a deployment appears that nobody
+remembers making. This is the second of the two configuration invariants in
+CLAUDE.md → Deployment.
+
+### What happened on 2026-08-13/14
+
+Workers Builds was connected with **every branch set to deploy**, not just
+`main`. The timeline below is `git` commit times against
+`npx wrangler versions list`, all UTC — it is the only way to tell the paths
+apart, because `wrangler` labels every source `Unknown` here.
+
+| Time (UTC) | Event |
+|---|---|
+| `23:27:32` | `main` ← `6cfb118`, the v0.12.0 merge, pushed |
+| `23:29:18` | version `96cee8b0` — a Cloudflare build of `main`, ~106 s later |
+| `23:30:49` | version `91d6fa18` — a CLI `wrangler deploy` (the restore) |
+| `23:31:11` | version `a4bb8313` — a second Cloudflare build, **21 s later**, overwriting it |
+| `23:34:31` | version `872239da` — another CLI restore |
+| `23:39:23` | **`dev`** ← `61030c4`, a docs-only commit, pushed |
+| `23:41:11` | version `45e06d08` — built from **`dev`**, 108 s later, deployed at **100 %** |
+
+⚠️ **The last row is the whole finding.** A documentation commit on `dev`
+became the live site. `dev` → `main` requiring Seàn's explicit approval — the
+oldest rule in this project — was worth nothing for as long as that setting
+held, and nothing in the repository could have reported it.
+
+It also explains the blank agenda that survived two CLI restores: the `dev`
+build carried the dashboard's Supabase credentials, production was still missing
+0005–0007, so it baked **zero sessions** and won the race.
+
+### The fix, and how to verify it
+
+The non-production branch command is now **`npx wrangler versions upload`**,
+which uploads a version and assigns it **no traffic**. `main` alone deploys.
+
+**Verify by output, never by re-reading the dashboard:**
+
+```sh
+npx wrangler deployments status   # note the Created timestamp
+git push origin dev               # any commit
+npx wrangler versions list        # a NEW version must appear
+npx wrangler deployments status   # must be UNCHANGED
+```
+
+A new version with the deployment unmoved is the invariant holding. A moved
+deployment means the setting has drifted back, and the live site is now whatever
+`dev` happens to hold.
+
+**Verified 2026-08-14.** `dev` ← `07465fb` pushed at `12:48:42Z`; Cloudflare
+built it into version `1a687f0c` at `12:49:56Z`, **74 seconds later**; and
+`deployments status` still reported `45e06d08`, created `2026-08-13T23:41:11Z`,
+at 100 %. ⚠️ **Note what that proves and what it does not.** Cloudflare still
+*builds* every branch — the build did run, with production credentials — so the
+protection is entirely in the *command*. Changing it back to `deploy` for any
+branch restores the old behaviour with no other visible difference, which is why
+this is checked by output at every promotion rather than trusted once.
+
+### ⚠️ Telling a Cloudflare build from a CLI upload
+
+`Source: Unknown (deployment)` in `wrangler deployments list`, and
+`Source: Unknown (version_upload)` in `wrangler versions list`, are shown for
+**both** paths on this account. This project published the conclusion "nothing
+on Cloudflare builds this site" from that label once and had to retract it.
+
+Two things do discriminate:
+
+1. **Timing.** A Cloudflare build lands ~100–130 s after the push that triggered
+   it. A CLI upload lands whenever a person ran it, correlated with nothing.
+2. **Output — but not the output you would reach for first.** The 12 September
+   card is byte-identical from either source, because migration 0006 seeds it
+   with the same fixed id and text as `src/data/agenda.fallback.json`, on
+   purpose. What separates them is **an empty agenda**: only a credentialed
+   build can produce zero sessions, since the fallback always yields one. Once
+   production's `sessions` table is populated and every build agrees, this
+   discriminator disappears too — at which point only timing remains.
+
+⚠️ **`npm run smoke:prod` cannot referee this.** Its `/agenda/` sentinel is
+`/class="(sessions|empty)"/` and passes on the empty state; it ran green, all
+14 routes, while the club's only published session was off the site. That is
+not a defect in the probe — a static check cannot know how many sessions ought
+to exist — but it does mean **the agenda is verified against the `sessions`
+table, by hand, and never against a 200.**

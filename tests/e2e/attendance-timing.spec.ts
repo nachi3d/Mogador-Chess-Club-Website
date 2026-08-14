@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { adminClient, createConfirmedUser, deleteUser, e2eEmail, magicLinkFor } from './helpers/supabase-admin';
 import { AUTH_ENABLED, AUTH_OFF_REASON } from './helpers/auth-mode';
+import { reachAccountPage } from './helpers/auth';
 
 /**
  * v2-S4 part 2 — marking a class of twenty, measured rather than asserted.
@@ -106,7 +107,7 @@ test.describe('v2-S4 — marking a class of twenty', () => {
   async function signIn(page: Page) {
     const link = await magicLinkFor(profEmail);
     await page.goto(link);
-    await page.waitForURL(/\/(en\/)?compte\//, { timeout: 30_000 });
+    await reachAccountPage(page);
   }
 
   test('twenty children, twenty taps, no modal and no save button', async ({ page }) => {

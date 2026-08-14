@@ -97,7 +97,36 @@ const ROUTES = [
   { path: '/apprendre-les-bases/', locale: 'fr', sentinel: /apprendre-les-bases\/[a-z-]+\//, what: 'a link to a tutorial step' },
   { path: '/jouer/', locale: 'fr', sentinel: /data-testid="play"/, what: 'the play island' },
   { path: '/progres/', locale: 'fr', sentinel: /data-progress-view/, what: 'the progress view' },
-  { path: '/agenda/', locale: 'fr', sentinel: /class="(sessions|empty)"/, what: 'the session list' },
+  /**
+   * ⚠️ THIS ONE ASSERTS A SESSION IS LISTED, NOT THAT THE PAGE RENDERED.
+   *
+   * It used to accept `class="(sessions|empty)"` — either the list or the empty
+   * state — and on 2026-08-14 it passed green, all 14 routes, while `/agenda/`
+   * told the public "Aucune séance programmée pour le moment" and the club's
+   * one published session was off the site. The page was structurally perfect
+   * and completely wrong, which is the only failure mode this route has.
+   *
+   * ⚠️ AN EMPTY AGENDA IS NEVER CORRECT FOR THIS CLUB. It meets weekly. Zero
+   * sessions does not mean "none scheduled", it means the deployed build was
+   * baked before the `sessions` table had a readable row, or its credentials
+   * never reached `fetch-agenda.mjs`. Both are deploy faults, both are silent,
+   * and neither can go red anywhere else — see CLAUDE.md → Deployment.
+   *
+   * ⚠️ It stays STRUCTURAL, like every sentinel here: `<li class="session` is
+   * what `AgendaPage.astro` emits per row, so a copy change cannot break it.
+   */
+  {
+    path: '/agenda/',
+    locale: 'fr',
+    sentinel: /<li class="session\b/,
+    what: 'at least one session listed',
+    whenMissing:
+      'the agenda is EMPTY — the page renders, but no session is listed. This is not a ' +
+      'broken build: it is a build baked before the sessions table had a readable row, or ' +
+      'credentials that never reached fetch-agenda.mjs. Compare /agenda/ against the ' +
+      'sessions table, then rebuild. See CLAUDE.md → Deployment.',
+    detail: (body) => `${(body.match(/<li class="session\b/g) ?? []).length} session(s)`,
+  },
   /* wa.me with no recipient is a Critical Feature (outbound-only sharing), and
      the contact CTA is where it is most load-bearing. */
   { path: '/contact/', locale: 'fr', sentinel: /wa\.me/, what: 'the WhatsApp CTA' },
@@ -211,7 +240,7 @@ function checkSubresources(route, body) {
   return true;
 }
 
-async function checkPage({ path, locale, sentinel, what }) {
+async function checkPage({ path, locale, sentinel, what, whenMissing, detail }) {
   const url = `${ORIGIN}${path}`;
   let result;
   try {
@@ -226,7 +255,10 @@ async function checkPage({ path, locale, sentinel, what }) {
   const lang = /<html[^>]*\blang="([a-z-]+)"/i.exec(body)?.[1];
   if (lang !== locale) return fail(path, `lang is "${lang}", expected "${locale}"`);
 
-  if (!sentinel.test(body)) return fail(path, `${what} is missing`);
+  /* `whenMissing` exists because "the session list is missing" would be a lie on
+     a page that renders its empty state perfectly. A route whose failure has a
+     specific, actionable cause says so instead of naming the sentinel. */
+  if (!sentinel.test(body)) return fail(path, whenMissing ?? `${what} is missing`);
 
   /* The GPL source link is required in the footer of EVERY page — it is how the
      licence's distribution obligation is met, not decoration (Critical Feature
@@ -238,7 +270,10 @@ async function checkPage({ path, locale, sentinel, what }) {
   if (checkUrls(path, body, path) !== true) return;
   if (checkSubresources(path, body) !== true) return;
 
-  ok(path, `200 · ${locale} · ${what} · canonical and og agree`);
+  ok(
+    path,
+    `200 · ${locale} · ${what}${detail ? ` (${detail(body)})` : ''} · canonical and og agree`,
+  );
 }
 
 async function checkManifest() {

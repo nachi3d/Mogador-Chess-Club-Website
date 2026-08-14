@@ -495,6 +495,90 @@ the question is whether a prof believes it.
       faded, not struck through — a parent must not squint at it and turn up
 - [ ] A **draft** never appears on `/agenda/` at all
 
+#### ⚠️ After ANY production deploy — the agenda is not empty
+
+⚠️ **This is the one that actually bit.** On 2026-08-14 `/agenda/` told the
+public "Aucune séance programmée pour le moment" for about fourteen hours. Every
+check was green, the page rendered perfectly, and the database was already
+correct — the deployed build simply predated the row by thirteen hours.
+
+- [ ] `npm run smoke:prod` — `/agenda/` reports a **session count**, and the
+      count is not zero. It now fails on an empty agenda rather than passing
+- [ ] The count matches what `/admin/seances` lists as published or cancelled.
+      ⚠️ **The check cannot know the count is right, only that it is non-zero**
+- [ ] Open `/agenda/` and `/en/agenda/` in a browser and read them. A build that
+      baked before a session existed looks identical to a club with nothing
+      scheduled — **the page cannot tell you which it is, and neither can a 200**
+
+### v2-S5 — a parent signs up, ON A PHONE
+
+⚠️ **THE WHOLE POINT IS THE QUESTION AT THE END: did anything need explaining?**
+The specs prove the screen works; they cannot tell you whether a parent who has
+never seen this site understands what they are being asked. Do this on a real
+phone, in French, without reading the code first — and if you find yourself
+about to explain something out loud, that sentence belongs on the page.
+
+Run `npm run demo:accounts -- --host` and use the LAN address.
+
+**Signing up**
+
+- [ ] `/connexion/` on a phone: the field is reachable without zooming, and the
+      keyboard that opens is an **email** keyboard
+- [ ] Submit a real address. The confirmation replaces the form and does **not**
+      echo the address back
+- [ ] Follow the link. You land on **`/bienvenue/`**, not `/compte/`
+
+**The welcome screen**
+
+- [ ] The first-name field is **empty**, and the sentence above it says the
+      current name came from your email address. ⚠️ **If it is pre-filled with
+      something like `nachiketas3d`, that is the bug this screen exists to fix**
+- [ ] Both buttons are reachable with one thumb, side by side or stacked, with
+      no horizontal scrolling at 390px
+- [ ] "Ajouter un autre enfant" reveals a second field and moves focus into it.
+      Repeat until the button disappears rather than doing nothing
+- [ ] Type one name, save. You land on `/compte/` and the roster shows it
+- [ ] Sign out, sign in again: you land on `/compte/`, **never** `/bienvenue/`
+- [ ] Open `/bienvenue/` by hand afterwards — it sends you to `/compte/`
+
+**Skipping**
+
+- [ ] With a *fresh* account, press "Passer cette étape". You land on `/compte/`
+- [ ] The family section is there, the add form works, the roster shows the
+      auto-created child. ⚠️ **A skipped onboarding must leave nothing broken**
+
+**Reading the account**
+
+- [ ] `/compte/` says « Titulaire du compte » next to your address, and the
+      block above explains that students are profiles beneath it
+- [ ] With ONE child the section reads « un seul profil d'élève » and there is
+      no "Qui joue ?" picker
+- [ ] Add a second child: the wording changes to « 2 profils d'élève » and the
+      picker appears
+- [ ] ⚠️ **Read the one-child sentence as if you were a fifteen-year-old who
+      signed up alone.** It must not tell them they have a child. If it does,
+      that is Critical Feature 54 and the copy is wrong, not the reader
+
+**Deleting**
+
+- [ ] With two children on the account, work down `/compte/` → Supprimer. The
+      list names the students, the progress, the points and the presences
+      **before** the confirmation
+- [ ] Type `SUPPRIMER`. You are signed out and sent home
+- [ ] Sign in again with the same address: it is a brand-new account, and it
+      sends you back to `/bienvenue/`
+
+**The admin side** (as an admin, not a prof)
+
+- [ ] `/admin/` shows a **Comptes** tab. As a prof it does not, and
+      `/admin/comptes/` says "réservé aux administrateurs" rather than
+      "réservé aux professeurs"
+- [ ] The list shows the sign-ups newest first, and a never-confirmed one is
+      marked in **words**, not only by colour
+- [ ] Removing an account needs a typed reason before the button enables
+- [ ] The reason appears in the Suppressions journal. ⚠️ **Nothing in that
+      journal identifies the deleted account** — no address, no id, no counts
+
 ### v2-S3 — progress sync (only once `PUBLIC_AUTH_ENABLED` is on)
 
 ⚠️ **THE CHECK THAT MATTERS IS THE FIRST ONE, AND IT IS THE ONLY ONE THAT

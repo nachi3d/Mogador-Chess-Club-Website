@@ -195,13 +195,39 @@ test.describe('action feedback — the press', () => {
     );
     expect(resting.shadow).not.toBe('none');
 
-    const box = (await cta.boundingBox())!;
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    /**
+     * ⚠️ `hover()` RATHER THAN A HAND-COMPUTED `mouse.move()` TO THE BOUNDING
+     * BOX. Playwright's hover waits for actionability and re-reads the box
+     * itself; the manual version samples the box once and can aim at where the
+     * button *was* — and a press that lands one pixel outside sets no `:active`
+     * at all, which is not a slow animation but no animation.
+     */
+    await cta.hover();
     await page.mouse.down();
-    /* The press is a 150ms Réponse, so it must be read AFTER it lands. Sampling
-       immediately catches it mid-travel (0.3px of 2px) — which is itself proof
-       that it animates rather than jumping, but not what this test asserts. */
-    await page.waitForTimeout(RESPONSE_MS * 2);
+
+    /**
+     * ⚠️ POLLED WHILE HELD, NOT SAMPLED AFTER A FIXED WAIT — and this is a
+     * measured fix, not a precaution.
+     *
+     * The press is a 150ms Réponse, so the old code waited `RESPONSE_MS * 2` and
+     * read once. On WebKit that single sample intermittently caught
+     * `matrix(1, 0, 0, 1, 0, 0)` — the identity, meaning `:active` had not been
+     * applied at all rather than being mid-travel. It failed first-attempt at
+     * `--workers=1` and passed on retry, which is the definition of a flaky
+     * assertion, and in the v0.13.0 matrix it exhausted WebKit's single retry
+     * and turned a green gate red.
+     *
+     * The assertion keeps its full teeth: the transform MUST become a real
+     * translate while the pointer is down. Only the deadline moved, and a button
+     * that never presses never satisfies it however long we wait.
+     */
+    await expect
+      .poll(() => cta.evaluate((el) => getComputedStyle(el).transform), {
+        message: 'the button never left its resting transform while held',
+        timeout: 2_000,
+      })
+      // translateY(2px) — the last matrix component is the vertical offset.
+      .toContain('2)');
 
     const pressed = await cta.evaluate((el) => ({
       transform: getComputedStyle(el).transform,
@@ -209,8 +235,6 @@ test.describe('action feedback — the press', () => {
     }));
     await page.mouse.up();
 
-    // translateY(2px) — the last matrix component is the vertical offset.
-    expect(pressed.transform).toContain('2)');
     expect(pressed.transform).not.toBe(resting.transform);
     // The gap under the control closes as it meets the page.
     expect(pressed.shadow).not.toBe(resting.shadow);

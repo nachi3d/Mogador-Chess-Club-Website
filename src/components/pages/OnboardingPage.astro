@@ -1,0 +1,473 @@
+---
+/**
+ * /bienvenue — the first-run screen, shown once per ACCOUNT.
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️ GUIDANCE, NOT A GATE. Every single thing on this page can also be done
+ * from `/compte/`, and "Passer cette étape" is a first-class outcome rather
+ * than a dark-patterned afterthought. A parent who skips lands on a fully
+ * working account with the family section doing the whole job — that is the
+ * requirement, and `onboarding.spec.ts` asserts it rather than trusting it.
+ *
+ * ⚠️ IT ANSWERS THE ONE QUESTION THE SITE CANNOT ANSWER ITSELF. `resolveChild()`
+ * creates a child profile the moment an account has none, named from the profile
+ * display name — which `handle_new_user()` seeded from the EMAIL LOCAL PART. So
+ * a brand-new account silently contains a student called `nachiketas3d`, and
+ * that string then appears on the progress page and on a prof's attendance
+ * sheet. It is a placeholder wearing a name's clothes, and nothing anywhere
+ * would ever have prompted the parent to fix it.
+ *
+ * ⚠️ "ONCE" IS RECORDED ON THE ACCOUNT, NOT ON THE DEVICE. `profiles
+ * .onboarded_at` (migration 0009). In `localStorage` this would be "once per
+ * browser": the same parent would be walked through naming an already-named
+ * child the first time they opened the family tablet.
+ *
+ * ⚠️ THE EXTRA NAME FIELDS ARE SERVER-RENDERED AND HIDDEN, NOT BUILT BY SCRIPT.
+ * Astro stamps its scoping attribute at BUILD time, so an element created at
+ * runtime carries the class and not the attribute and every scoped rule silently
+ * misses it — this has already cost this project a borderless button and an
+ * un-inked picker. Rendering the slots up front keeps the whole page inside one
+ * scoped `<style>` with no second stylesheet to keep in step.
+ *
+ * Four slots is not a limit on a family, it is a limit on a WELCOME SCREEN: the
+ * roster on `/compte/` adds a fifth child perfectly well, and the skip note
+ * points there. A form that scrolls forever is worse guidance than a short one.
+ *
+ * ⚠️ UNREACHABLE WITH THE FLAG OFF, like `/compte/` — `getStaticPaths()`
+ * returns `[]` and the URL 404s.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+import type { Locale } from '@config/site';
+import { localizePath } from '@i18n/paths';
+import { useTranslations } from '@i18n/ui';
+import BaseLayout from '@layouts/BaseLayout.astro';
+import PageIntro from '@components/PageIntro.astro';
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const t = useTranslations(locale);
+
+/** How many "another child" slots the welcome screen offers. See the header. */
+const EXTRA_SLOTS = [1, 2, 3];
+---
+
+<BaseLayout locale={locale} title={t('welcome.title')} description={t('welcome.intro')}>
+  <PageIntro title={t('welcome.title')} intro={t('welcome.intro')} />
+
+  <div
+    class="welcome"
+    data-testid="welcome"
+    data-state="loading"
+    data-locale={locale}
+    data-account-path={localizePath('/compte/', locale)}
+    data-msg-placeholder={t('welcome.nameBodyPlaceholder')}
+    data-msg-named={t('welcome.nameBodyNamed')}
+    data-msg-saving={t('welcome.saving')}
+    data-msg-save={t('welcome.save')}
+    data-msg-need-name={t('welcome.needName')}
+    data-msg-error={t('welcome.error')}
+  >
+    {/* The honest first state: a static page cannot know who this is. */}
+    <p class="welcome-checking" data-testid="welcome-checking">{t('callback.working')}</p>
+
+    <form class="welcome-form" data-testid="welcome-form" hidden>
+      {/* ⚠️ THE MODEL, BEFORE THE QUESTION. A parent who does not know that the
+          account is theirs and the student is a profile underneath it cannot
+          make sense of being asked for "the student's first name" when they
+          just signed up for themselves. Three sentences, and the third names
+          the autonomous-teenager case out loud so nobody wonders. */}
+      <section class="welcome-model">
+        <h2>{t('account.model.heading')}</h2>
+        <p>{t('account.model.body')}</p>
+        <p class="welcome-teen">{t('account.model.teen')}</p>
+      </section>
+
+      <section class="welcome-names">
+        <h2>{t('welcome.nameHeading')}</h2>
+        {/* Swapped by the script for the placeholder warning when the
+            auto-created name is still the email local part. */}
+        <p class="welcome-name-body" data-testid="welcome-name-body">
+          {t('welcome.nameBodyNamed')}
+        </p>
+
+        <div class="welcome-field">
+          <label for="welcome-name-0">{t('welcome.nameLabel')}</label>
+          <input
+            id="welcome-name-0"
+            type="text"
+            maxlength="40"
+            autocomplete="off"
+            autocapitalize="words"
+            data-testid="welcome-name-0"
+          />
+        </div>
+
+        {
+          EXTRA_SLOTS.map((n) => (
+            <div class="welcome-field" data-extra-slot={n} data-testid={`welcome-slot-${n}`} hidden>
+              <label for={`welcome-name-${n}`}>{t('welcome.otherLabel')}</label>
+              <input
+                id={`welcome-name-${n}`}
+                type="text"
+                maxlength="40"
+                autocomplete="off"
+                autocapitalize="words"
+                data-testid={`welcome-name-${n}`}
+              />
+            </div>
+          ))
+        }
+
+        <p>
+          <button
+            type="button"
+            class="btn-ghost"
+            data-testid="welcome-add-another"
+          >
+            {t('welcome.addAnother')}
+          </button>
+        </p>
+      </section>
+
+      <p class="welcome-actions">
+        <button type="submit" class="btn-primary" data-testid="welcome-save">
+          {t('welcome.save')}
+        </button>
+        {/* ⚠️ A REAL BUTTON, NOT SMALL GREY TEXT UNDER A FOLD. Skipping is a
+            supported outcome; styling it as a regret is how a "skippable"
+            screen becomes a gate in practice. */}
+        <button type="button" class="btn-ghost" data-testid="welcome-skip">
+          {t('welcome.skip')}
+        </button>
+      </p>
+      <p class="welcome-note">{t('welcome.skipNote')}</p>
+      <p class="welcome-status" role="status" data-testid="welcome-status"></p>
+    </form>
+
+    {/* Not signed in — a bookmark, or an expired link. */}
+    <div class="welcome-signed-out" data-testid="welcome-signed-out" hidden>
+      <p>{t('account.signedOut')}</p>
+      <p>
+        <a class="btn-primary" href={localizePath('/connexion/', locale)}>
+          {t('account.goSignIn')}
+        </a>
+      </p>
+    </div>
+  </div>
+
+  <script>
+    import { getSession, getProfile, getSupabase, markOnboarded } from '@lib/supabase';
+    import { resolveChild } from '@lib/child';
+
+    const root = document.querySelector('[data-testid="welcome"]') as HTMLElement | null;
+    const checking = document.querySelector('[data-testid="welcome-checking"]') as HTMLElement | null;
+    const formEl = document.querySelector('[data-testid="welcome-form"]') as HTMLFormElement | null;
+    const signedOut = document.querySelector('[data-testid="welcome-signed-out"]') as HTMLElement | null;
+    const nameBody = document.querySelector('[data-testid="welcome-name-body"]') as HTMLElement | null;
+    const first = document.querySelector('[data-testid="welcome-name-0"]') as HTMLInputElement | null;
+    const addBtn = document.querySelector('[data-testid="welcome-add-another"]') as HTMLButtonElement | null;
+    const saveBtn = document.querySelector('[data-testid="welcome-save"]') as HTMLButtonElement | null;
+    const skipBtn = document.querySelector('[data-testid="welcome-skip"]') as HTMLButtonElement | null;
+    const statusEl = document.querySelector('[data-testid="welcome-status"]') as HTMLElement | null;
+
+    const msg = (key: string) => root?.dataset[key] ?? '';
+    const accountPath = root?.dataset.accountPath ?? '/compte/';
+
+    /** The child this screen renames. Null if resolution could not produce one. */
+    let childId: string | null = null;
+
+    function leave() {
+      /* A full document load, like sign-out and deletion: the header and the
+         family section both re-read a world in which onboarding is done. */
+      window.location.assign(accountPath);
+    }
+
+    /**
+     * ⚠️ IS THIS A NAME, OR THE EMAIL WEARING ONE?
+     *
+     * `handle_new_user()` seeds `display_name` from the email local part when no
+     * provider gave a real one, and `resolveChild()` copies that into the first
+     * child profile. Comparing against the local part is therefore an exact test
+     * of "nobody has ever typed this", not a heuristic about what names look
+     * like — which is the version that would insult somebody actually called
+     * Alex99.
+     */
+    function looksLikePlaceholder(name: string, email: string): boolean {
+      const local = email.split('@')[0] ?? '';
+      if (!local) return false;
+      return name.trim().toLowerCase() === local.trim().toLowerCase();
+    }
+
+    (async () => {
+      const session = await getSession();
+      if (!session) {
+        if (checking) checking.hidden = true;
+        if (signedOut) signedOut.hidden = false;
+        root?.setAttribute('data-state', 'signed-out');
+        return;
+      }
+
+      /* ⚠️ ALREADY GUIDED ⇒ LEAVE, WITHOUT DRAWING ANYTHING. This is what makes
+         "never shown again" true for a bookmark, a back button or a second
+         magic link, not only for the callback's redirect. */
+      const profile = await getProfile();
+      if (profile?.onboarded_at) {
+        leave();
+        return;
+      }
+
+      /* Resolution creates the first child profile if the account has none —
+         the same call `/compte/` makes, so this screen never invents a second
+         way for a learner to come into existence. */
+      const child = await resolveChild();
+      childId = child?.id ?? null;
+
+      const email = session.user.email ?? '';
+      const currentName = child?.name ?? '';
+      if (looksLikePlaceholder(currentName, email)) {
+        /* ⚠️ THE FIELD IS LEFT EMPTY ON PURPOSE. Prefilling it with the
+           placeholder invites a parent to press "Enregistrer" and ship
+           `nachiketas3d` to the attendance sheet — which is precisely the
+           outcome this page exists to prevent. An empty required-looking field
+           asks the question; a prefilled one answers it wrongly. */
+        if (first) first.value = '';
+        if (nameBody) nameBody.textContent = msg('msgPlaceholder');
+      } else {
+        if (first) first.value = currentName;
+        if (nameBody) nameBody.textContent = msg('msgNamed');
+      }
+
+      if (checking) checking.hidden = true;
+      if (formEl) formEl.hidden = false;
+      root?.setAttribute('data-state', 'ready');
+      first?.focus();
+    })();
+
+    /* ── "Ajouter un autre enfant" ─────────────────────────────────────── */
+
+    addBtn?.addEventListener('click', () => {
+      const next = document.querySelector('[data-extra-slot][hidden]') as HTMLElement | null;
+      if (!next) return;
+      next.hidden = false;
+      (next.querySelector('input') as HTMLInputElement | null)?.focus();
+      /* The button removes itself once the last slot is open, rather than
+         sitting there doing nothing — a control that silently stops working is
+         read as a broken page. */
+      if (!document.querySelector('[data-extra-slot][hidden]')) addBtn.hidden = true;
+    });
+
+    /* ── Save ──────────────────────────────────────────────────────────── */
+
+    function extraNames(): string[] {
+      return [...document.querySelectorAll('[data-extra-slot]:not([hidden]) input')]
+        .map((el) => (el as HTMLInputElement).value.trim())
+        .filter(Boolean);
+    }
+
+    formEl?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (!saveBtn || saveBtn.disabled) return;
+
+      const primary = (first?.value ?? '').trim();
+      const extras = extraNames();
+
+      /* ⚠️ A BLANK FORM IS NOT AN ERROR TO ARGUE WITH — it is somebody who
+         means to skip. Say so, and point at the button that does it. */
+      if (!primary && extras.length === 0) {
+        if (statusEl) statusEl.textContent = msg('msgNeedName');
+        first?.focus();
+        return;
+      }
+
+      saveBtn.disabled = true;
+      saveBtn.textContent = msg('msgSaving');
+      if (statusEl) statusEl.textContent = '';
+
+      try {
+        const supabase = await getSupabase();
+        const { data: userData } = await supabase.auth.getUser();
+        const accountId = userData.user?.id;
+        if (!accountId) throw new Error('no session');
+
+        /* ⚠️ THE RENAME AND THE INSERTS ARE SEPARATE STATEMENTS, AND A FAILED
+           SECOND ONE MUST NOT UNDO THE FIRST. There is no transaction available
+           to a PostgREST client, so the order is chosen so that the partial
+           state is the harmless one: the child is named first, and a failed
+           sibling insert leaves a correctly named account plus a visible error,
+           with the roster on `/compte/` able to finish the job. */
+        if (primary && childId) {
+          const { error } = await supabase
+            .from('child_profiles')
+            .update({ display_name: primary })
+            .eq('id', childId);
+          if (error) throw error;
+        }
+
+        if (extras.length > 0) {
+          const { error } = await supabase
+            .from('child_profiles')
+            .insert(extras.map((name) => ({ account_id: accountId, display_name: name })));
+          if (error) throw error;
+        }
+
+        /* ⚠️ MARKED ONLY AFTER THE WRITES LAND. Marked first, a failed save
+           would burn the one chance this screen gets and leave the placeholder
+           name in place with nothing ever offering to fix it again. */
+        await markOnboarded();
+        leave();
+      } catch {
+        if (statusEl) statusEl.textContent = msg('msgError');
+        saveBtn.disabled = false;
+        saveBtn.textContent = msg('msgSave');
+      }
+    });
+
+    /* ── Skip ──────────────────────────────────────────────────────────── */
+
+    skipBtn?.addEventListener('click', async () => {
+      /* ⚠️ THE MARK IS NOT AWAITED FOR ITS RESULT, AND A FAILURE IS NOT SHOWN.
+         The reader asked to leave. The worst case of a lost write is being
+         offered this screen once more — telling them their skip "failed" would
+         be alarming about nothing at all. */
+      await markOnboarded();
+      leave();
+    });
+  </script>
+</BaseLayout>
+
+<style>
+  .welcome {
+    max-width: 36rem;
+  }
+
+  .welcome-checking {
+    color: var(--mcc-text-secondary);
+  }
+
+  /* The model explainer reads as context, not as a warning: a quiet sunken
+     panel with an accent edge, the same vocabulary the staff block on /compte/
+     uses. No opacity anywhere — `check-contrast.mjs` proves token PAIRS and
+     cannot see an alpha laid over one. */
+  .welcome-model {
+    margin-bottom: 2rem;
+    padding: 1rem 1.25rem;
+    border-inline-start: 3px solid var(--mcc-accent);
+    border-radius: var(--radius-card);
+    background-color: var(--mcc-surface-sunken);
+  }
+
+  .welcome-model h2 {
+    margin: 0 0 0.5rem;
+    font-size: 1.125rem;
+  }
+
+  .welcome-model p {
+    margin: 0 0 0.6rem;
+    line-height: 1.6;
+  }
+
+  .welcome-model p:last-child {
+    margin-bottom: 0;
+  }
+
+  .welcome-teen {
+    color: var(--mcc-text-secondary);
+    font-size: 0.9375rem;
+  }
+
+  .welcome-names h2 {
+    margin: 0 0 0.5rem;
+    font-size: 1.25rem;
+  }
+
+  .welcome-name-body {
+    margin: 0 0 1rem;
+    color: var(--mcc-text-secondary);
+    line-height: 1.6;
+  }
+
+  .welcome-field {
+    margin-bottom: 1rem;
+  }
+
+  .welcome-field label {
+    display: block;
+    margin-bottom: 0.35rem;
+    font-weight: 500;
+  }
+
+  .welcome-field input {
+    width: 100%;
+    /* ⚠️ 44px minimum, and `font-size: 1rem` is load-bearing on iOS: anything
+       smaller makes Safari zoom the page on focus, which on a phone throws a
+       parent into a horizontally scrolled layout mid-signup. */
+    min-height: 2.75rem;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--mcc-border-strong);
+    border-radius: var(--radius-card);
+    background-color: var(--mcc-surface-page);
+    color: var(--mcc-text-primary);
+    font: inherit;
+    font-size: 1rem;
+  }
+
+  .welcome-field input:focus-visible {
+    outline: 2px solid var(--mcc-focus-ring);
+    outline-offset: 1px;
+  }
+
+  /* Mobile-first: the two actions stack and fill the width on a phone, and sit
+     side by side once there is room. A parent signs up on a phone. */
+  .welcome-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin: 1.5rem 0 0.75rem;
+  }
+
+  @media (min-width: 30rem) {
+    .welcome-actions {
+      flex-direction: row;
+      align-items: center;
+    }
+  }
+
+  .btn-primary,
+  .btn-ghost {
+    min-height: 2.75rem;
+    padding: 0.65rem 1.25rem;
+    border-radius: var(--radius-card);
+    font: inherit;
+    font-weight: 500;
+    text-align: center;
+    cursor: pointer;
+  }
+
+  .btn-primary {
+    border: 1px solid var(--mcc-primary);
+    background-color: var(--mcc-primary);
+    color: var(--mcc-primary-contrast);
+    text-decoration: none;
+  }
+
+  .btn-ghost {
+    border: 1px solid var(--mcc-border-strong);
+    background: none;
+    color: var(--mcc-link);
+  }
+
+  .welcome-note {
+    margin: 0;
+    color: var(--mcc-text-secondary);
+    font-size: 0.9375rem;
+    line-height: 1.55;
+  }
+
+  .welcome-status {
+    margin: 0.75rem 0 0;
+    color: var(--mcc-danger-text);
+  }
+</style>

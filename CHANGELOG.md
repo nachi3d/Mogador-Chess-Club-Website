@@ -13,6 +13,292 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ---
 
+## [0.13.0] — 2026-08-14
+
+**A parent can now be handed this site, and the account they get explains
+itself.**
+
+Accounts are built, tested and still switched OFF — this release is the work
+that has to be true *before* the flag is turned on, which is a separate and
+explicit decision. Until now a parent would have signed up, silently received one
+student profile named from the local part of their email address, and been left
+to discover on their own that it could be renamed or that a sibling could be
+added. The account page said "Rien d'autre n'est stocké ici" while storing
+children, points, games and attendance, and the privacy notice predated every one
+of those. None of that was a bug any check could see; the pages rendered
+perfectly throughout.
+
+Alongside it, three repairs from a production audit that had nothing to do with
+onboarding and everything to do with the same habit: a documented invariant that
+had quietly stopped being true, and nothing anywhere reporting it.
+
+⚠️ **`PUBLIC_AUTH_ENABLED` stays OFF in this release.** No auth route is in
+`dist/`, no Supabase ref, host or anon key is in any bundle, and
+`@supabase/supabase-js` is not bundled at all — asserted, not assumed.
+
+⚠️ **Migrations 0008 and 0009 are NOT applied to production**, deliberately:
+nothing in this release needs them, because everything they serve is behind the
+flag. They are a prerequisite for turning it on — see BACKLOG → Accounts.
+
+### Added — parent onboarding, before accounts open to real families (v2-S5)
+
+**`/bienvenue/` — one screen, once per account, skippable.** A parent signed up,
+silently received one child profile **named from the local part of their email
+address**, and nothing anywhere suggested it could be renamed — so `nachiketas3d`
+was on course for a prof's attendance sheet. The welcome screen asks the one
+question the site cannot answer for itself, and offers "Ajouter un autre enfant"
+at the moment a parent of two is thinking about it.
+
+- ⚠️ **"ONCE" IS RECORDED ON THE ACCOUNT** — `profiles.onboarded_at`, migration
+  0009 — **not on the device.** In `localStorage` it would mean once per browser,
+  and the same parent would be walked through naming an already-named child the
+  first time they opened the family tablet. Set by **both** outcomes, and
+  deliberately not recording which: writing down "they skipped" is an invitation
+  for a later session to re-ask them.
+- ⚠️ **GUIDANCE, NOT A GATE.** Everything on the screen is also on `/compte/`,
+  "Passer" is a real button rather than small grey text, and a spec asserts that
+  a skipped onboarding leaves the family section doing the whole job.
+- ⚠️ **THE PLACEHOLDER IS NEVER PRE-FILLED.** Detection is an **exact match
+  against the email local part**, not a guess about what names look like — the
+  guess is the version that tells someone genuinely called `Alex99` that their
+  name is not a name.
+- ⚠️ **The sibling fields are server-rendered and hidden, not built by script.**
+  Astro stamps its scoping attribute at build time, so a runtime-created element
+  misses every scoped rule — a trap this project has already paid for twice.
+
+**The account model is now stated rather than inferred.** `/compte/` opens with
+who holds the account and what the students are, and the email is labelled
+« Titulaire du compte ».
+
+- ⚠️ **THE COPY NAMES THE STRUCTURE, NEVER THE RELATIONSHIP.** An account holding
+  exactly one child is the **same object** whether it belongs to a parent or to a
+  teenager who signed up alone (Critical Feature 40) — the site cannot tell and
+  must not guess. The heading is « Les élèves de ce compte », never « Mes
+  élèves »; the one-child sentence is « Ce compte porte **un seul profil
+  d'élève** … le vôtre si c'est vous qui jouez, celui de votre enfant si vous
+  l'inscrivez »; several children get a **count**, not a plural "s". The teenager
+  case is named out loud in the model block rather than left to vague copy.
+
+**Sign-up hygiene — and an honest account of what it is not.**
+
+- ⚠️ **The honeypot on `/connexion/` is NOISE REDUCTION, NOT SECURITY**, and the
+  code says so. The anon key ships to every browser by design, so the sign-up
+  endpoint is reachable with `curl` and never touches the form.
+- ⚠️ **A CAPTCHA is not a drop-in here.** It is a third-party script on a public
+  page, which Critical Feature 9 forbids outright — adopting one is a policy
+  decision, not a wiring task, and it would be the site's only third-party
+  request.
+- ⚠️ **It fails VISIBLY and CLEARS ITSELF — never a fake success.** The usual
+  advice denies the bot its signal and leaves a parent whose password manager
+  filled the field waiting for an email that was never sent. Here the trade goes
+  the other way: show the error, empty the field, let the second press through.
+- **`/admin/comptes/` is the actual answer** — sign-ups newest first with
+  confirmation state and activity, and a two-step removal requiring a typed
+  reason. **Admin only, not prof**: a prof marks a register; seeing every
+  family's address and erasing an account is not the same class of act.
+- ⚠️ **`admin_delete_account()` IS NOT A SECOND ROUTE TO `delete_own_account()`.**
+  Different name, `is_admin_direct()` only, and it **refuses `auth.uid()`** —
+  which is what keeps Critical Feature 51's "the parameter list is the guarantee"
+  true for the function that rule is about. An admin erasing themselves goes
+  through `/compte/` and the typed word like everybody else.
+- ⚠️ **THE AUDIT RECORDS THE ACT, NOT THE PERSON.** `account_deletions` holds
+  `deleted_at`, `deleted_by`, `reason` and **no reference at all** to the removed
+  account. CF51's "no statistics, no archive, no anonymised copy" was written for
+  the self-service button and binds a volunteer pressing this one just as hard.
+  A spec asserts the **column list**, so a helpful `target_id` fails a test
+  rather than quietly changing what erasure means.
+
+### Changed — the privacy notice caught up with what the site does
+
+It was written before child profiles, points and games existed and did not
+mention any of them. **A notice that under-declares is inaccurate in the only
+direction that matters**, and nothing in a build can catch it — the page
+rendered perfectly throughout. Re-read against `supabase/migrations/`; every
+table now has a line.
+
+The minors section is now four claims in their own paragraphs, because they are
+the four questions a parent asks before enrolling a child: **what is stored about
+a child** (first name, progress, attendance, points — no surname, no date of
+birth, no address), **that the parent holds the account** and the child is a
+profile beneath it, **that deletion removes everything**, and **that no
+photograph is ever stored, published or requested.**
+
+`account.intro` on `/compte/` also stopped claiming "Rien d'autre n'est stocké
+ici", which became false the moment child profiles landed.
+
+### Verified — the deletion cascade, live, with two children
+
+⚠️ **Two rather than one, because one proves less than it looks.** An
+implementation that deleted "the child" rather than "the children" — a
+`.single()`, a `limit(1)`, a loop that stopped early — passes the one-child test
+perfectly and leaves a real family's second child in the database forever.
+
+A real parent account with two children and every learner table seeded for each,
+erased through `delete_own_account()` with the parent's own token:
+
+```
+BEFORE  profiles 1 · child_profiles 2 · auth.users 1
+        Amine  progress 2 · games 1 · awards 1 · attendance 1
+        Salma  progress 2 · games 1 · awards 1 · attendance 1
+delete_own_account() → 198 ms, no arguments passed
+AFTER   every count 0 · auth user gone · club session kept with created_by nulled
+        account_deletions rows mentioning the account: 0
+```
+
+`account-deletion.spec.ts` now carries both shapes.
+
+### Fixed — a WebKit flake that turned the release gate red
+
+`feel.spec.ts` → "a button translates and tightens its shadow while held" sampled
+the computed transform **once**, after a fixed `RESPONSE_MS * 2` wait. On WebKit
+it intermittently read `matrix(1, 0, 0, 1, 0, 0)` — the identity, meaning
+`:active` had **never been applied**, rather than the press being caught
+mid-travel. It failed first-attempt at `--workers=1` and passed on retry, and in
+this release's matrix it exhausted WebKit's single retry and failed the gate — on
+a test whose subject, the home CTA, this release does not touch.
+
+Two changes, both about *when* the state is read rather than what is asserted:
+`hover()` instead of a hand-computed `mouse.move()` to a once-read bounding box
+(a press landing one pixel outside sets no `:active` at all), and **polling while
+held** instead of a single sample. ⚠️ **The assertion keeps its full teeth** — the
+transform must become a real translate while the pointer is down — only the
+deadline moved, and a button that never presses never satisfies it however long
+we wait. 3/3 green at `--retries=0` where it previously failed first-attempt.
+
+### Fixed — the three findings from the production audit
+
+**Migration 0008 — `anon` gets nothing, in the grants and not only in effect.**
+The invariant has been written in CLAUDE.md since 0001 and was false on seven of
+the eight public tables. ⚠️ **No migration granted them**: a Supabase project
+ships `alter default privileges in schema public grant all on tables to anon,
+authenticated`, which fires on `create table` *before* a migration's own
+`grant select` is reached — so the narrow grant narrowed nothing, it added to a
+set that already contained it. `profiles` was clean only because 0001 happens to
+`revoke all` first.
+
+- ⚠️ **`grant select on public.sessions to anon` is restored in the same
+  migration and is not optional.** `fetch-agenda.mjs` bakes the public agenda
+  with the anon key; a bare `revoke all` there would empty `/agenda/` on every
+  future build — the exact production failure this release spent a day on.
+- ⚠️ **The default-privilege entry is cancelled too**, so the next table cannot
+  inherit the set. Without it the sweep has to be remembered again, and
+  "remember to write the revoke" is the discipline that failed seven times.
+- ⚠️ **`authenticated` is deliberately untouched** and still inherits
+  `TRUNCATE`. It is a different question with a different answer; it is in
+  BACKLOG rather than bundled into a migration about guests.
+- **Verified by exercise, not by reading ACLs.** `anon` now appears exactly once
+  in the whole schema — `sessions`, `SELECT`. A throwaway table created as
+  `postgres` grants it nothing. ⚠️ Auditing the default-privilege half by
+  reading `pg_default_acl` is misleading: two entries govern `public`, and the
+  `supabase_admin` one still lists `anon`, correctly and permanently.
+- ⚠️ **Applied to the TEST project only.** Production is a hand-run act, as
+  always. 28 accounts-on specs pass, including the whole RLS boundary suite.
+
+**`npm run smoke:prod` now fails on a blank agenda.** The `/agenda/` sentinel
+accepted `/class="(sessions|empty)"/` — the list *or* the empty state — which is
+how it passed green on all 14 routes while the club's one session was off the
+site. Now `/<li class="session\b/`, with the count printed and a failure message
+naming the real cause rather than claiming the list is "missing" from a page
+that rendered its empty state perfectly. ⚠️ **Zero sessions is never correct for
+a club that meets weekly**, which is why this needed no database access to fix.
+
+**The `schema_migrations` backfill is written and waiting in `docs/ADMIN.md`.**
+Production's ledger lists `0001,0002` on a database holding all seven, so a
+future `supabase db push` would replay 0003–0007 including 0005's unguarded
+`drop constraint`. The SQL records history and executes nothing — `statements`
+left NULL, deliberately, because this database has no true account of those
+executions. Seàn's to run, alongside 0008.
+
+**And the agenda is live.** Deployment `d580b90c` at `2026-08-14T13:15:08Z`;
+`smoke:prod` reports `1 session(s)`.
+
+### Verified — production audited end to end, and two invariants written down that no check in this repo can see
+
+Migrations 0003–0007 were applied to production and the whole surface was audited
+against the live catalog rather than against the migration files. **26 of 29
+checks passed and the three misses are all findings, not regressions.** The
+queries are now recorded in `docs/reference/supabase.md` so the next promotion
+does not reinvent them.
+
+⚠️ **The public agenda is still blank, and no code change will fix it.** The
+serving version `45e06d08` was created `2026-08-13T23:41:11Z`; the `sessions` row
+was inserted `2026-08-14T12:29:54Z`. A build baked thirteen hours before a row
+exists cannot contain it — **a production build needs to run**, which is Seàn's
+call and is now the top entry in BACKLOG → Deployment.
+
+⚠️ **A `dev` push was reaching production, and this is how it was proved.**
+Workers Builds was set to deploy *every* branch: `dev`'s `61030c4`, a
+documentation-only commit, became the live site **108 seconds after its push** —
+and, carrying the dashboard's Supabase credentials against a database that was
+still missing 0006, it is what baked the empty agenda and overwrote two CLI
+restores. `dev` → `main` needing Seàn's approval was worth nothing for as long as
+that setting held. Non-`main` branches now run `npx wrangler versions upload`.
+
+✅ **The fix was verified by pushing.** `dev` ← `07465fb` at `12:48:42Z`, built
+into version `1a687f0c` at `12:49:56Z`, and the deployment stayed on `45e06d08`
+from the night before. ⚠️ Cloudflare still **builds** every branch, with
+production credentials — the protection lives entirely in the command, so it is
+checked by output at every promotion rather than trusted once.
+
+- ⚠️ **The 12 September card CANNOT tell the deploy paths apart.** 0006 seeds it
+  with the same fixed id and text as `agenda.fallback.json`, deliberately, so it
+  is byte-identical from either source. What discriminates is **emptiness** —
+  only a credentialed build can bake zero sessions — plus the row's `created_at`
+  against the deployment timestamp. Recorded, because reaching for the card's
+  text is the obvious first move and it answers nothing.
+- ⚠️ **`npm run smoke:prod` passes on a blank agenda.** Its `/agenda/` sentinel
+  is `/class="(sessions|empty)"/`; it ran green on all 14 routes while the club's
+  only session was off the site.
+- ⚠️ **`supabase_migrations.schema_migrations` is not a record of what production
+  holds** — it lists `0001,0002` on a database containing all seven. A future
+  `supabase db push` would try to replay 0003–0007, including 0005's unguarded
+  `drop constraint`.
+- ⚠️ **`anon` holds `TRUNCATE`, `REFERENCES` and `TRIGGER` on every public table
+  except `profiles`** — never granted by a migration, inherited from the
+  project's `alter default privileges … grant all … to anon, authenticated`,
+  which fires on `create table`. `TRUNCATE` is not filtered by RLS. Not reachable
+  through PostgREST, so defence-in-depth rather than an incident; the new-table
+  checklist now starts with `revoke all … from anon, authenticated`.
+
+Everything 0003–0007 declares is present and correct: tables, RLS, policies,
+every `child_id` FK cascading, `graduate_child()` `service_role`-only,
+`delete_own_account()` at `pronargs = 0` with `authenticated`-only EXECUTE and a
+pinned `search_path`, `sessions_select_public` admitting published and cancelled
+but not draft, and `role` still absent from `authenticated`'s column privileges
+on `profiles`.
+
+### Fixed — the v0.12.0 deploy notes were wrong, and production proved it within the hour
+
+⚠️ **`docs/reference/deployment.md` shipped in v0.12.0 asserting "nothing on
+Cloudflare builds this site".** That is false. **Workers Builds is connected**,
+and the evidence behind the claim — `npx wrangler deployments list` labelling
+every deployment `Source: Unknown (deployment)`, wrangler's label for a CLI
+upload — turns out not to distinguish the two paths at all.
+
+The site falsified it immediately. Pushing `main` triggered a Cloudflare build at
+`23:29:19Z`; `npx wrangler deploy` landed at `23:30:51Z`; **a second Cloudflare
+build at `23:31:12Z` overwrote it 21 seconds later.** The served page carried
+this release's `<p class="empty">` markup with **zero sessions** — a v0.12.0
+build holding production credentials, which is a combination only Cloudflare
+could produce.
+
+⚠️⚠️ **The consequence was live: the public agenda went blank.** "Aucune séance
+programmée pour le moment" replaced the club's one published session, because
+production is missing migrations 0005–0007 and its `sessions` table is empty.
+Restored by redeploying the local fallback build and re-verified end to end —
+**and the restoration is fragile, because the next push to `main` undoes it.**
+
+- **Tell the deploy paths apart by OUTPUT, never by the source label**: the
+  fallback's 12 September session means a local build; an empty or
+  database-shaped agenda means a Cloudflare one.
+- ⚠️ **Workers Builds silently changed what production is.** The deployed tree is
+  now "whatever `main` holds" rather than "the tree that was tested and
+  uploaded" — a promotion-policy change wearing the clothes of a settings change.
+- **The ordering rule is now load-bearing rather than advisory:** migrations to
+  production first, credentialed builds second.
+
+---
+
 ## [0.12.0] — 2026-08-13
 
 **The agenda a prof edits is the agenda a visitor reads, and an account can
@@ -3841,7 +4127,8 @@ Foundation only: no real content, no interactive board yet.
   `url()` references unresolved and the fonts silently 404 into a Georgia
   fallback. `scripts/build-fonts.mjs` self-hosts them instead. See CLAUDE.md.
 
-[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.11.1...v0.12.0
 [0.11.1]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.10.0...v0.11.0

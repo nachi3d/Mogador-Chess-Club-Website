@@ -104,3 +104,54 @@ export async function settleReveals(page: Page): Promise<void> {
          on the still-transparent text, which is the honest signal. */
     });
 }
+
+/**
+ * Wait for in-flight CSS transitions and animations to finish before measuring.
+ *
+ * ─────────────────────────────────────────────────────────────────────────
+ * ⚠️ `toBeVisible()` IS NOT "SETTLED". Playwright calls an element visible once
+ * it has a non-empty box and is not `visibility: hidden` — it says nothing
+ * about opacity, and nothing about a transition still running. An axe check
+ * fired on that signal measures whatever the compositor happens to have
+ * painted, and `color-contrast` is computed from exactly those values.
+ *
+ * That is how `sound.spec.ts` → "the invitation panel has no axe violations"
+ * failed the v0.13.0 matrix on pixel-5 and went flaky on webkit, while passing
+ * 4/4 standalone with **zero** violations: under matrix load the solve
+ * feedback — the correct-move pulse and the verdict — was still mid-flight when
+ * axe sampled, and a half-faded element genuinely does have poor contrast for
+ * the instant it is half-faded.
+ *
+ * ⚠️ IT IS NOT A BLANKET WAIT, AND INFINITE ANIMATIONS ARE EXCLUDED ON PURPOSE.
+ * The site's Ambiance layer runs 4–20s loops that never finish (CLAUDE.md →
+ * Motion), so waiting for `getAnimations()` to empty would hang on every page
+ * that has one. Only finite, still-running effects are waited on.
+ *
+ * ⚠️ THIS DOES NOT WEAKEN AN ASSERTION. A contrast failure that survives the
+ * animation is still reported; what is removed is the sampling of a state no
+ * reader ever sits and reads.
+ * ─────────────────────────────────────────────────────────────────────────
+ */
+export async function settleAnimations(page: Page): Promise<void> {
+  await page
+    .waitForFunction(
+      () => {
+        if (typeof document.getAnimations !== 'function') return true;
+        return document.getAnimations().every((animation) => {
+          if (animation.playState !== 'running') return true;
+          /* `iterations: Infinity` is the ambient drift — it is never going to
+             finish and is never carrying information. */
+          const timing = animation.effect?.getComputedTiming?.();
+          return timing ? timing.iterations === Infinity : false;
+        });
+      },
+      undefined,
+      /* Every finite family on this site tops out at a 350ms Transition plus a
+         stagger; 3s is a ceiling, not a target. */
+      { timeout: 3_000, polling: 50 },
+    )
+    .catch(() => {
+      /* An animation that never settles is a real problem, but not this
+         helper's to report — the assertion that follows is the honest signal. */
+    });
+}
