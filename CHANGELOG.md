@@ -147,6 +147,24 @@ AFTER   every count 0 · auth user gone · club session kept with created_by nul
 
 `account-deletion.spec.ts` now carries both shapes.
 
+### Fixed — a WebKit flake that turned the release gate red
+
+`feel.spec.ts` → "a button translates and tightens its shadow while held" sampled
+the computed transform **once**, after a fixed `RESPONSE_MS * 2` wait. On WebKit
+it intermittently read `matrix(1, 0, 0, 1, 0, 0)` — the identity, meaning
+`:active` had **never been applied**, rather than the press being caught
+mid-travel. It failed first-attempt at `--workers=1` and passed on retry, and in
+this release's matrix it exhausted WebKit's single retry and failed the gate — on
+a test whose subject, the home CTA, this release does not touch.
+
+Two changes, both about *when* the state is read rather than what is asserted:
+`hover()` instead of a hand-computed `mouse.move()` to a once-read bounding box
+(a press landing one pixel outside sets no `:active` at all), and **polling while
+held** instead of a single sample. ⚠️ **The assertion keeps its full teeth** — the
+transform must become a real translate while the pointer is down — only the
+deadline moved, and a button that never presses never satisfies it however long
+we wait. 3/3 green at `--retries=0` where it previously failed first-attempt.
+
 ### Fixed — the three findings from the production audit
 
 **Migration 0008 — `anon` gets nothing, in the grants and not only in effect.**
