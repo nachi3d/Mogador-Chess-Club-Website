@@ -869,6 +869,13 @@ The whole auth stack — including v2-S3 sync and the v2-S4 role foundation — 
 built, tested and merged; it is simply not shipped. Turning it on is a release
 decision and **Seàn's call**, not a side effect of a session.
 
+⚠️⚠️ **AND IT IS NOT ONE VARIABLE ANY MORE — THE MIGRATIONS COME FIRST.**
+Production is behind (0008, 0009), and `getProfile()` selects `onboarded_at`: on
+a database without that column **every profile read fails**, so the flag would
+ship an account page with no name, no role and no way past `/bienvenue/`. Order:
+ledger backfill → 0008 + 0009 → verify against the catalog → then the variable.
+See BACKLOG → "Turn accounts back on".
+
 **OFF means NOT BUILT** (Critical Feature 18): the routes are not in `dist/`,
 there is **no Supabase ref, host or anon key anywhere in the bundle**,
 `@supabase/supabase-js` is not bundled at all, and `AccountButton` renders
