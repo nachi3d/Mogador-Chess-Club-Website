@@ -57,6 +57,12 @@ export interface Profile {
    * first time they open the family tablet. See migration 0009.
    */
   readonly onboarded_at: string | null;
+  /**
+   * What the holder answered at first sign-in: `self` | `children` | `both`.
+   * Null means never answered — a skipped welcome screen — and it must not be
+   * guessed at. See `src/lib/account-shape.ts` and migration 0010.
+   */
+  readonly account_shape: string | null;
 }
 
 let client: SupabaseClient | null = null;
@@ -257,6 +263,42 @@ export async function deleteOwnAccount(): Promise<{ ok: true } | { ok: false; me
   }
 }
 
+/**
+ * The column list this build wants, newest first, then each earlier schema it
+ * still knows how to read.
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️ THIS LADDER EXISTS BECAUSE AN EXPLICIT SELECT MAKES EVERY PROFILE READ
+ * DEPEND ON A MIGRATION HAVING REACHED PRODUCTION, AND THAT HAS ALREADY BEEN
+ * WRITTEN DOWN AS A HAZARD ONCE.
+ *
+ * PostgREST answers a select naming a column the database does not have with a
+ * `42703`, which `getProfile()` turns into `null`. Null is indistinguishable
+ * from "not signed in" to every caller, so a single unapplied migration does not
+ * degrade the account — it silently empties it: no name, no role, no staff link,
+ * and `/auth/callback/` reading `onboarded_at === null ? … : false` sends every
+ * first sign-in past the welcome screen. CLAUDE.md warns about exactly this for
+ * 0009 under "Turn accounts back on"; 0010 adds a second column to the same
+ * fragile line, so the line stops being fragile instead.
+ *
+ * ⚠️ IT DEGRADES, IT DOES NOT REPAIR. A column that is not there comes back as
+ * `null`, which is the same value a fresh account carries — so an older database
+ * reads as "never answered", the neutral state, and every rule downstream
+ * already handles it. Nothing here writes, nothing infers, and a genuinely
+ * absent row still returns null on the last rung.
+ *
+ * ⚠️ THE COST IS ONE EXTRA ROUND TRIP ON A MISCONFIGURED DEPLOYMENT ONLY. A
+ * correct database answers the first rung and never reaches the rest.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+const PROFILE_COLUMNS: readonly string[] = [
+  'id, role, display_name, locale, guardian_phone, onboarded_at, account_shape',
+  /* Pre-0010 — before the welcome screen asked who the account is for. */
+  'id, role, display_name, locale, guardian_phone, onboarded_at',
+  /* Pre-0009 — before onboarding existed at all. */
+  'id, role, display_name, locale, guardian_phone',
+] as const;
+
 /** The signed-in reader's own profile row, or null. RLS does the deciding. */
 export async function getProfile(): Promise<Profile | null> {
   try {
@@ -265,13 +307,20 @@ export async function getProfile(): Promise<Profile | null> {
     const id = userData.user?.id;
     if (!id) return null;
 
-    const { data, error } = await sb
-      .from('profiles')
-      .select('id, role, display_name, locale, guardian_phone, onboarded_at')
-      .eq('id', id)
-      .single();
-    if (error) return null;
-    return data as Profile;
+    for (const columns of PROFILE_COLUMNS) {
+      const { data, error } = await sb.from('profiles').select(columns).eq('id', id).single();
+      if (!error && data) {
+        /* Missing columns come back absent, not null, so they are defaulted
+           here rather than left `undefined` for a caller to trip over. */
+        const row = data as unknown as Record<string, unknown>;
+        return {
+          ...(row as unknown as Profile),
+          onboarded_at: (row['onboarded_at'] as string | null | undefined) ?? null,
+          account_shape: (row['account_shape'] as string | null | undefined) ?? null,
+        };
+      }
+    }
+    return null;
   } catch {
     return null;
   }
@@ -291,17 +340,35 @@ export async function getProfile(): Promise<Profile | null> {
  * parent their onboarding "failed" would be alarming about nothing. The caller
  * navigates on regardless.
  */
-export async function markOnboarded(): Promise<{ ok: boolean }> {
+export async function markOnboarded(shape?: string | null): Promise<{ ok: boolean }> {
   try {
     const sb = await getSupabase();
     const { data: userData } = await sb.auth.getUser();
     const id = userData.user?.id;
     if (!id) return { ok: false };
-    const { error } = await sb
-      .from('profiles')
-      .update({ onboarded_at: new Date().toISOString() })
-      .eq('id', id);
-    return { ok: !error };
+
+    const patch: Record<string, unknown> = { onboarded_at: new Date().toISOString() };
+    /* ⚠️ ONLY WRITTEN WHEN THERE IS AN ANSWER. Skipping records the visit and
+       leaves `account_shape` null, which is the honest "never told us" state
+       every downstream rule already handles — see `account-shape.ts`. Writing a
+       default here would manufacture a claim the reader never made. */
+    if (shape) patch['account_shape'] = shape;
+
+    const { error } = await sb.from('profiles').update(patch).eq('id', id);
+    if (!error) return { ok: true };
+
+    /* ⚠️ A DATABASE WITHOUT 0010 REJECTS THE WHOLE STATEMENT, INCLUDING THE
+       COLUMN IT DOES HAVE. Retrying without the shape keeps "shown once" true
+       on an older schema rather than re-offering the welcome screen forever —
+       the same degrade-do-not-repair posture as `PROFILE_COLUMNS`. */
+    if (shape) {
+      const { error: retry } = await sb
+        .from('profiles')
+        .update({ onboarded_at: patch['onboarded_at'] })
+        .eq('id', id);
+      return { ok: !retry };
+    }
+    return { ok: false };
   } catch {
     return { ok: false };
   }

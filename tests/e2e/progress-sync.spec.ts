@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
-import { createConfirmedUser, deleteUser, e2eEmail, magicLinkFor, adminClient } from './helpers/supabase-admin';
+import { createConfirmedUser, deleteUser, e2eEmail, adminClient } from './helpers/supabase-admin';
 import { AUTH_ENABLED, AUTH_OFF_REASON } from './helpers/auth-mode';
-import { reachAccountPage } from './helpers/auth';
+import { atSignedOutLanding, followMagicLink, reachAccountPage } from './helpers/auth';
 
 /**
  * v2-S3 — progress sync, the first-sign-in merge and the offline queue.
@@ -50,8 +50,7 @@ test.describe('v2-S3 — progress sync', () => {
     page.evaluate((k) => JSON.parse(window.localStorage.getItem(k) ?? '{}'), PROGRESS_KEY);
 
   async function signIn(page: Page, email: string) {
-    const link = await magicLinkFor(email);
-    await page.goto(link);
+    await followMagicLink(page, email);
     await reachAccountPage(page);
   }
 
@@ -370,7 +369,26 @@ test.describe('v2-S3 — progress sync', () => {
     await expect(page.getByTestId('sync-import')).toBeVisible({ timeout: 30_000 });
 
     await page.getByTestId('account-signout').click();
-    await page.waitForURL(/\/(en\/)?$|connexion/, { timeout: 20_000 });
+    await page.waitForURL(atSignedOutLanding, { timeout: 20_000 });
+    /**
+     * ⚠️ SETTLE THE SIGN-OUT'S OWN NAVIGATION BEFORE STARTING ANOTHER ONE.
+     *
+     * `signOut()` ends in `window.location.assign('/')` — a full document load,
+     * deliberately, so the header re-reads a cleared flag. `waitForURL` resolves
+     * as soon as the URL MATCHES, which is before that load has finished; the
+     * `page.goto()` further down then supersedes a navigation still in flight
+     * and the engine aborts it. WebKit says so in as many words:
+     *
+     *     Navigation to "http://localhost:4321/progres/" is interrupted by
+     *     another navigation to "http://localhost:4321/"
+     *
+     * Firefox calls the same thing `NS_BINDING_ABORTED`. Chromium tolerates it
+     * silently, which is exactly why this sat here undetected: `progress-sync`
+     * is auth-gated, so it skipped in every accounts-OFF matrix, and until
+     * v0.14.0 that was the only shape the matrix ever ran. The first ON matrix
+     * failed it on three projects out of five.
+     */
+    await page.waitForLoadState('load');
 
     const local = await readLocal(page);
     expect(

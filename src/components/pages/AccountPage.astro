@@ -1,14 +1,33 @@
 ---
 /**
- * /compte — display name, language, sign out.
+ * /compte — THREE BLOCKS, ORDERED BY WHAT A READER CAME FOR.
  *
- * Minimal on purpose. Progress sync is v2-S3 and attendance is v2-S4; both are
- * marked "à venir" here rather than hidden, so a reader can see the shape of
- * what an account is for.
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️ IT WAS ONE FLAT COLUMN, AND THAT IS THE DEFECT THIS SHAPE FIXES.
+ *
+ * The email address, the interface language, the "coming soon" notice and
+ * PERMANENT ACCOUNT DELETION all had exactly the same visual weight as the
+ * children's progress. Everything was equally important, which is the same as
+ * nothing being important, and the one irreversible control on the site sat in
+ * the flow as though it were a preference.
+ *
+ *   1. TOP — the profiles. Names, ranks, progress; add, rename, remove. This is
+ *      the page's subject and it is the only block that is open by default.
+ *   2. MIDDLE — account settings, behind a disclosure. Email, name, language.
+ *   3. BOTTOM — "Options avancées", behind a second disclosure. Deletion.
+ *
+ * ⚠️ `<details>`, NOT A SCRIPTED TOGGLE. It works with no JavaScript, it is
+ * keyboard-operable and screen-reader-announced for free, and browser find-in-
+ * page opens it. A scripted accordion would be three of those behaviours
+ * reimplemented worse, on a page a parent reaches once a term.
+ *
+ * ⚠️ SIGNING OUT IS NOT BEHIND A DISCLOSURE. It is ordinary, frequent and
+ * harmless; burying it next to deletion would be the same mistake in reverse.
  *
  * ⚠️ The whole page renders server-side in its signed-OUT state and is revealed
  * by script. There is no SSR to ask "who is this?", so the HTML cannot know —
  * and rendering a signed-in shell that flashes for guests would be worse.
+ * ═════════════════════════════════════════════════════════════════════════
  */
 import type { Locale } from '@config/site';
 import { localizePath } from '@i18n/paths';
@@ -54,89 +73,18 @@ const t = useTranslations(locale);
     </div>
 
     <div class="account-panel" data-testid="account-panel" hidden>
-      {/* ── What this account IS ──────────────────────────────────────────
-          ⚠️ THE MODEL IS NOT GUESSABLE, AND A PARENT WHO GUESSES IT WRONG
-          LOOKS FOR THEIR CHILD IN THE WRONG PLACE. The account belongs to the
-          adult and is identified by their email; a student is a profile
-          underneath it. Without this block a parent reads "Prénom affiché" at
-          the top of the page and reasonably concludes it is their child's.
-
-          ⚠️ THE THIRD SENTENCE IS FOR THE AUTONOMOUS TEENAGER. An account
-          holding exactly one child is the same object whether it belongs to a
-          parent or to the student themselves (Critical Feature 40) — the site
-          cannot tell and must not guess. Naming that case out loud is cheaper
-          and more honest than copy that tries to be vague enough to cover it. */}
-      <section class="account-model" data-testid="account-model">
-        <h2>{t('account.model.heading')}</h2>
-        <p>{t('account.model.body')}</p>
-        <p class="account-model-teen">{t('account.model.teen')}</p>
-      </section>
-
-      <dl class="account-facts">
-        {/* "Titulaire du compte", not "Adresse e-mail": the label is where the
-            ownership is stated, and the value happens to be the address. */}
-        <dt>{t('account.holder')}</dt>
-        <dd data-testid="account-email"></dd>
-        <dt>{t('account.role')}</dt>
-        <dd data-testid="account-role"></dd>
-      </dl>
-
-      <form class="account-form" data-testid="account-form">
-        <label for="account-display-name">{t('account.displayName')}</label>
-        <input
-          id="account-display-name"
-          type="text"
-          maxlength="40"
-          autocomplete="given-name"
-          data-testid="account-display-name"
-        />
-
-        <label for="account-locale">{t('account.locale')}</label>
-        <select id="account-locale" data-testid="account-locale">
-          <option value="fr">Français</option>
-          <option value="en">English</option>
-        </select>
-
-        <button type="submit" class="btn-primary" data-testid="account-save">
-          {t('account.save')}
-        </button>
-        <p class="account-status" role="status" data-testid="account-status"></p>
-      </form>
-
-      {/* ⚠️ ALWAYS RENDERED FOR A SIGNED-IN ACCOUNT — the section reveals
+      {/* ══ 1. THE PROFILES ════════════════════════════════════════════════
+          ⚠️ ALWAYS RENDERED FOR A SIGNED-IN ACCOUNT — the section reveals
           itself once it knows who is signed in, and only the "Qui joue ?"
-          picker inside it is conditional on holding more than one child.
-          Those two rules were one until v0.11.x, which made "Ajouter un
-          élève" unreachable for every normal account. */}
+          picker inside it is conditional on holding more than one profile.
+          Those two rules were one until v0.11.x, which made the add form
+          unreachable for every normal account. */}
       <FamilySection locale={locale} />
 
-      {/* ── v2-S3 — the real progress section ────────────────────────────
-          ⚠️ EVERY NUMBER HERE IS DERIVED, NOT STORED. The counts come from the
-          same local store the rest of the site reads and the same ledger
-          `/progres/` uses; nothing about a total is fetched or kept. See the
-          anti-cheat note in CLAUDE.md. */}
-      <section class="account-progress" data-testid="account-progress">
-        <h2>{t('account.progress.heading')}</h2>
-        {/* Filled by the script below — the import report, shown ONCE after a
-            sign-in that recovered something. Silent success is
-            indistinguishable from silent loss. */}
-        <p class="account-import" data-testid="sync-import" role="status" aria-live="polite"></p>
-        <dl class="account-stats">
-          <div>
-            <dt>{t('progress.exercises')}</dt>
-            <dd data-account-solved>0</dd>
-          </div>
-          <div>
-            <dt>{t('score.pointsLabel')}</dt>
-            <dd data-score-points>0</dd>
-          </div>
-          <div>
-            <dt>{t('score.title')}</dt>
-            <dd data-score-rank></dd>
-          </div>
-        </dl>
-        <p class="account-sync" data-testid="account-sync-state"></p>
-      </section>
+      {/* The import report — shown ONCE after a sign-in that recovered
+          something, and it belongs beside the profiles because that is what it
+          is about. Silent success is indistinguishable from silent loss. */}
+      <p class="account-import" data-testid="sync-import" role="status" aria-live="polite"></p>
 
       {/* ── The way into the admin surfaces (v2-S4) ────────────────────────
           ⚠️ THIS IS THE ONLY ENTRY POINT, AND IT IS DELIBERATELY HERE.
@@ -147,9 +95,9 @@ const t = useTranslations(locale);
           either — that has exactly four entries (Critical Feature 27).
 
           `/compte/` is reachable from the account button in the header at every
-          width, so Critical Feature 36 holds: there is no layout on which this
-          is reachable and another on which it is not. `admin.spec.ts` asserts
-          it at phone and desktop widths.
+          width, so Critical Feature 36 holds. ⚠️ AND IT STAYS OUTSIDE BOTH
+          DISCLOSURES: a prof opening the site on a phone at Dar Souiri must not
+          have to know that "Réglages du compte" is where the register lives.
 
           ⚠️ HIDDEN IS UX, NOT SECURITY. The link is revealed by the script
           below when the profile says prof or admin; a student who un-hides it
@@ -165,26 +113,112 @@ const t = useTranslations(locale);
         </p>
       </section>
 
-      <section class="account-soon">
-        <h2>
-          {t('account.attendance.heading')}
-          <span class="soon-badge">{t('account.attendance.soon')}</span>
-        </h2>
-        <p>{t('account.attendance.body')}</p>
-      </section>
+      {/* ══ 2. ACCOUNT SETTINGS ════════════════════════════════════════════ */}
+      <details class="account-block" data-testid="account-settings">
+        <summary>
+          <span class="account-block-title">{t('account.settings.heading')}</span>
+          <span class="account-block-hint">{t('account.settings.summary')}</span>
+        </summary>
 
-      <p>
+        <div class="account-block-body">
+          <dl class="account-facts">
+            {/* "Titulaire du compte", not "Adresse e-mail": the label is where
+                the ownership is stated, and the value happens to be the
+                address. */}
+            <dt>{t('account.holder')}</dt>
+            <dd data-testid="account-email"></dd>
+            <dt>{t('account.role')}</dt>
+            <dd data-testid="account-role"></dd>
+          </dl>
+
+          <form class="account-form" data-testid="account-form">
+            <label for="account-display-name">{t('account.displayName')}</label>
+            {/* ⚠️ THE HINT IS NOT DECORATION. "Prénom affiché" told a parent
+                nothing — displayed where, and whose? A parent reading it at the
+                top of the old flat page reasonably concluded it was their
+                child's, which is exactly the confusion the whole redesign is
+                about. */}
+            <p class="account-field-hint" id="account-display-name-hint">
+              {t('account.displayNameHint')}
+            </p>
+            <input
+              id="account-display-name"
+              type="text"
+              maxlength="40"
+              autocomplete="given-name"
+              aria-describedby="account-display-name-hint"
+              data-testid="account-display-name"
+            />
+            {/* ⚠️ THE PLACEHOLDER IS CALLED OUT HERE TOO, AND THAT IS THE
+                SKIPPED-ONBOARDING PATH. A reader who dismissed `/bienvenue/`
+                still has `nachiketas3d` sitting in this field, and nothing
+                anywhere would otherwise suggest it could be changed. Shown only
+                when the value is an EXACT match for the email local part — a
+                test of "nobody has ever typed this", not a guess about what
+                names look like. */}
+            <p
+              class="account-field-warning"
+              data-testid="account-name-placeholder"
+              hidden
+            >
+              {t('account.displayNamePlaceholder')}
+            </p>
+
+            <label for="account-locale">{t('account.locale')}</label>
+            <select id="account-locale" data-testid="account-locale">
+              <option value="fr">Français</option>
+              <option value="en">English</option>
+            </select>
+
+            <button type="submit" class="btn-primary" data-testid="account-save">
+              {t('account.save')}
+            </button>
+            <p class="account-status" role="status" data-testid="account-status"></p>
+          </form>
+
+          {/* ⚠️ THE MODEL EXPLAINER LIVES HERE NOW. It used to open the page,
+              which was right when nothing else explained anything. Since
+              `/bienvenue/` asks who the account is for, the profiles block above
+              opens with a sentence written for THIS reader — so the general
+              model is reference material, and reference material belongs with
+              the settings rather than above the thing it describes.
+
+              ⚠️ THE COPY NAMES THE STRUCTURE, NEVER THE RELATIONSHIP (Critical
+              Feature 54). An account holding exactly one profile is the same
+              object whether it belongs to a parent or to a teenager who signed
+              up alone, and this paragraph has to be true for both. */}
+          <section class="account-model" data-testid="account-model">
+            <h3>{t('account.model.heading')}</h3>
+            <p>{t('account.model.body')}</p>
+            <p class="account-model-teen">{t('account.model.teen')}</p>
+          </section>
+
+          <p class="account-sync" data-testid="account-sync-state"></p>
+
+          <section class="account-soon">
+            <h3>
+              {t('account.attendance.heading')}
+              <span class="soon-badge">{t('account.attendance.soon')}</span>
+            </h3>
+            <p>{t('account.attendance.body')}</p>
+          </section>
+        </div>
+      </details>
+
+      <p class="account-signout-row">
         <button type="button" class="btn-ghost" data-testid="account-signout">
           {t('auth.signOut')}
         </button>
       </p>
 
-      {/* ── Erasure ──────────────────────────────────────────────────────
-          ⚠️ LAST ON THE PAGE, AND BEHIND TWO DELIBERATE STEPS.
+      {/* ══ 3. ADVANCED — erasure ══════════════════════════════════════════
+          ⚠️ LAST ON THE PAGE, COLLAPSED, AND BEHIND TWO FURTHER STEPS.
 
-          The privacy notice has always promised erasure on request; until now
-          that promise was kept by a volunteer remembering to run a SQL
-          statement. This is the button.
+          It used to compete with everything above it: a full section with a
+          heading, a list and a button, in the same column as "Langue". The
+          privacy notice has always promised erasure and this is the button that
+          keeps that promise — it has to be FINDABLE, which is not the same as
+          being in the way.
 
           ⚠️ THE SECOND STEP IS A TYPED WORD, NOT A SECOND BUTTON. Two buttons
           in the same place is one mis-tap on a phone, and this is the one
@@ -195,54 +229,63 @@ const t = useTranslations(locale);
           ⚠️ THE LIST NAMES WHAT GOES. "Are you sure?" tells a reader nothing;
           the words "progression" and "présences" have to be read BEFORE the
           confirmation, not discovered after it. */}
-      <section class="account-delete" data-testid="account-delete">
-        <h2>{t('account.delete.heading')}</h2>
-        <p>{t('account.delete.body')}</p>
-        <p>{t('account.delete.listIntro')}</p>
-        <ul>
-          <li>{t('account.delete.item.account')}</li>
-          <li>{t('account.delete.item.children')}</li>
-          <li>{t('account.delete.item.progress')}</li>
-          <li>{t('account.delete.item.points')}</li>
-          <li>{t('account.delete.item.attendance')}</li>
-        </ul>
-        <p class="account-delete-retained">{t('account.delete.retained')}</p>
+      <details class="account-block account-block-danger" data-testid="account-advanced">
+        <summary>
+          <span class="account-block-title">{t('account.advanced.heading')}</span>
+          <span class="account-block-hint">{t('account.advanced.summary')}</span>
+        </summary>
 
-        <button type="button" class="btn-ghost" data-testid="account-delete-start">
-          {t('account.delete.start')}
-        </button>
+        <div class="account-block-body">
+          <section class="account-delete" data-testid="account-delete">
+            <h3>{t('account.delete.heading')}</h3>
+            <p>{t('account.delete.body')}</p>
+            <p>{t('account.delete.listIntro')}</p>
+            <ul>
+              <li>{t('account.delete.item.account')}</li>
+              <li>{t('account.delete.item.children')}</li>
+              <li>{t('account.delete.item.progress')}</li>
+              <li>{t('account.delete.item.points')}</li>
+              <li>{t('account.delete.item.attendance')}</li>
+            </ul>
+            <p class="account-delete-retained">{t('account.delete.retained')}</p>
 
-        <div class="account-delete-confirm" data-testid="account-delete-confirm" hidden>
-          <h3>{t('account.delete.confirmHeading')}</h3>
-          <label for="account-delete-word">
-            {t('account.delete.confirmPrompt').replace('%s', t('account.delete.confirmWord'))}
-          </label>
-          <input
-            id="account-delete-word"
-            type="text"
-            autocomplete="off"
-            autocapitalize="characters"
-            spellcheck="false"
-            data-testid="account-delete-word"
-          />
-          <p class="account-delete-actions">
-            {/* ⚠️ Disabled until the word matches. The control that cannot be
-                undone is the one that must not be reachable by reflex. */}
-            <button
-              type="button"
-              class="btn-ghost account-delete-go"
-              data-testid="account-delete-go"
-              disabled
-            >
-              {t('account.delete.confirm')}
+            <button type="button" class="btn-ghost" data-testid="account-delete-start">
+              {t('account.delete.start')}
             </button>
-            <button type="button" class="btn-ghost" data-testid="account-delete-cancel">
-              {t('account.delete.cancel')}
-            </button>
-          </p>
-          <p class="account-status" role="status" data-testid="account-delete-status"></p>
+
+            <div class="account-delete-confirm" data-testid="account-delete-confirm" hidden>
+              <h4>{t('account.delete.confirmHeading')}</h4>
+              <label for="account-delete-word">
+                {t('account.delete.confirmPrompt').replace('%s', t('account.delete.confirmWord'))}
+              </label>
+              <input
+                id="account-delete-word"
+                type="text"
+                autocomplete="off"
+                autocapitalize="characters"
+                spellcheck="false"
+                data-testid="account-delete-word"
+              />
+              <p class="account-delete-actions">
+                {/* ⚠️ Disabled until the word matches. The control that cannot
+                    be undone is the one that must not be reachable by reflex. */}
+                <button
+                  type="button"
+                  class="btn-ghost account-delete-go"
+                  data-testid="account-delete-go"
+                  disabled
+                >
+                  {t('account.delete.confirm')}
+                </button>
+                <button type="button" class="btn-ghost" data-testid="account-delete-cancel">
+                  {t('account.delete.cancel')}
+                </button>
+              </p>
+              <p class="account-status" role="status" data-testid="account-delete-status"></p>
+            </div>
+          </section>
         </div>
-      </section>
+      </details>
     </div>
   </div>
 
@@ -251,7 +294,7 @@ const t = useTranslations(locale);
     /* ⚠️ v2-S3 — through `progress.ts` ONLY. This page never touches the sync
        module or Supabase for progress: `progress.ts` is still the single
        reader, and it is the one that decides what the durable copy does. */
-    import { importFromCloud, readProgress, solvedSlugs, startSync, syncState } from '@lib/progress';
+    import { importFromCloud, startSync, syncState } from '@lib/progress';
 
     const root = document.querySelector('[data-testid="account"]') as HTMLElement | null;
     const signedOut = document.querySelector('[data-testid="account-signed-out"]') as HTMLElement | null;
@@ -259,6 +302,7 @@ const t = useTranslations(locale);
     const emailEl = document.querySelector('[data-testid="account-email"]') as HTMLElement | null;
     const roleEl = document.querySelector('[data-testid="account-role"]') as HTMLElement | null;
     const nameInput = document.querySelector('[data-testid="account-display-name"]') as HTMLInputElement | null;
+    const namePlaceholder = document.querySelector('[data-testid="account-name-placeholder"]') as HTMLElement | null;
     const localeSelect = document.querySelector('[data-testid="account-locale"]') as HTMLSelectElement | null;
     const form = document.querySelector('[data-testid="account-form"]') as HTMLFormElement | null;
     const status = document.querySelector('[data-testid="account-status"]') as HTMLElement | null;
@@ -276,6 +320,23 @@ const t = useTranslations(locale);
       if (panel) panel.hidden = true;
     }
 
+    /**
+     * ⚠️ IS THIS A NAME, OR THE EMAIL WEARING ONE? Exactly the test
+     * `/bienvenue/` makes, for exactly the same reason: an exact match against
+     * the local part is a test of "nobody has ever typed this", where a
+     * heuristic about what names look like would insult somebody called Alex99.
+     *
+     * This is the SKIPPED-ONBOARDING path. A reader who dismissed the welcome
+     * screen keeps the email fragment as their name, and Critical Feature 52
+     * says a skipped onboarding must still leave a usable account — which means
+     * the one thing the screen would have fixed has to be visible here.
+     */
+    function looksLikePlaceholder(name: string, email: string): boolean {
+      const local = email.split('@')[0] ?? '';
+      if (!local) return false;
+      return name.trim().toLowerCase() === local.trim().toLowerCase();
+    }
+
     (async () => {
       const session = await getSession();
       if (!session) {
@@ -284,10 +345,22 @@ const t = useTranslations(locale);
       }
 
       const profile = await getProfile();
-      if (emailEl) emailEl.textContent = session.user.email ?? '';
+      const email = session.user.email ?? '';
+      if (emailEl) emailEl.textContent = email;
       if (roleEl) roleEl.textContent = profile ? (roleLabels[profile.role] ?? profile.role) : '';
       if (nameInput) nameInput.value = profile?.display_name ?? '';
       if (localeSelect) localeSelect.value = profile?.locale === 'en' ? 'en' : 'fr';
+
+      if (namePlaceholder && looksLikePlaceholder(profile?.display_name ?? '', email)) {
+        namePlaceholder.hidden = false;
+        /* ⚠️ THE DISCLOSURE OPENS ITSELF WHEN THERE IS SOMETHING TO FIX. A
+           warning inside a collapsed block is a warning nobody reads, and this
+           one is the entire remedy for a skipped welcome screen. It does not
+           open for anybody else — a settings block that is always open is just
+           the flat column again. */
+        (document.querySelector('[data-testid="account-settings"]') as HTMLDetailsElement | null)
+          ?.setAttribute('open', '');
+      }
 
       root?.setAttribute('data-state', 'signed-in');
       if (panel) panel.hidden = false;
@@ -320,11 +393,6 @@ const t = useTranslations(locale);
             : (root?.dataset.msgSynced ?? '');
       }
 
-      /* Derived, never stored — the same computation `/progres/` does. */
-      const solvedEl = document.querySelector('[data-account-solved]');
-      if (solvedEl) solvedEl.textContent = String(solvedSlugs().length);
-      void readProgress();
-
       const syncEl = document.querySelector('[data-testid="account-sync-state"]');
       const paint = () => {
         if (!syncEl) return;
@@ -349,6 +417,9 @@ const t = useTranslations(locale);
       status.textContent = result.ok
         ? (root?.dataset.msgSaved ?? '')
         : (root?.dataset.msgError ?? '');
+      /* A name that was the email fragment and has just been replaced is no
+         longer a placeholder — the warning must not outlive the problem. */
+      if (result.ok && namePlaceholder) namePlaceholder.hidden = true;
     });
 
     signOutBtn?.addEventListener('click', async () => {
@@ -425,34 +496,63 @@ const t = useTranslations(locale);
 </BaseLayout>
 
 <style>
-  /* Context, not a warning: the same quiet sunken panel with an accent edge
-     that the staff block uses. No opacity over an audited token pair — the
-     contrast checker proves the pair and cannot see an alpha laid on top. */
-  .account-model {
-    margin-bottom: 1.5rem;
-    padding: 1rem 1.25rem;
-    border-inline-start: 3px solid var(--mcc-accent);
+  /* ── The two disclosures ────────────────────────────────────────────────
+     ⚠️ NATIVE `<details>`, STYLED — not reimplemented. It works with no JS, it
+     is keyboard-operable and announced for free, and find-in-page opens it. */
+  .account-block {
+    margin-block: 1.5rem;
+    border: 1px solid var(--mcc-border-subtle);
     border-radius: var(--radius-card);
-    background-color: var(--mcc-surface-sunken);
+    background-color: var(--mcc-surface-raised);
   }
 
-  .account-model h2 {
-    margin: 0 0 0.5rem;
-    font-size: 1.125rem;
+  .account-block summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.15rem 0.75rem;
+    align-items: baseline;
+    /* Comfortably past the 44px target: this is the whole control. */
+    min-height: 3rem;
+    padding: 0.85rem 1.1rem;
+    border-radius: var(--radius-card);
+    cursor: pointer;
   }
 
-  .account-model p {
-    margin: 0 0 0.6rem;
-    line-height: 1.6;
+  .account-block summary:focus-visible {
+    outline: 2px solid var(--mcc-focus-ring);
+    outline-offset: 2px;
   }
 
-  .account-model p:last-child {
-    margin-bottom: 0;
+  .account-block-title {
+    font-size: 1.0625rem;
+    font-weight: 600;
   }
 
-  .account-model-teen {
+  /* ⚠️ NO `opacity` ON TEXT OVER AN AUDITED FILL — `check-contrast.mjs` proves
+     the token PAIR and cannot see an alpha laid on top of it. Differentiated by
+     size and by its own audited token. */
+  .account-block-hint {
     color: var(--mcc-text-secondary);
     font-size: 0.9375rem;
+  }
+
+  .account-block-body {
+    padding: 0 1.1rem 1.25rem;
+    border-block-start: 1px solid var(--mcc-border-subtle);
+    padding-block-start: 1.1rem;
+  }
+
+  /* The danger block is marked by its edge and its words, NOT by a red fill and
+     not by opacity. A red panel reads as "error" rather than "this is the part
+     you should be careful with", and it is a section a reader chose to open. */
+  .account-block-danger {
+    margin-top: 2.5rem;
+    border-inline-start: 4px solid var(--mcc-accent-strong);
+  }
+
+  .account-import {
+    margin: 0 0 1.5rem;
+    color: var(--mcc-text-secondary);
   }
 
   .account-facts {
@@ -481,19 +581,44 @@ const t = useTranslations(locale);
     font-weight: 500;
   }
 
+  .account-field-hint {
+    margin: 0 0 0.5rem;
+    color: var(--mcc-text-secondary);
+    font-size: 0.9375rem;
+    line-height: 1.5;
+  }
+
+  /* The skipped-onboarding remedy. Its own edge so it is not mistaken for the
+     hint above it, and no red fill — nothing has gone wrong, there is simply
+     something worth changing. */
+  .account-field-warning {
+    margin: 0.6rem 0 0;
+    padding: 0.6rem 0.85rem;
+    border-inline-start: 3px solid var(--mcc-accent-strong);
+    border-radius: var(--radius-card);
+    background-color: var(--mcc-surface-sunken);
+    font-size: 0.9375rem;
+    line-height: 1.5;
+  }
+
   .account-form input,
   .account-form select {
     width: 100%;
+    /* 44px, and `font-size: 1rem` is load-bearing on iOS: anything smaller
+       makes Safari zoom the page on focus. */
+    min-height: 2.75rem;
     padding: 0.55rem 0.7rem;
     border: 1px solid var(--mcc-border-strong);
     border-radius: var(--radius-card);
     background-color: var(--mcc-surface-page);
     color: var(--mcc-text-primary);
     font: inherit;
+    font-size: 1rem;
   }
 
   .btn-primary {
     margin-top: 1rem;
+    min-height: 2.75rem;
     padding: 0.6rem 1.2rem;
     border: 1px solid var(--mcc-primary);
     border-radius: var(--radius-card);
@@ -506,6 +631,7 @@ const t = useTranslations(locale);
   }
 
   .btn-ghost {
+    min-height: 2.75rem;
     padding: 0.55rem 1.1rem;
     border: 1px solid var(--mcc-border-strong);
     border-radius: var(--radius-card);
@@ -515,9 +641,14 @@ const t = useTranslations(locale);
     cursor: pointer;
   }
 
-  .account-status {
+  .account-status,
+  .account-sync {
     margin: 0.75rem 0 0;
     color: var(--mcc-text-secondary);
+  }
+
+  .account-signout-row {
+    margin: 1.5rem 0 0;
   }
 
   /* The staff block reads as a destination, not a notice: a solid accent edge
@@ -540,20 +671,47 @@ const t = useTranslations(locale);
     color: var(--mcc-text-secondary);
   }
 
-  .account-soon {
+  /* Context, not a warning: a quiet sunken panel with an accent edge. */
+  .account-model {
     margin-bottom: 1.5rem;
+    padding: 1rem 1.25rem;
+    border-inline-start: 3px solid var(--mcc-accent);
+    border-radius: var(--radius-card);
+    background-color: var(--mcc-surface-sunken);
+  }
+
+  .account-model h3,
+  .account-soon h3 {
+    margin: 0 0 0.5rem;
+    font-size: 1.0625rem;
+  }
+
+  .account-model p {
+    margin: 0 0 0.6rem;
+    line-height: 1.6;
+  }
+
+  .account-model p:last-child {
+    margin-bottom: 0;
+  }
+
+  .account-model-teen {
+    color: var(--mcc-text-secondary);
+    font-size: 0.9375rem;
+  }
+
+  .account-soon {
+    margin-top: 1.5rem;
     padding: 1rem 1.25rem;
     border: 1px dashed var(--mcc-border-strong);
     border-radius: var(--radius-card);
   }
 
-  .account-soon h2 {
+  .account-soon h3 {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 0.6rem;
-    margin: 0 0 0.4rem;
-    font-size: 1.125rem;
   }
 
   .account-soon p {
@@ -561,25 +719,12 @@ const t = useTranslations(locale);
     color: var(--mcc-text-secondary);
   }
 
-  /* ⚠️ MARKED BY ITS EDGE AND ITS WORDS, NOT BY RED FILL AND NOT BY OPACITY.
-     A red panel reads as "error" on a page that has an error line already, and
-     an alpha over an audited pair is exactly what `check-contrast.mjs` cannot
-     see. This is a section of the page a reader chose to scroll to; it needs to
-     be findable and unmistakable, not alarming. */
-  .account-delete {
-    margin-top: 2.5rem;
-    padding: 1.25rem;
-    border: 1px solid var(--mcc-border-strong);
-    border-inline-start: 4px solid var(--mcc-accent-strong);
-    border-radius: var(--radius-card);
-  }
-
-  .account-delete h2 {
-    margin: 0 0 0.5rem;
-    font-size: 1.125rem;
-  }
-
   .account-delete h3 {
+    margin: 0 0 0.5rem;
+    font-size: 1.0625rem;
+  }
+
+  .account-delete h4 {
     margin: 0 0 0.5rem;
     font-size: 1rem;
   }
@@ -622,6 +767,7 @@ const t = useTranslations(locale);
     background-color: var(--mcc-surface-page);
     color: var(--mcc-text-primary);
     font: inherit;
+    font-size: 1rem;
     letter-spacing: 0.08em;
   }
 

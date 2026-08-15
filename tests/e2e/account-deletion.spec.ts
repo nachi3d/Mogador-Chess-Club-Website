@@ -5,9 +5,14 @@ import {
   createConfirmedUser,
   deleteUser,
   e2eEmail,
-  magicLinkFor,
 } from './helpers/supabase-admin';
-import { anonClientAsUser, reachAccountPage } from './helpers/auth';
+import {
+  anonClientAsUser,
+  atSiteRoot,
+  followMagicLink,
+  openAccountBlock,
+  reachAccountPage,
+} from './helpers/auth';
 import { AUTH_ENABLED, AUTH_OFF_REASON } from './helpers/auth-mode';
 
 /**
@@ -95,7 +100,7 @@ test.describe('self-service account deletion', () => {
   }
 
   async function signIn(page: Page, email: string) {
-    await page.goto(await magicLinkFor(email));
+    await followMagicLink(page, email);
     await reachAccountPage(page);
     await expect(page.getByTestId('account-panel')).toBeVisible();
   }
@@ -120,13 +125,14 @@ test.describe('self-service account deletion', () => {
     });
 
     await signIn(page, account.email);
+    await openAccountBlock(page, 'advanced');
     await page.getByTestId('account-delete-start').click();
     await page.getByTestId('account-delete-word').fill('SUPPRIMER');
     await page.getByTestId('account-delete-go').click();
 
     /* Signed out and back on the home page — the account no longer exists, so
        staying on /compte/ would be a page describing a deleted user. */
-    await page.waitForURL(/\/(en\/)?$/, { timeout: 30_000 });
+    await page.waitForURL(atSiteRoot, { timeout: 30_000 });
 
     /**
      * ⚠️ POLLED, AND GENEROUSLY — because the failure it was reporting is not a
@@ -239,12 +245,14 @@ test.describe('self-service account deletion', () => {
        "les élèves rattachés à ce compte" is the sentence a parent of two reads
        and reconsiders. Asserted here rather than trusted, because it is the
        whole reason the list exists. */
-    await expect(page.getByTestId('account-delete')).toContainText(/élèves rattachés/i);
+    await openAccountBlock(page, 'advanced');
+    await expect(page.getByTestId('account-delete')).toContainText(/profils de joueur rattachés/i);
 
+    await openAccountBlock(page, 'advanced');
     await page.getByTestId('account-delete-start').click();
     await page.getByTestId('account-delete-word').fill('SUPPRIMER');
     await page.getByTestId('account-delete-go').click();
-    await page.waitForURL(/\/(en\/)?$/, { timeout: 30_000 });
+    await page.waitForURL(atSiteRoot, { timeout: 30_000 });
 
     /* Polled for the same reason as the single-child case: pooled PostgREST
        connections can serve a stale read, and a row that genuinely survives
@@ -277,10 +285,11 @@ test.describe('self-service account deletion', () => {
   }) => {
     const account = await seededAccount('del-retain');
     await signIn(page, account.email);
+    await openAccountBlock(page, 'advanced');
     await page.getByTestId('account-delete-start').click();
     await page.getByTestId('account-delete-word').fill('SUPPRIMER');
     await page.getByTestId('account-delete-go').click();
-    await page.waitForURL(/\/(en\/)?$/, { timeout: 30_000 });
+    await page.waitForURL(atSiteRoot, { timeout: 30_000 });
 
     /* The club's own session is not the reader's data and is not erased. */
     const { data: session } = await adminClient()
@@ -300,6 +309,7 @@ test.describe('self-service account deletion', () => {
     const account = await seededAccount('del-word');
     await signIn(page, account.email);
 
+    await openAccountBlock(page, 'advanced');
     await page.getByTestId('account-delete-start').click();
     const go = page.getByTestId('account-delete-go');
     await expect(go).toBeDisabled();

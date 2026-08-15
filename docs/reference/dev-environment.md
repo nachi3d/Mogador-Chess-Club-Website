@@ -122,3 +122,32 @@ Known limit, and it errs the safe way: Windows reuses pids, so a dead
 launcher's pid may belong to something live by the time this runs. The orphan
 then looks parented and is **left alone**. Under-killing is the right direction
 for a routine that runs unattended.
+
+---
+
+## ⚠️ A KILLED `test:release` LEAVES A LARGE MESS — sweep BEFORE re-running
+
+Measured on 2026-08-15, when the accounts-ON matrix was stopped part-way through
+its second project:
+
+```
+repo node procs:      5   (playwright runner, astro preview, npm wrappers)
+playwright browsers: 44
+free RAM before sweep: 5.2 GB → after: 6.7 GB
+```
+
+The matrix normally tears its own browsers down between projects. **An
+interrupted one does not** — and the browsers are the expensive half: 44 of them
+is most of a gigabyte, and CLAUDE.md already records that orphaned browsers cost
+this project three red gates in a row. Re-running on top of them starts the new
+matrix already starved, which is exactly the memory-exhaustion condition
+`--workers=3` and one-project-at-a-time exist to avoid.
+
+⚠️ **SWEEP BY `ExecutablePath -like '*ms-playwright*'`, NEVER BY PROCESS NAME.**
+Matching `chrome.exe` by name kills Seàn's own browser. The node half is matched
+by repo path, per the probes above.
+
+⚠️ **AND VERIFY THE SWEEP TOOK**, rather than assuming: re-count both, and check
+nothing is LISTENING on 4321-4325. A surviving `astro preview` is worse than a
+surviving browser, because Playwright will happily reuse it and test whatever is
+on disk from before.

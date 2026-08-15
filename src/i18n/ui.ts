@@ -485,70 +485,121 @@ const fr = {
   'callback.failed': "Ce lien n'est plus valide. Demandez-en un nouveau.",
   'callback.retry': 'Retourner à la connexion',
   /* ── /bienvenue — le premier passage, une seule fois ──────────────────────
-     ⚠️ UN ÉCRAN, PAS UN TUNNEL. Il pose la seule question à laquelle le site ne
-     peut pas répondre tout seul — le prénom de l'élève — et propose la seule
-     chose qu'un parent de fratrie voudra faire tout de suite. Tout le reste se
-     fait depuis « Mon compte », et la page le dit avant de demander quoi que ce
-     soit. */
+     ⚠️ UNE QUESTION, PAS UN FORMULAIRE. La v0.13.0 demandait « le prénom de
+     l'élève », ce qui suppose que le titulaire du compte n'est PAS un joueur.
+     Pour la famille type du club c'est faux : un parent vient à l'atelier avec
+     deux enfants, joue aussi, gagne ses propres points — et se retrouvait pénalisé
+     parce que c'est lui qui tient le compte.
+     ⚠️ ON DEMANDE AU LIEU DE DEVINER, et c'est tout l'intérêt : la réponse
+     choisit le VOCABULAIRE de tout ce qui suit. Aucune formulation neutre ne
+     remplace « votre progression » pour l'un et « vos enfants » pour l'autre. */
   'welcome.title': 'Bienvenue au club',
-  'welcome.intro': 'Une seule étape, et nous ne vous la redemanderons pas.',
-  'welcome.nameHeading': 'Le prénom de l’élève',
-  /* ⚠️ DEUX VERSIONS : le profil créé automatiquement porte la partie gauche de
-     l'adresse e-mail. Ce n'est pas un prénom, et le texte doit le dire au lieu
-     de laisser le parent valider un « nachiketas3d » qui apparaîtra ensuite sur
-     la feuille de présence. */
-  'welcome.nameBodyPlaceholder':
-    'Nous avons créé un profil d’élève à partir de votre adresse e-mail. Ce n’est pas un prénom — remplacez-le.',
-  'welcome.nameBodyNamed':
-    'Vérifiez le prénom de l’élève. Il apparaît sur sa progression et sur la feuille de présence.',
-  'welcome.nameLabel': 'Prénom de l’élève',
-  'welcome.otherLabel': 'Prénom d’un autre élève',
-  'welcome.addAnother': 'Ajouter un autre enfant',
-  'welcome.removeField': 'Retirer ce champ',
+  'welcome.intro': 'Une question, et nous ne vous la reposerons pas.',
+  /* Étape 1 — la question. */
+  'welcome.who.heading': 'Qui va utiliser ce compte ?',
+  'welcome.who.body':
+    'Cela nous sert uniquement à vous parler correctement ensuite. Tout reste modifiable depuis « Mon compte ».',
+  'welcome.who.self': 'Moi, je joue',
+  'welcome.who.selfNote': 'Le compte et le profil de joueur sont les vôtres.',
+  'welcome.who.children': 'Mon enfant (ou mes enfants)',
+  'welcome.who.childrenNote': 'Vous gardez le compte ; chaque enfant a son profil.',
+  /* ⚠️ « LES DEUX » EST LE CAS COURANT, PAS UN CAS LIMITE, et la note le dit
+     explicitement. Un parent qui joue ne doit pas avoir l'impression de
+     détourner l'outil en cochant la troisième case. */
+  'welcome.who.both': 'Les deux',
+  'welcome.who.bothNote':
+    'Vous jouez aussi : vous avez votre propre profil, exactement comme vos enfants.',
+  /* Étape 2 — les prénoms, selon la réponse. */
+  'welcome.back': 'Changer de réponse',
+  'welcome.self.heading': 'Comment vous appelez-vous ?',
+  'welcome.self.body':
+    'Votre prénom apparaît sur votre progression et sur la feuille de présence.',
+  'welcome.self.label': 'Votre prénom',
+  'welcome.child.heading': 'Le prénom de votre enfant',
+  'welcome.child.body':
+    'Il apparaît sur sa progression et sur la feuille de présence du club.',
+  'welcome.child.label': 'Le prénom de votre enfant',
+  'welcome.child.otherLabel': 'Le prénom d’un autre enfant',
+  'welcome.child.add': 'Ajouter un autre enfant',
+  /* ⚠️ LE PROFIL CRÉÉ AUTOMATIQUEMENT PORTE LA PARTIE GAUCHE DE L'ADRESSE
+     E-MAIL. Ce n'est pas un prénom, et le texte doit le dire au lieu de laisser
+     le parent valider un « nachiketas3d » qui finira sur la feuille de
+     présence. */
+  'welcome.placeholderNote':
+    'Nous avons créé un profil à partir de votre adresse e-mail. Ce n’est pas un prénom — remplacez-le.',
   'welcome.save': 'Enregistrer et continuer',
   'welcome.saving': 'Enregistrement…',
   'welcome.skip': 'Passer cette étape',
   'welcome.skipNote':
-    'Vous pourrez ajouter, renommer ou retirer un élève à tout moment depuis « Mon compte ».',
+    'Vous pourrez ajouter, renommer ou retirer un profil à tout moment depuis « Mon compte ».',
   'welcome.needName': 'Indiquez un prénom, ou passez cette étape.',
+  'welcome.needNameSelf': 'Indiquez votre prénom, ou passez cette étape.',
   'welcome.error': 'Impossible d’enregistrer. Réessayez, ou passez cette étape.',
+
+  /* ── « Qui joue ? » — le sélecteur, sur un appareil partagé ───────────── */
   'child.heading': 'Qui joue ?',
   'child.intro':
-    'Choisissez l’élève. Ce choix est retenu sur cet appareil : le téléphone d’un enfant ne le demande qu’une fois.',
-  'child.addLabel': 'Ajouter un élève',
+    'Choisissez le profil. Ce choix est retenu sur cet appareil : le téléphone d’un enfant ne le demande qu’une fois.',
+  'child.addLabel': 'Ajouter un profil',
+  /* ⚠️ « ÉLÈVE » A DISPARU DU VOCABULAIRE DESTINÉ AUX PARENTS. Le mot reste
+     juste côté encadrants — /admin* parle bien d'élèves — et sonnait faux
+     partout ailleurs : « votre élève : Seàn » pour quelqu'un qui joue lui-même
+     n'a aucun sens. */
+  'child.addLabelChild': 'Ajouter un enfant',
   'child.add': 'Ajouter',
-  'child.addError': 'Impossible d’ajouter cet élève. Réessayez.',
-  /* ── The family section itself, of which "Qui joue ?" is only one part ────
-     ⚠️ These are separate keys from `child.*` on purpose: the section renders
-     for every signed-in account and the picker does not. One string table
-     entry shared between them is how the two rules got coupled in the first
-     place. */
-  /* ⚠️ « LES ÉLÈVES DE CE COMPTE », PAS « MES ÉLÈVES ».
-     Le titre doit être vrai dans les deux lectures : un parent qui inscrit ses
-     enfants, ET un adolescent autonome dont le compte ne porte qu'un profil —
-     le sien. « Mes élèves » est faux pour le second, et il n'y a aucun moyen de
-     savoir dans quel cas on est : un compte à un profil est exactement le même
-     objet dans les deux cas (CF40). On nomme donc la STRUCTURE, jamais la
-     relation. */
-  'family.heading': 'Les élèves de ce compte',
-  'family.intro':
-    'Les élèves inscrits sur ce compte. Vous pouvez en ajouter un, le renommer, ou le retirer.',
-  /* ⚠️ DEUX INTROS, CHOISIES PAR LE NOMBRE — jamais par un réglage « type de
-     compte », qui n'existe pas et ne doit pas exister. */
-  'family.introOne':
-    'Ce compte porte un seul profil d’élève. C’est lui qui garde la progression, les points et les présences — le vôtre si c’est vous qui jouez, celui de votre enfant si vous l’inscrivez.',
-  'family.introMany':
-    'Ce compte porte %s profils d’élève. Chacun garde sa propre progression, ses points et ses présences.',
+  'child.addError': 'Impossible d’ajouter ce profil. Réessayez.',
+
+  /* ── Le bloc « profils », en haut de /compte ──────────────────────────────
+     ⚠️ QUATRE REGISTRES, ET LE QUATRIÈME N'EST PAS UNE VALEUR PAR DÉFAUT. Un
+     compte qui a passé l'écran d'accueil n'a rien répondu, et la Fonction
+     critique 54 interdit de deviner : on nomme alors la STRUCTURE, jamais la
+     relation. Voir `src/lib/account-shape.ts`. */
+  'profiles.heading.self': 'Votre profil',
+  'profiles.heading.children': 'Vos enfants',
+  'profiles.heading.both': 'Vous et vos enfants',
+  'profiles.heading.unknown': 'Les profils de ce compte',
+  'profiles.intro.self':
+    'Votre profil de joueur : il garde votre progression, vos points et vos présences.',
+  'profiles.intro.childrenOne':
+    'Le profil de votre enfant. Il garde sa progression, ses points et ses présences.',
+  'profiles.intro.childrenMany':
+    'Les profils de vos %s enfants. Chacun garde sa progression, ses points et ses présences.',
+  'profiles.intro.both':
+    'Votre profil et ceux de vos enfants. Chacun garde sa propre progression, ses points et ses présences.',
+  /* ⚠️ LE CAS « UN SEUL PROFIL, ON NE SAIT PAS DE QUI » DOIT ÊTRE VRAI POUR DEUX
+     LECTEURS QUE LE SITE NE PEUT PAS DISTINGUER : un parent qui a inscrit un
+     enfant, et un adolescent qui a créé le compte pour lui-même. */
+  'profiles.intro.unknownOne':
+    'Ce compte porte un seul profil de joueur. C’est lui qui garde la progression, les points et les présences — le vôtre si c’est vous qui jouez, celui de votre enfant si vous l’inscrivez.',
+  'profiles.intro.unknownMany':
+    'Ce compte porte %s profils de joueur. Chacun garde sa propre progression, ses points et ses présences.',
+  'profiles.you': 'Vous',
+  'profiles.youLabel': 'Votre propre profil',
+  'profiles.points': '%s points',
+  'profiles.solved': '%s exercices résolus',
+  'profiles.loading': 'Chargement de la progression…',
+  'profiles.markSelf': 'C’est moi',
+  'profiles.markSelfLabel': 'Indiquer que %s est votre propre profil',
+  'profiles.markSelfError': 'Impossible de mettre à jour. Réessayez.',
   'family.rename': 'Renommer',
   'family.renameLabel': 'Nouveau prénom pour %s',
   'family.save': 'Enregistrer',
   'family.cancel': 'Annuler',
-  'family.renameError': 'Impossible de renommer cet élève. Réessayez.',
+  'family.renameError': 'Impossible de renommer ce profil. Réessayez.',
   'family.remove': 'Retirer',
   'family.removeConfirm': 'Retirer %s ? Toute sa progression sera effacée.',
   'family.removeYes': 'Oui, retirer',
-  'family.removeError': 'Impossible de retirer cet élève. Réessayez.',
-  'family.onlyChild': 'Un compte garde toujours au moins un élève.',
+  'family.removeError': 'Impossible de retirer ce profil. Réessayez.',
+  'family.onlyChild': 'Un compte garde toujours au moins un profil.',
+
+  /* ── Réglages du compte — le bloc du milieu, replié ───────────────────────
+     ⚠️ REPLIÉ PARCE QUE CE N'EST PAS CE QU'ON VIENT CHERCHER. La page était une
+     colonne plate où l'adresse e-mail, la langue et la suppression définitive
+     avaient exactement le même poids que la progression des enfants. */
+  'account.settings.heading': 'Réglages du compte',
+  'account.settings.summary': 'Votre nom, votre langue, votre adresse e-mail',
+  'account.advanced.heading': 'Options avancées',
+  'account.advanced.summary': 'Suppression définitive du compte',
   /* ── Suppression du compte ────────────────────────────────────────────
      ⚠️ LA LISTE NOMME CE QUI PART, article par article. « Êtes-vous sûr ? »
      ne dit rien : un parent doit lire les mots « progression » et
@@ -558,7 +609,7 @@ const fr = {
     'La suppression est définitive et immédiate. Il n’y a pas de corbeille et rien ne peut être restauré.',
   'account.delete.listIntro': 'Sont effacés :',
   'account.delete.item.account': 'le compte et son adresse e-mail ;',
-  'account.delete.item.children': 'les élèves rattachés à ce compte ;',
+  'account.delete.item.children': 'les profils de joueur rattachés à ce compte ;',
   'account.delete.item.progress': 'leur progression et leurs parties ;',
   'account.delete.item.points': 'leurs points et les points attribués par un professeur ;',
   'account.delete.item.attendance': 'leurs présences aux séances.',
@@ -576,26 +627,28 @@ const fr = {
     'La suppression a échoué et votre compte est intact. Réessayez, ou écrivez au club.',
   /* ── Comment le compte est organisé ───────────────────────────────────────
      ⚠️ CE BLOC EXISTE PARCE QUE LE MODÈLE N'EST PAS DEVINABLE. Le compte
-     appartient à l'adulte ; l'élève est un profil en dessous. Un parent qui ne
-     comprend pas cela cherche « son » enfant dans les réglages du compte et ne
-     l'y trouve pas. Trois phrases, en haut de la page, une fois. */
+     appartient à l'adulte ; les joueurs sont des profils en dessous. Il est
+     descendu dans les réglages depuis que l'écran d'accueil pose la question :
+     l'intro du bloc « profils » explique désormais le cas du lecteur, et ce
+     paragraphe reste pour qui veut le modèle complet. */
   'account.model.heading': 'Comment ce compte est organisé',
   'account.model.body':
-    'Vous êtes titulaire de ce compte, identifié par votre adresse e-mail. Les élèves sont des profils rattachés à ce compte : chacun garde sa propre progression, ses points et ses présences.',
+    'Vous êtes titulaire de ce compte, identifié par votre adresse e-mail. Les joueurs sont des profils rattachés à ce compte : chacun garde sa propre progression, ses points et ses présences.',
   /* ⚠️ LA PHRASE QUI DÉSAMORCE LE CAS DE L'ADOLESCENT. Sans elle, quelqu'un qui
-     s'inscrit pour lui-même lit « les élèves rattachés à votre compte » et se
-     demande s'il a mal fait quelque chose. On le nomme explicitement. */
+     s'inscrit pour lui-même se demande s'il a mal fait quelque chose. */
   'account.model.teen':
     'Un adolescent qui s’inscrit seul est simplement un compte avec un seul profil : c’est le cas prévu, pas une exception.',
   'account.holder': 'Titulaire du compte',
   'account.title': 'Mon compte',
-  /* ⚠️ CORRIGÉ. Disait « Rien d'autre n'est stocké ici », ce qui était vrai
-     avant les profils d'élève, les points et les présences — et faux depuis. Une
-     page de compte qui sous-déclare ce qu'elle garde est le même défaut qu'une
-     politique de confidentialité périmée. */
-  'account.intro':
-    'Votre compte, les élèves qui y sont rattachés, et la suppression définitive.',
-  'account.displayName': 'Prénom affiché',
+  'account.intro': 'Les profils de ce compte, vos réglages, et la suppression définitive.',
+  /* ⚠️ « PRÉNOM AFFICHÉ » NE VOULAIT RIEN DIRE POUR UN PARENT — affiché où, et
+     de qui ? C'est le nom du TITULAIRE, et l'indication le précise au lieu de
+     laisser croire qu'il s'agit de l'enfant. */
+  'account.displayName': 'Votre prénom',
+  'account.displayNameHint':
+    'Le prénom du titulaire du compte. Il n’apparaît sur aucun profil de joueur.',
+  'account.displayNamePlaceholder':
+    'Ce nom vient de votre adresse e-mail. Remplacez-le par votre prénom.',
   'account.locale': 'Langue',
   'account.save': 'Enregistrer',
   'account.saved': 'Enregistré.',
@@ -641,9 +694,9 @@ const fr = {
      « votre » est devenu « de chaque élève » — parce que ce qui est stocké est
      rattaché au profil, pas au titulaire du compte. */
   'privacy.stored.children':
-    'Le prénom de chaque élève rattaché au compte — un prénom seul, jamais un nom de famille, jamais une date de naissance.',
+    'Le prénom de chaque profil de joueur rattaché au compte — un prénom seul, jamais un nom de famille, jamais une date de naissance.',
   'privacy.stored.progress':
-    'La progression de chaque élève : exercices résolus, tentatives, indices utilisés, leçons terminées.',
+    'La progression de chaque profil : exercices résolus, tentatives, indices utilisés, leçons terminées.',
   'privacy.stored.points':
     'Ses points : ceux gagnés sur le site et ceux attribués par un professeur, avec la raison indiquée.',
   'privacy.stored.games':
@@ -1121,62 +1174,104 @@ const en: Record<keyof typeof fr, string> = {
   'callback.working': 'Signing you in…',
   'callback.failed': 'This link is no longer valid. Request a new one.',
   'callback.retry': 'Back to sign in',
-  /* ── /en/bienvenue — first run, once. See the FR note. */
+  /* ── /en/bienvenue — first run, once. See the FR note for the reasoning. */
   'welcome.title': 'Welcome to the club',
-  'welcome.intro': 'One step, and we will not ask again.',
-  'welcome.nameHeading': 'The student’s first name',
-  'welcome.nameBodyPlaceholder':
-    'We created a student profile from your email address. That is not a name — please replace it.',
-  'welcome.nameBodyNamed':
-    'Check the student’s first name. It appears on their progress and on the attendance sheet.',
-  'welcome.nameLabel': 'Student’s first name',
-  'welcome.otherLabel': 'Another student’s first name',
-  'welcome.addAnother': 'Add another child',
-  'welcome.removeField': 'Remove this field',
+  'welcome.intro': 'One question, and we will not ask it again.',
+  'welcome.who.heading': 'Who is this account for?',
+  'welcome.who.body':
+    'This only decides how we talk to you afterwards. You can change all of it from “My account”.',
+  'welcome.who.self': 'Me — I play',
+  'welcome.who.selfNote': 'The account and the player profile are both yours.',
+  'welcome.who.children': 'My child (or my children)',
+  'welcome.who.childrenNote': 'You keep the account; each child gets their own profile.',
+  /* ⚠️ "Both" is the ORDINARY case, not an edge case, and the note says so. */
+  'welcome.who.both': 'Both',
+  'welcome.who.bothNote':
+    'You play too: you get your own profile, exactly like your children.',
+  'welcome.back': 'Change answer',
+  'welcome.self.heading': 'What is your first name?',
+  'welcome.self.body':
+    'Your first name appears on your progress and on the attendance sheet.',
+  'welcome.self.label': 'Your first name',
+  'welcome.child.heading': 'Your child’s first name',
+  'welcome.child.body':
+    'It appears on their progress and on the club’s attendance sheet.',
+  'welcome.child.label': 'Your child’s first name',
+  'welcome.child.otherLabel': 'Another child’s first name',
+  'welcome.child.add': 'Add another child',
+  'welcome.placeholderNote':
+    'We created a profile from your email address. That is not a first name — please replace it.',
   'welcome.save': 'Save and continue',
   'welcome.saving': 'Saving…',
   'welcome.skip': 'Skip this step',
   'welcome.skipNote':
-    'You can add, rename or remove a student at any time from “My account”.',
+    'You can add, rename or remove a profile at any time from “My account”.',
   'welcome.needName': 'Enter a first name, or skip this step.',
+  'welcome.needNameSelf': 'Enter your first name, or skip this step.',
   'welcome.error': 'Could not save. Try again, or skip this step.',
+
+  /* ── "Who is playing?" — the picker, on a shared device ───────────────── */
   'child.heading': 'Who is playing?',
   'child.intro':
-    'Choose the student. The choice is remembered on this device: a child’s own phone only asks once.',
-  'child.addLabel': 'Add a student',
+    'Choose the profile. This device remembers the choice: a child’s own phone only asks once.',
+  'child.addLabel': 'Add a profile',
+  /* ⚠️ "student" is gone from parent-facing copy — it stays on the staff side. */
+  'child.addLabelChild': 'Add a child',
   'child.add': 'Add',
-  'child.addError': 'Could not add this student. Please try again.',
-  /* ⚠️ "Students on this account", never "My students" — see the FR note. The
-     heading has to be true for a teenager whose account holds one profile: their
-     own. Name the structure, never the relationship. */
-  'family.heading': 'Students on this account',
-  'family.intro':
-    'The students on this account. You can add one, rename one, or remove one.',
-  'family.introOne':
-    'This account has a single student profile. It keeps the progress, the points and the attendance — yours if you are the one playing, your child’s if you are enrolling them.',
-  'family.introMany':
-    'This account has %s student profiles. Each one keeps its own progress, points and attendance.',
+  'child.addError': 'Could not add this profile. Try again.',
+
+  /* ── The profiles block, at the top of /compte ─────────────────────────── */
+  'profiles.heading.self': 'Your profile',
+  'profiles.heading.children': 'Your children',
+  'profiles.heading.both': 'You and your children',
+  'profiles.heading.unknown': 'The profiles on this account',
+  'profiles.intro.self':
+    'Your player profile: it keeps your progress, your points and your attendance.',
+  'profiles.intro.childrenOne':
+    'Your child’s profile. It keeps their progress, their points and their attendance.',
+  'profiles.intro.childrenMany':
+    'The profiles of your %s children. Each one keeps its own progress, points and attendance.',
+  'profiles.intro.both':
+    'Your profile and your children’s. Each one keeps its own progress, points and attendance.',
+  'profiles.intro.unknownOne':
+    'This account has a single player profile. It is the one that keeps the progress, the points and the attendance — yours if you are the one playing, your child’s if you enrolled them.',
+  'profiles.intro.unknownMany':
+    'This account has %s player profiles. Each one keeps its own progress, points and attendance.',
+  'profiles.you': 'You',
+  'profiles.youLabel': 'Your own profile',
+  'profiles.points': '%s points',
+  'profiles.solved': '%s exercises solved',
+  'profiles.loading': 'Loading progress…',
+  'profiles.markSelf': 'This is me',
+  'profiles.markSelfLabel': 'Mark %s as your own profile',
+  'profiles.markSelfError': 'Could not update. Try again.',
   'family.rename': 'Rename',
   'family.renameLabel': 'New first name for %s',
   'family.save': 'Save',
   'family.cancel': 'Cancel',
-  'family.renameError': 'Could not rename this student. Please try again.',
+  'family.renameError': 'Could not rename this profile. Try again.',
   'family.remove': 'Remove',
-  'family.removeConfirm': 'Remove %s? All of their progress will be erased.',
+  'family.removeConfirm': 'Remove %s? All their progress will be erased.',
   'family.removeYes': 'Yes, remove',
-  'family.removeError': 'Could not remove this student. Please try again.',
-  'family.onlyChild': 'An account always keeps at least one student.',
+  'family.removeError': 'Could not remove this profile. Try again.',
+  'family.onlyChild': 'An account always keeps at least one profile.',
+
+  /* ── Account settings — the middle block, collapsed ────────────────────── */
+  'account.settings.heading': 'Account settings',
+  'account.settings.summary': 'Your name, your language, your email address',
+  'account.advanced.heading': 'Advanced options',
+  'account.advanced.summary': 'Permanent account deletion',
   'account.delete.heading': 'Delete my account',
   'account.delete.body':
     'Deletion is permanent and immediate. There is no bin, and nothing can be restored.',
   'account.delete.listIntro': 'This erases:',
   'account.delete.item.account': 'the account and its email address;',
-  'account.delete.item.children': 'the students attached to this account;',
+  'account.delete.item.children': 'the player profiles attached to this account;',
   'account.delete.item.progress': 'their progress and their games;',
   'account.delete.item.points': 'their points, including points awarded by a teacher;',
   'account.delete.item.attendance': 'their attendance at sessions.',
   'account.delete.retained':
-    'Nothing is kept: no statistics, no archive, no anonymised copy. Progress saved in this browser stays on this device — it is yours, and you can clear it by clearing the site’s data.',
+    'Nothing is kept: no statistics, no archive, no anonymised copy. Progress saved in this browser stays on this device — it is yours, and you can erase it by clearing the site’s data.',
   'account.delete.start': 'Delete my account',
   'account.delete.confirmHeading': 'Confirm deletion',
   'account.delete.confirmPrompt': 'To confirm, type %s below.',
@@ -1186,18 +1281,20 @@ const en: Record<keyof typeof fr, string> = {
   'account.delete.cancel': 'Cancel',
   'account.delete.working': 'Deleting…',
   'account.delete.error':
-    'Deletion failed and your account is intact. Try again, or message the club.',
+    'Deletion failed and your account is intact. Try again, or write to the club.',
   'account.model.heading': 'How this account is organised',
   'account.model.body':
-    'You hold this account, identified by your email address. Students are profiles attached to it: each one keeps its own progress, points and attendance.',
+    'You hold this account, identified by your email address. Players are profiles attached to it: each one keeps its own progress, points and attendance.',
   'account.model.teen':
-    'A teenager signing up on their own is simply an account with a single profile: that is the expected case, not an exception.',
+    'A teenager who signs up alone is simply an account with a single profile: that is the expected case, not an exception.',
   'account.holder': 'Account holder',
   'account.title': 'My account',
-  /* ⚠️ Corrected — see the FR note. It claimed "Nothing else is stored here",
-     which stopped being true when child profiles, points and attendance landed. */
-  'account.intro': 'Your account, the students attached to it, and permanent deletion.',
-  'account.displayName': 'Display first name',
+  'account.intro': 'The profiles on this account, your settings, and permanent deletion.',
+  'account.displayName': 'Your first name',
+  'account.displayNameHint':
+    'The account holder’s first name. It does not appear on any player profile.',
+  'account.displayNamePlaceholder':
+    'This name came from your email address. Replace it with your first name.',
   'account.locale': 'Language',
   'account.save': 'Save',
   'account.saved': 'Saved.',
@@ -1208,7 +1305,6 @@ const en: Record<keyof typeof fr, string> = {
   'account.role.prof': 'Teacher',
   'account.role.eleve': 'Student',
   'account.progress.heading': 'Progress',
-  /* ── v2-S3. See the FR note above. */
   'account.import.recovered': '%s exercises and %s lessons recovered from this device.',
   'account.import.upToDate': 'Your progress is up to date.',
   'account.sync.ok': 'Synced.',
@@ -1236,9 +1332,9 @@ const en: Record<keyof typeof fr, string> = {
      note. Three entries added, and "your" became "each student's", because what
      is stored hangs off the profile and not off the account holder. */
   'privacy.stored.children':
-    'The first name of each student attached to the account — a first name only, never a surname, never a date of birth.',
+    'The first name of each player profile attached to the account — a first name only, never a surname, never a date of birth.',
   'privacy.stored.progress':
-    'Each student’s progress: exercises solved, attempts, hints used, lessons finished.',
+    'Each profile’s progress: exercises solved, attempts, hints used, lessons finished.',
   'privacy.stored.points':
     'Their points: those earned on the site and those awarded by a teacher, with the stated reason.',
   'privacy.stored.games':

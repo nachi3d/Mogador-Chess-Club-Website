@@ -93,7 +93,51 @@ if (all) {
 }
 
 const target = all ? '' : specs.map((s) => `tests/e2e/${s}`).join(' ');
-const command = `npx playwright test --project=chromium ${target}`.trim();
+
+/**
+ * ⚠️ AUTH-HEAVY SELECTIONS RUN AT TWO WORKERS, AND THAT IS A RATE LIMIT, NOT A
+ * MEMORY LIMIT.
+ *
+ * Every signed-in spec mints its own account and verifies its own magic link,
+ * and `/auth/v1/verify` is rate limited per IP in a short rolling window —
+ * measured against the test project at **22 verifications in 7 seconds**, clear
+ * again a couple of minutes later. At the default six workers a selection that
+ * happens to include several auth files goes over, Supabase serves a bare
+ * `{"code":429,"error_code":"over_request_rate_limit"}`, and the browsers park
+ * on it: the report then shows plain navigation timeouts on a DIFFERENT set of
+ * tests every run, all of which pass when the file is run on its own.
+ *
+ * ⚠️ THE BACKOFF IN `followMagicLink()` IS THE SECOND LINE, NOT THE FIRST. It
+ * recovers a burst; it cannot recover a sustained overload, and every second it
+ * spends waiting is a second added to the gate. Not creating the burst is
+ * cheaper than surviving it.
+ *
+ * ⚠️ TWO IS NOT A TUNING KNOB — it is roughly a third of the verification rate
+ * six workers produce, which is the difference between green and red. Raising
+ * it back reintroduces the whole problem, exactly as `--workers=3` does for
+ * memory in `test-release.mjs`. The cost is paid ONLY on branches that touch
+ * auth; everything else keeps the full fan-out.
+ */
+const AUTH_SPECS = new Set([
+  'account-deletion.spec.ts',
+  'admin.spec.ts',
+  'attendance-timing.spec.ts',
+  'auth.spec.ts',
+  'child-profiles.spec.ts',
+  'family.spec.ts',
+  'onboarding.spec.ts',
+  'progress-sync.spec.ts',
+  'role-separation.spec.ts',
+]);
+const authSpecs = all ? AUTH_SPECS.size : specs.filter((s) => AUTH_SPECS.has(s)).length;
+const workers = authSpecs > 2 ? ' --workers=2' : '';
+if (workers) {
+  console.log(
+    dim(`  ${authSpecs} auth spec(s) selected → --workers=2 (Supabase verify rate limit)`),
+  );
+}
+
+const command = `npx playwright test --project=chromium${workers} ${target}`.trim();
 
 console.log(dim(`  ${command}\n`));
 const result = spawnSync(command, { cwd: ROOT, stdio: 'inherit', shell: true });

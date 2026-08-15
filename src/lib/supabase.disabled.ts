@@ -34,6 +34,7 @@ export interface Profile {
   readonly locale: string;
   readonly guardian_phone: string | null;
   readonly onboarded_at: string | null;
+  readonly account_shape: string | null;
 }
 
 /** Always false: there is no configuration in a disabled build, by design. */
@@ -103,6 +104,6 @@ export async function deleteOwnAccount(): Promise<{ ok: false; message: string }
  * anybody: nothing is claimed to have happened, and the only consequence of
  * `ok: false` is a screen that is never reachable in this build anyway.
  */
-export async function markOnboarded(): Promise<{ ok: boolean }> {
+export async function markOnboarded(_shape?: string | null): Promise<{ ok: boolean }> {
   return { ok: false };
 }

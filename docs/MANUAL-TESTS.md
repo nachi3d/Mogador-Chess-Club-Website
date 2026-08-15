@@ -444,31 +444,67 @@ With the flag **on** (`npm run demo:accounts`):
       `/progres/` are **the same number**. Two plausible, different totals is the
       worst failure this display can have
 
-#### The family section on `/compte/` — walk it as an account with ONE child
+#### The profiles block on `/compte/` — walk it as an account with ONE profile
 
 ⚠️ **Sign in as `seed-eleve-2` (Omar, one child), not as the two-child family.**
-One child is the shape every real signup produces, and it is the shape in which
+One profile is the shape every real signup produces, and it is the shape in which
 this whole section used to be invisible. Procedure in
 [`docs/LOCAL-ACCOUNTS.md`](./LOCAL-ACCOUNTS.md) §6a.
 
-- [ ] **Mes élèves** is there, with the child listed and **Ajouter un élève**
-      reachable — the regression that shipped for two releases
-- [ ] **Qui joue ?** is *not* there at one child, and appears as soon as a second
-      is added. Two rules, and only the picker is the conditional one
-- [ ] There is no **Retirer** at one child, and a sentence explains it rather than
-      a greyed-out button explaining nothing
-- [ ] **Retirer** on a second child asks first, **names the child**, and says the
-      progress goes with them. Cancel leaves everything alone
+- [ ] The block is **first on the page**, open, with the child listed and the add
+      form reachable — the regression that shipped for two releases
+- [ ] ⚠️ **The word « élève » appears NOWHERE in it.** « Ajouter un enfant » or
+      « Ajouter un profil », never « Ajouter un élève ». The staff side keeps the
+      word; a parent reading about their own family should not meet it
+- [ ] Each card carries a **rank, a points total and an exercise count**, and a
+      bar. ⚠️ **If a card shows `0 points` for a profile that has solved
+      something, the numbers are not being derived** — that is Critical Feature 61
+- [ ] **Qui joue ?** is *not* there at one profile, and appears as soon as a
+      second is added. Two rules, and only the picker is the conditional one
+- [ ] There is no **Retirer** at one profile, and a sentence explains it rather
+      than a greyed-out button explaining nothing
+- [ ] **Retirer** on a second profile asks first, **names it**, and says the
+      progress goes with it. Cancel leaves everything alone
 - [ ] **Renommer** works, and the new name is what the picker's button says
 - [ ] ⚠️ **The buttons look like this site's buttons** — border, ink, 44px, and
       the press. They are built by script, so a scoped `<style>` would silently
       miss every one of them; that is exactly what had happened to the picker
 
+#### ⚠️ The three blocks — the shape of the page IS the feature
+
+`/compte/` used to be one flat column in which the interface language and
+permanent deletion carried the same weight as a child's progress.
+
+- [ ] Top to bottom: **the profiles**, then **Réglages du compte**, then
+      **Options avancées**. Nothing else between them
+- [ ] Both disclosures are **closed** when the page loads. ⚠️ **If "Options
+      avancées" is open, deletion is competing with the roster again**
+- [ ] They open on click AND on Enter/Space from the keyboard, and the whole
+      summary row is the target — not just the word
+- [ ] **Se déconnecter** is visible without opening anything. It is ordinary and
+      frequent; it must not be buried next to deletion
+- [ ] As a prof or admin, **Espace encadrants** is also visible without opening
+      anything. ⚠️ A prof at Dar Souiri must not have to guess that the register
+      lives behind "Réglages du compte"
+- [ ] Inside Réglages: the field is « Votre prénom » with a sentence saying it is
+      the **account holder's** name and appears on no player profile. ⚠️ « Prénom
+      affiché » told a parent nothing — displayed where, and whose?
+
+#### ⚠️ A skipped onboarding must point at the placeholder name
+
+- [ ] Sign in on a **fresh** account and press "Passer cette étape"
+- [ ] On `/compte/`, **Réglages du compte is already open**, and a note under the
+      name field says the name came from your email address
+- [ ] Change it and save: the note goes away and does not come back on reload
+- [ ] ⚠️ **If the note is there but the block is closed, nobody will ever read
+      it** — that is the whole reason the block opens itself
+
 #### Supprimer mon compte — the one that cannot be undone
 
 ⚠️ **Use a throwaway seeded account, never your own.** There is no bin.
 
-- [ ] The section names what goes — élèves, progression, parties, points,
+- [ ] It is inside **Options avancées**, and you had to open that to get here
+- [ ] The section names what goes — profils, progression, parties, points,
       présences — **before** the confirmation, not after
 - [ ] **Supprimer** reveals a typed confirmation and the first button goes away.
       Two delete buttons in the same place is one mis-tap on a family tablet
@@ -528,36 +564,81 @@ Run `npm run demo:accounts -- --host` and use the LAN address.
       echo the address back
 - [ ] Follow the link. You land on **`/bienvenue/`**, not `/compte/`
 
-**The welcome screen**
+**The welcome screen — ⚠️ THE QUESTION IS THE FEATURE**
 
-- [ ] The first-name field is **empty**, and the sentence above it says the
-      current name came from your email address. ⚠️ **If it is pre-filled with
-      something like `nachiketas3d`, that is the bug this screen exists to fix**
-- [ ] Both buttons are reachable with one thumb, side by side or stacked, with
-      no horizontal scrolling at 390px
-- [ ] "Ajouter un autre enfant" reveals a second field and moves focus into it.
-      Repeat until the button disappears rather than doing nothing
-- [ ] Type one name, save. You land on `/compte/` and the roster shows it
+- [ ] Step one is **« Qui va utiliser ce compte ? »** with three full-width
+      buttons, each carrying a sentence saying what it means. No name field yet
+- [ ] All three are reachable with one thumb at 390px, with no horizontal scroll
+- [ ] ⚠️ **Read « Les deux » as a parent who plays.** It must read as the ordinary
+      case, not as an odd extra. If it feels like bending the tool, the copy is
+      wrong — that parent is the club's typical family (Critical Feature 57)
+
+**« Moi, je joue »**
+
+- [ ] Step two asks **« Comment vous appelez-vous ? »** and nothing about children
+- [ ] Save. `/compte/` is headed **« Votre profil »** and your card is badged
+      **VOUS**. ⚠️ Nothing anywhere says "votre enfant"
+
+**« Mon enfant (ou mes enfants) »**
+
+- [ ] Step two asks **« Le prénom de votre enfant »** and does *not* ask yours
+- [ ] The field is **empty**, and a note says the current name came from your
+      email address. ⚠️ **If it is pre-filled with something like `nachiketas3d`,
+      that is the bug this screen exists to fix**
+- [ ] "Ajouter un autre enfant" reveals a field and moves focus into it. Repeat
+      until the button disappears rather than doing nothing
+- [ ] Save. `/compte/` is headed **« Vos enfants »**, and **no** card is badged
+      VOUS
+
+**« Les deux »**
+
+- [ ] Step two shows **both** sections, yours first
+- [ ] Fill your name and two children. Save
+- [ ] `/compte/` is headed **« Vous et vos enfants »**, your card is badged VOUS
+      and sits first, and the picker offers all three
+- [ ] ⚠️ **Your own card earns points like any other.** Solve an exercise as
+      yourself and the number moves
+
+**Changing your mind, and being asked once**
+
+- [ ] From step two, **« Changer de réponse »** goes back to the question, and a
+      different answer really takes
 - [ ] Sign out, sign in again: you land on `/compte/`, **never** `/bienvenue/`
 - [ ] Open `/bienvenue/` by hand afterwards — it sends you to `/compte/`
+- [ ] On an account that answered « Mon enfant », **« C'est moi »** on a card
+      claims it: the badge appears, the heading changes, and the button is gone
+      from every other card
 
 **Skipping**
 
-- [ ] With a *fresh* account, press "Passer cette étape". You land on `/compte/`
-- [ ] The family section is there, the add form works, the roster shows the
-      auto-created child. ⚠️ **A skipped onboarding must leave nothing broken**
+- [ ] With a *fresh* account, press "Passer cette étape" — available at **both**
+      steps. You land on `/compte/`
+- [ ] The profiles block is there, the add form works, the roster shows the
+      auto-created profile. ⚠️ **A skipped onboarding must leave nothing broken**
+- [ ] The heading is the neutral **« Les profils de ce compte »**. ⚠️ **Skipping
+      is not an answer** — if the page has decided you are a parent, it guessed
 
 **Reading the account**
 
-- [ ] `/compte/` says « Titulaire du compte » next to your address, and the
-      block above explains that students are profiles beneath it
-- [ ] With ONE child the section reads « un seul profil d'élève » and there is
-      no "Qui joue ?" picker
-- [ ] Add a second child: the wording changes to « 2 profils d'élève » and the
-      picker appears
-- [ ] ⚠️ **Read the one-child sentence as if you were a fifteen-year-old who
+- [ ] `/compte/` says « Titulaire du compte » next to your address, inside
+      Réglages, and the model block there explains that players are profiles
+      beneath the account
+- [ ] With ONE profile and no answer given, it reads « un seul profil de joueur »
+      and there is no "Qui joue ?" picker
+- [ ] Add a second: the wording changes to « 2 profils de joueur » and the picker
+      appears
+- [ ] ⚠️ **Read the one-profile sentence as if you were a fifteen-year-old who
       signed up alone.** It must not tell them they have a child. If it does,
       that is Critical Feature 54 and the copy is wrong, not the reader
+
+**Both themes, both modes**
+
+- [ ] Walk `/bienvenue/` and `/compte/` in **Terminal dark** and **Bois light** —
+      the two extremes. Every card border, badge and bar is visible in both
+- [ ] The **VOUS** badge is ink-on-brass, never white-on-brass
+- [ ] With `prefers-reduced-motion` on, the answer buttons still respond to
+      hover and focus — the border change is feedback, and feedback is never
+      removed, only made instant
 
 **Deleting**
 
@@ -1565,7 +1646,7 @@ first check below.
 - [ ] First sign-in on a fresh account: **no picker appears**, and a board you
       solve syncs. One child was created silently — this is the autonomous-
       teenager path, and seeing a picker here would be the bug
-- [ ] `/compte/` → **Ajouter un élève** → add a second name. The picker now
+- [ ] `/compte/` → **Ajouter un enfant** → add a second name. The picker now
       appears with both, one of them marked as chosen
 - [ ] Solve an exercise, switch to the other child on `/compte/`, open
       `/progres/` — the second child's progress is **separate**, not shared

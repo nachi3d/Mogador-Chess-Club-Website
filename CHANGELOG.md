@@ -13,6 +13,179 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ---
 
+## [0.14.0] — 2026-08-15
+
+**The site now asks who the account is for, and `/compte/` answers in their
+words rather than in ours.**
+
+### ⚠️ Why v0.13.0's onboarding never appeared — it was never deployed
+
+Seàn signed up on production and the welcome screen did not fire. It is not a
+condition, a redirect or a migration: **production has been serving a build that
+predates v0.13.0 entirely.**
+
+- `/bienvenue/` and `/admin/comptes/` — both added in the v0.13.0 merge — return
+  **404** on the live site.
+- The deployed callback chunk hard-codes `window.location.replace('/compte/')`
+  and contains no reference to `onboarded_at` or `bienvenue` at all.
+- `/compte/` still renders "Prénom affiché" and carries neither "Titulaire du
+  compte" nor "Les élèves de ce compte", both of which shipped in that merge.
+
+The last deployment is **2026-08-14T22:02:45Z — 67 minutes after the v0.13.0
+merge**, and it replaced the Workers Build that the `main` push triggered 115
+seconds after it. That is exactly the two-deploy-paths hazard already written up
+in CLAUDE.md: **last writer wins, and the later writer was building an older
+tree.**
+
+Two things this corrected along the way, both of which had been stated as fact
+and were not:
+
+- **Accounts are already ON in production.** `/connexion/`, `/compte/` and
+  `/admin/` all answer 200. The flag is a Cloudflare dashboard build variable;
+  the repository default stays `false`.
+- **Production's schema is current through 0009**, not missing 0008 and 0009.
+  Verified against the catalog rather than the ledger — `account_deletions`
+  answers `42501` (permission denied, so the table exists) where a missing table
+  answers `PGRST205`.
+
+⚠️ **Nothing in this release fixes the deployment.** Applying migration 0010 and
+verifying that the next deploy actually lands are both in BACKLOG, and both are
+Seàn's.
+
+### Added
+
+- **`/bienvenue/` asks « Qui va utiliser ce compte ? »** — one screen, three
+  answers: **Moi, je joue** / **Mon enfant (ou mes enfants)** / **Les deux**.
+  v0.13.0 asked for "le prénom de l'élève", which quietly assumes the account
+  holder is not one of the players. For the club's typical family that is false:
+  a parent brings two children to the workshop **and plays**, and was being
+  filed under a heading about their children. Nothing in the database
+  distinguishes that parent from a teenager who signed up alone, so the only
+  honest way to know is to ask. **"Les deux" is presented as the ordinary case,
+  in its own words**, not as an edge case.
+- The answer drives the vocabulary everywhere afterwards — « votre profil » /
+  « vos enfants » / both, with the account holder's own card badged **VOUS**.
+- **Migration 0010**: `profiles.account_shape` (what they answered; `null` means
+  never answered) and `child_profiles.is_self` (which profile is the holder's
+  own), with a partial unique index so an account has at most one.
+- **`src/lib/account-shape.ts`** — the single place the stored answer and the
+  actual roster meet. The roster wins wherever it can speak, so an account that
+  answered "moi" and later adds a child reads as "both" without anybody
+  rewriting a column.
+- **Profile cards on `/compte/`** carrying each profile's rank, points, solved
+  count and progress through the current rank — derived by `computeLedger()`,
+  the one summation a prof's screen also uses, from three queries for the whole
+  account rather than three per profile.
+- **« C'est moi »** on a roster row. `/bienvenue/` is shown once per account, so
+  without it a reader whose situation changed had no way to say so.
+- **`followMagicLink()`** in the test helpers — a measured, bounded retry for
+  Supabase's auth burst limit.
+
+### Changed
+
+- **`/compte/` is three blocks instead of one flat column**: the profiles first
+  and open, **Réglages du compte** collapsed, **Options avancées** (deletion
+  only) collapsed at the bottom. Everything used to carry the same weight —
+  which meant the button that permanently erases a child's progress sat in the
+  flow like a language preference. Native `<details>`, so it works with no
+  JavaScript and is keyboard- and screen-reader-operable for free.
+- **Signing out and the staff link stay outside both disclosures.** Signing out
+  is ordinary and frequent; a prof at Dar Souiri must not have to guess that the
+  register lives behind "Réglages du compte".
+- **« élève » is gone from parent-facing copy** — "vos enfants", "Ajouter un
+  enfant", "Le prénom de votre enfant". « votre élève : Seàn » is meaningless
+  for somebody who plays themselves. `/admin*` keeps the word, because that
+  audience really is looking at a class of students.
+- **"Prénom affiché" is now "Votre prénom"**, with a sentence saying it is the
+  *account holder's* name and appears on no player profile. The old label told a
+  parent nothing — displayed where, and whose? — and reading it at the top of a
+  flat page, the reasonable conclusion was that it was their child's.
+- **The settings block opens itself when the name is still the email local
+  part.** That is the remedy for a skipped welcome screen, and a warning inside
+  a collapsed disclosure is a warning nobody reads.
+- `getProfile()` now walks a **ladder of column lists** rather than one explicit
+  select. An unapplied migration used to turn every profile read into `null`,
+  which is indistinguishable from "not signed in" — so a single missing column
+  did not degrade the account, it silently emptied it and sent every first
+  sign-in past the welcome screen. It now degrades to the neutral copy instead.
+
+### Fixed
+
+- ⚠️ **A stale register load silently discarded a prof's attendance taps.** The
+  accounts-ON matrix caught the summary reading `18 sur 26 marqués` immediately
+  after twenty successful taps whose rows were **already durable in Postgres**.
+  The marks were safe; the count a teacher reads to know who is left was wrong.
+  Two `loadRegister()` calls are routinely in flight — the page preselects the
+  nearest session on `mcc:admin-ready`, and anything touching the picker before
+  that settles starts a second — and both end in `renderMarkList()`, which
+  begins by clearing `marks`. Whichever answers *last* wins, and a stale answer
+  discards taps already made. Same bug and same remedy as `FamilySection.astro`,
+  which has carried a generation counter for exactly this since v0.12.0: the
+  lesson was written down in this codebase and never applied to the register.
+  The init preselect also no longer steals a session the reader has already
+  chosen out from under them.
+- **`/compte/` printed a rank and a point total that nothing computed.**
+  `data-score-points` and `data-score-rank` sat in the markup with **no
+  `ScoreResolver` on the page**, so every account read "0 points" and a blank
+  rank, permanently. Critical Feature 30 forbids exactly this on `/progres/`;
+  the profile cards now derive their numbers or say they are still loading.
+- **The e2e suite could exhaust Supabase's auth rate limit and blame the
+  application.** The browser parks on a bare
+  `{"code":429,"error_code":"over_request_rate_limit"}` body, so every waiting
+  spec died of a plain navigation timeout — on a *different* set of tests each
+  run, all passing when run file-by-file. Measured at **22 verifications in 7
+  seconds**, no `Retry-After`. Three things now hold it: `test-branch.mjs` caps
+  an auth-heavy selection at `--workers=2` so the burst is not created,
+  `followMagicLink()` and `anonClientAsUser()` back off 10s then 30s on a
+  **positively identified** 429, and a failure past that names the cause instead
+  of reporting a navigation timeout. ⚠️ **A longer backoff was tried and made it
+  worse** — when the project quota is genuinely exhausted every test waits out
+  the ladder before failing anyway, turning a 2-minute gate into a 10-minute one
+  that still went red. Raising the TEST project’s limit is the real fix and is in
+  BACKLOG.
+
+### Release engineering
+
+- **`npm run verify:deploy`** — the check v0.13.0 did not have. It compares the
+  **content-hashed** `/_astro/*` asset names on three live documents against the
+  same documents in `dist/`, so it answers the one question nothing else could:
+  *is the live site running the tree I just cut?* `smoke:prod` passed all 14
+  routes throughout the day production served a pre-v0.13.0 build, because it
+  asserts each page is reachable and correct — not which build made it, and
+  `wrangler deployments list` showed something recent, which it was and which
+  proved nothing. A per-release sentinel was rejected deliberately: the release
+  you forget to bump it on is the release you needed it for, and Astro already
+  fingerprints every bundle by content for free.
+- ⚠️ **The release gate now runs the matrix TWICE — once per flag shape.** The
+  policy said it runs once, on the default build, because that was "what
+  production ships". That premise has been false since accounts were switched on
+  in the Cloudflare dashboard: the default matrix skips every auth spec, so the
+  whole account stack was reaching production with **chromium coverage only**.
+  Neither shape subsumes the other — OFF is the only one that can prove Critical
+  Feature 18 (no route emitted, no Supabase ref in the bundle), ON is the only
+  one that exercises `/bienvenue/`, `/compte/` and `/admin*` at all. Recorded in
+  CLAUDE.md with the reason, so it can be removed honestly if the flag ever goes
+  back off.
+- `docs/ADMIN.md` carries the migration 0010 procedure for production: paste the
+  file rather than `db push`, which reads a ledger known to under-report here and
+  would replay 0005's unguarded `drop constraint`. Then verify against the
+  catalog, never against the ledger.
+
+### Documentation
+
+- CLAUDE.md: Critical Features 57–61; the account-model section rewritten around
+  the question; the accounts-in-production section corrected on both counts; the
+  429 signature added to the environment-symptoms table.
+- `docs/reference/supabase.md`: migration 0010 in full, the `effectiveShape()`
+  derivation table, the copy per answer, the `PROFILE_COLUMNS` reasoning, and
+  the rate-limit measurements.
+- `docs/MANUAL-TESTS.md`: the three answers walked separately, the three-block
+  shape, the skipped-onboarding remedy, and both theme extremes.
+- BACKLOG: apply 0010 to production; verify the next deploy actually lands;
+  split CLAUDE.md (the size guard is warning at 84%).
+
+---
+
 ## [0.13.0] — 2026-08-14
 
 **A parent can now be handed this site, and the account they get explains
@@ -4127,7 +4300,8 @@ Foundation only: no real content, no interactive board yet.
   `url()` references unresolved and the fonts silently 404 into a Georgia
   fallback. `scripts/build-fonts.mjs` self-hosts them instead. See CLAUDE.md.
 
-[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.13.0...HEAD
+[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.14.0...HEAD
+[0.14.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.11.1...v0.12.0
 [0.11.1]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.11.0...v0.11.1
