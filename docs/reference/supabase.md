@@ -1122,3 +1122,30 @@ with **no `ScoreResolver` on the page** to fill them — so every account read
 "0 points" and a blank rank forever. Critical Feature 30 forbids exactly this on
 `/progres/`; the same rule now holds here, and the cards derive their numbers
 through `computeLedger()` or say they are still loading.
+
+### ⚠️ AND SUSTAINED ABUSE ESCALATES PAST 429
+
+After roughly two hours of back-to-back auth runs while this feature was being
+built, the test project stopped answering the **browser** at all:
+
+```
+net::ERR_CONNECTION_REFUSED at https://<ref>.supabase.co/auth/v1/…
+```
+
+⚠️ **AND `curl` FROM NODE REACHED THE SAME PROJECT, 200, AT THE SAME MOMENT.**
+So it is not the project being down and it is not the credentials. It also looks
+**exactly** like a dead preview server in the report — until you read the HOST in
+the error and notice the refusals are to `supabase.co`, not to
+`http://localhost:4321`.
+
+Nothing in this repository fixes it. The backoff does not help (it is not a
+burst), the worker cap does not help (the damage is already done), and rerunning
+makes it worse. **Stop, wait, then run once.** Raising the TEST project`s auth
+rate limit in the dashboard is the actual fix and is in BACKLOG.
+
+⚠️ **A SECOND, SELF-INFLICTED VARIANT LOOKS THE SAME AND IS NOT THIS.** Piping a
+test run into `head` or `grep -m1` SIGPIPEs the runner mid-flight; its
+`astro preview` teardown then races the next run`s server, and everything after
+that point fails `ERR_CONNECTION_REFUSED at http://localhost:4321/`. CLAUDE.md
+already says never pipe a test run — this is the failure it produces, and it
+cost this session two gate runs on top of the rate limit.

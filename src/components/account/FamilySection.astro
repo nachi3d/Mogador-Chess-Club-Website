@@ -407,6 +407,12 @@ const rankLabels: Record<string, string> = {
       badge.className = 'child-you';
       badge.dataset['testid'] = 'child-you';
       badge.textContent = msg('msgYou');
+      /* ⚠️ `role="img"` IS WHAT MAKES THE LABEL LEGAL AND HEARD. `aria-label` on
+         a bare span is prohibited on the generic role, so it is free to be
+         ignored — the badge would then read as the single word "Vous" wedged
+         between a name and a rank. With the role it announces "Votre propre
+         profil", which is the thing the badge actually means. */
+      badge.setAttribute('role', 'img');
       badge.setAttribute('aria-label', msg('msgYouLabel'));
       head.append(badge);
     }
