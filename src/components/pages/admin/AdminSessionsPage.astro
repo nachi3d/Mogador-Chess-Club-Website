@@ -296,7 +296,32 @@ const STATUSES = [
     }
   });
 
+  /**
+   * ⚠️ TWO REGISTER LOADS ARE ROUTINELY IN FLIGHT, AND THE LATER ONE TO FINISH
+   * IS NOT THE MOST RECENT ONE REQUESTED.
+   *
+   * The page preselects the nearest session on `mcc:admin-ready` and awaits its
+   * `loadRegister()`; a prof who touches the session picker before that settles
+   * starts a second one. Both end in `renderMarkList()`, which begins by
+   * CLEARING `marks` — so whichever request happens to answer last decides what
+   * the register shows, and a stale answer silently discards taps that have
+   * already been made.
+   *
+   * Measured, not hypothetical: the accounts-ON matrix caught the summary
+   * reading `18 sur 26 marqués` immediately after twenty successful taps whose
+   * rows were already durable in Postgres. The prof's own count — the thing
+   * that stops them losing their place in a room of twenty children — was
+   * wrong, and every mark was safely in the database.
+   *
+   * ⚠️ SAME BUG, SAME REMEDY AS `FamilySection.astro`, which carries this exact
+   * counter for this exact reason. That lesson was written down and not applied
+   * here; a third surface that loads twice must copy the guard, not rediscover
+   * the defect.
+   */
+  let registerGeneration = 0;
+
   async function loadRegister(sessionId: string) {
+    const mine = ++registerGeneration;
     if (!sessionId) {
       if (list) list.innerHTML = '';
       if (emptyNote) emptyNote.hidden = false;
@@ -305,6 +330,10 @@ const STATUSES = [
     }
     if (emptyNote) emptyNote.hidden = true;
     const rows = await listAttendance(sessionId);
+    /* ⚠️ A NEWER LOAD HAS ALREADY ANSWERED — drop this one rather than paint
+       over it. This read may have been issued before marks the prof has since
+       made, and `renderMarkList()` would wipe them. */
+    if (mine !== registerGeneration) return;
     renderMarkList(new Map(rows.map((r) => [r.childId, r.status])));
   }
 
@@ -509,9 +538,17 @@ const STATUSES = [
         (a, b) =>
           Math.abs(Date.parse(a.startsAt) - now) - Math.abs(Date.parse(b.startsAt) - now),
       )[0];
-    if (nearest && select) {
+    /* ⚠️ ONLY IF THE READER HAS NOT ALREADY CHOSEN. `fillSessionSelect()` runs
+       above and this handler is async, so a prof quick enough to pick a session
+       in that window would have it taken off them again — the picker would jump
+       back to "nearest" under their thumb and load a different register. The
+       preselect is a convenience for an untouched control, not an override. */
+    const alreadyChosen = Boolean(select?.value);
+    if (nearest && select && !alreadyChosen) {
       select.value = nearest.id;
       await loadRegister(nearest.id);
+    } else if (alreadyChosen && select) {
+      await loadRegister(select.value);
     } else if (emptyNote) emptyNote.hidden = false;
   });
 </script>
