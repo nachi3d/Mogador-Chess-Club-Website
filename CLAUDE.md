@@ -1808,13 +1808,22 @@ It is a **living document**: keep it in step with the site, in the same commit a
   link + canonical agreement + no third-party subresource, plus the manifest and
   `sw.js`. ⚠️ It is **not** part of `npm run build` and must not become part of it.
 - ⚠️⚠️ **`npm run verify:deploy` ANSWERS THE QUESTION NOTHING ELSE DOES: is the
-  live site running the tree I just cut?** It compares **content-hashed**
-  `/_astro/*` names on three live documents against `dist/` — a match is build
-  identity, with nothing to maintain and no per-release sentinel to forget.
-  **This is the check v0.13.0 did not have**, and it needs a `dist/` built from
-  the tree you are asking about. It asserts the build is THE ONE; `smoke:prod`
+  live site running the tree I just cut?** It compares the **rendered HTML** of
+  three live documents against `dist/`, **with the `/_astro/*` fingerprints
+  normalised away**. **This is the check v0.13.0 did not have**, and it needs a
+  `dist/` built from the tree you are asking about, **with the same build
+  variables Cloudflare uses**. It asserts the build is THE ONE; `smoke:prod`
   asserts the build is GOOD. Run both, in that order, after every deploy.
-  **➡️ Why the other signals cannot answer it:
+- ⚠️⚠️ **DO NOT "IMPROVE" IT BY COMPARING THE HASHES — THAT WAS THE FIRST
+  VERSION AND IT FAILED ON EVERY CORRECT DEPLOY.** Cloudflare builds on Linux
+  and this repo is developed on Windows; Rollup emits a chunk's imports in
+  filesystem order, so identical source yields different minified identifiers
+  and a different hash — **while the chunks either side of it hash
+  identically**. Fingerprints are not reproducible across build environments.
+  ⚠️ The residual gap is stated rather than hidden: a release changing **only
+  island JS**, with every byte of HTML identical, is invisible here — verify a
+  behaviour for those.
+  **➡️ The measured evidence and why the other signals cannot answer it:
   [`docs/reference/deployment.md`](./docs/reference/deployment.md).**
 - **`wrangler` stays out of `package.json`** — invoked with `npx`, to keep its
   transitive advisories out of every install.

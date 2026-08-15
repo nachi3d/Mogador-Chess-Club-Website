@@ -11,6 +11,37 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### Fixed
+
+- ⚠️ **`verify:deploy` compared build fingerprints, and would have failed on
+  every correct deploy.** It shipped in v0.14.0 comparing the content-hashed
+  `/_astro/*.HASH.js` names on three documents against `dist/` — reasoning that
+  Astro fingerprints by content, so equal names must mean equal source. It
+  reported a mismatch on the v0.14.0 deploy, which was in fact correct and live.
+
+  Cloudflare builds on Linux; this repository is developed on Windows. Rollup
+  emits a chunk's imports in filesystem order, so identical source yields
+  different minified identifiers and a different hash:
+
+  ```
+  live   import{t as e}from"./preload-helper…";import{a as t,i as n,n as r}from"./preact.module…"
+  local  import{a as e,i as t,n}from"./preact.module…";import{t as r}from"./preload-helper…"
+  ```
+
+  Partially, too — the chunks either side hashed **identically**, which is what
+  made it look like a genuine partial deploy rather than a measurement artefact.
+
+  It now compares the **rendered HTML** with the fingerprints normalised away,
+  which is a pure function of the source: 183 KB across three documents,
+  matching byte for byte. ⚠️ **A check that fails on every correct deploy is
+  worse than no check** — it trains whoever runs it to ignore the one signal
+  meant to catch a silent regression. The residual gap is now stated rather than
+  hidden: a release changing only island JS, with identical HTML, is invisible
+  here, and needs a behaviour verified instead. The rewrite was confirmed to
+  still FAIL on a single injected line before being trusted.
+
+---
+
 ---
 
 ## [0.14.0] — 2026-08-15

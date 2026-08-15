@@ -472,12 +472,59 @@ Every one of those is a real check and none of them is the one that was needed.
 
 ### How the check works, and why it is derived rather than declared
 
-Astro fingerprints every bundle by **content**: `_astro/ChessBoard.BQ3f9k2p.js`
-changes name whenever the module graph behind it changes. So the set of
-`/_astro/*` names a document pulls is the identity of the build that produced it.
+`verify:deploy` fetches three live documents and compares them, byte for byte,
+against the same documents in `dist/` — with every `/_astro/NAME.HASH.ext`
+rewritten to `/_astro/NAME.ext` first. Everything that comes from the SOURCE
+survives that normalisation: text, structure, attributes, inline scripts, the
+order assets are referenced in. Only the toolchain-dependent fingerprint is
+dropped.
 
-`verify:deploy` fetches three live documents, extracts that set, and compares it
-against the same documents in `dist/`.
+### ⚠️⚠️ THE FIRST VERSION COMPARED THE FINGERPRINTS, AND IT WAS WRONG
+
+The obvious design is to compare the `/_astro/*.HASH.js` names: Astro
+fingerprints by content, so equal names must mean equal source. That is what
+this script did when it was written, it was documented here as the answer, and
+**it failed on the very first real deploy it was used for** — against a
+deployment that was in fact correct.
+
+Cloudflare builds on Linux; this repository is developed on Windows. Rollup
+emits a chunk's imports in filesystem order, so the same source produces
+different bytes:
+
+```
+live   import{t as e}from"./preload-helper…";import{a as t,i as n,n as r}from"./preact.module…"
+local  import{a as e,i as t,n}from"./preact.module…";import{t as r}from"./preload-helper…"
+```
+
+Same modules, same versions, different order — so different minified
+identifiers, so a different hash. And the mismatch is **partial**: the chunks
+either side of it (`preact.module.Bl7PEaKa.js`, `preload-helper.CxFQXtKk.js`)
+hashed **identically** on both machines, which is exactly what made the result
+look like a genuine partial deploy rather than a measurement artefact.
+
+⚠️ **A CHECK THAT REPORTS FAILURE ON EVERY CORRECT DEPLOY IS WORSE THAN NO
+CHECK** — it trains whoever runs it to ignore the one signal that was supposed
+to catch a silent regression. That is the failure mode to weigh against, not
+false confidence.
+
+⚠️ **THE COMPARISON THEREFORE REQUIRES A LOCAL BUILD MADE WITH THE SAME BUILD
+VARIABLES CLOUDFLARE USES** — accounts ON, the production Supabase project.
+Build with `.env.local` and `PUBLIC_AUTH_ENABLED=true`. A build with the TEST
+credentials bakes a different Supabase URL into the client chunk and the HTML
+will legitimately differ.
+
+### ⚠️ The residual gap, stated rather than hidden
+
+A release that changes **only island JavaScript**, leaving every byte of rendered
+HTML identical, is invisible to this check: the normalisation that removes the
+toolchain noise removes that signal with it. This site is content-heavy and such
+a release is rare — but it exists, and for one of those the operator must verify
+a **behaviour** on the live site instead. Nothing here covers it.
+
+⚠️ **The negative test is part of the check's credibility.** After the rewrite,
+a single injected line in one `dist/` document was confirmed to fail the run and
+name the differing line. A verifier nobody has watched fail is a verifier nobody
+should trust.
 
 ⚠️ **A PER-RELEASE SENTINEL WOULD HAVE BEEN THE WRONG DESIGN**, and the reason
 generalises: a string that must be bumped every release will eventually not be,
@@ -492,7 +539,8 @@ partial or stale deploy cannot pass by luck.
 
 ⚠️ **AND THAT IS NOT THEORETICAL — IT FIRED ON THE FIRST RUN.** Pointed at
 production on 2026-08-15, while the site was still serving the pre-v0.13.0
-build:
+build (this run used the original asset-name comparison, since replaced — the
+point it makes about ONE document being insufficient is unchanged):
 
 ```
 ok /                                  3 asset(s) match
