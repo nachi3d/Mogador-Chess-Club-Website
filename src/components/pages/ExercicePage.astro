@@ -11,6 +11,7 @@ import { site } from '@config/site';
 import { exercisesPath } from '@i18n/paths';
 import { useTranslations } from '@i18n/ui';
 import BaseLayout from '@layouts/BaseLayout.astro';
+import Trail from '@components/nav/Trail.astro';
 import LevelBadge from '@components/LevelBadge.astro';
 import ExerciseBoard from '@components/board/ExerciseBoard.astro';
 import ScoreResolver from '@components/progress/ScoreResolver.astro';
@@ -47,9 +48,9 @@ const whatsappShare = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
 
 <BaseLayout locale={locale} title={title} description={description} board>
   <article class="exercise-page">
-    <nav class="exercise-back" aria-label={t('exercises.backToIndex')}>
-      <a href={exercisesPath(locale)}>← {t('exercises.backToIndex')}</a>
-    </nav>
+    {/* ⚠️ THE PARENT, NAMED. See the note in TrapPage — the end-of-page link
+        keeps the collection wording because it is a way onward, not up. */}
+    <Trail locale={locale} href={exercisesPath(locale)} label={t('nav.exercises')} />
 
     <header class="exercise-header">
       <h1>{title}</h1>

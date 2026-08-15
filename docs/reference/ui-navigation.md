@@ -113,7 +113,11 @@ load-bearing:
 
 ### The bottom bar
 
-**Exactly four entries: Accueil, Apprendre, Jouer, Progrès.** Not five.
+⚠️ **SUPERSEDED BY M4 — it is now FIVE SECTIONS.** See "M4 — five sections, and
+knowing where you are" at the foot of this file; the reasoning below is kept
+because the objection it raises is the one M4 had to answer with measurements.
+
+**M1: exactly four entries: Accueil, Apprendre, Jouer, Progrès.** Not five.
 
 ⚠️ **Settings is deliberately not one of them.** It is visited twice and then
 never again, so it does not earn a slot in the one element visible on every
@@ -473,3 +477,146 @@ new family. Under `prefers-reduced-motion` the cursor **still marks the line** �
 it is the menu's only state — it simply arrives without travel.
 
 ---
+
+---
+
+## M4 — five sections, and knowing where you are
+
+**Read when:** touching the bottom bar, the trail, a section landing, or adding
+a route.
+
+### The two problems, and the second is the real one
+
+1. The bar was the wrong shape: four entries, one of which ("Progrès") was a
+   **leaf page** rather than a section — it was there because "the bar needs a
+   fourth destination", which is a layout reason, not a navigational one.
+2. **You lost your place.** The person who built the site repeatedly could not
+   tell where he was, or get back to a page he had just seen, without the
+   browser's own back button.
+
+Nothing was broken. Every page rendered, every link worked, every spec passed.
+The defect was **absence** — the same class as `/progres/` existing on one
+layout only, and invisible for the same reason.
+
+### The audit — what every route had for a way back, before M4
+
+| | routes |
+|---|---|
+| **Nothing at all** (11) | `/cours/` · `/pieges/` · `/exercices/` · `/apprendre-les-bases/` · `/progres/` · `/agenda/` · `/contact/` · `/mentions-legales/` · `/politique-confidentialite/` · `/compte/` · `/connexion/` |
+| **A COLLECTION name** (4) | `/pieges/[slug]/` "Tous les pièges" · `/exercices/[slug]/` "Tous les exercices" · `/apprendre-les-bases/[step]/` "Toutes les étapes" · `/cours/[c]/[lesson]/` "Toutes les leçons" |
+| **The parent, named** (1) | `/cours/[course]/` "← Cours" |
+
+⚠️ **NOT ONE OF THEM WAS A BARE "RETOUR", AND THE COLLECTION NAMES ARE THE
+INTERESTING FAILURE.** "Toutes les leçons" on a lesson page is not wrong — it is
+just not an answer to the question a reader three levels down is asking, which
+is *which course am I about to land in*. The lesson and tutorial pages also
+carried a small inline parent link inside the step counter ("Bien ouvrir une
+partie · Étape 3 sur 6"): it named the right thing, at text size, in a line that
+reads as metadata. It is gone, replaced by the trail, because two links to one
+place — one of them a 17px target — is how the way up got missed.
+
+**After M4: 54 of 59 public FR routes carry a trail.** The five without are
+`/`, `/apprendre/`, `/jouer/`, `/moi/`, `/parametres/` — home and the five
+landings, which are the top.
+
+### The trail
+
+`src/components/nav/Trail.astro`, one component, used everywhere.
+
+- ⚠️ **IT NAMES THE PARENT**, and for a lesson that is the course by title.
+- ⚠️ **IT IS A LINK, NEVER `history.back()`.** A reader arriving from a shared
+  link, a search result or a bookmark has no history to go back to, and a back
+  control that does nothing is worse than no back control. It also means the
+  destination shows in the status bar and opens in a new tab.
+- ⚠️ **44px, AND THE PADDING IS WHAT PROVIDES IT.** The text is ~17px tall; a
+  refactor that trims the padding leaves something that looks identical and
+  cannot be hit. The negative inline margin pulls the target's edge back to the
+  gutter so the label still aligns with the title beneath it.
+- The visible label is the parent's name alone; the accessible name adds the
+  verb (`trail.upTo`), because "‹ Exercices" read aloud is a chevron and a noun.
+
+### The bar: five sections
+
+| Entry | Lands on | Lights up for |
+|---|---|---|
+| Accueil | `/` | `/` exactly |
+| Apprendre | `/apprendre/` | the hub, `/cours/`, `/pieges/`, `/exercices/`, `/apprendre-les-bases/` and everything under them |
+| Jouer | `/jouer/` | `/jouer/` |
+| Moi | `/moi/` | `/moi/`, `/progres/`, `/compte/`, `/connexion/`, `/bienvenue/` |
+| Réglages | `/parametres/` | `/parametres/` |
+
+⚠️ **`/apprendre/` AND `/apprendre-les-bases/` ARE DISTINCT PREFIXES ONLY
+BECAUSE OF THE TRAILING SLASH.** Drop it from the hub's match list and every
+tutorial page reads as the hub. `mobile-app.spec.ts` walks both.
+
+#### The measurement M1 asked for
+
+M1 capped the bar at four because "five targets across 390px is 78px each, which
+is where labels start truncating". The arithmetic was right; the conclusion was
+a guess. Measured, Chromium, both locales:
+
+```
+           cell        longest label        headroom
+ 390px  78.0 × 52   "Apprendre" 56.6px       21.4px
+ 360px  72.0 × 52   "Apprendre" 56.6px       15.4px
+ (EN)               "Settings"  43.9px
+```
+
+Nothing truncates. Every target clears 48px in **both** dimensions.
+
+⚠️ **THE SPEC MEASURES `scrollWidth` AGAINST `clientWidth`, NOT TEXT AGAINST THE
+LABEL BOX** — and the obvious version is circular. `.mobile-nav-label` is a span
+in a centred flex column, so it shrink-wraps its own text and the two widths are
+equal by construction; the first draft of that assertion "failed" at *49.0px of
+text in a 49px box*, which is not truncation, it is the same number twice.
+
+⚠️ **WHEN A LABEL STOPS FITTING, SHORTEN THE WORD.** Never shrink the target,
+never add an ellipsis. A bar reading "Appren…" has stopped naming its sections,
+which is the failure M1 predicted and used to justify four.
+
+### The landings are choosers, not menus
+
+⚠️ **A CHOOSER THAT ONLY LISTS NAMES WASTES THE TAP IT COSTS.** Putting a screen
+between the bar and the content is an extra tap for every reader every time, and
+a stack of bare links does not pay for it — that is a menu, and the bar was
+already a menu. Each card carries a name, one line of what is behind it, and
+**the reader's own state**: "0 sur 18 leçons terminées" is the answer to the
+question they arrived with.
+
+⚠️ **THE COUNTS COME FROM `ResumeResolver`.** It already owns the one reading of
+`mcc:progress:v1` and the one definition of "done"; a fifth copy on the page
+whose whole job is to say how far along you are is how two surfaces come to
+disagree.
+
+⚠️ **TRAPS CARRY A FACT, NOT A TALLY.** Nothing records that a trap has been
+READ — traps are reading material and `progress.ts` tracks solving — so the card
+says how many there are. Inventing a "read" key to fill the slot would be a new
+progress semantic smuggled in through a navigation change. In BACKLOG.
+⚠️ And a bare number was the first attempt: "8" with no unit reads as a bug.
+
+### Moi, and the shape that must not change
+
+⚠️ **SIGNED OUT, "MOI" STILL LEADS TO MOI.** The entry stays, the card stays,
+and only the sentence under it changes — swapped by the same `mcc:auth:v1` flag
+the header reads, never by contacting Supabase, which a guest must not do. A bar
+whose entries come and go with state cannot be learned.
+
+⚠️ **WITH ACCOUNTS OFF THE ACCOUNT CARD IS ABSENT, NOT INERT.** `/compte/` and
+`/connexion/` are not emitted in that build, so a card pointing at either would
+be Critical Feature 32 all over again. The section still holds Ma progression
+and Réglages, so it is never an empty screen.
+
+### Critical Feature 36, and what the header had to gain
+
+Both new bar destinations need a desktop home:
+
+- `/apprendre/` joined the header's **Apprendre** group as its first item,
+  labelled `nav.overview` ("Vue d'ensemble") — a group called "Apprendre" whose
+  first item is also "Apprendre" reads as a mistake.
+- The header's plain `/progres/` link **became** `/moi/`, labelled `nav.me`.
+  Pointing the header at the leaf while the bar points at the section would give
+  the two layouts different maps of the same site. `/progres/` stays reachable
+  in one hop, from the chooser.
+
+The CF36 spec reads the destinations **off the bar** and demands each of the
+header, so a sixth entry fails until it has a desktop home.

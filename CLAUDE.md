@@ -267,7 +267,7 @@ it. Tags said one thing and the manifest said another.
 24. **A theme loads only its own heading font and its own piece set.** Asserted against the network log, not against appearance.
 25. **Every piece set is licence-checked individually and credited on `/mentions-legales/`.** For three of the four it is a condition of use, not a courtesy.
 26. **Mobile and desktop diverge at 768px, deliberately.** Bottom bar + one-line header + dashboard below; grouped header + retro menu above. Both sides are pinned by specs.
-27. **The bottom bar has exactly four entries and never hides on scroll**, and no page may hide content behind it.
+27. **The bottom bar has exactly five entries, every one of them a SECTION WITH A LANDING SCREEN**, and it never hides on scroll; no page may hide content behind it. ⚠️ **"Section" is the load-bearing word** — five shortcuts to leaf pages would not be defensible, and that is what "Progrès" was. A new entry needs a landing, not just a slot.
 28. **Below 768px the exercise controls compact; the board never does.** See the M3 section — the board is the thing being taught with.
 29. **There is ONE resume rule, in `ResumeResolver.astro`, and ONE key scheme, in `src/lib/journey.ts`.** Four surfaces read them. A second copy of either is how two pages come to disagree about what a reader has done.
 30. **The progress page never prints a number nothing computed.** Since E3 something computes rank and points, so it prints them — derived, never banked. See the progression section.
@@ -302,6 +302,10 @@ it. Tags said one thing and the manifest said another.
 59. **`/compte/` is three blocks, in this order: profiles, settings, danger — and only the first is open.** Deletion competing with a child's progress is the defect the shape exists to fix; an `open` attribute on the advanced block restores it silently.
 60. **"élève" is STAFF vocabulary and must not appear in parent-facing copy.** `/admin*` keeps it — that audience really is looking at a class. Everywhere a parent reads, it is "enfant" or "profil".
 61. **Every profile card's rank and total are DERIVED by `computeLedger()`, and an absent one says so.** No card prints a zero it has not computed (the same rule as Critical Feature 30).
+62. **Every page below a section landing carries a trail that NAMES ITS PARENT.** "‹ Exercices", "‹ Bien ouvrir une partie" — never a bare "Retour", never a collection name where a specific parent exists, and never `history.back()`. The five landings and `/` deliberately have none.
+63. **The bar's active section is correct at every depth**, including a lesson inside a course inside Apprendre. A leaf that lights nothing is the defect the trail exists beside.
+64. **Going UP and going BACK IN A SEQUENCE are different controls and both survive.** Prev/next inside a course or the tutorial is not a way out of it.
+65. **A section landing is a chooser, not a menu.** Every card carries a name, one line of what is behind it, and the reader's own state where any exists — otherwise it is a second menu after the bar and does not earn the tap it costs.
 
 ---
 
@@ -699,7 +703,7 @@ size decision, and why the `les-bases` record was removed rather than linked.
 
 | | below 768px | 768px and above |
 |---|---|---|
-| Navigation | fixed **bottom bar**, four entries | grouped header, unchanged |
+| Navigation | fixed **bottom bar**, five sections | grouped header, unchanged |
 | Header | **one line**: name + theme + language | logo, nav groups, settings, theme, language |
 | Home | **dashboard** | the E5 retro menu |
 
@@ -711,9 +715,18 @@ explicitly.
 
 The rules that bind work elsewhere:
 
-- **The bottom bar has exactly four entries and never hides on scroll.** Settings
-  is deliberately not one of them. No page may hide content behind the bar —
-  `env(safe-area-inset-bottom)` is needed in **two** places.
+- **The bottom bar has exactly FIVE SECTIONS and never hides on scroll** —
+  Accueil, Apprendre, Jouer, Moi, Réglages. No page may hide content behind the
+  bar; `env(safe-area-inset-bottom)` is needed in **two** places.
+  ⚠️ **EVERY ENTRY HAS A LANDING SCREEN** (Critical Feature 27). M1 capped this
+  at four on the grounds that five labels truncate at 390px; that was a guess
+  and it is now measured — **78×52px per cell at 390px, 72×52 at 360px, longest
+  label 56.6px**, nothing clipped in either locale. Settings earned its slot by
+  becoming a section rather than a link to one page, and "Progrès" lost its slot
+  by being a leaf with nothing underneath.
+- ⚠️ **A LABEL THAT STOPS FITTING IS A COPY PROBLEM, NOT A LAYOUT ONE.** Shorten
+  the word; never shrink the target and never ellipsise. The spec measures the
+  rendered text against its own cell so this arrives as a failure.
 - ⚠️ **NO ROUTE MAY EXIST ON ONE LAYOUT ONLY** (Critical Feature 36). Every
   destination the bar reaches must be reachable from the desktop header, and the
   spec **reads the list off the bar** rather than hard-coding it. `/progres/`
@@ -723,6 +736,19 @@ The rules that bind work elsewhere:
   is the thing being taught with. It is **CSS only** — the dense row is built with
   flex `order`, so the DOM (and the screen-reader reading order, and the ≥768px
   layout) is untouched.
+- ⚠️ **KNOWING WHERE YOU ARE IS TWO SIGNALS, AND THE SITE ONLY HAD ONE (M4).**
+  The bar's active tab locates you to within a *quarter of the site*; it says
+  "Apprendre" from the courses index, from a course, from a lesson three levels
+  down and from a trap. The second signal is the **trail**: every page below a
+  section landing carries a back affordance that **NAMES ITS PARENT**
+  (Critical Feature 62) — « ‹ Bien ouvrir une partie », not « Retour » and not
+  « Toutes les leçons ». `src/components/nav/Trail.astro` is the only one.
+  ⚠️ **A LINK, NEVER `history.back()`** — a reader who arrived from a shared
+  link has no history, and a control that does nothing is worse than none.
+  ⚠️ **THE FIVE LANDINGS AND `/` HAVE NO TRAIL**, deliberately: the bar is
+  already their way out. "Add one everywhere" is not the fix.
+  ⚠️ **PREV/NEXT IS NOT THE WAY UP** (Critical Feature 64). Both survive on a
+  lesson, and collapsing them traps a reader inside a sequence.
 - **Every long route ends with a way onward**, clear of the fixed bar, from the
   **same i18n key** as the link at the top.
 - **The home menu's labels ARE the nav's labels**, from the same `nav.*` keys

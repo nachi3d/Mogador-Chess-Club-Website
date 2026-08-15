@@ -5,14 +5,35 @@
  * Direction: `docs/direction/mcc-direction-mobile-app.md` § 1.
  *
  * ─────────────────────────────────────────────────────────────────────────
- * ⚠️ EXACTLY FOUR ENTRIES, AND THE FOURTH IS NOT SETTINGS.
+ * ⚠️ EXACTLY FIVE SECTIONS — AND "SECTION" IS THE WORD THAT CHANGED (M4).
  *
- * Four because five targets across 390px is 78px each, which is where labels
- * start truncating and the choice blurs. And settings is not a destination —
- * it is visited twice and then never again — so it belongs in the header with
- * the other preference controls, not in the one permanent bar a reader sees on
- * every screen. Pièges, exercices, agenda and contact live INSIDE these four
- * sections rather than beside them.
+ * M1 capped this at four and gave two reasons: five targets across 390px is
+ * 78px each "which is where labels truncate", and settings "is not a
+ * destination". The first was a guess and is now measured; the second stopped
+ * being true when Réglages became a section rather than a link to one page.
+ *
+ * ⚠️ MEASURED, NOT REASONED — that guess was the whole M1 objection:
+ *
+ *              cell        longest label            headroom
+ *   390px   78.0 × 52   "Apprendre" 56.6px           21.4px
+ *   360px   72.0 × 52   "Apprendre" 56.6px           15.4px
+ *   (EN)                "Settings"  43.9px
+ *
+ * Nothing truncates at either width in either locale, and every target clears
+ * 48px in BOTH dimensions — 52px tall, from --mcc-bottom-nav. The spec measures
+ * each label against its own cell rather than trusting this comment, so the day
+ * a longer word arrives it fails here instead of shipping as an ellipsis.
+ *
+ * ⚠️ THE RULE THAT REPLACES "FOUR": EVERY ENTRY IS A SECTION WITH A LANDING
+ * SCREEN, never a shortcut to a leaf page. That is what makes five defensible
+ * where five shortcuts would not be — the bar became a map of the site rather
+ * than a row of favourites. "Progrès" was the counter-example that proved the
+ * point: a leaf page sitting in the bar with nothing underneath it. It now
+ * lives inside Moi.
+ *
+ * ⚠️ THE SHAPE NEVER CHANGES. Signed out, "Moi" still leads to Moi — the
+ * chooser offers sign-in instead of the account. A bar whose entries come and
+ * go with state is a bar nobody can learn.
  *
  * ⚠️ IT NEVER HIDES ON SCROLL. A bar that comes and goes makes the reader
  * hunt for it; stability is worth more than the few pixels a hiding bar buys.
@@ -55,12 +76,28 @@ const entries = [
   { key: 'nav.home', href: '/', icon: 'home', match: ['/'] },
   {
     key: 'nav.group.learn',
-    href: '/cours/',
+    href: '/apprendre/',
     icon: 'book',
-    match: ['/cours/', '/pieges/', '/apprendre-les-bases/'],
+    /* ⚠️ THE WHOLE SUBTREE, THREE LEVELS DEEP. A lesson inside a course inside
+       Apprendre still lights Apprendre. That was the most disorienting thing
+       about the old bar: the active tab was the only location signal there
+       was, and it was correct on the indexes and silent everywhere below them.
+       ⚠️ '/apprendre/' and '/apprendre-les-bases/' are different prefixes ONLY
+       because of the trailing slash. Drop it and every tutorial page matches
+       the hub as well. */
+    match: ['/apprendre/', '/cours/', '/pieges/', '/exercices/', '/apprendre-les-bases/'],
   },
   { key: 'nav.play', href: '/jouer/', icon: 'piece', match: ['/jouer/'] },
-  { key: 'nav.progress', href: '/progres/', icon: 'chart', match: ['/progres/', '/exercices/'] },
+  {
+    key: 'nav.me',
+    href: '/moi/',
+    icon: 'person',
+    /* The account routes are not emitted while accounts are off. Listing them
+       is harmless — nothing can be on a page that does not exist — and means
+       the bar is already correct the day the flag flips. */
+    match: ['/moi/', '/progres/', '/compte/', '/connexion/', '/bienvenue/'],
+  },
+  { key: 'nav.settings', href: '/parametres/', icon: 'sliders', match: ['/parametres/'] },
 ] as const;
 
 /** Home matches exactly; every other section matches its whole subtree. */
@@ -103,13 +140,20 @@ function isActive(match: readonly string[]): boolean {
                     <path d="M15 5c8-2 16 2 20 10 3 7 3 16 0 23-2 5-6 9-11 12h9v6H9v-6c0-7 4-13 10-17l-9-3-3-10 8-5z" />
                   </svg>
                 )}
-                {entry.icon === 'chart' && (
+                {entry.icon === 'person' && (
                   <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M4 20V4" />
-                    <path d="M4 20h16" />
-                    <path d="M8 20v-5" />
-                    <path d="M13 20V9" />
-                    <path d="M18 20v-8" />
+                    <circle cx="12" cy="8" r="3.6" />
+                    <path d="M4.8 20.5a7.2 7.2 0 0 1 14.4 0" />
+                  </svg>
+                )}
+                {entry.icon === 'sliders' && (
+                  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 7h8" />
+                    <path d="M16 7h4" />
+                    <circle cx="14" cy="7" r="2" />
+                    <path d="M4 17h4" />
+                    <path d="M12 17h8" />
+                    <circle cx="10" cy="17" r="2" />
                   </svg>
                 )}
               </span>
@@ -148,7 +192,10 @@ function isActive(match: readonly string[]): boolean {
 
   .mobile-nav-list {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    /* ⚠️ FIVE. 78px per cell at 390px, 72px at 360px — both measured, both
+       comfortably past the 48px target, and the label rule below is what keeps
+       them legible rather than merely reachable. */
+    grid-template-columns: repeat(5, 1fr);
     margin: 0;
     padding: 0;
     list-style: none;
@@ -171,6 +218,18 @@ function isActive(match: readonly string[]): boolean {
     text-decoration: none;
     /* Réponse (E1): the bar answers a tap like every other control. */
     transition: color var(--motion-response) var(--ease-response);
+  }
+
+  /* ⚠️ ONE LINE, AND IT MUST NOT TRUNCATE. If a label ever stops fitting the
+     rule is to SHORTEN THE WORD, never to shrink the target or add an
+     ellipsis — a bar reading "Appren…" has stopped naming its own sections,
+     which is the failure M1 predicted and used to cap this at four. The spec
+     measures each rendered label against its cell at 360px and 390px, so that
+     decision arrives as a failing test rather than as an appearance. */
+  .mobile-nav-label {
+    max-inline-size: 100%;
+    white-space: nowrap;
+    overflow: hidden;
   }
 
   .mobile-nav-icon {

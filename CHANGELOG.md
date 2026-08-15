@@ -11,6 +11,97 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+**Five sections instead of four shortcuts, and a way back that says where it
+goes.**
+
+Two problems, and the second is the one that mattered. The bar was the wrong
+shape — four entries, one of them ("Progrès") a leaf page with nothing beneath
+it, sitting there because M3 needed a fourth destination. And you lost your
+place: the person who built this site repeatedly could not tell where he was, or
+get back to a page he had just seen, without the browser's own back button.
+
+⚠️ **Nothing was broken.** Every page rendered, every link worked, every spec
+passed. The defect was ABSENCE — the same class as `/progres/` existing on one
+layout only, and invisible for exactly the same reason.
+
+### Added
+
+- **Five sections in the bottom bar** — Accueil, Apprendre, Jouer, Moi,
+  Réglages — each with a **landing screen**. That is what makes a fifth entry
+  defensible where M1 capped it at four: the bar stopped being a row of links to
+  leaf pages and became a map of the site. Réglages earned its slot by becoming
+  a section; Progrès lost its slot by being a leaf, and now lives inside Moi.
+- **`/apprendre/`** — a chooser: Les bases, Leçons, Exercices, Pièges. Before
+  this, "Apprendre" pointed at `/cours/`, so the bar quietly claimed Apprendre
+  *was* the courses and four of the five teaching surfaces had no mobile entry
+  point of their own.
+- **`/moi/`** — a chooser: Ma progression, Mon compte, Réglages.
+- **The trail** (`src/components/nav/Trail.astro`) on **54 of 59 public routes**
+  — a back affordance that NAMES ITS PARENT. A lesson three levels down reads
+  « ‹ Bien ouvrir une partie », not « Retour » and not « Toutes les leçons ».
+  The five landings and the home page deliberately have none: the bar is already
+  their way out.
+- `wayfinding.spec.ts` — coverage assertions rather than component ones. "Every
+  route below a landing has a named way up" is the claim; a test that checked
+  the trail renders on one page somebody remembered would have passed throughout
+  the bug.
+
+### Changed
+
+- **The bar's active section is now correct at every depth.** A lesson inside a
+  course inside Apprendre lights Apprendre; so do traps, exercises and tutorial
+  steps. Previously the active tab was right on the four indexes and silent
+  everywhere below them — which, since it was the *only* location signal, is
+  most of why the site felt like it lost you.
+- **The four collection-named back links became parent-named.** "Tous les
+  pièges" is not wrong, it just does not answer the question a reader three
+  levels deep is asking. The end-of-page links keep the collection wording,
+  because those are a way ONWARD rather than a way up (Critical Feature 31).
+- **The lesson and tutorial step counters lost their inline parent link.** It
+  named the right thing at 17px inside a metadata line; two links to one place,
+  one of them impossible to hit, is how the way up got missed.
+- **Desktop:** the Apprendre group gained "Vue d'ensemble" → `/apprendre/`, and
+  the header's plain "Progrès" link became "Moi" → `/moi/` (Critical Feature 36
+  — every bar destination reachable on desktop). Nothing else moved.
+
+### Measured
+
+M1 capped the bar at four because "five targets across 390px is 78px each, which
+is where labels start truncating". The arithmetic was right and the conclusion
+was a guess:
+
+```
+           cell        longest label        headroom
+ 390px  78.0 × 52   "Apprendre" 56.6px       21.4px
+ 360px  72.0 × 52   "Apprendre" 56.6px       15.4px
+ (EN)               "Settings"  43.9px
+```
+
+Nothing truncates in either locale; every target clears 48px in **both**
+dimensions. ⚠️ **When a label does stop fitting, the rule is to shorten the
+WORD** — never shrink the target, never ellipsise.
+
+⚠️ **The first version of that assertion was circular and "failed" at 49.0px of
+text in a 49px box** — which is not truncation, it is the same number twice. The
+label is a span in a centred flex column, so it shrink-wraps its own text. It now
+compares `scrollWidth` against `clientWidth`, which is what overflow actually
+means.
+
+### Deviations
+
+- **Traps carry a fact, not a tally.** The brief asked for "traps read", and
+  nothing in this codebase records that a trap has been READ — `progress.ts`
+  tracks *solving*, which is a different thing. The card says how many traps
+  exist. Inventing a "read" key to fill the slot would be a new progress
+  semantic smuggled in through a navigation change; it is in BACKLOG with the
+  question that has to be answered first (opened? scrolled? stepped to the end?).
+- **Language is not on `/parametres/`.** The brief lists Réglages as theme,
+  language and sound; theme and sound are there, and the language switcher is in
+  the header on every page including mobile. Adding a second control would be a
+  duplicate rather than a gain — flagged rather than silently skipped.
+
+---
+
 ### Fixed
 
 - ⚠️ **`verify:deploy` compared build fingerprints, and would have failed on

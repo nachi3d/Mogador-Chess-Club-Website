@@ -20,6 +20,7 @@ import type { CollectionEntry } from 'astro:content';
 import { localizePath } from '@i18n/paths';
 import { useTranslations } from '@i18n/ui';
 import BaseLayout from '@layouts/BaseLayout.astro';
+import Trail from '@components/nav/Trail.astro';
 import ExerciseBoard from '@components/board/ExerciseBoard.astro';
 import ScoreResolver from '@components/progress/ScoreResolver.astro';
 
@@ -60,10 +61,10 @@ const indexPath = localizePath('/apprendre-les-bases/', locale);
 
 <BaseLayout locale={locale} title={title} description={fr ? data.summary_fr : data.summary_en} board>
   <article class="step">
+    {/* The parent, named. Same reasoning as LessonPage. */}
+    <Trail locale={locale} href={indexPath} label={t('nav.basics')} />
     <header class="step-head">
       <p class="step-counter">
-        <a href={indexPath}>{t('tutorial.title')}</a>
-        <span aria-hidden="true">·</span>
         <span>{t('tutorial.step')} {data.order} {t('tutorial.of')} {total}</span>
       </p>
       <h1>{title}</h1>

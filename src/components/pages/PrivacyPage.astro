@@ -13,6 +13,7 @@ import { localizePath } from '@i18n/paths';
 import { useTranslations } from '@i18n/ui';
 import BaseLayout from '@layouts/BaseLayout.astro';
 import PageIntro from '@components/PageIntro.astro';
+import Trail from '@components/nav/Trail.astro';
 
 interface Props {
   locale: Locale;
@@ -27,6 +28,7 @@ const updated = new Date().toISOString().slice(0, 10);
 ---
 
 <BaseLayout locale={locale} title={t('privacy.title')} description={t('privacy.intro')} reveals>
+  <Trail locale={locale} href={localizePath('/', locale)} label={t('nav.home')} />
   <PageIntro title={t('privacy.title')} intro={t('privacy.intro')} />
 
   <div class="prose">

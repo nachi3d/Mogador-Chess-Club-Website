@@ -26,10 +26,11 @@
  */
 import type { Locale } from '@config/site';
 import { site } from '@config/site';
-import { privacyPath } from '@i18n/paths';
+import { privacyPath, localizePath } from '@i18n/paths';
 import { useTranslations } from '@i18n/ui';
 import BaseLayout from '@layouts/BaseLayout.astro';
 import PageIntro from '@components/PageIntro.astro';
+import Trail from '@components/nav/Trail.astro';
 
 interface Props {
   locale: Locale;
@@ -41,6 +42,7 @@ const { legal } = site;
 ---
 
 <BaseLayout locale={locale} title={t('legal.title')} description={t('legal.intro')}>
+  <Trail locale={locale} href={localizePath('/', locale)} label={t('nav.home')} />
   <PageIntro title={t('legal.title')} intro={t('legal.intro')} />
 
   {/* The privacy policy is a separate document; the legal notice points at it

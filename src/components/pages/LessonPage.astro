@@ -29,6 +29,7 @@ import type { CollectionEntry } from 'astro:content';
 import { localizePath } from '@i18n/paths';
 import { useTranslations } from '@i18n/ui';
 import BaseLayout from '@layouts/BaseLayout.astro';
+import Trail from '@components/nav/Trail.astro';
 import ReplayBoard from '@components/board/ReplayBoard.astro';
 import ExerciseBoard from '@components/board/ExerciseBoard.astro';
 import ScoreResolver from '@components/progress/ScoreResolver.astro';
@@ -105,10 +106,16 @@ const pairs = chunks.map((chunk, i) => ({ chunk, board: data.boards[i] }));
   board={pairs.some((pair) => pair.board)}
 >
   <article class="lesson">
+    {/* ⚠️ THREE LEVELS DEEP, AND THIS IS THE PAGE THE WHOLE TRAIL EXISTS FOR:
+        a lesson inside a course inside Apprendre. The parent is the COURSE and
+        it is named — "‹ Bien ouvrir une partie" — not "Toutes les leçons",
+        which is where the foot of the page already points.
+        The course link that used to sit inside the counter below is gone with
+        it: two links to the same place, one of them a text-sized target inside
+        a metadata line, is how the way up got missed in the first place. */}
+    <Trail locale={locale} href={coursePath} label={courseTitle} />
     <header class="lesson-head">
       <p class="lesson-counter">
-        <a href={coursePath}>{courseTitle}</a>
-        <span aria-hidden="true">·</span>
         <span>{t('tutorial.step')} {data.order} {t('tutorial.of')} {total}</span>
       </p>
       <h1>{data.title}</h1>

@@ -18,6 +18,8 @@ import { publicSessions } from '@lib/agenda';
 import { useTranslations } from '@i18n/ui';
 import BaseLayout from '@layouts/BaseLayout.astro';
 import PageIntro from '@components/PageIntro.astro';
+import Trail from '@components/nav/Trail.astro';
+import { localizePath } from '@i18n/paths';
 import LevelBadge from '@components/LevelBadge.astro';
 
 interface Props {
@@ -46,6 +48,7 @@ const dateFormat = new Intl.DateTimeFormat(locale === 'fr' ? 'fr-FR' : 'en-GB', 
 ---
 
 <BaseLayout locale={locale} title={t('agenda.title')} description={t('agenda.intro')} reveals>
+  <Trail locale={locale} href={localizePath('/', locale)} label={t('nav.home')} />
   <PageIntro title={t('agenda.title')} intro={t('agenda.intro')} />
 
   {
