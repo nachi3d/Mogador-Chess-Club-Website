@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { isSupabaseConfigured, loadE2EEnv } from './env';
 import { createConfirmedUser, deleteUser, e2eEmail } from './helpers/supabase-admin';
-import { AUTH_FLAG, followMagicLink, reachAccountPage } from './helpers/auth';
+import { AUTH_FLAG, atSiteRoot, followMagicLink, reachAccountPage } from './helpers/auth';
 import { AUTH_ENABLED, AUTH_OFF_REASON } from './helpers/auth-mode';
 import { settleReveals } from './helpers/reveal';
 
@@ -327,7 +327,7 @@ test.describe('signed in', () => {
 
     await signIn(page, email);
     await page.getByTestId('account-signout').click();
-    await page.waitForURL(/\/(en\/)?$/, { timeout: 15_000 });
+    await page.waitForURL(atSiteRoot, { timeout: 15_000 });
 
     const flag = await page.evaluate((key) => window.localStorage.getItem(key), AUTH_FLAG);
     expect(flag, 'the auth flag survived sign-out — the header would keep lying').toBeNull();

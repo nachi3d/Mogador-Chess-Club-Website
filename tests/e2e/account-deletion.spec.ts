@@ -6,7 +6,13 @@ import {
   deleteUser,
   e2eEmail,
 } from './helpers/supabase-admin';
-import { anonClientAsUser, followMagicLink, openAccountBlock, reachAccountPage } from './helpers/auth';
+import {
+  anonClientAsUser,
+  atSiteRoot,
+  followMagicLink,
+  openAccountBlock,
+  reachAccountPage,
+} from './helpers/auth';
 import { AUTH_ENABLED, AUTH_OFF_REASON } from './helpers/auth-mode';
 
 /**
@@ -126,7 +132,7 @@ test.describe('self-service account deletion', () => {
 
     /* Signed out and back on the home page — the account no longer exists, so
        staying on /compte/ would be a page describing a deleted user. */
-    await page.waitForURL(/\/(en\/)?$/, { timeout: 30_000 });
+    await page.waitForURL(atSiteRoot, { timeout: 30_000 });
 
     /**
      * ⚠️ POLLED, AND GENEROUSLY — because the failure it was reporting is not a
@@ -246,7 +252,7 @@ test.describe('self-service account deletion', () => {
     await page.getByTestId('account-delete-start').click();
     await page.getByTestId('account-delete-word').fill('SUPPRIMER');
     await page.getByTestId('account-delete-go').click();
-    await page.waitForURL(/\/(en\/)?$/, { timeout: 30_000 });
+    await page.waitForURL(atSiteRoot, { timeout: 30_000 });
 
     /* Polled for the same reason as the single-child case: pooled PostgREST
        connections can serve a stale read, and a row that genuinely survives
@@ -283,7 +289,7 @@ test.describe('self-service account deletion', () => {
     await page.getByTestId('account-delete-start').click();
     await page.getByTestId('account-delete-word').fill('SUPPRIMER');
     await page.getByTestId('account-delete-go').click();
-    await page.waitForURL(/\/(en\/)?$/, { timeout: 30_000 });
+    await page.waitForURL(atSiteRoot, { timeout: 30_000 });
 
     /* The club's own session is not the reader's data and is not erased. */
     const { data: session } = await adminClient()

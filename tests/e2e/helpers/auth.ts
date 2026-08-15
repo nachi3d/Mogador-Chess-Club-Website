@@ -12,6 +12,41 @@ import { test } from '@playwright/test';
 export const AUTH_FLAG = 'mcc:auth:v1';
 
 /**
+ * "The reader has landed back on the home page" — as a PATH test, not a regex.
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️ `/\/(en\/)?$/` MATCHES EVERY URL ON THIS SITE, AND THAT IS NOT A NITPICK.
+ *
+ * Every route here is emitted with a trailing slash (`build.format:
+ * 'directory'`), so `…$` is satisfied by `/compte/`, `/progres/`, everything.
+ * Five specs used that regex to wait for a sign-out or a deletion to land, and
+ * every one of them resolved **instantly, on the page they were already on**.
+ *
+ * Mostly that was invisible: the assertion after it retries until the real
+ * navigation happens. In `progress-sync.spec.ts` it was not — the next line is
+ * a `page.goto()`, which started while the sign-out handler was still awaiting
+ * `signOut()`, and then the handler's own `window.location.assign('/')` cut it
+ * off mid-flight:
+ *
+ *     Navigation to ".../progres/" is interrupted by another navigation to ".../"
+ *     NS_BINDING_ABORTED                                    (the same thing, Firefox)
+ *
+ * Chromium tolerates the interruption and the other two do not, so this only
+ * surfaced when the accounts-ON matrix ran for the first time in v0.14.0.
+ *
+ * ⚠️ A PREDICATE, NOT A TIGHTER REGEX. `/^https?:\/\/[^/]+\/(en\/)?$/` would
+ * work today and breaks the moment a port, a query string or a hash appears.
+ * Comparing `url.pathname` says what is actually meant.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+export const atSiteRoot = (url: URL): boolean =>
+  url.pathname === '/' || url.pathname === '/en/';
+
+/** Home, or the sign-in page — the two places signing out can legitimately land. */
+export const atSignedOutLanding = (url: URL): boolean =>
+  atSiteRoot(url) || url.pathname.includes('/connexion');
+
+/**
  * An anon-key client signed in AS a given user — i.e. exactly the untrusted
  * caller a browser is.
  *
