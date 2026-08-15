@@ -1,0 +1,24 @@
+# Lines removed from CLAUDE.md that were NOT moved — declared, not silent.
+#
+# ⚠️ EVERY ENTRY HERE IS A LICENCE TO LOSE SOMETHING, so each one carries the
+# reason it is obsolete and is reported in the CHANGELOG beside the split.
+# `scripts/check-split.mjs` reads this file; a line that is neither in
+# CLAUDE.md, nor under docs/, nor listed here fails the check.
+#
+# ── v0.15.0 split ──────────────────────────────────────────────────────────
+#
+# 1. The `/progres/` row claimed the page prints no rank and no points.
+#    OBSOLETE since E3: `ProgressPage.astro` carries `data-score-points` and
+#    `data-score-rank`, its own comment says "THIS REPLACES A 'bientôt'
+#    PLACEHOLDER", and Critical Feature 30 states the opposite rule in the same
+#    file ("The progress page never prints a number nothing computed. Since E3
+#    something computes rank and points, so it prints them"). CLAUDE.md was
+#    contradicting itself; the row now describes what the page does, and adds
+#    that it sits inside the Moi section since M4.
+| `/progres/` | `/en/progres/` | Local progress: three group bars, exercises by level and by theme, what is left, and a resume card. Read from `localStorage`, no account. **Rank and points say "bientôt" and print no number** — nothing computes one. |
+#
+# 2. The `/` row described only the E5 retro menu. Incomplete rather than
+#    wrong: since M2 the home page is the DASHBOARD below 768px and the retro
+#    menu above it, which is the divergence M1/M2 exists to protect. The row now
+#    names both halves.
+| `/` | `/en/` | Home — the **main menu** (E5); descriptive content below the fold |
