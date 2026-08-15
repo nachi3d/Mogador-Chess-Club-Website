@@ -111,6 +111,19 @@ Seàn's.
 
 ### Fixed
 
+- ⚠️ **A stale register load silently discarded a prof's attendance taps.** The
+  accounts-ON matrix caught the summary reading `18 sur 26 marqués` immediately
+  after twenty successful taps whose rows were **already durable in Postgres**.
+  The marks were safe; the count a teacher reads to know who is left was wrong.
+  Two `loadRegister()` calls are routinely in flight — the page preselects the
+  nearest session on `mcc:admin-ready`, and anything touching the picker before
+  that settles starts a second — and both end in `renderMarkList()`, which
+  begins by clearing `marks`. Whichever answers *last* wins, and a stale answer
+  discards taps already made. Same bug and same remedy as `FamilySection.astro`,
+  which has carried a generation counter for exactly this since v0.12.0: the
+  lesson was written down in this codebase and never applied to the register.
+  The init preselect also no longer steals a session the reader has already
+  chosen out from under them.
 - **`/compte/` printed a rank and a point total that nothing computed.**
   `data-score-points` and `data-score-rank` sat in the markup with **no
   `ScoreResolver` on the page**, so every account read "0 points" and a blank
