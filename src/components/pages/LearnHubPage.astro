@@ -1,0 +1,125 @@
+---
+/**
+ * /apprendre — the Apprendre section's landing screen (M4).
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️ THIS EXISTS SO THE BAR ENTRY IS A SECTION RATHER THAN A SHORTCUT.
+ *
+ * "Apprendre" used to point at `/cours/`, which meant the bar quietly claimed
+ * that Apprendre *was* the courses — and pièges, exercices and the beginner
+ * tutorial were somewhere underneath, findable only from the desktop header or
+ * by already knowing. Four of the site's five teaching surfaces had no mobile
+ * entry point of their own.
+ *
+ * ⚠️ IT COSTS A TAP, SO IT HAS TO PAY FOR ONE. Every card carries the reader's
+ * own state, resolved from their local progress — "8 sur 24 exercices résolus"
+ * is the answer to the question they came with. A chooser that only lists names
+ * would be a second menu after the bar, and would deserve the objection.
+ *
+ * ⚠️ THE COUNTS COME FROM `ResumeResolver`, NOT FROM A SCRIPT HERE. It already
+ * owns the one reading of `mcc:progress:v1` and the one definition of "done";
+ * see the note in `HubCard.astro`.
+ *
+ * ⚠️ TRAPS CARRY A FACT, NOT A TALLY, AND THAT IS DELIBERATE. Nothing in this
+ * codebase records that a trap has been READ — traps are reading material and
+ * `progress.ts` tracks solving. Inventing a "read" key here to fill the slot
+ * would be a new progress semantic smuggled in through a navigation change, so
+ * the card says how many traps there are instead. Recorded in BACKLOG.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+import { getCollection } from 'astro:content';
+import type { Locale } from '@config/site';
+import { localizePath } from '@i18n/paths';
+import { useTranslations } from '@i18n/ui';
+import BaseLayout from '@layouts/BaseLayout.astro';
+import PageIntro from '@components/PageIntro.astro';
+import HubCard from '@components/nav/HubCard.astro';
+import ResumeResolver from '@components/progress/ResumeResolver.astro';
+import { exerciseJourney, lessonJourney, tutorialJourney } from '@lib/journey';
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const t = useTranslations(locale);
+
+const basics = await tutorialJourney(locale);
+const lessons = await lessonJourney(locale);
+const exercises = await exerciseJourney(locale);
+const trapCount = (await getCollection('traps')).filter((entry) => !entry.data.draft).length;
+---
+
+<BaseLayout locale={locale} title={t('learn.title')} description={t('learn.intro')}>
+  <PageIntro title={t('learn.title')} intro={t('learn.intro')} />
+
+  {/* ⚠️ NO TRAIL. This IS a section landing — the bar is the way out, and a
+      back link to the home page above a page the bar already reaches would be
+      one more thing to read on the screen that exists to be scanned. */}
+  <ul class="hub-grid" data-testid="learn-hub">
+    <HubCard
+      href={localizePath('/apprendre-les-bases/', locale)}
+      name={t('learn.basics.name')}
+      body={t('learn.basics.body')}
+      testid="hub-basics"
+      journey="hub-basics"
+      countPattern={t('learn.progress.steps')}
+    />
+    <HubCard
+      href={localizePath('/cours/', locale)}
+      name={t('learn.lessons.name')}
+      body={t('learn.lessons.body')}
+      testid="hub-lessons"
+      journey="hub-lessons"
+      countPattern={t('learn.progress.lessons')}
+    />
+    <HubCard
+      href={localizePath('/exercices/', locale)}
+      name={t('learn.exercises.name')}
+      body={t('learn.exercises.body')}
+      testid="hub-exercises"
+      journey="hub-exercises"
+      countPattern={t('learn.progress.exercises')}
+    />
+    <HubCard
+      href={localizePath('/pieges/', locale)}
+      name={t('learn.traps.name')}
+      body={t('learn.traps.body')}
+      testid="hub-traps"
+      fact={t('learn.traps.count').replace('%s', String(trapCount))}
+    />
+  </ul>
+
+  <ResumeResolver
+    journeys={{
+      'hub-basics': basics,
+      'hub-lessons': lessons,
+      'hub-exercises': exercises,
+    }}
+  />
+</BaseLayout>
+
+<style>
+  /**
+   * ⚠️ ONE COLUMN ON A PHONE, AND THE CARDS ARE BIG. This is a chooser, tapped
+   * with a thumb, usually at arm's length in a room at Dar Souiri. Two columns
+   * at 360px would put four ~170px tiles on screen and turn a decision into
+   * aiming.
+   */
+  .hub-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.85rem;
+    padding: 0;
+    margin: 0 0 2rem;
+    list-style: none;
+  }
+
+  /* Two columns once there is genuinely room — the same breakpoint the card
+     grids elsewhere use, so the page does not have a layout of its own. */
+  @media (min-width: 34rem) {
+    .hub-grid {
+      grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+    }
+  }
+</style>

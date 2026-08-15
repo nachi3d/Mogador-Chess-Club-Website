@@ -182,7 +182,15 @@ export const SPEC_MAP = [
   [/^src\/styles\//, ['themes.spec.ts', 'theme.spec.ts', 'feel.spec.ts']],
 
   [/^src\/layouts\//, ['smoke.spec.ts', 'mobile-app.spec.ts', 'pwa.spec.ts', 'mobile-fit.spec.ts']],
-  [/^src\/components\/MobileNav\./, ['mobile-app.spec.ts']],
+  /* ⚠️ THE BAR AND THE TRAIL ARE ONE FEATURE (M4). The bar says which SECTION
+     you are in; the trail says how to leave the page you are on. Changing one
+     without running the spec for the other is how the two halves of "where am
+     I" drift apart — which is the state M4 found the site in. */
+  [/^src\/components\/MobileNav\./, ['mobile-app.spec.ts', 'wayfinding.spec.ts']],
+  [/^src\/components\/nav\//, ['wayfinding.spec.ts', 'mobile-app.spec.ts']],
+  /* Every page below a section landing carries a Trail, so any page component
+     is a candidate for having lost it. */
+  [/^src\/components\/pages\/(LearnHub|Me)Page\./, ['wayfinding.spec.ts', 'mobile-app.spec.ts']],
   /* E2 — the sound module and everything that can make one. `feel.spec.ts`
      rides along on the board views because a sound call sits next to the
      motion it accompanies. */

@@ -16,6 +16,7 @@ import { localizePath } from '@i18n/paths';
 import { useTranslations } from '@i18n/ui';
 import BaseLayout from '@layouts/BaseLayout.astro';
 import PageIntro from '@components/PageIntro.astro';
+import Trail from '@components/nav/Trail.astro';
 
 interface Props {
   locale: Locale;
@@ -26,6 +27,7 @@ const t = useTranslations(locale);
 ---
 
 <BaseLayout locale={locale} title={t('login.title')} description={t('login.intro')}>
+  <Trail locale={locale} href={localizePath('/moi/', locale)} label={t('me.title')} />
   <PageIntro title={t('login.title')} intro={t('login.intro')} />
 
   <div class="auth-card">

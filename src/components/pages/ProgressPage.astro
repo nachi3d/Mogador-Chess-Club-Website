@@ -48,6 +48,8 @@ import type { JourneyStep } from '@lib/journey';
 import { exerciseJourney, lessonJourney, tutorialJourney } from '@lib/journey';
 import BaseLayout from '@layouts/BaseLayout.astro';
 import PageIntro from '@components/PageIntro.astro';
+import Trail from '@components/nav/Trail.astro';
+import { localizePath } from '@i18n/paths';
 import ResumeResolver from '@components/progress/ResumeResolver.astro';
 import ResumeCard from '@components/progress/ResumeCard.astro';
 import ScoreResolver from '@components/progress/ScoreResolver.astro';
@@ -171,6 +173,7 @@ function achievementLabel(id: string): string {
 ---
 
 <BaseLayout locale={locale} title={t('progress.title')} description={t('progress.intro')}>
+  <Trail locale={locale} href={localizePath('/moi/', locale)} label={t('me.title')} />
   <PageIntro title={t('progress.title')} intro={t('progress.intro')} />
 
   <noscript>

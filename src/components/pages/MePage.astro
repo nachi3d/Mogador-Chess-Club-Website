@@ -1,0 +1,131 @@
+---
+/**
+ * /moi — the personal section's landing screen (M4).
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️ "PROGRÈS" WAS A LEAF PAGE IN THE BAR, AND THAT IS THE DEFECT THIS FIXES.
+ *
+ * The old fourth entry pointed straight at `/progres/` — a page with nothing
+ * beneath it. It was put there because "the bar needs a fourth destination"
+ * (M3, in as many words), which is a layout reason rather than a navigational
+ * one. Progress is one of the things that belong to the reader; the account is
+ * the other, and neither had a home.
+ *
+ * ⚠️ THE SHAPE NEVER CHANGES WITH SIGN-IN STATE. Signed out, the account card
+ * stays exactly where it is and leads to the sign-in page — a bar and a
+ * chooser that rearrange themselves depending on who you are cannot be learned.
+ * Only the sentence underneath changes, and it is swapped by the same
+ * `auth-flag` read the header uses rather than by a second source of truth.
+ *
+ * ⚠️ WITH ACCOUNTS OFF THE CARD IS ABSENT, NOT INERT. `/compte/` and
+ * `/connexion/` are not emitted at all in that build, so a card pointing at
+ * either would be an index card with no destination — Critical Feature 32,
+ * which this project has already shipped once. The section still holds
+ * Réglages and Ma progression, so it is never an empty screen.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+import type { Locale } from '@config/site';
+import { AUTH_ENABLED } from '@config/auth';
+import { localizePath } from '@i18n/paths';
+import { useTranslations } from '@i18n/ui';
+import BaseLayout from '@layouts/BaseLayout.astro';
+import PageIntro from '@components/PageIntro.astro';
+import HubCard from '@components/nav/HubCard.astro';
+import ResumeResolver from '@components/progress/ResumeResolver.astro';
+import { fullJourney } from '@lib/journey';
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const t = useTranslations(locale);
+
+const everything = await fullJourney(locale);
+---
+
+<BaseLayout locale={locale} title={t('me.title')} description={t('me.intro')}>
+  <PageIntro title={t('me.title')} intro={t('me.intro')} />
+
+  <ul class="hub-grid" data-testid="me-hub">
+    <HubCard
+      href={localizePath('/progres/', locale)}
+      name={t('me.progress.name')}
+      body={t('me.progress.body')}
+      testid="hub-progress"
+      journey="hub-everything"
+      countPattern={t('learn.progress.exercises')}
+    />
+    {
+      AUTH_ENABLED && (
+        <HubCard
+          href={localizePath('/compte/', locale)}
+          name={t('me.account.name')}
+          body={t('me.account.body')}
+          testid="hub-account"
+        />
+      )
+    }
+    <HubCard
+      href={localizePath('/parametres/', locale)}
+      name={t('me.settings.name')}
+      body={t('me.settings.body')}
+      testid="hub-settings"
+    />
+  </ul>
+
+  <ResumeResolver journeys={{ 'hub-everything': everything }} />
+
+  {
+    AUTH_ENABLED && (
+      <script
+        is:inline
+        define:vars={{
+          signInHref: localizePath('/connexion/', locale),
+          signedOut: t('me.account.signedOut'),
+        }}
+      >
+        {/* ⚠️ `is:inline`, and it runs before paint for the same reason the
+            theme script does: a card that says "your account" for a frame and
+            then "sign in" is a flicker on the one screen a signed-out reader
+            most needs to be sure about. It reads the same `mcc:auth:v1` flag
+            the header does — NOT Supabase, which a guest must never contact. */}
+        (function () {
+          try {
+            if (localStorage.getItem('mcc:auth:v1')) return;
+          } catch (e) {
+            /* Storage unavailable — leave the signed-in wording, which is the
+               state that still works when the reader really is signed in. */
+            return;
+          }
+          var card = document.querySelector('[data-testid="hub-account"]');
+          if (!card) return;
+          var link = card.querySelector('a');
+          if (link) link.setAttribute('href', signInHref);
+          var body = card.querySelector('.hub-card-body');
+          if (body) body.textContent = signedOut;
+        })();
+      </script>
+    )
+  }
+</BaseLayout>
+
+<style>
+  /* Same chooser layout as `/apprendre/` — one column on a phone, two once
+     there is room. Two section landings that looked different would read as
+     two different kinds of screen. */
+  .hub-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.85rem;
+    padding: 0;
+    margin: 0 0 2rem;
+    list-style: none;
+  }
+
+  @media (min-width: 34rem) {
+    .hub-grid {
+      grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+    }
+  }
+</style>

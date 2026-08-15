@@ -1,10 +1,11 @@
 ---
 import { getCollection } from 'astro:content';
 import type { Locale } from '@config/site';
-import { trapPath } from '@i18n/paths';
+import { trapPath, localizePath } from '@i18n/paths';
 import { useTranslations } from '@i18n/ui';
 import BaseLayout from '@layouts/BaseLayout.astro';
 import PageIntro from '@components/PageIntro.astro';
+import Trail from '@components/nav/Trail.astro';
 import CardGrid, { type CardItem } from '@components/CardGrid.astro';
 
 interface Props {
@@ -30,6 +31,7 @@ const items: CardItem[] = entries.map(({ data }) => ({
 ---
 
 <BaseLayout locale={locale} title={t('traps.title')} description={t('traps.intro')} reveals>
+  <Trail locale={locale} href={localizePath('/apprendre/', locale)} label={t('learn.title')} />
   <PageIntro title={t('traps.title')} intro={t('traps.intro')} />
   {/* No board here. The replayer lives on the detail route — an index never
       mounts a board (CLAUDE.md → ONE board island). */}

@@ -303,6 +303,90 @@ the exercises alone, and `/progres/` all three.
 
 ---
 
+
+## 0e. ⚠️ M4 — FIVE SECTIONS, AND KNOWING WHERE YOU ARE
+
+⚠️ **THE ONE QUESTION THIS SECTION EXISTS FOR, and it is the last item below:
+from a lesson three levels deep, can you get back to where you came from
+without the browser button?** Everything else here is checking the parts; that
+is checking the thing.
+
+Do it on a **real phone**, in French, at arm's length. `npm run demo -- --host`.
+
+### The bar
+
+- [ ] Five entries: **Accueil · Apprendre · Jouer · Moi · Réglages**
+- [ ] Every one is comfortably thumb-sized. ⚠️ **No label is clipped or
+      ellipsised** — check "Apprendre" and "Réglages" specifically, and check EN
+      where "Settings" is the long one
+- [ ] It does not move or hide when you scroll
+- [ ] Nothing on any page hides behind it, including the last footer line
+- [ ] On a notched phone the bar's background reaches into the gesture area —
+      no strip of page colour underneath it
+
+### Each entry is a SECTION, not a shortcut
+
+- [ ] **Apprendre** lands on a chooser with four cards: Les bases, Leçons,
+      Exercices, Pièges. ⚠️ **Not** straight into the courses
+- [ ] Each card says what is behind it AND how far you have got — "0 sur 18
+      leçons terminées". ⚠️ **A chooser that only lists names has lost the
+      point**; if the state lines are missing, the resolver is not running
+- [ ] Solve an exercise, come back: the exercises card counts it
+- [ ] **Moi** lands on a chooser: Ma progression, Réglages, and Mon compte when
+      accounts are on
+- [ ] **Réglages** lands on the settings page — theme, sound
+- [ ] Every card opens something. ⚠️ **A card that does nothing is worse than an
+      absent one**
+
+### ⚠️ The active tab is right at EVERY depth
+
+Walk down and watch the bar, without tapping it:
+
+- [ ] `/apprendre/` → **Apprendre** lit
+- [ ] Leçons → a course → a lesson inside it → **Apprendre** still lit, three
+      levels down
+- [ ] A trap, an exercise, a tutorial step → **Apprendre** still lit
+- [ ] `/progres/` → **Moi** lit, not Apprendre
+- [ ] ⚠️ **A tutorial step must light Apprendre without the hub swallowing it** —
+      if `/apprendre-les-bases/…` and `/apprendre/` ever both look active,
+      something dropped a trailing slash
+
+### ⚠️ The trail — the way up says where it goes
+
+- [ ] Every page below a landing has a **‹ Something** at the top, and the
+      Something is the **parent's own name**
+- [ ] On a lesson it reads **‹ Bien ouvrir une partie** — the course, by name.
+      ⚠️ Not "Retour", not "Toutes les leçons"
+- [ ] On an exercise: **‹ Exercices**. On a trap: **‹ Pièges**
+- [ ] On the courses index: **‹ Apprendre**
+- [ ] Tapping it lands where the label said. ⚠️ **If it goes somewhere else, the
+      label is the bug, not the destination**
+- [ ] It is easy to hit with a thumb without aiming
+- [ ] ⚠️ **The five landings and the home page have NO trail** — the bar is
+      already their way out, and a back link there is clutter
+- [ ] On a lesson, prev/next is still at the foot AND the trail is at the top.
+      ⚠️ **Two different controls** — one moves along the sequence, one leaves it
+
+### ⚠️ THE QUESTION
+
+- [ ] Open the site fresh. Go Apprendre → Leçons → a course → a lesson. Read a
+      bit. **Now get back to the course, and then to Apprendre, without the
+      browser's back button and without guessing.** If you hesitate at any
+      step, say where — that hesitation is the bug this whole section is for
+
+### Both themes, both modes, and the guest
+
+- [ ] Walk the bar, `/apprendre/` and a lesson in **Terminal dark** and **Bois
+      light**. Every card border, the active tab's rule and the trail chevron
+      are visible in both
+- [ ] With `prefers-reduced-motion` on, the bar and the cards still respond to a
+      press — feedback is never removed, only made instant
+- [ ] Signed out (or with accounts off): the bar is still the **same five
+      entries**. ⚠️ **A bar whose shape changes with sign-in state is a bar
+      nobody can learn**
+- [ ] Desktop: the header is unchanged apart from **Vue d'ensemble** in the
+      Apprendre group and **Moi** where "Progrès" used to be. Nothing else moved
+
 ## 1. Smoke and i18n
 
 - [ ] `/` loads. Heading is *Mogador Chess Club*, nav is in French

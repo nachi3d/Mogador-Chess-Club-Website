@@ -1,0 +1,130 @@
+---
+/**
+ * The way back up — one component, every page below a section landing (M4).
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️ IT NAMES THE PARENT. A BACK BUTTON THAT DOES NOT SAY WHERE IT GOES IS A
+ * GUESS, AND THE READER HAS TO SPEND A TAP TO FIND OUT.
+ *
+ * The person who built this site repeatedly could not tell where he was or how
+ * to get back to a page he had just seen. The active tab said "Apprendre" from
+ * the courses index, from a course, from a lesson inside it and from a trap —
+ * four different places, one unchanging signal — and the way back was whatever
+ * that particular page happened to have.
+ *
+ * The audit that produced this component (M4):
+ *
+ *   nothing at all          /cours/ · /pieges/ · /exercices/ ·
+ *                           /apprendre-les-bases/ · /progres/ · /agenda/ ·
+ *                           /contact/ · /mentions-legales/ ·
+ *                           /politique-confidentialite/ · /compte/ · /connexion/
+ *   a COLLECTION name       /pieges/[slug]/ "Tous les pièges"
+ *                           /exercices/[slug]/ "Tous les exercices"
+ *                           /apprendre-les-bases/[step]/ "Toutes les étapes"
+ *                           /cours/[c]/[lesson]/ "Toutes les leçons"
+ *   the parent, named       /cours/[course]/ "← Cours"
+ *
+ * ⚠️ NOT ONE OF THEM WAS A BARE "RETOUR", AND THE COLLECTION NAMES ARE THE
+ * INTERESTING FAILURE. "Toutes les leçons" on a lesson page is not wrong, but
+ * it does not say WHICH course you are going back to — and a reader three
+ * levels deep is asking exactly that. This component takes the parent's own
+ * name, so a lesson says "‹ Bien ouvrir une partie".
+ *
+ * ⚠️ IT IS A LINK, NEVER `history.back()`. A reader who arrived from a search
+ * result, a shared link or a bookmark has no history to go back to, and the
+ * one thing worse than no way up is a control that does nothing. It also means
+ * the destination is visible in the status bar and openable in a new tab.
+ *
+ * ⚠️ GOING UP IS NOT GOING BACK IN A SEQUENCE. Prev/next inside a course or a
+ * tutorial stays exactly where it is, at the foot of the page, and is a
+ * different control with a different shape. This is the only one that moves
+ * between levels.
+ *
+ * ⚠️ THE VISIBLE LABEL IS THE PARENT'S NAME AND NOTHING ELSE. The accessible
+ * name adds the verb (`trail.upTo` → "Remonter à Exercices"), because "‹
+ * Exercices" read aloud is a chevron and a noun.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+import type { Locale } from '@config/site';
+import { useTranslations } from '@i18n/ui';
+
+interface Props {
+  locale: Locale;
+  /** Already localised — callers build it with `localizePath`. */
+  href: string;
+  /** The parent's own name, as the parent itself calls it. */
+  label: string;
+  /** Overridden only where a page already owns a `trail` testid. */
+  testid?: string;
+}
+
+const { locale, href, label, testid = 'trail' } = Astro.props;
+const t = useTranslations(locale);
+---
+
+<nav class="trail" data-testid={testid}>
+  <a class="trail-up" href={href} aria-label={t('trail.upTo').replace('%s', label)}>
+    <span class="trail-chevron" aria-hidden="true">‹</span>
+    <span class="trail-label">{label}</span>
+  </a>
+</nav>
+
+<style>
+  .trail {
+    /* Above the page title, tight to it: this is a property of the heading
+       below rather than a band of its own. */
+    margin-block: 0 0.75rem;
+  }
+
+  .trail-up {
+    /* ⚠️ 44px MINIMUM, and it is the padding that provides it — the text is
+       ~17px tall. The negative inline margin pulls the target's left edge back
+       to the page gutter so the label still lines up with the title beneath
+       it; without it the whole page looks indented by a quarter inch. */
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    min-block-size: 2.75rem;
+    padding-inline: 0.5rem;
+    margin-inline-start: -0.5rem;
+    color: var(--mcc-link);
+    font-size: 0.9375rem;
+    font-weight: 500;
+    text-decoration: none;
+    /* Réponse (E1) — this answers a tap like every other control. */
+    transition: color var(--motion-response) var(--ease-response);
+  }
+
+  .trail-up:hover,
+  .trail-up:focus-visible {
+    text-decoration: underline;
+  }
+
+  .trail-up:focus-visible {
+    outline: 2px solid var(--mcc-focus-ring);
+    outline-offset: 2px;
+    border-radius: var(--radius-card);
+  }
+
+  /* Larger than the label and optically centred: at 0.9375rem the chevron is a
+     smudge, and a back control whose arrow is hard to see is a back control
+     people miss. */
+  .trail-chevron {
+    font-size: 1.25rem;
+    line-height: 1;
+  }
+
+  .trail-up:active {
+    transform: translateY(var(--motion-press-y));
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .trail-up {
+      transition: none;
+    }
+
+    .trail-up:active {
+      transform: none;
+    }
+  }
+</style>

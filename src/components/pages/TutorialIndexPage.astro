@@ -13,6 +13,7 @@ import { localizePath } from '@i18n/paths';
 import { useTranslations } from '@i18n/ui';
 import BaseLayout from '@layouts/BaseLayout.astro';
 import PageIntro from '@components/PageIntro.astro';
+import Trail from '@components/nav/Trail.astro';
 import NumberedCard from '@components/NumberedCard.astro';
 import ProgressStates from '@components/ProgressStates.astro';
 
@@ -29,6 +30,7 @@ const steps = (await getCollection('tutoriel', ({ data }) => !data.draft)).sort(
 ---
 
 <BaseLayout locale={locale} title={t('tutorial.title')} description={t('tutorial.intro')} reveals>
+  <Trail locale={locale} href={localizePath('/apprendre/', locale)} label={t('learn.title')} />
   <PageIntro title={t('tutorial.title')} intro={t('tutorial.intro')} />
 
   <ol class="steps" data-reveal-stagger>

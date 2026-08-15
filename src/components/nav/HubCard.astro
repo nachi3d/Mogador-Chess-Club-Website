@@ -1,0 +1,164 @@
+---
+/**
+ * One card on a section landing — the chooser tile (M4).
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️ A CHOOSER THAT ONLY LISTS NAMES WASTES THE SCREEN IT COSTS.
+ *
+ * Adding a landing screen between the bar and the content is a whole extra tap
+ * for every reader, every time. It has to pay for itself, and a stack of
+ * bare links does not: that is a menu, and the bar was already a menu. Each
+ * card therefore carries three things — the name, one line saying what is
+ * behind it, and the reader's own state where any exists.
+ *
+ * ⚠️ THE STATE LINE IS THE PART THAT EARNS THE TAP. "8 sur 24 exercices
+ * résolus" is the answer to the question the reader actually had; the name
+ * alone is something they could already see in the bar.
+ *
+ * ⚠️ THE WHOLE CARD IS THE TARGET, not the title inside it. Anything smaller
+ * on a phone means aiming, and a chooser you have to aim at is worse than the
+ * list it replaced. The heading holds the link so the accessible name is the
+ * card's name and screen-reader users get a real heading structure; the
+ * `::after` overlay is what makes the rest of the block clickable.
+ *
+ * ⚠️ NO `href` MEANS NO CARD. Critical Feature 32 — an index card that renders
+ * has a destination — applies here for the same reason: an inert tile tells a
+ * reader the site is broken, and nothing is missing for a test to notice.
+ * `href` is required by the type, and callers omit the whole card instead.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+interface Props {
+  href: string;
+  name: string;
+  body: string;
+  /** `data-testid`, so specs can address a card by what it is. */
+  testid: string;
+  /**
+   * A journey id `ResumeResolver` is resolving on this page.
+   *
+   * ⚠️ THE RESOLVER OWNS THE READING, AND THAT IS THE POINT. `mcc:progress:v1`
+   * is already read by the theme head script, `AccountButton`, the home
+   * resolver and `/progres/`; a fifth copy here — on a page whose whole job is
+   * to say how far along you are — is exactly how two surfaces come to disagree
+   * about what a reader has done. This card only supplies the mount.
+   */
+  journey?: string | undefined;
+  /** The `%s of %s` sentence for this journey, from the i18n table. */
+  countPattern?: string | undefined;
+  /** A plain fact, for a card with nothing trackable behind it. See the header. */
+  fact?: string | undefined;
+}
+
+const { href, name, body, testid, journey, countPattern, fact } = Astro.props;
+---
+
+<li
+  class="hub-card"
+  data-testid={testid}
+  data-resume-for={journey}
+  data-resume-count-pattern={countPattern}
+>
+  <h2 class="hub-card-name">
+    <a href={href}>{name}</a>
+  </h2>
+  <p class="hub-card-body">{body}</p>
+  {/* ⚠️ RESERVED, NOT CONDITIONAL. The tally is written by `ResumeResolver`
+      after first paint; rendering the line only once a count exists would make
+      every card jump the moment the script runs. It reserves its height and
+      stays empty until there is something true to put in it — the same rule the
+      solved marker on the index cards follows. */}
+  {
+    journey ? (
+      <p class="hub-card-state">
+        <span data-resume-count />
+      </p>
+    ) : (
+      <p class="hub-card-state">{fact}</p>
+    )
+  }
+</li>
+
+<style>
+  .hub-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    /* Generous, because this is the whole content of the screen — and it is the
+       padding that makes the card a comfortable thumb target rather than a
+       heading with text under it. */
+    padding: 1.1rem 1.25rem;
+    border: 1px solid var(--mcc-border-subtle);
+    border-radius: var(--radius-card);
+    background-color: var(--mcc-surface-raised);
+    /* Réponse (E1). Border and background only — a card that moves on hover
+       reads as a drag handle. */
+    transition:
+      border-color var(--motion-response) var(--ease-response),
+      background-color var(--motion-response) var(--ease-response);
+  }
+
+  .hub-card:hover,
+  .hub-card:focus-within {
+    border-color: var(--mcc-accent-strong);
+  }
+
+  .hub-card-name {
+    margin: 0;
+    font-size: 1.1875rem;
+    line-height: 1.25;
+  }
+
+  .hub-card-name a {
+    color: var(--mcc-text-primary);
+    text-decoration: none;
+  }
+
+  /* The overlay that makes the whole card the target. `inset: 0` on the card's
+     own positioning context, so it covers the padding too. */
+  .hub-card-name a::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: var(--radius-card);
+  }
+
+  .hub-card-name a:focus-visible::after {
+    outline: 2px solid var(--mcc-focus-ring);
+    outline-offset: 2px;
+  }
+
+  /* ⚠️ NO `opacity` ON TEXT OVER AN AUDITED FILL — `check-contrast.mjs` proves
+     the token pair and cannot see an alpha laid over it. Differentiated by
+     size and by its own audited token. */
+  .hub-card-body {
+    margin: 0;
+    color: var(--mcc-text-secondary);
+    font-size: 0.9375rem;
+    line-height: 1.5;
+  }
+
+  /* Reserved whether or not it has content, so revealing it cannot reflow the
+     grid — the same rule the index cards' solved marker follows. */
+  .hub-card-state {
+    min-block-size: 1.25rem;
+    margin: 0.15rem 0 0;
+    color: var(--mcc-accent-text);
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+
+  .hub-card:active {
+    transform: translateY(var(--motion-press-y));
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hub-card {
+      transition: none;
+    }
+
+    .hub-card:active {
+      transform: none;
+    }
+  }
+</style>
