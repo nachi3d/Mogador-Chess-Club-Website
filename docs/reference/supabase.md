@@ -1149,3 +1149,426 @@ test run into `head` or `grep -m1` SIGPIPEs the runner mid-flight; its
 that point fails `ERR_CONNECTION_REFUSED at http://localhost:4321/`. CLAUDE.md
 already says never pipe a test run — this is the failure it produces, and it
 cost this session two gate runs on top of the rate limit.
+
+---
+
+## The admin surfaces — the full record (moved from CLAUDE.md, v0.15.0)
+
+**Read when:** building, changing or debugging anything under `/admin*`.
+
+### The admin surfaces (v2-S4 part 2) — BUILT, and the flag is still OFF
+
+`/admin/` (dashboard), `/admin/eleves/` (the class), `/admin/eleve/?id=…` (one
+learner), `/admin/seances/` (sessions + the register). Reached from `/compte/`,
+which is the only entry point. **No new migration** — 0001/0004/0005 already
+carried every table and policy these needed, which is what "the boundary
+underneath is already proven" in BACKLOG meant.
+
+- ⚠️ **FRENCH ONLY** (Critical Feature 43). No `t()`, no `/en/admin/`, no i18n
+  scaffolding. Same decision as BabyClub, same reason: a single-operator context
+  — Seàn and one or two profs, in French, in a room in Essaouira. The FR/EN rule
+  is about **readers**, and an admin screen has no such audience. **A future
+  session must not "fix" this by adding translations; the missing English is the
+  decision.** `admin.spec.ts` asserts `/en/admin*` 404s.
+- ⚠️ **`singleLocale` on BaseLayout suppresses the hreflang alternates AND the
+  language switcher.** Both halves are needed: left on, the alternates advertise
+  a 404 to search engines and the switcher offers a reader a one-way trip to it.
+  It is **not** an escape hatch for public pages, and a spec asserts a public
+  page still carries both.
+- ⚠️ **RLS is the security; the role check is UX** (Critical Feature 44). The gate
+  in `AdminShell` decides what to DRAW. `role-separation.spec.ts` proves the real
+  boundary through PostgREST with a real student's token — including that a
+  student cannot read the class list, a prof can read every child and **write
+  none**, and the award bounds hold with the form nowhere in the picture. **If an
+  assertion about who may see what ever lands in `admin.spec.ts`, it is in the
+  wrong file.** ⚠️ The gate **fails closed**: a thrown fetch denies.
+- ⚠️ **The class list is CHILDREN, not accounts.** A parent with three children is
+  three rows. This is why 0005 landed first.
+- ⚠️ **The child id is a QUERY PARAMETER, not a route segment**, and that is
+  forced: a static build would have to enumerate real students at build time to
+  emit `/admin/eleve/<uuid>/`, which means publishing the class list in `dist/`.
+- ⚠️ **The register is one tap per child, no modal, no save button** (Critical
+  Feature 45). The write is **optimistic** — the state flips on the tap, because
+  a prof cannot wait for a round trip twenty times on mobile data — and a failed
+  write is **loud and does not revert**, because a mark that silently undoes
+  itself is worse than one that never happened. **Nothing moves after a tap**: a
+  list that reorders under a thumb is how the next student gets marked wrong.
+  Measured at **59 ms of UI per child** — see `attendance-timing.spec.ts`.
+- ⚠️ **A cancelled session is a STATE, never a deletion** (Critical Feature 46).
+  `on delete cascade` means deleting one destroys a register that may already
+  have been marked, so the UI offers no delete at all.
+- ⚠️ **Teacher awards are ROWS mirrored into the local store, never a balance.**
+  They are pulled on sign-in and **never pushed** — the client has no INSERT
+  policy and must not act as though it might. `mirrorAwards()` **replaces**
+  rather than merges, because the server is the only author; merging would make
+  a withdrawn award immortal on whichever device saw it first.
+- ⚠️ **`computeLedger()` in `src/lib/ledger.ts` is the ONE summation** (Critical
+  Feature 47). `ScoreResolver`'s inline copy stays because it must run before
+  first paint, and `admin.spec.ts` pins the two equal — a prof and a student
+  reading different totals is the worst failure a progression display can have,
+  and both numbers would look plausible.
+- ⚠️ **Admin button colours live in `admin.css`, not a scoped `<style>`.** The
+  session cards are built with `innerHTML` at runtime and Astro stamps its
+  scoping attribute at **build** time, so a scoped rule would style the template's
+  buttons and silently skip every identical one the script creates.
+- ⚠️ **`src/lib/admin.ts` may be imported ONLY from `/admin*`.** It imports
+  `@lib/supabase` statically, which is safe there and would break the guest
+  zero-request rule anywhere else. A spec greps the built public pages for an
+  admin chunk.
+- ⚠️ **`role-separation.spec.ts` runs ONE AT A TIME.** Its tests share the same
+  student, session and awards, and v2-S4 part 2 took it from two mutating tests
+  to seven. They passed first time in parallel, which is exactly how that flake
+  ships.
+
+**Not built, deliberately:** creating a student from the admin UI (staff hold
+SELECT on `child_profiles` and nothing else — a teacher renaming a child is
+indistinguishable from a teacher inventing one). ✅ **The agenda now reads the
+database** — see the rule below.
+
+---
+
+## The public agenda, baked at build time — the full record (moved from CLAUDE.md, v0.15.0)
+
+**Read when:** touching `/agenda/`, `fetch-agenda.mjs` or the `sessions` table — or wondering why the live agenda disagrees with the database.
+
+### ⚠️ THE PUBLIC AGENDA IS BAKED AT BUILD TIME — AND THAT IS FORCED
+
+`/agenda/` reads the `sessions` table. **The git collection is retired and must
+not come back** (`src/content/agenda/` is gone; `content.config.ts` says why).
+
+The read happens in `scripts/fetch-agenda.mjs` at build, writing
+`src/data/agenda.json`, which `src/lib/agenda.ts` is the only reader of.
+**A runtime read is not available to this site** and the reasoning is closed:
+
+- static output, no adapter, no SSR — there is no server to ask;
+- **Critical Feature 9** — a public page makes no third-party request, so an
+  anonymous visitor would otherwise contact supabase.co to find out when a club
+  for children meets;
+- **Critical Feature 18** — accounts OFF ships no Supabase ref, host or anon key
+  at all, and a runtime read needs all three;
+- and gating it on `PUBLIC_AUTH_ENABLED` fixes nothing, because production
+  ships with accounts OFF — `/admin/seances` would go on silently doing nothing
+  in exactly the state it is broken in.
+
+⚠️ **THE FAILURE MODE IS STALENESS, AND IT IS MADE LOUD RATHER THAN SOLVED.** A
+session published after the last deploy is not on the site. The public page
+cannot know that; `/admin/seances` can, and says so — it is built in the same
+build, so it knows what was baked, and it compares that against the live table
+by fingerprint. **Anything added to the public agenda card must be added to
+`sessionFingerprint()` in the same commit**, or a prof edits that field,
+publishes, and is told the site is up to date.
+
+- ⚠️ **The credentials are the BUILD's, never the bundle's.** The script runs in
+  Node and exits; `anon` has held `select` on published sessions since 0001, so
+  the anon key is enough and the service role is not wanted.
+- ⚠️⚠️ **THERE ARE TWO DEPLOY PATHS AND THEY OVERWRITE EACH OTHER.**
+  **Cloudflare Workers Builds IS connected**: a push to `main` triggers a
+  Cloudflare-side `npm run build` with the **dashboard build variables**, which
+  deploys on its own. `npx wrangler deploy` uploads a `dist/` built **here**,
+  where `fetch-agenda.mjs` reads `process.env` in its own process and
+  `.env.local` never reaches it — so a local build bakes the committed fallback
+  and says so in yellow. **The two produce different agendas, and last writer
+  wins.** At the v0.12.0 promotion a Cloudflare build landed **21 seconds
+  after** a CLI deploy and replaced it.
+- ⚠️⚠️ **A CREDENTIALED BUILD EMPTIES THE PUBLIC AGENDA WHENEVER PRODUCTION IS
+  BEHIND ON MIGRATIONS.** It did exactly that on 2026-08-14: production was
+  missing 0005–0007, so `sessions` held no readable row, and `/agenda/` rendered
+  "Aucune séance programmée" to the public for roughly fourteen hours.
+  **Resolved** — 0003–0007 applied at `12:29Z`, deployment `d580b90c` at
+  `13:15Z`, and the 12 September session is live. **The order is migrations
+  FIRST, credentials SECOND, a build THIRD**, and the third step is the one that
+  looks optional and is not: the fix was invisible until something rebuilt.
+- ⚠️⚠️ **THE AGENDA'S CONTENT CANNOT TELL THE TWO PATHS APART — ONLY ITS
+  EMPTINESS CAN.** 0006 seeds the 12 September row with the **same fixed id and
+  the same text** as `agenda.fallback.json`, deliberately (a random id would
+  read as a pending change forever), so the rendered card is byte-identical
+  whichever source produced it. What actually discriminates: **zero sessions is
+  a credentialed build**, because the fallback can never yield zero; and the
+  row's `created_at` compared against the deployment timestamp settles which
+  came first. Do not reach for the card's text — it is the one field guaranteed
+  not to answer.
+- ⚠️ **`Source: Unknown (deployment)` IN `wrangler deployments list` IS NOT
+  EVIDENCE OF A CLI UPLOAD.** Workers Builds deployments carry the same label
+  here, and reading it as "nothing on Cloudflare builds this site" is a
+  conclusion this project has already published once and had to retract. Tell
+  the paths apart by their OUTPUT, per the rule above, or by correlating
+  deployment timestamps against a push. See
+  [`docs/reference/deployment.md`](./docs/reference/deployment.md).
+- ⚠️ **`npm run smoke:prod` ASSERTS A SESSION IS LISTED, AND AN EMPTY AGENDA IS
+  A FAILURE.** It used to accept `/class="(sessions|empty)"/` — the list *or*
+  the empty state — and passed green, all 14 routes, while the club's one
+  session was off the site. The sentinel is now `/<li class="session\b/` and the
+  route reports its count. **Zero sessions is never correct for a club that
+  meets weekly**, so it is a deploy fault, not a scheduling fact, and it now
+  reads as one.
+- ⚠️ **`src/data/agenda.json` is a GENERATED ARTEFACT and is gitignored.** The
+  committed source is `agenda.fallback.json`. One committed file would be a
+  footgun: a Playwright run builds against the TEST project, so `git add -A`
+  would ship test sessions to the club as the production fallback.
+- ⚠️ **No credentials is a dev build; broken credentials is a fatal build.**
+  Shipping a stale agenda while believing it fresh is the failure the feature
+  exists to remove, so that case exits non-zero.
+- ⚠️ **`site.timezone` is an IANA name, never `+01:00`** — Morocco drops to
+  UTC+0 for Ramadan and back. The snapshot records the zone it was baked in and
+  the build FAILS if it disagrees with the config.
+- ⚠️ **A cancelled session stays PUBLICLY visible with its state** (0006 widened
+  the select policy). Critical Feature 46 is only half kept if a student cannot
+  see the cancellation. **A draft never leaks.**
+- ⚠️ **The seed must not delete migrated rows.** `seed-test.mjs` cleared every
+  session, including the one 0006 inserted, moments after the migration created
+  it.
+
+---
+
+## Migrations that add a table — the audit behind the checklist (moved from CLAUDE.md, v0.15.0)
+
+**Read when:** writing any migration, and before believing a GRANT does what you think. ⚠️ The four-line checklist itself STAYS in CLAUDE.md; this is the evidence behind it.
+
+### ⚠️ THE CHECKLIST FOR A MIGRATION THAT ADDS A TABLE
+
+Four lines, and the last one has been forgotten **twice**. Work down it before a
+migration ships:
+
+```sql
+create table public.<t> (...);                      -- 1. the table
+alter table public.<t> enable row level security;   -- 2. RLS ON
+create policy ... on public.<t> ...;                -- 3. the policies
+grant select, insert, update, delete on public.<t> to authenticated;
+grant select, insert, update, delete on public.<t> to service_role;  -- ⚠️ 4
+```
+
+⚠️ **EVERY NEW TABLE MUST GRANT `service_role` DML EXPLICITLY.** Default
+privileges here do **not** hand it over; migration 0002 exists solely to repair
+that across every existing table, and **0003 reproduced the bug anyway**.
+
+⚠️ **RLS BEING CORRECT DOES NOT MEAN THE TABLE IS REACHABLE.** `GRANT` decides
+whether a role may touch the table at all; RLS decides which rows. They fail
+independently. **The tell is a `42501` from a caller that bypasses RLS entirely**
+— `service_role` never hits a policy, so a permission error from it is *always* a
+missing grant and never a policy bug.
+
+⚠️ **Audit by exercising the table with a real trusted client after pushing**, not
+by re-reading the migration. Reading the file is what produced the bug both times.
+
+⚠️ **`anon` gets nothing** — deliberate: a guest writes to their own device only.
+
+⚠️⚠️ **A `grant` IS NOT THE ONLY WAY A PRIVILEGE ARRIVES, AND FOR SEVEN TABLES
+IT WAS NOT.** A Supabase project ships `alter default privileges in schema
+public grant all on tables to anon, authenticated`, so **every `create table`
+hands `anon` the full set before any migration says a word** — a later
+`grant select` narrows nothing, because it adds to a set that already contains
+it. Only `profiles` was clean, because 0001 is the one place that wrote
+`revoke all … from anon, authenticated` *before* granting; `sessions`,
+`child_profiles`, `exercise_progress`, `lesson_progress`, `game_results`,
+`attendance` and `point_awards` all left `anon` holding **TRUNCATE, REFERENCES
+and TRIGGER**, found against the live catalog. **TRUNCATE is not filtered by
+RLS** — what was actually preventing it is that PostgREST exposes no verb
+reaching it, and **reachability is not authorisation**.
+
+**Migration 0008 repairs it**: `anon` now holds `select` on `sessions` and
+nothing anywhere else, and the default-privilege entry no longer grants it.
+⚠️ **The `grant select on public.sessions to anon` in 0008 is not optional** —
+`fetch-agenda.mjs` bakes the public agenda with the anon key, so a bare
+`revoke all` there empties `/agenda/` on every future build.
+
+- ⚠️ **A new table starts with `revoke all … from anon, authenticated;` as step
+  0**, and step 4's `service_role` line still applies. 0008 cancels the default
+  for `anon` so this is belt-and-braces there, and load-bearing for
+  `authenticated`, which **still inherits TRUNCATE** — deliberately out of
+  0008's scope, and in BACKLOG.
+- ⚠️ **Do not audit the default-privilege half by reading `pg_default_acl`.**
+  Two entries govern `public`: one owned by `supabase_admin` and one by
+  `postgres`. Only the second applies to what a migration creates, and the
+  first still lists `anon`, correctly and permanently. **Exercise it** — create
+  a throwaway table and read its grants; the query is in 0008's footer.
+
+Migrations are numbered and **never edited after merge** — a fix is the next
+number. Also binding:
+
+- **Slugs are free text, deliberately not foreign keys.** Content lives in git.
+- **`is_staff()` must be `SECURITY DEFINER` with a pinned `search_path`**, or a
+  policy on `profiles` re-enters itself: *"infinite recursion detected in policy"*.
+- **Ordering matters**: tables → functions → policies.
+- **`role` is never client-updatable, and RLS alone does not achieve that** — the
+  mechanism is **column-level privileges**. Promotion is SQL only (`docs/ADMIN.md`).
+- ⚠️ **Dropping a column drops its primary key and its indexes, silently**, and a
+  policy naming the column blocks the drop entirely (`2BP01`) — so policies come
+  off **before** the column and are recreated after.
+- **Deletion cascades from `auth.users`** — delete the *auth user*, never just the
+  profile, or the erasure right is not honoured.
+- **`handle_new_user()` clamps the locale** (a Google claim arrives as `en-GB`).
+
+---
+
+## The account surfaces — the full record (moved from CLAUDE.md, v0.15.0)
+
+**Read when:** touching `/bienvenue/`, `/compte/`, `/connexion/`, `FamilySection.astro`, `account-shape.ts`, or any copy that addresses a reader as a parent or a player.
+
+### ⚠️ PARENT ONBOARDING — `/bienvenue/`, ONCE PER ACCOUNT (v2-S5)
+
+A parent signed up and silently received one child profile named from their
+email address, with nothing anywhere suggesting it could be renamed. The welcome
+screen asks the one question the site cannot answer for itself.
+
+- ⚠️ **"ONCE" IS RECORDED ON THE ACCOUNT** (`profiles.onboarded_at`), **not on
+  the device** (Critical Feature 52). In `localStorage` it would mean once per
+  browser, and the family tablet would re-ask a parent to name an already-named
+  child. Set by **both** outcomes, and it deliberately does not record which —
+  writing down "they skipped" is an invitation to re-ask them.
+- ⚠️ **GUIDANCE, NOT A GATE.** Everything on it is also on `/compte/`, "Passer"
+  is a real button rather than small grey text, and `onboarding.spec.ts` asserts
+  that a skipped onboarding leaves the family section doing the whole job.
+- ⚠️ **THE PLACEHOLDER IS NEVER PRE-FILLED** (Critical Feature 53). Detection is
+  an **exact match against the email local part**, not a guess about what names
+  look like — the guess is the version that insults someone called `Alex99`.
+- ⚠️ **THE EXTRA NAME FIELDS ARE SERVER-RENDERED AND HIDDEN**, not built by
+  script: Astro stamps its scoping attribute at build time, so a runtime element
+  misses every scoped rule. Four slots is a limit on a welcome screen, not on a
+  family — the roster adds a fifth.
+- ⚠️ **`onboarded_at` IS AN ADDITION TO 0001's COLUMN GRANT LIST**, which is what
+  stops a client writing `role`. Never "tidy" it into `grant update on
+  public.profiles`. (`account_shape` joins it in 0010 — same rule.)
+- ⚠️ **The callback defaults to `/compte/`.** A profile that could not be read
+  must not land on a one-time prompt.
+- ⚠️⚠️ **AND THAT DEFAULT IS WHY AN EXPLICIT SELECT IS A LIABILITY.**
+  `getProfile()` naming a column production does not have gets a `42703`, which
+  becomes `null`, which is indistinguishable from "not signed in" — so **one
+  unapplied migration silently sends every first sign-in past the welcome
+  screen** with no error anywhere. `PROFILE_COLUMNS` in `supabase.ts` is a
+  ladder of column lists, newest first, that **degrades instead of failing**.
+  ⚠️ **Anything added to that select gets a new rung in the same commit.**
+
+### ⚠️ THE ACCOUNT MODEL IS ASKED, THEN STATED — NEVER INFERRED (v0.14.0)
+
+v0.13.0 asked a parent to name "the student". That carries a hidden premise —
+that the account holder is **not** one of the players — and for the club's
+typical family it is false. **`/bienvenue/` now asks « Qui va utiliser ce
+compte ? »**, and the answer chooses the vocabulary of every later page:
+
+| Answer | Stored `account_shape` | `/compte/` reads |
+|---|---|---|
+| **Moi, je joue** | `self` | « Votre profil » — first person throughout |
+| **Mon enfant (ou mes enfants)** | `children` | « Vos enfants » |
+| **Les deux** | `both` | « Vous et vos enfants », holder's card badged « Vous » |
+| *skipped* | `null` | the neutral, structure-naming register (Critical Feature 54) |
+
+- ⚠️ **"LES DEUX" IS THE TYPICAL CASE** (Critical Feature 57) and its own note
+  says so. The holder gets a `child_profiles` row like anyone else — **one code
+  path, not two**, as Critical Feature 40 requires. `is_self` marks a row; it
+  does not branch one.
+- ⚠️ **THE ANSWER IS NOT THE TRUTH** (Critical Feature 58). `effectiveShape()`
+  in `src/lib/account-shape.ts` is the only place they meet, and **the roster
+  wins wherever it can speak**. A second copy of that decision is how two
+  surfaces come to address the same reader differently.
+- ⚠️ **SKIPPING RECORDS NO SHAPE.** Writing a default would manufacture a claim
+  the reader never made.
+- ⚠️ **« C'est moi » ON THE ROSTER IS THE ONLY WAY BACK**, because `/bienvenue/`
+  is shown once per account. Absent once any profile is flagged —
+  `child_profiles_one_self_idx` would refuse the write.
+- ⚠️ **`account_shape` IS AN ADDITION TO 0001's COLUMN GRANT LIST**, like
+  `onboarded_at`. Never "tidy" these into `grant update on public.profiles`.
+
+#### ⚠️ `/compte/` IS THREE BLOCKS, AND THE ORDER IS THE FEATURE
+
+It was one flat column in which the email address, the interface language and
+**permanent deletion** all carried the same weight as the children's progress.
+
+1. **Profiles** — cards with name, rank, points, progress; add, rename, remove,
+   « C'est moi ». Open, first, and the page's subject.
+2. **Réglages du compte** — `<details>`, collapsed.
+3. **Options avancées** — `<details>`, collapsed. Deletion only.
+
+- ⚠️ **NATIVE `<details>`, NOT A SCRIPTED ACCORDION.** Specs open it by
+  **clicking the summary**, never by setting `open` — "the control is reachable"
+  is the class of bug this site has already shipped once (Critical Feature 48).
+- ⚠️ **SIGNING OUT AND THE STAFF LINK STAY OUTSIDE BOTH.** A prof at Dar Souiri
+  must not have to know that "Réglages du compte" is where the register lives.
+- ⚠️ **THE SETTINGS BLOCK OPENS ITSELF WHEN THE NAME IS STILL THE EMAIL
+  FRAGMENT** — the skipped-onboarding remedy, and for nobody else.
+- ⚠️ **THE CARDS' NUMBERS ARE DERIVED BY `computeLedger()`** (Critical Features
+  47 and 61), in three queries for the whole account rather than three per
+  profile. A card whose rows have not arrived **never prints a zero**.
+- ⚠️ **`FamilySection.astro` MUST NOT IMPORT `@lib/admin`** — that module
+  statically imports `@lib/supabase`.
+
+#### ⚠️ "élève" IS STAFF VOCABULARY (Critical Feature 60)
+
+« votre élève : Seàn » is meaningless for somebody who plays themselves.
+Parent-facing copy says **enfant** or **profil**; `/admin*` keeps **élève**,
+because that audience really is looking at a class of students. The heading at
+`unknown` is « Les profils de ce compte » — **never** « Mes élèves », which is
+false for the autonomous teenager.
+
+**➡️ The three answers with their exact copy, the derivation table for
+`effectiveShape()`, and the reasoning behind each block's position:
+[`docs/reference/supabase.md`](./docs/reference/supabase.md).**
+
+### ⚠️ SIGN-UP HYGIENE — AND WHAT IT IS NOT
+
+⚠️ **The honeypot on `/connexion/` is NOISE REDUCTION, NOT SECURITY** (Critical
+Feature 56). The anon key ships to every browser by design, so the sign-up
+endpoint is reachable with `curl` and never touches the form. **A CAPTCHA is not
+a drop-in** — it is a third-party script on a public page, which Critical
+Feature 9 forbids; adopting one is a policy decision, not a wiring task.
+
+- ⚠️ **IT FAILS VISIBLY AND CLEARS ITSELF — never a fake success.** The usual
+  advice denies the bot its signal and leaves a parent whose password manager
+  filled the field waiting for an email that was never sent. Here: show the
+  error, empty the field, let the second press through.
+- **The real answer is `/admin/comptes/`** — seeing the sign-ups and removing
+  one. For twenty families that beats any amount of friction, and it is the only
+  half that works against a determined human.
+- ⚠️ **`admin_delete_account()` IS NOT A SECOND ROUTE TO `delete_own_account()`**
+  (Critical Feature 55). Different name, admin only, reason required, and it
+  **refuses `auth.uid()`** — which is what keeps CF51's "the parameter list is
+  the guarantee" true for the function that rule is about.
+- ⚠️ **THE AUDIT RECORDS THE ACT, NOT THE PERSON.** `account_deletions` holds
+  `deleted_at`, `deleted_by`, `reason` and nothing else. An "anonymised"
+  reference to somebody who exercised their erasure right is exactly the copy
+  CF51 forbids, and a spec asserts the **column list** so a helpful `target_id`
+  fails a test rather than quietly changing what erasure means.
+
+**➡️ [`docs/reference/supabase.md`](./docs/reference/supabase.md)** — migration
+0009 in full, the two delete functions side by side, the CAPTCHA reasoning, and
+the live two-child deletion audit.
+
+#### ⚠️ THE FAMILY SECTION AND THE PICKER ARE TWO RULES, NOT ONE
+
+`FamilySection.astro` on `/compte/`. Coupling these is what made "Ajouter un
+élève" unreachable for every account that had never had a second child inserted
+by SQL — see Critical Feature 48 and
+[`docs/reference/supabase.md`](./docs/reference/supabase.md).
+
+1. **The section renders for every signed-in account.** Adding, renaming and
+   removing a student are things a parent does with one child exactly as much as
+   with three.
+2. **Only the "Qui joue ?" picker is conditional** — hidden at one child or
+   fewer, because `resolveChild()` adopts a lone child silently and there is
+   genuinely nothing to ask.
+
+- ⚠️ **The roster and the picker are two lists of the same names, deliberately.**
+  The picker is tapped by a child on a shared tablet; "Retirer" must not sit
+  beside the button they are aiming for.
+- ⚠️ **Removal is never offered for the last child.** `resolveChild()` creates
+  one from the profile name the instant an account has none, so the control
+  would be a lie: the child returns, renamed, with its history gone by cascade.
+  The button is **absent**, not disabled, and a sentence says why.
+- ⚠️ **Removal is the one control on the site that destroys what a child
+  earned** — `child_profiles` is the FK target of progress, games, attendance
+  and awards, all `on delete cascade`. Two steps, in place, naming the child and
+  what goes with them. That is not the same thing as the picker's no-PIN rule
+  (Critical Feature 42), which is about *choosing*, not *erasing*.
+- ⚠️ **A removal or a rename must update the device's remembered choice.** Left
+  behind, resolution keeps handing progress to a child id RLS now refuses and
+  the offline queue never drains.
+- ⚠️ **TWO LOADS ARE ROUTINELY IN FLIGHT AND CAN LAND OUT OF ORDER.**
+  `resolveChild()` fires `CHILD_EVENT`, whose listener re-enters `load()`, so
+  the first paint already has a second read behind it. **Last to finish is not
+  most recent** — a generation counter drops the older answer, and a repaint
+  never touches a row that is mid-edit. Both were measured failures, not
+  precautions: a removal left one name on screen and two rows in the table, and
+  a rename input was detached from under the typing.
+- ⚠️ **`family.spec.ts` is the UI spec and `child-profiles.spec.ts` is the
+  boundary spec.** RLS permitted every one of these writes throughout the whole
+  time the form was invisible, so an assertion about *reachability* belongs in
+  the first and can never live in the second.

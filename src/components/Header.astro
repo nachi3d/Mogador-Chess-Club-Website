@@ -119,9 +119,11 @@ const current = stripLocale(pathname);
             rather than a disclosure, so it adds no fourth panel; and it sits
             last, exactly where the bottom bar puts it.
 
-          The label is `nav.progress` — the SAME key the bar uses. Two names for
-          one destination reads as two different sites (Critical Feature 20),
-          and until now that key had only one caller.
+          The label is `nav.me` — the SAME key the bar uses. Two names for one
+          destination reads as two different sites (Critical Feature 20).
+          ⚠️ It pointed at `/progres/` and said `nav.progress` until M4; both
+          moved together, because the bar and the header must agree about what
+          the section IS, not merely about where a leaf lives.
         */}
         {/* ⚠️ "MOI", NOT "PROGRÈS" (M4) — and it is the same destination change
             the bottom bar made, for the same reason. Progress is a leaf inside

@@ -78,7 +78,7 @@ retro menu on mobile only**.
 
 | | below 768px | 768px and above |
 |---|---|---|
-| Navigation | fixed **bottom bar**, four entries | grouped header, unchanged |
+| Navigation | fixed **bottom bar**, four entries ⚠️ *(M1 — five SECTIONS since M4, see the foot of this file)* | grouped header, unchanged |
 | Header | **one line**: name + theme + language | logo, three nav groups, settings, theme, language |
 | Home | **dashboard** (dominant card, tiles, stats, next session) | the E5 retro menu, unchanged |
 
