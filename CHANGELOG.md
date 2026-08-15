@@ -11,6 +11,10 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+---
+
+## [0.15.0] — 2026-08-15
+
 **Five sections instead of four shortcuts, and a way back that says where it
 goes.**
 
@@ -86,6 +90,46 @@ text in a 49px box** — which is not truncation, it is the same number twice. T
 label is a span in a centred flex column, so it shrink-wraps its own text. It now
 compares `scrollWidth` against `clientWidth`, which is what overflow actually
 means.
+
+### Documentation
+
+- ⚠️ **CLAUDE.md split: 133 387 → 118 837 characters** (89% → 79% of the hard
+  limit). Four sessions overdue. Past 150 000 the tail of the file simply stops
+  being read — the rules are in the repository and absent from the session, with
+  nothing anywhere reporting it, which is how it once reached 247 KB.
+
+  Moved **verbatim**, each under a **Read when** line: the admin surfaces, the
+  public agenda and its fourteen-hour outage, the migration GRANT audit and the
+  account surfaces → `docs/reference/supabase.md`; the matrix measurements, the
+  four-red-gate diagnosis and the critical-path assertion list →
+  `docs/reference/testing.md`. Kept in CLAUDE.md: every rule a session could
+  break **without knowing the area exists** — the migration checklist itself,
+  the FR-only admin decision, the agenda's build-time rule, the two-shape gate,
+  the worker cap.
+
+- **`scripts/check-split.mjs`** makes "nothing was deleted silently" a CHECK
+  rather than a claim: every non-trivial line leaving CLAUDE.md must be findable
+  verbatim under `docs/`, and anything else must be declared by hand in
+  `docs/reference/.split-obsolete.txt` with its reason. **402 lines moved, 1169
+  stayed, 2 declared.** It caught the two lines I had rewritten rather than
+  moved, which is exactly what it is for — a line dropped mid-move is
+  indistinguishable from a line that was moved.
+
+### Fixed — found while verifying the split
+
+- ⚠️ **CLAUDE.md contradicted itself about `/progres/`.** The Routes table said
+  "Rank and points say *bientôt* and print no number — nothing computes one",
+  while Critical Feature 30 in the same file said the opposite ("Since E3
+  something computes rank and points, so it prints them"). The page has carried
+  `data-score-points` and `data-score-rank` since E3. Declared obsolete.
+- **The Routes table never gained `/apprendre/` and `/moi/`** when M4 added
+  them — the two section landings were missing from the one table that is
+  supposed to be the route vocabulary.
+- **`Header.astro` still claimed its plain nav link says `nav.progress`.** M4
+  moved it to `nav.me` and repointed it at `/moi/`; the comment above it did
+  not follow.
+- The `/` row described only the E5 retro menu, omitting that home is the
+  dashboard below 768px. Declared obsolete.
 
 ### Deviations
 
@@ -4422,7 +4466,8 @@ Foundation only: no real content, no interactive board yet.
   `url()` references unresolved and the fonts silently 404 into a Georgia
   fallback. `scripts/build-fonts.mjs` self-hosts them instead. See CLAUDE.md.
 
-[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.14.0...HEAD
+[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.11.1...v0.12.0
