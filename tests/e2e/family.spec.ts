@@ -6,10 +6,9 @@ import {
   createConfirmedUser,
   deleteUser,
   e2eEmail,
-  magicLinkFor,
 } from './helpers/supabase-admin';
 import { AUTH_ENABLED, AUTH_OFF_REASON } from './helpers/auth-mode';
-import { reachAccountPage } from './helpers/auth';
+import { followMagicLink, reachAccountPage } from './helpers/auth';
 
 /**
  * The family section of `/compte/` — REACHABILITY, through the browser.
@@ -55,7 +54,7 @@ test.describe('the family section on /compte/', () => {
     const email = e2eEmail(label);
     const user = await createConfirmedUser({ email, displayName });
     created.push(user.id);
-    await page.goto(await magicLinkFor(email));
+    await followMagicLink(page, email);
     await reachAccountPage(page);
     await expect(page.getByTestId('family')).toBeVisible();
     return user;
@@ -224,51 +223,105 @@ test.describe('the family section on /compte/', () => {
    * regress to a possessive like "your child", which is simply false for the
    * autonomous teenager reading about themselves.
    */
-  test('one child reads as a profile on the account, never as "your child"', async ({ page }) => {
+  test('one profile reads structurally, never as "your child" and never "élève"', async ({
+    page,
+  }) => {
     await signInFresh(page, 'family-one', 'Sara');
     await expect(names(page)).toHaveText(['Sara']);
 
+    /* ⚠️ NO ANSWER WAS GIVEN — `signInFresh` skips `/bienvenue/` — so the
+       neutral register is the correct one and anything else is a guess. */
+    await expect(page.getByTestId('family')).toHaveAttribute('data-shape', 'unknown');
+
     const intro = page.getByTestId('family-intro');
-    await expect(intro).toContainText(/un seul profil d’élève/i);
-    /* The picker has nothing to ask at one child — `resolveChild()` adopts a
-       lone child silently, which is the autonomous-teenager path. */
+    await expect(intro).toContainText(/un seul profil de joueur/i);
+    /* The picker has nothing to ask at one profile — `resolveChild()` adopts a
+       lone profile silently, which is the autonomous-teenager path. */
     await expect(page.getByTestId('child-picker')).toBeHidden();
 
     /* ⚠️ The heading is structural in both locales. "Mes élèves" was the old
        wording and is wrong for a teenager; a regression to it fails here. */
-    await expect(page.getByTestId('family')).toContainText(/Les élèves de ce compte/i);
+    await expect(page.getByTestId('profiles-heading')).toHaveText(/Les profils de ce compte/i);
+
+    /* ⚠️ "ÉLÈVE" IS GONE FROM PARENT-FACING COPY, AND STAYS ON THE STAFF SIDE.
+       « votre élève : Seàn » is meaningless for somebody who plays themselves,
+       and the word was doing real damage on a page a parent reads once.
+       `/admin*` is untouched — that audience really is looking at a class of
+       students. Asserted on this account rather than a fresh one: every extra
+       sign-in is a magic-link verification against a rate limit the suite
+       genuinely reaches. See `waitForSignedInUrl` in helpers/auth.ts. */
+    await expect(page.getByTestId('family')).not.toContainText(/élèves?/i);
+    await expect(page.getByTestId('child-add-label')).not.toContainText(/élève/i);
 
     await page.goto('/en/compte/');
-    await expect(page.getByTestId('family-intro')).toContainText(/a single student profile/i);
-    await expect(page.getByTestId('family')).toContainText(/Students on this account/i);
+    await expect(page.getByTestId('family-intro')).toContainText(/a single player profile/i);
+    await expect(page.getByTestId('profiles-heading')).toHaveText(/The profiles on this account/i);
+    await expect(page.getByTestId('family')).not.toContainText(/students?/i);
   });
 
   /**
-   * ⚠️ SEVERAL CHILDREN IS A DIFFERENT SENTENCE, NOT A PLURAL "s" — and it
-   * carries the count, because "how many students does this account hold" is the
-   * question the section exists to answer at a glance.
+   * ⚠️ SEVERAL PROFILES IS A DIFFERENT SENTENCE, NOT A PLURAL "s" — and it
+   * carries the count, because "how many players does this account hold" is the
+   * question the block exists to answer at a glance.
    */
-  test('several children read as a count of profiles, in both locales', async ({ page }) => {
+  test('several profiles read as a count, in both locales', async ({ page }) => {
     const user = await signInFresh(page, 'family-many', 'Sara');
     await page.getByTestId('child-name').fill('Yassine');
     await page.getByTestId('child-add-submit').click();
     await expect(names(page)).toHaveText(['Sara', 'Yassine']);
     expect(await storedNames(user.id)).toEqual(['Sara', 'Yassine']);
 
-    await expect(page.getByTestId('family-intro')).toContainText(/2 profils d’élève/i);
+    await expect(page.getByTestId('family-intro')).toContainText(/2 profils de joueur/i);
     await expect(page.getByTestId('child-picker')).toBeVisible();
 
     await page.goto('/en/compte/');
-    await expect(page.getByTestId('family-intro')).toContainText(/2 student profiles/i);
+    await expect(page.getByTestId('family-intro')).toContainText(/2 player profiles/i);
   });
 
+  /* ── The three blocks ──────────────────────────────────────────────────── */
+
   /**
-   * ⚠️ WHOSE ACCOUNT IS THIS? The page has to say so in a label, not leave a
-   * parent to infer it from an email address sitting under "Prénom affiché" —
-   * which is what made "Mon compte" read as "my child's account".
+   * ⚠️ THE ORDER IS THE FEATURE. `/compte/` was one flat column in which the
+   * interface language and PERMANENT DELETION carried exactly the same weight as
+   * the children's progress. A test that only checked the blocks exist would
+   * pass on the old page too, so this one asserts the ORDER and the fact that
+   * only the first is open.
    */
-  test('/compte/ states that the reader holds the account', async ({ page }) => {
-    await signInFresh(page, 'family-model', 'Sara');
+  test('/compte/ is three blocks: profiles first, settings and danger collapsed', async ({ page }) => {
+    await signInFresh(page, 'family-blocks', 'Sara');
+
+    const order = await page.evaluate(() => {
+      const ids = ['family', 'account-settings', 'account-advanced'];
+      const nodes = ids.map((id) => document.querySelector(`[data-testid="${id}"]`));
+      if (nodes.some((n) => !n)) return null;
+      return nodes.map((n) => ({
+        id: n!.getAttribute('data-testid'),
+        top: n!.getBoundingClientRect().top + window.scrollY,
+      }));
+    });
+    expect(order, 'a block is missing from /compte/').not.toBeNull();
+    expect(order!.map((o) => o.id)).toEqual(['family', 'account-settings', 'account-advanced']);
+    expect(order![0]!.top).toBeLessThan(order![1]!.top);
+    expect(order![1]!.top).toBeLessThan(order![2]!.top);
+
+    /* ⚠️ COLLAPSED BY DEFAULT. Deletion competing with the roster is the whole
+       complaint; an `open` attribute here would restore it silently. */
+    await expect(page.getByTestId('account-advanced')).not.toHaveAttribute('open', '');
+    await expect(page.getByTestId('account-delete-start')).toBeHidden();
+
+    /* And they really open — a disclosure that does not is worse than none. */
+    await page.getByTestId('account-advanced').locator('summary').click();
+    await expect(page.getByTestId('account-delete-start')).toBeVisible();
+
+    /**
+     * ⚠️ WHOSE ACCOUNT IS THIS? The page has to say so in a label, not leave a
+     * parent to infer it from an email address sitting under "Prénom affiché".
+     * The explainer moved into the settings disclosure when `/bienvenue/`
+     * started asking the question directly — so it is OPENED here rather than
+     * assumed visible, which is exactly the regression this would otherwise
+     * hide.
+     */
+    await page.getByTestId('account-settings').locator('summary').click();
     const model = page.getByTestId('account-model');
     await expect(model).toBeVisible();
     await expect(model).toContainText(/titulaire de ce compte/i);
@@ -276,8 +329,50 @@ test.describe('the family section on /compte/', () => {
     await expect(model).toContainText(/adolescent/i);
     await expect(page.getByTestId('account-panel')).toContainText(/Titulaire du compte/i);
 
+    /**
+     * ⚠️ EVERY NUMBER ON A CARD IS DERIVED, AND ITS ABSENCE SAYS SO. A card
+     * reading "0 points" while the rows are still in flight is a lie a parent
+     * cannot tell from the truth, and Critical Feature 30 is the same rule for
+     * `/progres/`: never print a number nothing computed. A brand-new profile
+     * has solved nothing, so the honest answer is the bottom rank and zero —
+     * but it must be COMPUTED, not printed as markup.
+     */
+    await expect(page.getByTestId('child-rank')).toHaveText(/\S/);
+    await expect(page.getByTestId('child-points')).toHaveText(/^\d+ points$/);
+
     await page.goto('/en/compte/');
+    await page.getByTestId('account-settings').locator('summary').click();
     await expect(page.getByTestId('account-model')).toContainText(/you hold this account/i);
     await expect(page.getByTestId('account-model')).toContainText(/teenager/i);
+  });
+
+  /**
+   * ⚠️ THE ANSWER GIVEN AT SIGN-UP IS NOT A LIFE SENTENCE. `/bienvenue/` is
+   * shown once per account, deliberately, so a reader who said "mon enfant" and
+   * later starts playing has no other way to say so. One control, on the row
+   * that is theirs, and the vocabulary follows it.
+   */
+  test('“C’est moi” claims a profile and switches the vocabulary', async ({ page }) => {
+    const user = await signInFresh(page, 'family-self', 'Sara');
+    await expect(page.getByTestId('family')).toHaveAttribute('data-shape', 'unknown');
+    await expect(page.getByTestId('child-you')).toHaveCount(0);
+
+    await page.getByTestId('child-mark-self').click();
+
+    await expect(page.getByTestId('child-you')).toHaveCount(1);
+    await expect(page.getByTestId('family')).toHaveAttribute('data-shape', 'self');
+    await expect(page.getByTestId('profiles-heading')).toHaveText(/votre profil/i);
+
+    /* Asserted against the row, not the badge. */
+    const { data } = await adminClient()
+      .from('child_profiles')
+      .select('is_self')
+      .eq('account_id', user.id);
+    expect((data ?? []).filter((r) => r['is_self'] === true).length).toBe(1);
+
+    /* ⚠️ AND IT IS NOT OFFERED TWICE. At most one profile per account may be
+       the holder's — `child_profiles_one_self_idx` refuses the second write, so
+       the control that would attempt it must not be there to press. */
+    await expect(page.getByTestId('child-mark-self')).toHaveCount(0);
   });
 });

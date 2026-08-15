@@ -294,9 +294,14 @@ it. Tags said one thing and the manifest said another.
 51. **`delete_own_account()` takes no target, and nothing is retained.** The parameter list is the security design; erasure leaves no statistics, no archive and no anonymised copy.
 52. **The first-run screen is shown once PER ACCOUNT, and skipping it is a first-class outcome.** `profiles.onboarded_at`, never `localStorage`. A skipped onboarding leaves a fully usable account — it is guidance, not a gate.
 53. **The auto-created child's name is a PLACEHOLDER and must never be pre-filled as if it were a name.** It is the email local part, and it ends up on the attendance sheet.
-54. **Copy about the account model names the STRUCTURE, never the relationship.** An account with one child is the same object for a parent and for an autonomous teenager; "your child" is false for the second and there is nothing to branch on.
+54. **Where the reader has not told us, copy names the STRUCTURE, never the relationship.** An account with one child is the same object for a parent and for an autonomous teenager; "your child" is false for the second and there is nothing to branch on. ⚠️ **Since v0.14.0 there IS something to branch on when they answered `/bienvenue/`'s question** — and only then. `account_shape` null means never answered, and that is when this rule binds.
 55. **`admin_delete_account()` is a different function from `delete_own_account()`, and refuses `auth.uid()`.** Admin only, reason required, audited — and the audit names nobody.
 56. **Anti-bot measures on the sign-up form are NOISE REDUCTION, never security.** The anon key is public; the endpoint is reachable without the form. Visibility and removal in `/admin/comptes/` are the actual answer.
+57. **"Les deux" is the TYPICAL case, and the account holder may be a learner.** A parent who plays alongside their children gets their own profile (`child_profiles.is_self`) and their own points. Any copy, layout or query that assumes the holder is not a player is wrong.
+58. **The onboarding ANSWER and the ROSTER are two different things, and `effectiveShape()` is the only place they meet.** The roster wins wherever it can speak; the stored answer only separates "they said children" from "they never said". No second copy of that decision.
+59. **`/compte/` is three blocks, in this order: profiles, settings, danger — and only the first is open.** Deletion competing with a child's progress is the defect the shape exists to fix; an `open` attribute on the advanced block restores it silently.
+60. **"élève" is STAFF vocabulary and must not appear in parent-facing copy.** `/admin*` keeps it — that audience really is looking at a class. Everywhere a parent reads, it is "enfant" or "profil".
+61. **Every profile card's rank and total are DERIVED by `computeLedger()`, and an absent one says so.** No card prints a zero it has not computed (the same rule as Critical Feature 30).
 
 ---
 
@@ -862,19 +867,35 @@ the piece-set licence table and which sets are unusable here, the
 
 ---
 
-## ⚠️ ACCOUNTS ARE SWITCHED OFF IN PRODUCTION
+## ⚠️ ACCOUNTS ARE OFF BY DEFAULT — AND **ON** IN PRODUCTION SINCE ~2026-08-14
 
-`PUBLIC_AUTH_ENABLED`, read once in `src/config/auth.ts`. **Default `false`.**
-The whole auth stack — including v2-S3 sync and the v2-S4 role foundation — is
-built, tested and merged; it is simply not shipped. Turning it on is a release
-decision and **Seàn's call**, not a side effect of a session.
+`PUBLIC_AUTH_ENABLED`, read once in `src/config/auth.ts`. **Default `false`**,
+which is still the shape every local build, every `npm run demo` and the default
+Playwright run produces. Turning it on is a release decision and **Seàn's call**,
+not a side effect of a session.
 
-⚠️⚠️ **AND IT IS NOT ONE VARIABLE ANY MORE — THE MIGRATIONS COME FIRST.**
-Production is behind (0008, 0009), and `getProfile()` selects `onboarded_at`: on
-a database without that column **every profile read fails**, so the flag would
-ship an account page with no name, no role and no way past `/bienvenue/`. Order:
-ledger backfill → 0008 + 0009 → verify against the catalog → then the variable.
-See BACKLOG → "Turn accounts back on".
+⚠️⚠️ **IT IS NOW ON IN PRODUCTION, AND NOTHING IN THIS REPOSITORY SAYS SO.** The
+flag is a **Cloudflare dashboard build variable**; the repo default is unchanged
+and always will be. Verified 2026-08-15 by probing the live site: `/connexion/`,
+`/compte/` and `/admin/` all answer **200**. A session that reads "accounts are
+switched off in production" and reasons from it will get every conclusion about
+the live site wrong — **ask the deployment, not the default.**
+
+⚠️ **PRODUCTION'S SCHEMA IS CURRENT THROUGH 0009**, contrary to what this file
+said for two releases. Verified 2026-08-15 against the catalog, by the error code
+PostgREST returns: `account_deletions` answers **`42501`** (permission denied —
+the table exists) where a missing table answers **`PGRST205`**. `sessions` also
+answers `anon` `select`, which is 0008. **Never read
+`supabase_migrations.schema_migrations` for this** — it lists 0001–0002 only and
+is wrong in the dangerous direction.
+
+⚠️⚠️ **0010 IS THEREFORE THE ONE PRODUCTION IS MISSING, AND IT MUST BE APPLIED
+BEFORE THIS RELEASE DEPLOYS.** `getProfile()` selects `account_shape`; without
+the column PostgREST rejects the select. The fallback ladder in `supabase.ts`
+(`PROFILE_COLUMNS`) means the account **degrades to the neutral copy rather than
+emptying**, which is new and deliberate — but it is a safety net, not a licence
+to skip the migration. Order: **0010 → verify against the catalog → deploy.**
+See BACKLOG.
 
 **OFF means NOT BUILT** (Critical Feature 18): the routes are not in `dist/`,
 there is **no Supabase ref, host or anon key anywhere in the bundle**,
@@ -1278,29 +1299,81 @@ screen asks the one question the site cannot answer for itself.
   family — the roster adds a fifth.
 - ⚠️ **`onboarded_at` IS AN ADDITION TO 0001's COLUMN GRANT LIST**, which is what
   stops a client writing `role`. Never "tidy" it into `grant update on
-  public.profiles`.
+  public.profiles`. (`account_shape` joins it in 0010 — same rule.)
 - ⚠️ **The callback defaults to `/compte/`.** A profile that could not be read
   must not land on a one-time prompt.
+- ⚠️⚠️ **AND THAT DEFAULT IS WHY AN EXPLICIT SELECT IS A LIABILITY.**
+  `getProfile()` naming a column production does not have gets a `42703`, which
+  becomes `null`, which is indistinguishable from "not signed in" — so **one
+  unapplied migration silently sends every first sign-in past the welcome
+  screen** with no error anywhere. `PROFILE_COLUMNS` in `supabase.ts` is a
+  ladder of column lists, newest first, that **degrades instead of failing**.
+  ⚠️ **Anything added to that select gets a new rung in the same commit.**
 
-### ⚠️ THE ACCOUNT MODEL IS STATED, NOT INFERRED
+### ⚠️ THE ACCOUNT MODEL IS ASKED, THEN STATED — NEVER INFERRED (v0.14.0)
 
-`/compte/` says whose account it is and what the students are. Without it a
-parent reads "Prénom affiché" at the top and reasonably concludes it is their
-child's.
+v0.13.0 asked a parent to name "the student". That carries a hidden premise —
+that the account holder is **not** one of the players — and for the club's
+typical family it is false. **`/bienvenue/` now asks « Qui va utiliser ce
+compte ? »**, and the answer chooses the vocabulary of every later page:
 
-⚠️ **THE COPY NAMES THE STRUCTURE, NEVER THE RELATIONSHIP** (Critical Feature
-54). An account holding exactly one child is the **same object** whether it
-belongs to a parent or to a teenager who signed up alone (Critical Feature 40) —
-the site cannot tell and must not guess. So:
+| Answer | Stored `account_shape` | `/compte/` reads |
+|---|---|---|
+| **Moi, je joue** | `self` | « Votre profil » — first person throughout |
+| **Mon enfant (ou mes enfants)** | `children` | « Vos enfants » |
+| **Les deux** | `both` | « Vous et vos enfants », holder's card badged « Vous » |
+| *skipped* | `null` | the neutral, structure-naming register (Critical Feature 54) |
 
-| | |
-|---|---|
-| Heading | « Les élèves de ce compte » / "Students on this account" — **never** « Mes élèves » |
-| One child | « Ce compte porte **un seul profil d'élève** … le vôtre si c'est vous qui jouez, celui de votre enfant si vous l'inscrivez » |
-| Several | « Ce compte porte **%s profils d'élève**. Chacun garde sa propre progression … » |
+- ⚠️ **"LES DEUX" IS THE TYPICAL CASE** (Critical Feature 57) and its own note
+  says so. The holder gets a `child_profiles` row like anyone else — **one code
+  path, not two**, as Critical Feature 40 requires. `is_self` marks a row; it
+  does not branch one.
+- ⚠️ **THE ANSWER IS NOT THE TRUTH** (Critical Feature 58). `effectiveShape()`
+  in `src/lib/account-shape.ts` is the only place they meet, and **the roster
+  wins wherever it can speak**. A second copy of that decision is how two
+  surfaces come to address the same reader differently.
+- ⚠️ **SKIPPING RECORDS NO SHAPE.** Writing a default would manufacture a claim
+  the reader never made.
+- ⚠️ **« C'est moi » ON THE ROSTER IS THE ONLY WAY BACK**, because `/bienvenue/`
+  is shown once per account. Absent once any profile is flagged —
+  `child_profiles_one_self_idx` would refuse the write.
+- ⚠️ **`account_shape` IS AN ADDITION TO 0001's COLUMN GRANT LIST**, like
+  `onboarded_at`. Never "tidy" these into `grant update on public.profiles`.
 
-The teenager case is **named out loud** in the model block rather than left
-ambiguous, which is cheaper than copy vague enough to cover it.
+#### ⚠️ `/compte/` IS THREE BLOCKS, AND THE ORDER IS THE FEATURE
+
+It was one flat column in which the email address, the interface language and
+**permanent deletion** all carried the same weight as the children's progress.
+
+1. **Profiles** — cards with name, rank, points, progress; add, rename, remove,
+   « C'est moi ». Open, first, and the page's subject.
+2. **Réglages du compte** — `<details>`, collapsed.
+3. **Options avancées** — `<details>`, collapsed. Deletion only.
+
+- ⚠️ **NATIVE `<details>`, NOT A SCRIPTED ACCORDION.** Specs open it by
+  **clicking the summary**, never by setting `open` — "the control is reachable"
+  is the class of bug this site has already shipped once (Critical Feature 48).
+- ⚠️ **SIGNING OUT AND THE STAFF LINK STAY OUTSIDE BOTH.** A prof at Dar Souiri
+  must not have to know that "Réglages du compte" is where the register lives.
+- ⚠️ **THE SETTINGS BLOCK OPENS ITSELF WHEN THE NAME IS STILL THE EMAIL
+  FRAGMENT** — the skipped-onboarding remedy, and for nobody else.
+- ⚠️ **THE CARDS' NUMBERS ARE DERIVED BY `computeLedger()`** (Critical Features
+  47 and 61), in three queries for the whole account rather than three per
+  profile. A card whose rows have not arrived **never prints a zero**.
+- ⚠️ **`FamilySection.astro` MUST NOT IMPORT `@lib/admin`** — that module
+  statically imports `@lib/supabase`.
+
+#### ⚠️ "élève" IS STAFF VOCABULARY (Critical Feature 60)
+
+« votre élève : Seàn » is meaningless for somebody who plays themselves.
+Parent-facing copy says **enfant** or **profil**; `/admin*` keeps **élève**,
+because that audience really is looking at a class of students. The heading at
+`unknown` is « Les profils de ce compte » — **never** « Mes élèves », which is
+false for the autonomous teenager.
+
+**➡️ The three answers with their exact copy, the derivation table for
+`effectiveShape()`, and the reasoning behind each block's position:
+[`docs/reference/supabase.md`](./docs/reference/supabase.md).**
 
 ### ⚠️ SIGN-UP HYGIENE — AND WHAT IT IS NOT
 
@@ -1384,6 +1457,7 @@ touching application code.**
 | WebKit: *"Target page, context or browser has been closed"* | **The Windows WebKit build crashing under fan-out.** Re-check with `--workers=1` |
 | Firefox: `RenderCompositorSWGL failed`, then a `mouse.move`/`reload` **timeout**, on a **different test each run** | **The Windows Firefox compositor** under fan-out |
 | `auth.spec.ts`: `createConfirmedUser: fetch failed` — the error comes from **Node**, not from a page | **Network contention** minting users, not the browser. Not absorbed by the retry |
+| Several auth specs die of a bare `waitForURL` timeout on a **different set each run**, and pass when run file-by-file | **Supabase's auth burst limit.** The browser is parked on `{"code":429,"error_code":"over_request_rate_limit"}` — **measured at ~22 verifications in 7s**, clearing within minutes. `followMagicLink()` now retries and names it; if you see a raw timeout, check the page body before touching the callback |
 | A board spec fails on a tree that already shipped green | **A harness assumption**, not the app. **Drive the page by hand before believing it** |
 
 **A genuine failure is deterministic and fails A SERIAL RE-RUN too, and it fails

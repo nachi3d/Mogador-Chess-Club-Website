@@ -1,40 +1,62 @@
 ---
 /**
- * The family section of `/compte/` — the students on this account.
+ * THE PROFILES BLOCK — the top of `/compte/`, and the page's subject.
  *
  * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️ THIS IS WHAT A READER CAME FOR, SO IT IS FIRST AND IT CARRIES NUMBERS.
+ *
+ * `/compte/` used to be one flat column in which the account's email address,
+ * the interface language and permanent deletion all had exactly the same weight
+ * as the children's progress. Ordering by what a reader came for puts the
+ * profiles at the top, the settings behind a disclosure, and deletion behind a
+ * second one.
+ *
+ * ⚠️ THE VOCABULARY COMES FROM THE ANSWER GIVEN AT `/bienvenue/`, resolved by
+ * `effectiveShape()` — « votre profil » / « vos enfants » / both / neutral. It
+ * is NOT inferred from the roster's size, because a lone profile is genuinely
+ * ambiguous (Critical Feature 40) and guessing is what Critical Feature 54
+ * forbids. An account that skipped the question keeps the neutral,
+ * structure-naming copy, which is true for every reader.
+ *
  * ⚠️ TWO RULES, AND COUPLING THEM IS THE BUG THIS FILE EXISTS TO HAVE FIXED.
  *
  * 1. THE SECTION RENDERS FOR EVERY SIGNED-IN ACCOUNT. Adding, renaming and
- *    removing a student are things a parent does with one child exactly as
+ *    removing a profile are things a parent does with one child exactly as
  *    much as with three.
  * 2. THE PICKER — "Qui joue ?" — IS THE CONDITIONAL HALF, and only it. Above
- *    one child there is genuinely nothing to ask: `resolveChild()` adopts a
- *    lone child silently, which is the autonomous-teenager path.
+ *    one profile there is genuinely nothing to ask: `resolveChild()` adopts a
+ *    lone profile silently, which is the autonomous-teenager path.
  *
  * Until v0.11.x these were one rule. The whole section was hidden whenever the
- * account held one child or none — and a brand-new account is given exactly
- * one — so the "Ajouter un élève" form was invisible to every account that had
- * never had a second child inserted by SQL. A parent with two children could
- * add a third; a parent with one could add none. RLS permitted the insert
- * throughout; the form was simply unreachable, and nothing in the suite looked
- * for it, which is how it stayed that way through two releases.
+ * account held one profile or none — and a brand-new account is given exactly
+ * one — so the add form was invisible to every account that had never had a
+ * second profile inserted by SQL. RLS permitted the insert throughout; the form
+ * was simply unreachable, and nothing in the suite looked for it.
  *
  * ⚠️ THE ROSTER AND THE PICKER ARE TWO LISTS OF THE SAME NAMES, ON PURPOSE.
  * The picker is tapped by a child on a shared family tablet. "Retirer" must not
  * sit beside the button they are aiming for.
  *
  * ⚠️ A CHOICE, NOT A PASSWORD. There is no PIN, no lock and no "are you sure"
- * on the picker. These are children in the same room as the parent who signed
- * in; a lock would buy nothing and would put a credential in front of an
- * eight-year-old who wants to solve a mate in one. The account is the security
- * boundary. Which child is playing is a preference, exactly like the board
- * theme. The two-step confirm on REMOVAL is a different thing entirely — that
- * one erases a child's whole history by cascade.
+ * on the picker (Critical Feature 42). The account is the security boundary.
+ * The two-step confirm on REMOVAL is a different thing entirely — that one
+ * erases a profile's whole history by cascade.
  *
- * ⚠️ REMEMBERED PER DEVICE. A child's own phone answers the picker once, ever.
- * The family tablet asks when the answer is genuinely unknown — which is why
- * this is a section of `/compte/` rather than a modal that interrupts a board.
+ * ⚠️ EVERY NUMBER ON A CARD IS DERIVED BY `computeLedger()`, THE ONE SUMMATION
+ * (Critical Feature 47). Nothing here stores or fetches a total; the rows come
+ * from `exercise_progress`, `game_results` and `point_awards`, and the same
+ * function a prof's screen uses turns them into points and a rank. A parent and
+ * a prof reading different totals is the worst failure a progression display
+ * can have, because both numbers look plausible.
+ *
+ * ⚠️ THE ROWS ARE FETCHED IN THREE REQUESTS, NOT THREE PER PROFILE. RLS filters
+ * to this account either way; the shape of the query is a latency decision on a
+ * phone, not a security one. Same reasoning as `listProgress()` in `admin.ts`.
+ *
+ * ⚠️ IT MUST NOT IMPORT `@lib/admin`. That module statically imports
+ * `@lib/supabase`, which is safe under `/admin*` and would break the guest
+ * zero-request rule everywhere else. The queries below are deliberately its
+ * twins rather than its callers.
  *
  * ⚠️ UNREACHABLE WITH THE FLAG OFF. `/compte/` is not emitted at all when
  * `PUBLIC_AUTH_ENABLED` is unset, so a guest never renders a byte of this.
@@ -42,10 +64,11 @@
  */
 import type { Locale } from '@config/site';
 import { useTranslations } from '@i18n/ui';
-/* ⚠️ A REAL STYLESHEET, NOT A SCOPED `<style>`. Every row below is built at
+import { scoreCatalogue } from '@lib/scoreboard';
+/* ⚠️ A REAL STYLESHEET, NOT A SCOPED `<style>`. Every card below is built at
    runtime and would not carry Astro's build-time scoping attribute. See the
-   header of the file itself — this had already silently killed the picker's
-   own button styling. */
+   header of `family.css` — this had already silently killed the picker's own
+   button styling. */
 import '@styles/family.css';
 
 interface Props {
@@ -54,12 +77,36 @@ interface Props {
 
 const { locale } = Astro.props;
 const t = useTranslations(locale);
+
+/* ⚠️ THE POLICY IS DATA, COMPUTED AT BUILD TIME. No award value, threshold or
+   condition is written in the script below — `scoreboard.ts` derives all of it
+   from `points.ts`, exactly as `/progres/` and the admin surfaces do. The
+   achievements are dropped: this block shows a rank and a total, and shipping
+   the achievement definitions to a page that never draws them is pure weight. */
+const full = await scoreCatalogue(locale);
+const catalogue = {
+  entries: full.entries,
+  wins: full.wins,
+  winCap: full.winCap,
+  ranks: full.ranks,
+};
+
+const rankLabels: Record<string, string> = {
+  pion: t('score.rank.pion'),
+  cavalier: t('score.rank.cavalier'),
+  fou: t('score.rank.fou'),
+  tour: t('score.rank.tour'),
+  dame: t('score.rank.dame'),
+};
 ---
 
 <section
   class="family"
   data-testid="family"
+  data-shape="unknown"
   data-msg-add-error={t('child.addError')}
+  data-msg-add-label={t('child.addLabel')}
+  data-msg-add-label-child={t('child.addLabelChild')}
   data-msg-rename={t('family.rename')}
   data-msg-rename-label={t('family.renameLabel')}
   data-msg-rename-error={t('family.renameError')}
@@ -70,34 +117,54 @@ const t = useTranslations(locale);
   data-msg-remove-yes={t('family.removeYes')}
   data-msg-remove-error={t('family.removeError')}
   data-msg-only-child={t('family.onlyChild')}
-  data-msg-intro-one={t('family.introOne')}
-  data-msg-intro-many={t('family.introMany')}
+  data-msg-you={t('profiles.you')}
+  data-msg-you-label={t('profiles.youLabel')}
+  data-msg-points={t('profiles.points')}
+  data-msg-solved={t('profiles.solved')}
+  data-msg-loading={t('profiles.loading')}
+  data-msg-mark-self={t('profiles.markSelf')}
+  data-msg-mark-self-label={t('profiles.markSelfLabel')}
+  data-msg-mark-self-error={t('profiles.markSelfError')}
+  data-msg-next={t('score.next')}
+  data-msg-top={t('score.top')}
+  data-head-self={t('profiles.heading.self')}
+  data-head-children={t('profiles.heading.children')}
+  data-head-both={t('profiles.heading.both')}
+  data-head-unknown={t('profiles.heading.unknown')}
+  data-intro-self={t('profiles.intro.self')}
+  data-intro-children-one={t('profiles.intro.childrenOne')}
+  data-intro-children-many={t('profiles.intro.childrenMany')}
+  data-intro-both={t('profiles.intro.both')}
+  data-intro-unknown-one={t('profiles.intro.unknownOne')}
+  data-intro-unknown-many={t('profiles.intro.unknownMany')}
   hidden
 >
-  <h2>{t('family.heading')}</h2>
-  {/* ⚠️ REPLACED BY A COUNT-SPECIFIC SENTENCE ONCE THE ROSTER LOADS. The
-      server-rendered text is the neutral one, because a static page cannot know
-      how many children an account holds — and it has to read correctly for the
-      half-second before it is swapped, and in the (unreachable) no-JS case.
+  {/* ⚠️ THE POLICY AND THE LABELS RIDE AS JSON, NOT AS A BUNDLED IMPORT.
+      `scoreboard.ts` imports `astro:content` and chess.js; pulling it into a
+      page script would put the whole content collection into this page's
+      chunk. Same seam `/progres/` and `/admin/eleves/` use. */}
+  <script type="application/json" data-ledger-catalogue set:html={JSON.stringify(catalogue)} />
+  <script type="application/json" data-rank-labels set:html={JSON.stringify(rankLabels)} />
 
-      ⚠️ THE BRANCH IS ON THE COUNT AND NOTHING ELSE. There is no "account type"
-      to test: an autonomous teenager IS an account with one child (Critical
-      Feature 40), which is why the one-child sentence has to be true for a
-      parent and for a student reading about themselves. */}
-  <p class="family-intro" data-testid="family-intro">{t('family.intro')}</p>
+  {/* ⚠️ SERVER-RENDERED NEUTRAL, SWAPPED ONCE THE SHAPE IS KNOWN. A static page
+      cannot know how an account answered, and the text has to read correctly
+      for the half-second before it is replaced. The neutral register is the one
+      that is true in every case, which is exactly why it is the fallback. */}
+  <h2 data-testid="profiles-heading">{t('profiles.heading.unknown')}</h2>
+  <p class="family-intro" data-testid="family-intro">{t('profiles.intro.unknownOne')}</p>
 
-  {/* ── The conditional half. Hidden at one child, and ONLY this part. ──── */}
+  {/* ── The roster. Always. ──────────────────────────────────────────────── */}
+  <ul class="child-roster" data-testid="child-roster"></ul>
+
+  {/* ── The conditional half. Hidden at one profile, and ONLY this part. ─── */}
   <div class="child-picker" data-testid="child-picker" hidden>
     <h3>{t('child.heading')}</h3>
     <p class="child-intro">{t('child.intro')}</p>
     <ul class="child-list" data-testid="child-list"></ul>
   </div>
 
-  {/* ── The roster. Always. ──────────────────────────────────────────────── */}
-  <ul class="child-roster" data-testid="child-roster"></ul>
-
   <form class="child-add" data-testid="child-add">
-    <label for="child-name">{t('child.addLabel')}</label>
+    <label for="child-name" data-testid="child-add-label">{t('child.addLabel')}</label>
     <input id="child-name" type="text" maxlength="40" autocomplete="off" data-testid="child-name" />
     {/* ⚠️ `child-action` as well as `btn-ghost`: `controls.css` owns the 44px
         target and the press but sets no colour at all, and this button's only
@@ -120,29 +187,64 @@ const t = useTranslations(locale);
     CHILD_EVENT,
     activeChild,
     chooseChild,
+    fetchChildren,
     forgetChild,
     pendingChoices,
     resolveChild,
     type Child,
   } from '@lib/child';
+  import { effectiveShape, type EffectiveShape } from '@lib/account-shape';
+  import { computeLedger, type LedgerCatalogue } from '@lib/ledger';
 
   const root = document.querySelector('[data-testid="family"]') as HTMLElement | null;
+  const heading = document.querySelector('[data-testid="profiles-heading"]') as HTMLElement | null;
   const picker = document.querySelector('[data-testid="child-picker"]') as HTMLElement | null;
   const list = document.querySelector('[data-testid="child-list"]') as HTMLElement | null;
   const roster = document.querySelector('[data-testid="child-roster"]') as HTMLElement | null;
   const form = document.querySelector('[data-testid="child-add"]') as HTMLFormElement | null;
+  const addLabel = document.querySelector('[data-testid="child-add-label"]') as HTMLElement | null;
   const input = document.querySelector('[data-testid="child-name"]') as HTMLInputElement | null;
   const status = document.querySelector('[data-testid="child-status"]') as HTMLElement | null;
   const intro = document.querySelector('[data-testid="family-intro"]') as HTMLElement | null;
 
+  const json = <T,>(selector: string, fallback: T): T => {
+    const node = document.querySelector(selector);
+    if (!node?.textContent) return fallback;
+    try {
+      return JSON.parse(node.textContent) as T;
+    } catch {
+      return fallback;
+    }
+  };
+
+  const catalogue = json<LedgerCatalogue>('[data-ledger-catalogue]', {
+    entries: [],
+    wins: {},
+    winCap: 0,
+    ranks: [],
+  });
+  const rankLabels = json<Record<string, string>>('[data-rank-labels]', {});
+
+  /** One profile's derived standing. Never stored, never fetched as a total. */
+  interface Standing {
+    readonly points: number;
+    readonly solved: number;
+    readonly rank: string;
+    readonly next: string | null;
+    readonly remaining: number;
+    readonly progress: number;
+  }
+
   let accountId = '';
   let children: Child[] = [];
   let active: Child | null = null;
+  let shape: EffectiveShape = 'unknown';
+  let standings = new Map<string, Standing>();
 
   /**
    * ⚠️ TWO LOADS ARE ROUTINELY IN FLIGHT, AND THEY CAN LAND OUT OF ORDER.
    *
-   * `resolveChild()` adopts or creates a child and fires `CHILD_EVENT`, whose
+   * `resolveChild()` adopts or creates a profile and fires `CHILD_EVENT`, whose
    * listener re-enters `load()` — so the very first paint already has a second
    * read behind it, and an add, a rename or a removal starts another. Whichever
    * finishes last wins, which is not the same as the newest one winning: an
@@ -157,7 +259,7 @@ const t = useTranslations(locale);
   let generation = 0;
 
   /**
-   * ⚠️ THE CHILD WHOSE ROW IS MID-EDIT, AND WHY REPAINTING IT IS FORBIDDEN.
+   * ⚠️ THE PROFILE WHOSE ROW IS MID-EDIT, AND WHY REPAINTING IT IS FORBIDDEN.
    *
    * A background refresh landing while a parent is halfway through typing a new
    * name replaces the input under them and loses what they wrote — measured as
@@ -213,7 +315,7 @@ const t = useTranslations(locale);
     );
   }
 
-  /* ── The roster ────────────────────────────────────────────────────────── */
+  /* ── The roster, as cards ──────────────────────────────────────────────── */
 
   function paintRoster() {
     if (!roster) return;
@@ -228,15 +330,86 @@ const t = useTranslations(locale);
     paintRoster();
   }
 
+  /**
+   * ⚠️ THE STANDING IS DRAWN ONLY WHEN IT HAS ARRIVED, and its absence says so
+   * rather than printing a zero. A card reading "0 points" for a profile whose
+   * rows are still in flight is a lie a parent has no way to distinguish from
+   * the truth — and Critical Feature 30 is the same rule for `/progres/`: never
+   * print a number nothing computed.
+   */
+  function standingBlock(child: Child): HTMLElement {
+    const wrap = document.createElement('div');
+    wrap.className = 'child-standing';
+    wrap.dataset['testid'] = 'child-standing';
+
+    const standing = standings.get(child.id);
+    if (!standing) {
+      wrap.textContent = msg('msgLoading');
+      wrap.classList.add('child-standing-loading');
+      return wrap;
+    }
+
+    const rank = document.createElement('span');
+    rank.className = 'child-rank';
+    rank.dataset['testid'] = 'child-rank';
+    rank.textContent = rankLabels[standing.rank] ?? standing.rank;
+
+    const points = document.createElement('span');
+    points.className = 'child-metric';
+    points.dataset['testid'] = 'child-points';
+    points.textContent = msg('msgPoints').replace('%s', String(standing.points));
+
+    const solved = document.createElement('span');
+    solved.className = 'child-metric';
+    solved.textContent = msg('msgSolved').replace('%s', String(standing.solved));
+
+    /* The bar is decoration over numbers that are already written out, so it is
+       hidden from assistive tech rather than given a redundant label. */
+    const bar = document.createElement('div');
+    bar.className = 'child-bar';
+    bar.setAttribute('aria-hidden', 'true');
+    const fill = document.createElement('span');
+    fill.className = 'child-bar-fill';
+    fill.style.setProperty('--fill', `${Math.round(standing.progress * 100)}%`);
+    bar.append(fill);
+
+    const next = document.createElement('span');
+    next.className = 'child-next';
+    next.textContent = standing.next
+      ? msg('msgNext')
+          .replace('%s', String(standing.remaining))
+          .replace('%s', rankLabels[standing.next] ?? standing.next)
+      : msg('msgTop');
+
+    wrap.append(rank, points, solved, bar, next);
+    return wrap;
+  }
+
   function rosterRow(child: Child): HTMLLIElement {
     const li = document.createElement('li');
-    li.className = 'child-row';
+    li.className = `child-row${child.isSelf ? ' child-row-self' : ''}`;
     li.dataset['childId'] = child.id;
+
+    const head = document.createElement('div');
+    head.className = 'child-row-head';
 
     const name = document.createElement('span');
     name.className = 'child-row-name';
     name.textContent = child.name;
     name.dataset['testid'] = 'child-row-name';
+    head.append(name);
+
+    /* ⚠️ THE HOLDER'S OWN CARD IS NAMED AS THEIRS. "Les deux" exists precisely
+       so a parent who plays is not reading their own progress under a heading
+       about their children. */
+    if (child.isSelf) {
+      const badge = document.createElement('span');
+      badge.className = 'child-you';
+      badge.dataset['testid'] = 'child-you';
+      badge.textContent = msg('msgYou');
+      badge.setAttribute('aria-label', msg('msgYouLabel'));
+      head.append(badge);
+    }
 
     const actions = document.createElement('div');
     actions.className = 'child-row-actions';
@@ -249,9 +422,27 @@ const t = useTranslations(locale);
     actions.append(rename);
 
     /**
-     * ⚠️ NEVER THE LAST CHILD, AND THAT IS NOT TIMIDITY. `resolveChild()`
-     * creates a child from the profile name the instant an account has none,
-     * so "remove" on a lone child is a lie: it comes straight back, renamed,
+     * ⚠️ THE ANSWER GIVEN AT SIGN-UP IS NOT A LIFE SENTENCE. A reader who said
+     * "mon enfant" and later starts playing themselves has no other way to say
+     * so, and re-running the welcome screen is not available (it is shown once,
+     * per account, deliberately). One control, on the row that is theirs.
+     *
+     * Offered only where it would change something: never on a profile already
+     * flagged, and never when another one is — moving it is a rename away from
+     * being ambiguous, and `child_profiles_one_self_idx` would refuse the second
+     * write anyway.
+     */
+    if (!child.isSelf && !children.some((c) => c.isSelf)) {
+      const mine = button(msg('msgMarkSelf'), 'child-mark-self');
+      mine.setAttribute('aria-label', msg('msgMarkSelfLabel').replace('%s', child.name));
+      mine.addEventListener('click', () => void commitMarkSelf(child));
+      actions.append(mine);
+    }
+
+    /**
+     * ⚠️ NEVER THE LAST PROFILE, AND THAT IS NOT TIMIDITY. `resolveChild()`
+     * creates one from the profile name the instant an account has none, so
+     * "remove" on a lone profile is a lie: it comes straight back, renamed,
      * with its whole history gone by cascade. The button is absent rather than
      * disabled — a disabled control with no explanation reads as a bug.
      */
@@ -268,7 +459,7 @@ const t = useTranslations(locale);
       actions.append(note);
     }
 
-    li.append(name, actions);
+    li.append(head, standingBlock(child), actions);
     return li;
   }
 
@@ -331,7 +522,28 @@ const t = useTranslations(locale);
     /* ⚠️ The remembered choice carries the NAME as well as the id, so a rename
        that did not refresh it would leave this device's picker showing the old
        one until the entry was replaced for some other reason. */
-    if (activeChild()?.id === child.id) chooseChild(accountId, { id: child.id, name });
+    if (activeChild()?.id === child.id) {
+      chooseChild(accountId, { id: child.id, name, isSelf: child.isSelf });
+    }
+    await load();
+  }
+
+  /* ── "C'est moi" ───────────────────────────────────────────────────────── */
+
+  async function commitMarkSelf(child: Child) {
+    setStatus('');
+    const { getSupabase } = await import('@lib/supabase');
+    const supabase = await getSupabase();
+    const { error } = await supabase
+      .from('child_profiles')
+      .update({ is_self: true })
+      .eq('id', child.id);
+    if (error) {
+      /* Also the answer on a database without 0010, where the column does not
+         exist at all. Nothing was claimed and nothing changed. */
+      setStatus(msg('msgMarkSelfError'));
+      return;
+    }
     await load();
   }
 
@@ -342,8 +554,8 @@ const t = useTranslations(locale);
    *
    * This is the one control on the site that destroys data a child earned:
    * `child_profiles` is the FK target for progress, games, attendance and
-   * awards, all `on delete cascade`. The confirm therefore names the child and
-   * says what goes with them, rather than asking "are you sure?" about a row.
+   * awards, all `on delete cascade`. The confirm therefore names the profile
+   * and says what goes with it, rather than asking "are you sure?" about a row.
    */
   function startRemove(li: HTMLLIElement, child: Child) {
     setStatus('');
@@ -393,37 +605,130 @@ const t = useTranslations(locale);
   function paint() {
     if (!root) return;
     /* ⚠️ THE TWO RULES, SPELLED SEPARATELY. Signed in ⇒ the section. More than
-       one child ⇒ the picker as well. Anything that re-couples these puts the
+       one profile ⇒ the picker as well. Anything that re-couples these puts the
        add form back out of reach. */
     root.hidden = false;
+    root.dataset['shape'] = shape;
     if (picker) picker.hidden = children.length <= 1;
-    paintIntro();
+    paintVocabulary();
     paintChoices();
     paintRoster();
   }
 
   /**
-   * ⚠️ ONE CHILD AND SEVERAL ARE DIFFERENT SENTENCES, NOT A PLURAL "s".
+   * ⚠️ THE HEADING, THE INTRO AND THE ADD LABEL ALL COME FROM ONE DECISION.
    *
-   * The one-child case has to read correctly for two people the site cannot
-   * tell apart — a parent who has enrolled one child, and a teenager who signed
-   * up for themselves — so it names the STRUCTURE ("this account has a single
-   * student profile") and then covers both readings in one clause. A naive
-   * "Your child: %s" is wrong for the second, and there is no flag to branch on
-   * because an autonomous teenager is deliberately not a different kind of
-   * account (Critical Feature 40).
+   * Splitting them is how a page ends up headed « Vos enfants » with a button
+   * reading « Ajouter un profil » underneath it. `effectiveShape()` is the only
+   * thing that decides, and it decides once.
    */
-  function paintIntro() {
-    if (!intro) return;
-    intro.textContent =
-      children.length <= 1
-        ? msg('msgIntroOne')
-        : msg('msgIntroMany').replace('%s', String(children.length));
+  function paintVocabulary() {
+    const many = children.length > 1;
+    const headKey =
+      shape === 'self'
+        ? 'headSelf'
+        : shape === 'children'
+          ? 'headChildren'
+          : shape === 'both'
+            ? 'headBoth'
+            : 'headUnknown';
+    if (heading) heading.textContent = msg(headKey);
+
+    let text: string;
+    if (shape === 'self') text = msg('introSelf');
+    else if (shape === 'both') text = msg('introBoth');
+    else if (shape === 'children') {
+      text = many
+        ? msg('introChildrenMany').replace('%s', String(children.length))
+        : msg('introChildrenOne');
+    } else {
+      text = many
+        ? msg('introUnknownMany').replace('%s', String(children.length))
+        : msg('introUnknownOne');
+    }
+    if (intro) intro.textContent = text;
+
+    /* ⚠️ « Ajouter un enfant » ONLY WHERE IT IS TRUE. On an account that never
+       answered the question, what is being added is a profile — calling it a
+       child would be the same guess Critical Feature 54 forbids. */
+    if (addLabel) {
+      addLabel.textContent = msg(shape === 'unknown' ? 'msgAddLabel' : 'msgAddLabelChild');
+    }
+  }
+
+  /**
+   * Every profile's standing, from three requests.
+   *
+   * ⚠️ FAILS QUIET AND LEAVES THE MAP EMPTY. A card whose rows did not arrive
+   * says so (see `standingBlock`); it does not print a zero, and it does not
+   * stop the roster, the rename form or the add form from working. Progress is
+   * the reason a parent opened the page, and managing profiles is what the page
+   * is FOR — the second must not be taken out by a failure of the first.
+   */
+  async function loadStandings(supabase: any, ids: readonly string[]) {
+    if (ids.length === 0) return;
+    const [progress, games, awards] = await Promise.all([
+      supabase.from('exercise_progress').select('child_id,exercise_slug,solved,hint_used'),
+      supabase.from('game_results').select('child_id,level,outcome'),
+      supabase.from('point_awards').select('child_id,points'),
+    ]);
+
+    const buckets = new Map<
+      string,
+      {
+        exercises: Record<string, { solved: boolean; hintUsed: boolean }>;
+        games: Record<string, { wins: number }>;
+        awards: { points: number }[];
+      }
+    >();
+    const bucket = (id: string) => {
+      let value = buckets.get(id);
+      if (!value) {
+        value = { exercises: {}, games: {}, awards: [] };
+        buckets.set(id, value);
+      }
+      return value;
+    };
+
+    for (const row of progress.data ?? []) {
+      bucket(String(row['child_id'])).exercises[String(row['exercise_slug'])] = {
+        solved: row['solved'] === true,
+        hintUsed: row['hint_used'] === true,
+      };
+    }
+    for (const row of games.data ?? []) {
+      const value = bucket(String(row['child_id']));
+      const level = (value.games[String(row['level'])] ??= { wins: 0 });
+      /* ⚠️ Wins only. A loss costs nothing, ever (Critical Feature 35). */
+      if (row['outcome'] === 'win') level.wins += 1;
+    }
+    for (const row of awards.data ?? []) {
+      bucket(String(row['child_id'])).awards.push({ points: Number(row['points'] ?? 0) });
+    }
+
+    const next = new Map<string, Standing>();
+    for (const id of ids) {
+      const value = buckets.get(id);
+      const ledger = computeLedger(catalogue, {
+        exercises: value?.exercises ?? {},
+        games: value?.games ?? {},
+        awards: value?.awards ?? [],
+      });
+      next.set(id, {
+        points: ledger.points,
+        solved: Object.values(value?.exercises ?? {}).filter((e) => e.solved).length,
+        rank: ledger.rank,
+        next: ledger.next,
+        remaining: ledger.remaining,
+        progress: ledger.progress,
+      });
+    }
+    standings = next;
   }
 
   async function load() {
     const mine = ++generation;
-    const { getUser, getSupabase } = await import('@lib/supabase');
+    const { getUser, getSupabase, getProfile } = await import('@lib/supabase');
     const user = await getUser();
     if (!user) return;
     accountId = user.id;
@@ -432,11 +737,10 @@ const t = useTranslations(locale);
        comes back in `pendingChoices()`. */
     const resolved = (await resolveChild()) ?? activeChild();
     const supabase = await getSupabase();
-    const { data } = await supabase
-      .from('child_profiles')
-      .select('id,display_name')
-      .eq('account_id', user.id)
-      .order('created_at');
+    const [rows, profile] = await Promise.all([
+      fetchChildren(supabase, user.id),
+      getProfile(),
+    ]);
 
     /* ⚠️ A NEWER LOAD HAS ALREADY ANSWERED — drop this one rather than paint
        over it. See `generation`: this read may have been issued before an
@@ -445,12 +749,17 @@ const t = useTranslations(locale);
     if (mine !== generation) return;
 
     active = resolved;
-    const rows: Child[] = (data ?? []).map((row) => ({
-      id: String(row['id']),
-      name: String(row['display_name'] ?? ''),
-    }));
-    children = rows.length > 0 ? rows : [...pendingChoices()];
+    children = rows && rows.length > 0 ? rows : [...pendingChoices()];
+    shape = effectiveShape({ answer: profile?.account_shape ?? null, children });
+
+    /* ⚠️ PAINTED BEFORE THE NUMBERS ARRIVE, THEN AGAIN AFTER. The roster is the
+       page's subject and it must not wait on three progress queries; the cards
+       say "Chargement…" for as long as that honestly takes. */
     paint();
+
+    await loadStandings(supabase, children.map((c) => c.id));
+    if (mine !== generation) return;
+    paintRoster();
   }
 
   form?.addEventListener('submit', async (event) => {

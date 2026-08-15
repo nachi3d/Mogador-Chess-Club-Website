@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
-import { createConfirmedUser, deleteUser, e2eEmail, magicLinkFor, adminClient } from './helpers/supabase-admin';
+import { createConfirmedUser, deleteUser, e2eEmail, adminClient } from './helpers/supabase-admin';
 import { AUTH_ENABLED, AUTH_OFF_REASON } from './helpers/auth-mode';
-import { reachAccountPage } from './helpers/auth';
+import { followMagicLink, reachAccountPage } from './helpers/auth';
 
 /**
  * v2-S3 — progress sync, the first-sign-in merge and the offline queue.
@@ -50,8 +50,7 @@ test.describe('v2-S3 — progress sync', () => {
     page.evaluate((k) => JSON.parse(window.localStorage.getItem(k) ?? '{}'), PROGRESS_KEY);
 
   async function signIn(page: Page, email: string) {
-    const link = await magicLinkFor(email);
-    await page.goto(link);
+    await followMagicLink(page, email);
     await reachAccountPage(page);
   }
 

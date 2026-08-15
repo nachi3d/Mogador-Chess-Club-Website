@@ -34,6 +34,17 @@ export const CHILD_EVENT = 'mcc:child';
 export interface Child {
   readonly id: string;
   readonly name: string;
+  /**
+   * True for the ONE profile that belongs to the account holder themselves —
+   * `child_profiles.is_self`, migration 0010.
+   *
+   * ⚠️ IT MARKS A ROW; IT DOES NOT BRANCH A CODE PATH. Resolution below is
+   * completely blind to it, exactly as Critical Feature 40 requires: the account
+   * holder who plays is a learner like any other, with the same progress rows,
+   * the same points and the same id as the FK target everywhere. The flag exists
+   * so `/compte/` can say whose profile is whose — nothing else reads it.
+   */
+  readonly isSelf: boolean;
 }
 
 interface ChildRecord {
@@ -66,7 +77,15 @@ function read(): ChildRecord {
     for (const [account, entry] of Object.entries(chosen as Record<string, unknown>)) {
       const e = entry as Record<string, unknown>;
       if (typeof e?.['id'] === 'string' && e['id']) {
-        out[account] = { id: e['id'], name: typeof e['name'] === 'string' ? e['name'] : '' };
+        out[account] = {
+          id: e['id'],
+          name: typeof e['name'] === 'string' ? e['name'] : '',
+          /* Absent in anything written before 0010, and false is the right
+             reading of "we did not know": the roster refreshes it from the
+             database on every load, and nothing decides anything from the
+             remembered copy. */
+          isSelf: e['isSelf'] === true,
+        };
       }
     }
     return { chosen: out };
@@ -117,6 +136,54 @@ export function forgetChild(accountId: string): void {
   active = null;
 }
 
+/* ── Reading the roster ──────────────────────────────────────────────────── */
+
+/**
+ * Every player profile on an account, oldest first.
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️ ONE READER, SO THE SCHEMA FALLBACK CANNOT DRIFT. `resolveChild()` below and
+ * the roster on `/compte/` both need this list, and both would otherwise carry
+ * their own copy of the `is_self` column ladder — which is how one surface comes
+ * to see a flag the other cannot.
+ *
+ * ⚠️ THE LADDER IS THE SAME BARGAIN `PROFILE_COLUMNS` MAKES IN `supabase.ts`. A
+ * database without 0010 answers a select naming `is_self` with a `42703`, and an
+ * unguarded read would turn one unapplied migration into an account with no
+ * children at all — no picker, no roster, no add form, and `resolveChild()`
+ * cheerfully creating a SECOND profile because it believed there were none.
+ * That last consequence is why this is a fallback and not an error: the failure
+ * mode is duplicated learners, not a blank panel.
+ *
+ * Degrade, do not repair: an older database reports every profile as `isSelf:
+ * false`, which `effectiveShape()` reads as "we do not know" and answers with
+ * the neutral copy.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+export async function fetchChildren(
+  supabase: { from: (table: string) => any },
+  accountId: string,
+): Promise<Child[] | null> {
+  const columns = ['id,display_name,is_self', 'id,display_name'];
+  for (const select of columns) {
+    const { data, error } = await supabase
+      .from('child_profiles')
+      .select(select)
+      .eq('account_id', accountId)
+      .order('created_at');
+    if (error) continue;
+    return (data ?? []).map((row: Record<string, unknown>) => ({
+      id: String(row['id']),
+      name: String(row['display_name'] ?? ''),
+      isSelf: row['is_self'] === true,
+    }));
+  }
+  /* ⚠️ NULL, NOT `[]`. An empty array means "this account has no profiles", and
+     `resolveChild()` responds to that by CREATING one. A failed read must never
+     be mistaken for an empty account. */
+  return null;
+}
+
 /* ── Resolution ──────────────────────────────────────────────────────────── */
 
 let active: Child | null = null;
@@ -154,17 +221,10 @@ export async function resolveChild(): Promise<Child | null> {
 
       const remembered = rememberedChild(user.id);
       const supabase = await getSupabase();
-      const { data, error } = await supabase
-        .from('child_profiles')
-        .select('id,display_name')
-        .eq('account_id', user.id)
-        .order('created_at');
-      if (error) return null;
-
-      const children: Child[] = (data ?? []).map((row) => ({
-        id: String(row['id']),
-        name: String(row['display_name'] ?? ''),
-      }));
+      const children = await fetchChildren(supabase, user.id);
+      /* ⚠️ A FAILED READ IS NOT AN EMPTY ACCOUNT. Falling through here would
+         reach the `length === 0` branch below and insert a duplicate learner. */
+      if (!children) return null;
 
       /* ⚠️ The remembered choice is re-validated against what the account
          actually holds. A child that was graduated away, or deleted, must not
@@ -187,7 +247,16 @@ export async function resolveChild(): Promise<Child | null> {
           .insert([{ account_id: user.id, display_name: name }])
           .select('id,display_name');
         if (mkErr || !made?.[0]) return null;
-        chooseChild(user.id, { id: String(made[0]['id']), name: String(made[0]['display_name']) });
+        /* ⚠️ NOT FLAGGED AS THE HOLDER'S OWN, AND THAT IS DELIBERATE. This row is
+           created because the account had none, from a name nobody typed — we do
+           not know whose profile it is, and `/bienvenue/` exists to ask. Flagging
+           it here would answer the question on the reader's behalf with a guess,
+           which is what Critical Feature 54 forbids. */
+        chooseChild(user.id, {
+          id: String(made[0]['id']),
+          name: String(made[0]['display_name']),
+          isSelf: false,
+        });
         return active;
       }
 

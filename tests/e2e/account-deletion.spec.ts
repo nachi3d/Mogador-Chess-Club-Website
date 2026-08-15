@@ -5,9 +5,8 @@ import {
   createConfirmedUser,
   deleteUser,
   e2eEmail,
-  magicLinkFor,
 } from './helpers/supabase-admin';
-import { anonClientAsUser, reachAccountPage } from './helpers/auth';
+import { anonClientAsUser, followMagicLink, openAccountBlock, reachAccountPage } from './helpers/auth';
 import { AUTH_ENABLED, AUTH_OFF_REASON } from './helpers/auth-mode';
 
 /**
@@ -95,7 +94,7 @@ test.describe('self-service account deletion', () => {
   }
 
   async function signIn(page: Page, email: string) {
-    await page.goto(await magicLinkFor(email));
+    await followMagicLink(page, email);
     await reachAccountPage(page);
     await expect(page.getByTestId('account-panel')).toBeVisible();
   }
@@ -120,6 +119,7 @@ test.describe('self-service account deletion', () => {
     });
 
     await signIn(page, account.email);
+    await openAccountBlock(page, 'advanced');
     await page.getByTestId('account-delete-start').click();
     await page.getByTestId('account-delete-word').fill('SUPPRIMER');
     await page.getByTestId('account-delete-go').click();
@@ -239,8 +239,10 @@ test.describe('self-service account deletion', () => {
        "les élèves rattachés à ce compte" is the sentence a parent of two reads
        and reconsiders. Asserted here rather than trusted, because it is the
        whole reason the list exists. */
-    await expect(page.getByTestId('account-delete')).toContainText(/élèves rattachés/i);
+    await openAccountBlock(page, 'advanced');
+    await expect(page.getByTestId('account-delete')).toContainText(/profils de joueur rattachés/i);
 
+    await openAccountBlock(page, 'advanced');
     await page.getByTestId('account-delete-start').click();
     await page.getByTestId('account-delete-word').fill('SUPPRIMER');
     await page.getByTestId('account-delete-go').click();
@@ -277,6 +279,7 @@ test.describe('self-service account deletion', () => {
   }) => {
     const account = await seededAccount('del-retain');
     await signIn(page, account.email);
+    await openAccountBlock(page, 'advanced');
     await page.getByTestId('account-delete-start').click();
     await page.getByTestId('account-delete-word').fill('SUPPRIMER');
     await page.getByTestId('account-delete-go').click();
@@ -300,6 +303,7 @@ test.describe('self-service account deletion', () => {
     const account = await seededAccount('del-word');
     await signIn(page, account.email);
 
+    await openAccountBlock(page, 'advanced');
     await page.getByTestId('account-delete-start').click();
     const go = page.getByTestId('account-delete-go');
     await expect(go).toBeDisabled();
