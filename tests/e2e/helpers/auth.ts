@@ -7,6 +7,8 @@
  * pull the Supabase client into every page), so the spec pins the contract
  * instead. If someone changes the key in one place, the header spec fails.
  */
+import { test } from '@playwright/test';
+
 export const AUTH_FLAG = 'mcc:auth:v1';
 
 /**
@@ -40,13 +42,29 @@ export async function anonClientAsUser(email: string) {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  const { error: verifyError } = await sb.auth.verifyOtp({
-    token_hash: data.properties.hashed_token,
-    type: 'magiclink',
-  });
-  if (verifyError) throw new Error(`anonClientAsUser verify: ${verifyError.message}`);
-
-  return sb;
+  /**
+   * ⚠️ `verifyOtp` IS THE SAME RATE-LIMITED ENDPOINT A MAGIC LINK NAVIGATES TO,
+   * and this path had no protection at all — so a run that survived
+   * `followMagicLink()`'s backoff still died here with
+   * `anonClientAsUser verify: Request rate limit reached`, in a spec whose
+   * subject is RLS and has nothing to do with sign-in.
+   *
+   * Same instrument, same reasoning: retry only on a positively identified rate
+   * limit, backing off 10s then 30s with a fresh token each time. Anything else throws on the
+   * first attempt — a blanket retry here would hide a genuine auth failure in
+   * the specs that exist to prove the boundary.
+   */
+  let verifyError: { message: string } | null = null;
+  for (const wait of [0, 10_000, 30_000]) {
+    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+    const fresh = await adminClient().auth.admin.generateLink({ type: 'magiclink', email });
+    const hash = fresh.data?.properties?.hashed_token ?? data.properties.hashed_token;
+    const { error } = await sb.auth.verifyOtp({ token_hash: hash, type: 'magiclink' });
+    if (!error) return sb;
+    verifyError = error;
+    if (!/rate limit/i.test(error.message)) break;
+  }
+  throw new Error(`anonClientAsUser verify: ${verifyError?.message ?? 'unknown'}`);
 }
 
 /**
@@ -75,9 +93,176 @@ export async function anonClientAsUser(email: string) {
  * ═════════════════════════════════════════════════════════════════════════
  */
 export async function reachAccountPage(page: import('@playwright/test').Page): Promise<void> {
-  await page.waitForURL(/\/(en\/)?(compte|bienvenue)\//, { timeout: 30_000 });
+  await waitForSignedInUrl(page, /\/(en\/)?(compte|bienvenue)\//);
   if (/\/bienvenue\//.test(page.url())) {
     await page.getByTestId('welcome-skip').click();
-    await page.waitForURL(/\/(en\/)?compte\//, { timeout: 30_000 });
+    await waitForSignedInUrl(page, /\/(en\/)?compte\//);
   }
+}
+
+/**
+ * Follow a magic link, surviving Supabase's BURST rate limit on verification.
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️ THE LIMIT IS A BURST, AND IT IS MEASURED, NOT GUESSED.
+ *
+ * Navigating a magic link hits `/auth/v1/verify`, which is rate limited per IP.
+ * Probed against the test project: **22 verifications in 7 seconds** trips it,
+ * and it clears again within a couple of minutes. There is no `Retry-After`
+ * header — the body is a bare
+ *
+ *     {"code":429,"error_code":"over_request_rate_limit","msg":"Request rate limit reached"}
+ *
+ * which the browser simply sits on, so every waiting spec dies of a plain
+ * navigation timeout with nothing naming the cause.
+ *
+ * ⚠️ IT IS A BURST BECAUSE THE SUITE IS PARALLEL, and that is why a retry is the
+ * right instrument rather than a cover-up. Every signed-in spec mints its own
+ * account and follows its own link; when the spec map selects several auth files
+ * at once, the workers verify simultaneously and the whole gate goes red on a
+ * DIFFERENT set of tests each run. The backoff walks 10s then 30s, which
+ * clears a burst and costs NOTHING on a run that never hits the limit.
+ *
+ * ⚠️ IT IS DELIBERATELY NOT LONGER. A 60s rung was tried and made the gate
+ * WORSE, not better: when the project quota is genuinely exhausted — which a
+ * developer re-running the suite repeatedly can do — every test waits out the
+ * full ladder before failing anyway, and a 2-minute gate became a 10-minute
+ * one that still went red. A backoff recovers a burst; it cannot buy quota.
+ *
+ * ⚠️ THE FIRST LINE OF DEFENCE IS `test-branch.mjs` CAPPING WORKERS AT TWO when
+ * the selection is auth-heavy. This is the second: a backoff recovers a burst,
+ * it cannot recover a sustained overload, and every second it waits is a second
+ * on the gate. Not creating the burst is cheaper than surviving it.
+ *
+ * ⚠️ IT RETRIES ONLY ON A POSITIVELY IDENTIFIED 429. Anything
+ * else — a broken callback, a bad token, a dead page — is re-thrown untouched on
+ * the first attempt. A blanket "try again" here would hide exactly the class of
+ * bug this file exists to catch, so the rate-limit body is matched explicitly
+ * and everything else fails fast.
+ *
+ * ⚠️ A FRESH LINK EACH TIME. `generateLink` is an admin-API call and is not
+ * subject to this limit, and re-using a token that may have been half-consumed
+ * is a second failure mode nobody needs.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+export async function followMagicLink(
+  page: import('@playwright/test').Page,
+  email: string,
+): Promise<void> {
+  const { magicLinkFor } = await import('./supabase-admin');
+  const waits = [0, 10_000, 30_000];
+
+  for (let attempt = 0; attempt < waits.length; attempt += 1) {
+    if (waits[attempt]! > 0) {
+      /* ⚠️ THE TEST'S OWN BUDGET HAS TO GROW, OR THE WAIT IS THE FAILURE.
+         Backing off inside a 30s test simply moves the death from "429" to
+         "timeout in waitForTimeout" — which is worse, because it no longer
+         names the cause. Extended only when a 429 has actually been seen, so a
+         healthy run keeps its normal, tight timeout. */
+      test.setTimeout(test.info().timeout + waits[attempt]! + 15_000);
+      await page.waitForTimeout(waits[attempt]!);
+    }
+    await page.goto(await magicLinkFor(email));
+    if (!(await isRateLimited(page))) return;
+  }
+
+  throw new Error(
+    'Supabase AUTH RATE LIMIT (429 over_request_rate_limit) — still limited after ' +
+      `${waits.length} attempts over ${waits.reduce((a, b) => a + b, 0) / 1000}s.\n` +
+      'This is the ENVIRONMENT, not the application: the suite verified more magic\n' +
+      'links than the project allows in a short window (measured: ~22 in 7s).\n' +
+      'Re-run the auth specs on their own, or with fewer workers. Do NOT debug the\n' +
+      'callback — see CLAUDE.md → "Symptoms that are the ENVIRONMENT".',
+  );
+}
+
+/** Is the browser sitting on Supabase's bare 429 JSON body? */
+async function isRateLimited(page: import('@playwright/test').Page): Promise<boolean> {
+  const body = await page.evaluate(() => document.body?.innerText ?? '').catch(() => '');
+  return /over_request_rate_limit|Request rate limit reached/i.test(body);
+}
+
+/**
+ * Wait for a post-sign-in URL, and say something USEFUL when it never comes.
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️ THE SUITE CAN EXHAUST SUPABASE'S AUTH RATE LIMIT, AND UNTIL THIS EXISTED
+ * THAT LOOKED EXACTLY LIKE A BROKEN CALLBACK.
+ *
+ * Following a magic link navigates the browser to `/auth/v1/verify`, which is
+ * rate limited per IP over a rolling window. Every signed-in spec in this suite
+ * mints its own account and follows its own link, so a `test:branch` run whose
+ * spec map happens to select several auth files at once can go over — and when
+ * it does, Supabase serves
+ *
+ *     {"code":429,"error_code":"over_request_rate_limit","msg":"Request rate limit reached"}
+ *
+ * as a plain JSON body. The browser sits on it, `waitForURL` times out with
+ * "waiting for navigation until load", and the report shows a bare timeout on a
+ * DIFFERENT set of tests every run — which is the exact signature CLAUDE.md
+ * lists for environment failures, and which cost this session two full gate runs
+ * before anybody screenshotted the page.
+ *
+ * ⚠️ IT DOES NOT RETRY, AND IT MUST NOT. The window is minutes long; a retry
+ * loop would turn a three-minute gate into a twenty-minute one and would still
+ * fail. The fix is to run fewer accounts or to spread them out, and that is a
+ * decision for whoever is reading the failure — so this reports the cause
+ * precisely and stops.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+export async function waitForSignedInUrl(
+  page: import('@playwright/test').Page,
+  pattern: RegExp,
+  timeout = 30_000,
+): Promise<void> {
+  try {
+    await page.waitForURL(pattern, { timeout });
+  } catch (error) {
+    const body = await page.evaluate(() => document.body?.innerText ?? '').catch(() => '');
+    if (/over_request_rate_limit|Request rate limit reached/i.test(body)) {
+      throw new Error(
+        'Supabase AUTH RATE LIMIT (429 over_request_rate_limit) while following a magic link.\n' +
+          'This is the ENVIRONMENT, not the application: the suite minted more link\n' +
+          'verifications than the project allows in its rolling window.\n' +
+          'Re-run the auth specs on their own, or wait a few minutes. Do NOT debug\n' +
+          'the callback — see CLAUDE.md → "Symptoms that are the ENVIRONMENT".\n' +
+          `URL at failure: ${page.url()}`,
+      );
+    }
+    throw error;
+  }
+}
+
+/**
+ * Open one of `/compte/`'s two disclosures.
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️ THE COLLAPSED BLOCKS ARE THE FEATURE, SO THE SPECS OPEN THEM RATHER THAN
+ * THE PAGE LEAVING THEM OPEN.
+ *
+ * `/compte/` used to be one flat column in which permanent account deletion sat
+ * in the flow with the same weight as the interface language. It is now behind
+ * "Options avancées", collapsed — which means every spec that presses the delete
+ * button has to get there the way a reader does.
+ *
+ * ⚠️ THIS IS THE ONLY PLACE THAT KNOWS THE BLOCKS ARE `<details>`. If they ever
+ * become something else, that is one edit here rather than a dozen across four
+ * files — the same reasoning as `reachAccountPage()` above.
+ *
+ * ⚠️ IT CLICKS THE SUMMARY RATHER THAN SETTING `open`. Forcing the attribute
+ * would pass on a disclosure whose summary is unreachable, unlabelled or
+ * covered — and "the control is reachable" is exactly the class of bug this
+ * site has already shipped once (Critical Feature 48).
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+export async function openAccountBlock(
+  page: import('@playwright/test').Page,
+  which: 'settings' | 'advanced',
+): Promise<void> {
+  const block = page.getByTestId(`account-${which}`);
+  if (await block.evaluate((el) => (el as HTMLDetailsElement).open)) return;
+  await block.locator('summary').click();
+  await page
+    .getByTestId(`account-${which}`)
+    .evaluate((el) => (el as HTMLDetailsElement).open || Promise.reject(new Error('did not open')));
 }

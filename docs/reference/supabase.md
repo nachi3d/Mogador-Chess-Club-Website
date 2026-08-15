@@ -927,3 +927,225 @@ implementation that deleted "the child" rather than "the children" — a
 `.single()`, a `limit(1)`, a loop that stopped early — passes the one-child test
 perfectly and leaves a real family's second child in the database forever.
 `account-deletion.spec.ts` now carries both shapes.
+
+---
+
+## Migration 0010 — who the account is for (v0.14.0)
+
+**Read when:** touching `/bienvenue/`, `/compte/`, `account-shape.ts`, or any
+copy that addresses the reader as a parent or as a player.
+
+### The problem it fixes
+
+v0.13.0's welcome screen asked for **« Le prénom de l'élève »**. That question
+carries a premise the site had never checked: that the account holder is *not*
+one of the players.
+
+For Mogador's typical family it is false. A parent brings two children to the
+workshop **and plays**. Under v0.13.0 that parent had exactly two options —
+give their own profile a child's framing, or not have one — and either way the
+points they earned were filed under a heading about their children. Nothing in
+the database distinguishes that parent from a teenager who signed up alone
+(Critical Feature 40), so **the only honest way to know is to ask.**
+
+### What is stored, and why it is two columns
+
+```sql
+alter table public.profiles       add column account_shape text;  -- 'self'|'children'|'both'|null
+alter table public.child_profiles add column is_self boolean not null default false;
+create unique index child_profiles_one_self_idx
+  on public.child_profiles (account_id) where is_self;
+grant update (account_shape) on public.profiles to authenticated;
+```
+
+- **`is_self` is the fact.** Which row belongs to the account holder. It is what
+  puts the « Vous » badge on a card, and it is what makes the holder a learner
+  like any other — same progress rows, same points, same FK target everywhere.
+- **`account_shape` is the sentence they typed once.** It exists to separate
+  exactly one pair of states that `is_self` cannot: *"they told us the players
+  are their children"* from *"they never told us"*.
+
+⚠️ **NO GRANT LINE ON `child_profiles`, AND THAT WAS CHECKED RATHER THAN
+ASSUMED.** 0005 grants the four verbs on the **whole table** to `authenticated`
+and `service_role`, so a new column is covered. `profiles` is column-level
+precisely so `role` is unreachable — which is why `account_shape` needs its own
+`grant update (…)` line and `is_self` does not.
+
+⚠️ **THE UNIQUE INDEX IS PARTIAL, AND `account_id` IS NULLABLE.** Only the true
+rows are constrained, so an account may hold any number of ordinary children;
+and because Postgres allows repeated NULLs in a unique index, a row in flight
+through graduation (Critical Feature 41) never blocks another account.
+
+### `effectiveShape()` — the roster wins wherever it can speak
+
+`src/lib/account-shape.ts`, pure, imported by `/compte/` and by specs in Node.
+
+| `is_self` present? | other profiles | stored answer | result |
+|---|---|---|---|
+| yes | ≥ 1 | anything | `both` |
+| yes | 0 | anything | `self` |
+| no | any | `children` | `children` |
+| no | any | `both` | `children` |
+| no | any | `self` | `unknown` |
+| no | any | `null` | `unknown` |
+
+Three of those rows are the interesting ones:
+
+- **`both` stored, no flagged row → `children`.** The holder removed their own
+  profile. The children really are the players now, and the roster says so.
+- **`self` stored, no flagged row → `unknown`.** A write went missing. The
+  neutral copy is the only thing certain to still be true, so it falls back
+  rather than asserting something the data does not support.
+- **`null` → `unknown`, always.** Skipping is a supported outcome (Critical
+  Feature 52) and it is *not* an answer. Guessing "children" from a lone
+  unflagged profile is precisely the failure Critical Feature 54 was written
+  about — a lone profile is the same object for a parent and for an autonomous
+  teenager.
+
+### The copy, per answer
+
+| | FR | EN |
+|---|---|---|
+| Question | « Qui va utiliser ce compte ? » | "Who is this account for?" |
+| `self` | « Moi, je joue » → « Comment vous appelez-vous ? » | "Me — I play" → "What is your first name?" |
+| `children` | « Mon enfant (ou mes enfants) » → « Le prénom de votre enfant » | "My child (or my children)" → "Your child's first name" |
+| `both` | « Les deux » → both steps, in that order | "Both" → both steps |
+| `self` heading | « Votre profil » | "Your profile" |
+| `children` heading | « Vos enfants » | "Your children" |
+| `both` heading | « Vous et vos enfants » | "You and your children" |
+| `unknown` heading | « Les profils de ce compte » | "The profiles on this account" |
+
+⚠️ **"Les deux" carries its consequence in the option itself** — « Vous jouez
+aussi : vous avez votre propre profil, exactement comme vos enfants. » A parent
+who plays must not feel they are bending the tool by choosing it.
+
+### What the save does, and in what order
+
+| Answer | the auto-created row becomes | inserted | `profiles.display_name` |
+|---|---|---|---|
+| `self` | the holder, `is_self = true` | — | set to their name |
+| `children` | the first child | the siblings | untouched |
+| `both` | the holder, `is_self = true` | every child | set to their name |
+
+⚠️ **THE RENAME AND `is_self` GO IN ONE STATEMENT.** Two writes would leave a
+window in which the holder's profile is named and unflagged, which reads on
+`/compte/` as an account whose vocabulary contradicts the answer just given.
+
+⚠️ **THE RENAME COMES FIRST, AND A FAILED INSERT DOES NOT UNDO IT.** There is no
+transaction available to a PostgREST client, so the order is chosen so the
+partial state is the harmless one: a correctly named account plus a visible
+error, with the roster able to finish the job.
+
+### `PROFILE_COLUMNS` — why `getProfile()` degrades instead of failing
+
+An explicit `select` naming a column the database does not have gets a `42703`,
+which `getProfile()` turns into `null` — and `null` is indistinguishable from
+"not signed in" to every caller. So **one unapplied migration does not degrade
+the account, it silently empties it**: no name, no role, no staff link, and
+`/auth/callback/` reading `onboarded_at === null ? … : false` sends every first
+sign-in **past** the welcome screen with nothing reporting anything.
+
+That is not hypothetical — it is written up in CLAUDE.md as the hazard for 0009,
+and 0010 would have added a second column to the same fragile line. Instead the
+line stopped being fragile: `PROFILE_COLUMNS` is a ladder of column lists,
+newest first, and the first one the database accepts wins.
+
+⚠️ **IT DEGRADES, IT DOES NOT REPAIR.** A missing column comes back as `null`,
+which is the same value a fresh account carries — so an older database reads as
+"never answered", the neutral state, which every rule downstream already
+handles. Nothing writes, nothing infers, and a genuinely absent row still
+returns `null` on the last rung. The cost is one extra round trip on a
+misconfigured deployment and nothing at all on a correct one.
+
+⚠️ **ANYTHING ADDED TO THAT SELECT GETS A NEW RUNG IN THE SAME COMMIT.**
+
+### The suite's own rate limit — measured, not guessed
+
+Adding accounts to `onboarding.spec.ts` pushed the suite over Supabase's auth
+burst limit, and the failure looked exactly like a broken callback: bare
+`waitForURL` timeouts, on a **different set of tests every run**, all passing
+when the file was run on its own. Two full gate runs were spent on it before
+anybody screenshotted the page, which showed:
+
+```json
+{"code":429,"error_code":"over_request_rate_limit","msg":"Request rate limit reached"}
+```
+
+Probed directly against the test project:
+
+```
+22 verifications in 7s → 429
+no Retry-After header
+clear again within ~2 minutes
+```
+
+So it is a **burst** limit, not a quota — which is why `followMagicLink()` in
+`tests/e2e/helpers/auth.ts` retries twice (12s, then 30s) and why that is a fix
+rather than a cover-up. It retries **only on a positively identified 429**;
+anything else re-throws on the first attempt, because a blanket "try again"
+would hide the class of bug those specs exist to catch.
+
+⚠️ **EVERY MAGIC-LINK NAVIGATION IN THE SUITE GOES THROUGH IT.** Seven spec
+files had their own `page.goto(await magicLinkFor(…))`; one that keeps its own
+copy is one that still dies mysteriously.
+
+### Why `/compte/`'s three blocks are in that order
+
+The page was one flat column. A parent opening it saw, in equal weight: a
+"coming soon" notice, their display name, the interface language, and a button
+that permanently erases their children's progress.
+
+1. **Profiles first** — it is what they came for, and it is the only block that
+   carries information rather than settings.
+2. **Settings collapsed** — real, reachable, and not competing.
+3. **Deletion behind a second disclosure** — the privacy notice promises erasure
+   and this is the button that keeps that promise, so it has to be **findable**,
+   which is not the same as being in the way.
+
+⚠️ **NATIVE `<details>`.** No-JS, keyboard, screen reader and find-in-page all
+work for free; a scripted accordion is three of those reimplemented worse.
+
+⚠️ **`openAccountBlock()` CLICKS THE SUMMARY, NEVER SETS `open`.** Forcing the
+attribute would pass on a disclosure whose summary is unreachable, unlabelled or
+covered — and "the control is reachable" is exactly the class of bug this site
+shipped once already (Critical Feature 48).
+
+⚠️ **THE SETTINGS BLOCK OPENS ITSELF WHEN `display_name` IS STILL THE EMAIL
+LOCAL PART.** That is the skipped-onboarding remedy: the one thing `/bienvenue/`
+would have fixed, in the one place it can still be fixed. A warning inside a
+collapsed disclosure is a warning nobody reads. It opens for nobody else, or the
+page is just the flat column again.
+
+⚠️ **THE OLD PAGE PRINTED A RANK AND A POINT TOTAL THAT NOTHING COMPUTED.**
+`<dd data-score-points>0</dd>` and an empty `data-score-rank` sat in the markup
+with **no `ScoreResolver` on the page** to fill them — so every account read
+"0 points" and a blank rank forever. Critical Feature 30 forbids exactly this on
+`/progres/`; the same rule now holds here, and the cards derive their numbers
+through `computeLedger()` or say they are still loading.
+
+### ⚠️ AND SUSTAINED ABUSE ESCALATES PAST 429
+
+After roughly two hours of back-to-back auth runs while this feature was being
+built, the test project stopped answering the **browser** at all:
+
+```
+net::ERR_CONNECTION_REFUSED at https://<ref>.supabase.co/auth/v1/…
+```
+
+⚠️ **AND `curl` FROM NODE REACHED THE SAME PROJECT, 200, AT THE SAME MOMENT.**
+So it is not the project being down and it is not the credentials. It also looks
+**exactly** like a dead preview server in the report — until you read the HOST in
+the error and notice the refusals are to `supabase.co`, not to
+`http://localhost:4321`.
+
+Nothing in this repository fixes it. The backoff does not help (it is not a
+burst), the worker cap does not help (the damage is already done), and rerunning
+makes it worse. **Stop, wait, then run once.** Raising the TEST project`s auth
+rate limit in the dashboard is the actual fix and is in BACKLOG.
+
+⚠️ **A SECOND, SELF-INFLICTED VARIANT LOOKS THE SAME AND IS NOT THIS.** Piping a
+test run into `head` or `grep -m1` SIGPIPEs the runner mid-flight; its
+`astro preview` teardown then races the next run`s server, and everything after
+that point fails `ERR_CONNECTION_REFUSED at http://localhost:4321/`. CLAUDE.md
+already says never pipe a test run — this is the failure it produces, and it
+cost this session two gate runs on top of the rate limit.

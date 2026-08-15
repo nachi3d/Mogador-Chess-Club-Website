@@ -241,13 +241,14 @@ a record of a fixed bug rather than an open gap.
 Sign in as `seed-eleve-2` (holds **one** child) first, because that is the shape
 every real signup produces:
 
-- **Mes élèves** is there, with *Omar* in it, an **Ajouter un élève** field, and
-  a **Renommer** button
+- **Les profils de ce compte** is there, first on the page, with *Omar* in it —
+  a card carrying his rank and points, an **Ajouter un profil** field, and a
+  **Renommer** button. ⚠️ « élève » appears nowhere in it (Critical Feature 60)
 - **Qui joue ?** is **not** there, and that is correct — a lone child is adopted
   silently, so an autonomous teenager is the family case with a list of one. One
   code path, not two
 - There is no **Retirer** button either, and a sentence says why: an account
-  always keeps at least one student. Removing the only one is a lie — the
+  always keeps at least one profile. Removing the only one is a lie — the
   resolver would create a replacement from the profile name, renamed, with the
   history gone
 - Add a second child. The picker appears. Remove them again: the first tap
@@ -282,7 +283,10 @@ of the model.
 
 - **Adresse e-mail** and **Rôle** (Élève / Professeur / Administrateur), read from
   the profile
-- **Prénom affiché** and **Langue**, both editable and saved to the profile.
+- **Votre prénom** and **Langue**, both editable and saved to the profile, now
+  inside the collapsed **Réglages du compte** block.
+  ⚠️ The block **opens itself** when the name is still the email local part —
+  that is the remedy for a skipped `/bienvenue/`.
   ⚠️ `role` is *not* in that form and cannot be — `authenticated` holds UPDATE on
   those two columns only, so a `PATCH` carrying `role` is refused by PostgREST
   before any policy even runs

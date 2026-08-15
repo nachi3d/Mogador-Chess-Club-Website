@@ -3,35 +3,46 @@
  * /bienvenue — the first-run screen, shown once per ACCOUNT.
  *
  * ═════════════════════════════════════════════════════════════════════════
- * ⚠️ GUIDANCE, NOT A GATE. Every single thing on this page can also be done
- * from `/compte/`, and "Passer cette étape" is a first-class outcome rather
- * than a dark-patterned afterthought. A parent who skips lands on a fully
- * working account with the family section doing the whole job — that is the
- * requirement, and `onboarding.spec.ts` asserts it rather than trusting it.
+ * ⚠️ IT ASKS WHO THE ACCOUNT IS FOR, BECAUSE THE SITE CANNOT WORK IT OUT.
  *
- * ⚠️ IT ANSWERS THE ONE QUESTION THE SITE CANNOT ANSWER ITSELF. `resolveChild()`
- * creates a child profile the moment an account has none, named from the profile
- * display name — which `handle_new_user()` seeded from the EMAIL LOCAL PART. So
- * a brand-new account silently contains a student called `nachiketas3d`, and
- * that string then appears on the progress page and on a prof's attendance
- * sheet. It is a placeholder wearing a name's clothes, and nothing anywhere
- * would ever have prompted the parent to fix it.
+ * v0.13.0 asked for "the student's first name". That question carries a hidden
+ * premise — that the account holder is not one of the players — and for the
+ * club's typical family it is false. A parent comes to the workshop with two
+ * children and plays as well, earns their own points, and was penalised for
+ * being the one holding the account. There is nothing in the database that
+ * distinguishes that parent from a teenager who signed up alone (Critical
+ * Feature 40), so the only honest way to know is to ask.
+ *
+ * ⚠️ THE ANSWER IS WORTH A WHOLE SCREEN BECAUSE IT CHOOSES THE VOCABULARY OF
+ * EVERY LATER PAGE. « votre progression » and « la progression de votre enfant »
+ * are not interchangeable, and no phrasing neutral enough to cover both is worth
+ * reading. See `src/lib/account-shape.ts` for how the answer is used, and
+ * migration 0010 for where it is kept.
+ *
+ * ⚠️ TWO STEPS, NOT A TUNNEL. Step one is the question; step two is the names
+ * that question implies. "Changer de réponse" goes back, because a reader who
+ * mis-taps on a phone must not be stuck with a shape they did not choose.
+ *
+ * ⚠️ GUIDANCE, NOT A GATE. Everything here can also be done from `/compte/`, and
+ * "Passer cette étape" is a first-class outcome available at BOTH steps rather
+ * than a dark-patterned afterthought. `onboarding.spec.ts` asserts that a skipped
+ * onboarding leaves a fully usable account rather than trusting it.
  *
  * ⚠️ "ONCE" IS RECORDED ON THE ACCOUNT, NOT ON THE DEVICE. `profiles
  * .onboarded_at` (migration 0009). In `localStorage` this would be "once per
  * browser": the same parent would be walked through naming an already-named
  * child the first time they opened the family tablet.
  *
- * ⚠️ THE EXTRA NAME FIELDS ARE SERVER-RENDERED AND HIDDEN, NOT BUILT BY SCRIPT.
- * Astro stamps its scoping attribute at BUILD time, so an element created at
- * runtime carries the class and not the attribute and every scoped rule silently
- * misses it — this has already cost this project a borderless button and an
- * un-inked picker. Rendering the slots up front keeps the whole page inside one
- * scoped `<style>` with no second stylesheet to keep in step.
+ * ⚠️ EVERY FIELD IS SERVER-RENDERED AND HIDDEN, NOT BUILT BY SCRIPT. Astro
+ * stamps its scoping attribute at BUILD time, so an element created at runtime
+ * carries the class and not the attribute and every scoped rule silently misses
+ * it — this has already cost this project a borderless button and an un-inked
+ * picker. Rendering the slots up front keeps the whole page inside one scoped
+ * `<style>` with no second stylesheet to keep in step.
  *
- * Four slots is not a limit on a family, it is a limit on a WELCOME SCREEN: the
- * roster on `/compte/` adds a fifth child perfectly well, and the skip note
- * points there. A form that scrolls forever is worse guidance than a short one.
+ * Four child slots is not a limit on a family, it is a limit on a WELCOME
+ * SCREEN: the roster on `/compte/` adds a fifth perfectly well, and the skip
+ * note points there.
  *
  * ⚠️ UNREACHABLE WITH THE FLAG OFF, like `/compte/` — `getStaticPaths()`
  * returns `[]` and the URL 404s.
@@ -52,6 +63,13 @@ const t = useTranslations(locale);
 
 /** How many "another child" slots the welcome screen offers. See the header. */
 const EXTRA_SLOTS = [1, 2, 3];
+
+/** The three answers, in the order they are offered. */
+const ANSWERS = [
+  { id: 'self', label: t('welcome.who.self'), note: t('welcome.who.selfNote') },
+  { id: 'children', label: t('welcome.who.children'), note: t('welcome.who.childrenNote') },
+  { id: 'both', label: t('welcome.who.both'), note: t('welcome.who.bothNote') },
+] as const;
 ---
 
 <BaseLayout locale={locale} title={t('welcome.title')} description={t('welcome.intro')}>
@@ -63,38 +81,86 @@ const EXTRA_SLOTS = [1, 2, 3];
     data-state="loading"
     data-locale={locale}
     data-account-path={localizePath('/compte/', locale)}
-    data-msg-placeholder={t('welcome.nameBodyPlaceholder')}
-    data-msg-named={t('welcome.nameBodyNamed')}
     data-msg-saving={t('welcome.saving')}
     data-msg-save={t('welcome.save')}
     data-msg-need-name={t('welcome.needName')}
+    data-msg-need-name-self={t('welcome.needNameSelf')}
     data-msg-error={t('welcome.error')}
   >
     {/* The honest first state: a static page cannot know who this is. */}
     <p class="welcome-checking" data-testid="welcome-checking">{t('callback.working')}</p>
 
+    {/* ── Step 1 — the question ─────────────────────────────────────────────
+        ⚠️ THREE REAL BUTTONS, NOT A SELECT AND NOT RADIOS WITH A "NEXT". This
+        is the first thing a parent sees, on a phone, and it should be answerable
+        with one thumb. Each answer carries its consequence underneath rather
+        than leaving the reader to infer what "Les deux" will do to the site. */}
+    <section class="welcome-question" data-testid="welcome-question" hidden>
+      <h2>{t('welcome.who.heading')}</h2>
+      <p class="welcome-question-body">{t('welcome.who.body')}</p>
+
+      <ul class="welcome-answers">
+        {
+          ANSWERS.map((answer) => (
+            <li>
+              <button
+                type="button"
+                class="welcome-answer"
+                data-answer={answer.id}
+                data-testid={`welcome-who-${answer.id}`}
+              >
+                <span class="welcome-answer-label">{answer.label}</span>
+                <span class="welcome-answer-note">{answer.note}</span>
+              </button>
+            </li>
+          ))
+        }
+      </ul>
+
+      <p class="welcome-actions">
+        <button type="button" class="btn-ghost" data-testid="welcome-skip">
+          {t('welcome.skip')}
+        </button>
+      </p>
+      <p class="welcome-note">{t('welcome.skipNote')}</p>
+    </section>
+
+    {/* ── Step 2 — the names the answer implies ─────────────────────────── */}
     <form class="welcome-form" data-testid="welcome-form" hidden>
-      {/* ⚠️ THE MODEL, BEFORE THE QUESTION. A parent who does not know that the
-          account is theirs and the student is a profile underneath it cannot
-          make sense of being asked for "the student's first name" when they
-          just signed up for themselves. Three sentences, and the third names
-          the autonomous-teenager case out loud so nobody wonders. */}
-      <section class="welcome-model">
-        <h2>{t('account.model.heading')}</h2>
-        <p>{t('account.model.body')}</p>
-        <p class="welcome-teen">{t('account.model.teen')}</p>
+      {/* ⚠️ THE PLACEHOLDER WARNING IS ONE ELEMENT AT THE TOP, NOT A SENTENCE
+          REPEATED UNDER EACH FIELD. `handle_new_user()` seeds `display_name`
+          from the email local part and `resolveChild()` copies it into the first
+          profile, so a brand-new account contains a player called
+          `nachiketas3d`. It is one fact about the account, and it is stated
+          once. */}
+      <p class="welcome-placeholder" data-testid="welcome-placeholder-note" hidden>
+        {t('welcome.placeholderNote')}
+      </p>
+
+      {/* Shown for "moi" and for "les deux". */}
+      <section class="welcome-step" data-step="self" data-testid="welcome-self-section" hidden>
+        <h2>{t('welcome.self.heading')}</h2>
+        <p class="welcome-step-body">{t('welcome.self.body')}</p>
+        <div class="welcome-field">
+          <label for="welcome-self-name">{t('welcome.self.label')}</label>
+          <input
+            id="welcome-self-name"
+            type="text"
+            maxlength="40"
+            autocomplete="given-name"
+            autocapitalize="words"
+            data-testid="welcome-self-name"
+          />
+        </div>
       </section>
 
-      <section class="welcome-names">
-        <h2>{t('welcome.nameHeading')}</h2>
-        {/* Swapped by the script for the placeholder warning when the
-            auto-created name is still the email local part. */}
-        <p class="welcome-name-body" data-testid="welcome-name-body">
-          {t('welcome.nameBodyNamed')}
-        </p>
+      {/* Shown for "mon enfant" and for "les deux". */}
+      <section class="welcome-step" data-step="child" data-testid="welcome-child-section" hidden>
+        <h2>{t('welcome.child.heading')}</h2>
+        <p class="welcome-step-body">{t('welcome.child.body')}</p>
 
         <div class="welcome-field">
-          <label for="welcome-name-0">{t('welcome.nameLabel')}</label>
+          <label for="welcome-name-0">{t('welcome.child.label')}</label>
           <input
             id="welcome-name-0"
             type="text"
@@ -108,7 +174,7 @@ const EXTRA_SLOTS = [1, 2, 3];
         {
           EXTRA_SLOTS.map((n) => (
             <div class="welcome-field" data-extra-slot={n} data-testid={`welcome-slot-${n}`} hidden>
-              <label for={`welcome-name-${n}`}>{t('welcome.otherLabel')}</label>
+              <label for={`welcome-name-${n}`}>{t('welcome.child.otherLabel')}</label>
               <input
                 id={`welcome-name-${n}`}
                 type="text"
@@ -122,12 +188,8 @@ const EXTRA_SLOTS = [1, 2, 3];
         }
 
         <p>
-          <button
-            type="button"
-            class="btn-ghost"
-            data-testid="welcome-add-another"
-          >
-            {t('welcome.addAnother')}
+          <button type="button" class="btn-ghost" data-testid="welcome-add-another">
+            {t('welcome.child.add')}
           </button>
         </p>
       </section>
@@ -139,8 +201,16 @@ const EXTRA_SLOTS = [1, 2, 3];
         {/* ⚠️ A REAL BUTTON, NOT SMALL GREY TEXT UNDER A FOLD. Skipping is a
             supported outcome; styling it as a regret is how a "skippable"
             screen becomes a gate in practice. */}
-        <button type="button" class="btn-ghost" data-testid="welcome-skip">
+        <button type="button" class="btn-ghost" data-testid="welcome-skip-2">
           {t('welcome.skip')}
+        </button>
+      </p>
+      {/* ⚠️ BACK IS ALWAYS AVAILABLE. A mis-tap on step one is one thumb-width
+          away, and without this the reader's only escape is skipping — which
+          silently records "we asked and they declined". */}
+      <p class="welcome-back-row">
+        <button type="button" class="btn-link" data-testid="welcome-back">
+          {t('welcome.back')}
         </button>
       </p>
       <p class="welcome-note">{t('welcome.skipNote')}</p>
@@ -161,27 +231,38 @@ const EXTRA_SLOTS = [1, 2, 3];
   <script>
     import { getSession, getProfile, getSupabase, markOnboarded } from '@lib/supabase';
     import { resolveChild } from '@lib/child';
+    import type { AccountShape } from '@lib/account-shape';
 
     const root = document.querySelector('[data-testid="welcome"]') as HTMLElement | null;
     const checking = document.querySelector('[data-testid="welcome-checking"]') as HTMLElement | null;
+    const question = document.querySelector('[data-testid="welcome-question"]') as HTMLElement | null;
     const formEl = document.querySelector('[data-testid="welcome-form"]') as HTMLFormElement | null;
     const signedOut = document.querySelector('[data-testid="welcome-signed-out"]') as HTMLElement | null;
-    const nameBody = document.querySelector('[data-testid="welcome-name-body"]') as HTMLElement | null;
+    const placeholderNote = document.querySelector('[data-testid="welcome-placeholder-note"]') as HTMLElement | null;
+    const selfSection = document.querySelector('[data-testid="welcome-self-section"]') as HTMLElement | null;
+    const childSection = document.querySelector('[data-testid="welcome-child-section"]') as HTMLElement | null;
+    const selfName = document.querySelector('[data-testid="welcome-self-name"]') as HTMLInputElement | null;
     const first = document.querySelector('[data-testid="welcome-name-0"]') as HTMLInputElement | null;
     const addBtn = document.querySelector('[data-testid="welcome-add-another"]') as HTMLButtonElement | null;
     const saveBtn = document.querySelector('[data-testid="welcome-save"]') as HTMLButtonElement | null;
-    const skipBtn = document.querySelector('[data-testid="welcome-skip"]') as HTMLButtonElement | null;
+    const backBtn = document.querySelector('[data-testid="welcome-back"]') as HTMLButtonElement | null;
     const statusEl = document.querySelector('[data-testid="welcome-status"]') as HTMLElement | null;
 
     const msg = (key: string) => root?.dataset[key] ?? '';
     const accountPath = root?.dataset.accountPath ?? '/compte/';
 
-    /** The child this screen renames. Null if resolution could not produce one. */
+    /** The auto-created profile this screen renames. Null if resolution failed. */
     let childId: string | null = null;
+    /** The reader's answer to step one. Null until they give one. */
+    let answer: AccountShape | null = null;
+    /** True when the auto-created profile still carries the email local part. */
+    let placeholder = false;
+    /** The profile display name, so a real one is not blanked. */
+    let profileName = '';
 
     function leave() {
       /* A full document load, like sign-out and deletion: the header and the
-         family section both re-read a world in which onboarding is done. */
+         profiles block both re-read a world in which onboarding is done. */
       window.location.assign(accountPath);
     }
 
@@ -190,16 +271,77 @@ const EXTRA_SLOTS = [1, 2, 3];
      *
      * `handle_new_user()` seeds `display_name` from the email local part when no
      * provider gave a real one, and `resolveChild()` copies that into the first
-     * child profile. Comparing against the local part is therefore an exact test
-     * of "nobody has ever typed this", not a heuristic about what names look
-     * like — which is the version that would insult somebody actually called
-     * Alex99.
+     * profile. Comparing against the local part is therefore an exact test of
+     * "nobody has ever typed this", not a heuristic about what names look like —
+     * which is the version that would insult somebody actually called Alex99.
      */
     function looksLikePlaceholder(name: string, email: string): boolean {
       const local = email.split('@')[0] ?? '';
       if (!local) return false;
       return name.trim().toLowerCase() === local.trim().toLowerCase();
     }
+
+    /* ── The two steps ─────────────────────────────────────────────────────── */
+
+    function showQuestion() {
+      answer = null;
+      if (formEl) formEl.hidden = true;
+      if (question) question.hidden = false;
+      root?.setAttribute('data-state', 'question');
+      if (statusEl) statusEl.textContent = '';
+      (question?.querySelector('[data-answer]') as HTMLButtonElement | null)?.focus();
+    }
+
+    /**
+     * ⚠️ THE SECTIONS THE ANSWER IMPLIES, AND ONLY THOSE.
+     *
+     * "Les deux" is the sum of the other two rather than a third layout, which
+     * is what keeps the copy honest: the parent is asked their own name in the
+     * same words a solo player is, and their children's in the same words a
+     * non-playing parent gets.
+     */
+    function showNames(shape: AccountShape) {
+      answer = shape;
+      const wantsSelf = shape === 'self' || shape === 'both';
+      const wantsChild = shape === 'children' || shape === 'both';
+
+      if (selfSection) selfSection.hidden = !wantsSelf;
+      if (childSection) childSection.hidden = !wantsChild;
+
+      /* ⚠️ THE PLACEHOLDER WARNING ONLY WHERE IT IS TRUE. The auto-created
+         profile becomes the reader's own for "moi" and "les deux", and the first
+         child for "mon enfant" — but in every case it is the row carrying the
+         email fragment, so the note applies to whichever field will replace it. */
+      if (placeholderNote) placeholderNote.hidden = !placeholder;
+
+      /* ⚠️ A REAL NAME IS PRE-FILLED; THE PLACEHOLDER IS NOT. Prefilling the
+         email fragment invites a parent to press Save and ship `nachiketas3d`
+         to the attendance sheet — the exact outcome this screen prevents. An
+         empty required-looking field asks the question; a prefilled one answers
+         it wrongly. */
+      if (selfName) selfName.value = placeholder ? '' : profileName;
+      if (first && shape === 'children') first.value = placeholder ? '' : profileName;
+      /* Under "les deux" the auto-created row becomes the HOLDER's, so the first
+         child field is a genuinely new name and starts empty. */
+      if (first && shape === 'both') first.value = '';
+
+      if (question) question.hidden = true;
+      if (formEl) formEl.hidden = false;
+      root?.setAttribute('data-state', 'names');
+      root?.setAttribute('data-answer', shape);
+      (wantsSelf ? selfName : first)?.focus();
+    }
+
+    question?.addEventListener('click', (event) => {
+      const button = (event.target as HTMLElement).closest('[data-answer]');
+      if (!button) return;
+      const shape = button.getAttribute('data-answer');
+      if (shape === 'self' || shape === 'children' || shape === 'both') showNames(shape);
+    });
+
+    backBtn?.addEventListener('click', showQuestion);
+
+    /* ── Boot ──────────────────────────────────────────────────────────────── */
 
     (async () => {
       const session = await getSession();
@@ -219,31 +361,19 @@ const EXTRA_SLOTS = [1, 2, 3];
         return;
       }
 
-      /* Resolution creates the first child profile if the account has none —
-         the same call `/compte/` makes, so this screen never invents a second
-         way for a learner to come into existence. */
+      /* Resolution creates the first profile if the account has none — the same
+         call `/compte/` makes, so this screen never invents a second way for a
+         learner to come into existence. */
       const child = await resolveChild();
       childId = child?.id ?? null;
 
       const email = session.user.email ?? '';
       const currentName = child?.name ?? '';
-      if (looksLikePlaceholder(currentName, email)) {
-        /* ⚠️ THE FIELD IS LEFT EMPTY ON PURPOSE. Prefilling it with the
-           placeholder invites a parent to press "Enregistrer" and ship
-           `nachiketas3d` to the attendance sheet — which is precisely the
-           outcome this page exists to prevent. An empty required-looking field
-           asks the question; a prefilled one answers it wrongly. */
-        if (first) first.value = '';
-        if (nameBody) nameBody.textContent = msg('msgPlaceholder');
-      } else {
-        if (first) first.value = currentName;
-        if (nameBody) nameBody.textContent = msg('msgNamed');
-      }
+      placeholder = looksLikePlaceholder(currentName, email);
+      profileName = placeholder ? '' : currentName;
 
       if (checking) checking.hidden = true;
-      if (formEl) formEl.hidden = false;
-      root?.setAttribute('data-state', 'ready');
-      first?.focus();
+      showQuestion();
     })();
 
     /* ── "Ajouter un autre enfant" ─────────────────────────────────────── */
@@ -269,16 +399,25 @@ const EXTRA_SLOTS = [1, 2, 3];
 
     formEl?.addEventListener('submit', async (event) => {
       event.preventDefault();
-      if (!saveBtn || saveBtn.disabled) return;
+      if (!saveBtn || saveBtn.disabled || !answer) return;
 
-      const primary = (first?.value ?? '').trim();
+      const shape = answer;
+      const mine = (selfName?.value ?? '').trim();
+      const firstChild = (first?.value ?? '').trim();
       const extras = extraNames();
+
+      /* Which name the auto-created row takes, and which names become new rows.
+         Under "les deux" the existing row becomes the HOLDER's and every child
+         is an insert; under "mon enfant" it becomes the first child. */
+      const rename = shape === 'children' ? firstChild : mine;
+      const inserts =
+        shape === 'self' ? [] : shape === 'both' ? [firstChild, ...extras].filter(Boolean) : extras;
 
       /* ⚠️ A BLANK FORM IS NOT AN ERROR TO ARGUE WITH — it is somebody who
          means to skip. Say so, and point at the button that does it. */
-      if (!primary && extras.length === 0) {
-        if (statusEl) statusEl.textContent = msg('msgNeedName');
-        first?.focus();
+      if (!rename && inserts.length === 0) {
+        if (statusEl) statusEl.textContent = msg(shape === 'children' ? 'msgNeedName' : 'msgNeedNameSelf');
+        (shape === 'children' ? first : selfName)?.focus();
         return;
       }
 
@@ -295,28 +434,54 @@ const EXTRA_SLOTS = [1, 2, 3];
         /* ⚠️ THE RENAME AND THE INSERTS ARE SEPARATE STATEMENTS, AND A FAILED
            SECOND ONE MUST NOT UNDO THE FIRST. There is no transaction available
            to a PostgREST client, so the order is chosen so that the partial
-           state is the harmless one: the child is named first, and a failed
-           sibling insert leaves a correctly named account plus a visible error,
-           with the roster on `/compte/` able to finish the job. */
-        if (primary && childId) {
+           state is the harmless one: the existing profile is named first, and a
+           failed sibling insert leaves a correctly named account plus a visible
+           error, with the roster on `/compte/` able to finish the job. */
+        if (rename && childId) {
+          /* ⚠️ `is_self` GOES WITH THE RENAME, IN ONE STATEMENT. Two writes
+             would leave a window in which the holder's own profile is named and
+             unflagged, which reads on `/compte/` as an account whose vocabulary
+             does not match the answer just given. */
+          const patch: Record<string, unknown> = { display_name: rename };
+          if (shape !== 'children') patch['is_self'] = true;
+          const { error } = await supabase.from('child_profiles').update(patch).eq('id', childId);
+          if (error) {
+            /* A database without 0010 rejects the whole statement for the sake
+               of one unknown column. The name is the part that matters on an
+               attendance sheet, so it is retried alone. */
+            if (patch['is_self']) {
+              const { error: retry } = await supabase
+                .from('child_profiles')
+                .update({ display_name: rename })
+                .eq('id', childId);
+              if (retry) throw retry;
+            } else {
+              throw error;
+            }
+          }
+        }
+
+        if (inserts.length > 0) {
           const { error } = await supabase
             .from('child_profiles')
-            .update({ display_name: primary })
-            .eq('id', childId);
+            .insert(inserts.map((name) => ({ account_id: accountId, display_name: name })));
           if (error) throw error;
         }
 
-        if (extras.length > 0) {
-          const { error } = await supabase
-            .from('child_profiles')
-            .insert(extras.map((name) => ({ account_id: accountId, display_name: name })));
-          if (error) throw error;
+        /* ⚠️ THE ACCOUNT HOLDER'S OWN NAME IS ALSO THEIR PROFILE NAME. Somebody
+           who said "moi, je joue" told us their first name; leaving
+           `profiles.display_name` as the email fragment would put it straight
+           back in front of them in the settings block. Failure here is not
+           fatal — it is a label on one collapsed field, and `/compte/` flags the
+           placeholder on its own. */
+        if (mine && shape !== 'children') {
+          await supabase.from('profiles').update({ display_name: mine }).eq('id', accountId);
         }
 
         /* ⚠️ MARKED ONLY AFTER THE WRITES LAND. Marked first, a failed save
            would burn the one chance this screen gets and leave the placeholder
            name in place with nothing ever offering to fix it again. */
-        await markOnboarded();
+        await markOnboarded(shape);
         leave();
       } catch {
         if (statusEl) statusEl.textContent = msg('msgError');
@@ -327,14 +492,24 @@ const EXTRA_SLOTS = [1, 2, 3];
 
     /* ── Skip ──────────────────────────────────────────────────────────── */
 
-    skipBtn?.addEventListener('click', async () => {
-      /* ⚠️ THE MARK IS NOT AWAITED FOR ITS RESULT, AND A FAILURE IS NOT SHOWN.
-         The reader asked to leave. The worst case of a lost write is being
-         offered this screen once more — telling them their skip "failed" would
-         be alarming about nothing at all. */
-      await markOnboarded();
-      leave();
-    });
+    /**
+     * ⚠️ THE MARK IS NOT AWAITED FOR ITS RESULT, AND A FAILURE IS NOT SHOWN.
+     * The reader asked to leave. The worst case of a lost write is being offered
+     * this screen once more — telling them their skip "failed" would be alarming
+     * about nothing at all.
+     *
+     * ⚠️ AND NO SHAPE IS RECORDED. Skipping is not an answer, and writing one
+     * would manufacture a claim the reader never made — `/compte/` then falls
+     * back to the neutral, structure-naming copy that Critical Feature 54 exists
+     * for. Available at both steps, because a reader who has seen the question
+     * and does not want to answer it must not have to pick one to escape.
+     */
+    for (const id of ['welcome-skip', 'welcome-skip-2']) {
+      document.querySelector(`[data-testid="${id}"]`)?.addEventListener('click', async () => {
+        await markOnboarded();
+        leave();
+      });
+    }
   </script>
 </BaseLayout>
 
@@ -347,46 +522,92 @@ const EXTRA_SLOTS = [1, 2, 3];
     color: var(--mcc-text-secondary);
   }
 
-  /* The model explainer reads as context, not as a warning: a quiet sunken
-     panel with an accent edge, the same vocabulary the staff block on /compte/
-     uses. No opacity anywhere — `check-contrast.mjs` proves token PAIRS and
-     cannot see an alpha laid over one. */
-  .welcome-model {
-    margin-bottom: 2rem;
-    padding: 1rem 1.25rem;
-    border-inline-start: 3px solid var(--mcc-accent);
-    border-radius: var(--radius-card);
-    background-color: var(--mcc-surface-sunken);
-  }
-
-  .welcome-model h2 {
-    margin: 0 0 0.5rem;
-    font-size: 1.125rem;
-  }
-
-  .welcome-model p {
-    margin: 0 0 0.6rem;
+  .welcome-question-body,
+  .welcome-step-body {
+    margin: 0 0 1.25rem;
+    color: var(--mcc-text-secondary);
     line-height: 1.6;
   }
 
-  .welcome-model p:last-child {
-    margin-bottom: 0;
-  }
-
-  .welcome-teen {
-    color: var(--mcc-text-secondary);
-    font-size: 0.9375rem;
-  }
-
-  .welcome-names h2 {
+  .welcome-question h2,
+  .welcome-step h2 {
     margin: 0 0 0.5rem;
     font-size: 1.25rem;
   }
 
-  .welcome-name-body {
-    margin: 0 0 1rem;
+  /* ── The three answers ──────────────────────────────────────────────────
+     ⚠️ FULL-WIDTH STACKED CARDS, AT EVERY WIDTH. A parent signs up on a phone,
+     and the third option is the one most likely to be the right answer — laid
+     out in a row it would be the one that wraps, which reads as an afterthought
+     for the case the club actually has most of. */
+  .welcome-answers {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 0;
+    margin: 0 0 1.5rem;
+    list-style: none;
+  }
+
+  .welcome-answer {
+    display: block;
+    width: 100%;
+    /* Comfortably past the 44px target: this is the whole content of the step. */
+    min-height: 3.5rem;
+    padding: 0.9rem 1.1rem;
+    border: 2px solid var(--mcc-border-strong);
+    border-radius: var(--radius-card);
+    background-color: var(--mcc-surface-raised);
+    color: var(--mcc-text-primary);
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+    /* Réponse family — this follows a click. See src/lib/motion.ts. */
+    transition:
+      border-color var(--motion-response) var(--ease-response),
+      background-color var(--motion-response) var(--ease-response);
+  }
+
+  .welcome-answer:hover,
+  .welcome-answer:focus-visible {
+    border-color: var(--mcc-accent-strong);
+  }
+
+  .welcome-answer:focus-visible {
+    outline: 2px solid var(--mcc-focus-ring);
+    outline-offset: 2px;
+  }
+
+  .welcome-answer-label {
+    display: block;
+    margin-bottom: 0.2rem;
+    font-weight: 600;
+  }
+
+  /* ⚠️ NO `opacity` ON TEXT OVER AN AUDITED FILL — `check-contrast.mjs` proves
+     the token PAIR and cannot see an alpha laid on top of it. The note is
+     differentiated by size and by its own audited token. */
+  .welcome-answer-note {
+    display: block;
     color: var(--mcc-text-secondary);
-    line-height: 1.6;
+    font-size: 0.9375rem;
+    line-height: 1.5;
+  }
+
+  /* ── The placeholder warning ────────────────────────────────────────────
+     Marked by its edge and its words, not by a red fill: it is information
+     about how the account was created, not an error the reader made. */
+  .welcome-placeholder {
+    margin: 0 0 1.5rem;
+    padding: 0.85rem 1.1rem;
+    border-inline-start: 3px solid var(--mcc-accent-strong);
+    border-radius: var(--radius-card);
+    background-color: var(--mcc-surface-sunken);
+    line-height: 1.55;
+  }
+
+  .welcome-step {
+    margin-bottom: 1.75rem;
   }
 
   .welcome-field {
@@ -419,8 +640,8 @@ const EXTRA_SLOTS = [1, 2, 3];
     outline-offset: 1px;
   }
 
-  /* Mobile-first: the two actions stack and fill the width on a phone, and sit
-     side by side once there is room. A parent signs up on a phone. */
+  /* Mobile-first: the actions stack and fill the width on a phone, and sit side
+     by side once there is room. A parent signs up on a phone. */
   .welcome-actions {
     display: flex;
     flex-direction: column;
@@ -457,6 +678,23 @@ const EXTRA_SLOTS = [1, 2, 3];
     border: 1px solid var(--mcc-border-strong);
     background: none;
     color: var(--mcc-link);
+  }
+
+  /* Back is a change of mind, not an action of equal weight to Save — but it is
+     still a 44px target, because it is reached by thumb on the same screen. */
+  .welcome-back-row {
+    margin: 0 0 1rem;
+  }
+
+  .btn-link {
+    min-height: 2.75rem;
+    padding: 0.5rem 0;
+    border: 0;
+    background: none;
+    color: var(--mcc-link);
+    font: inherit;
+    text-decoration: underline;
+    cursor: pointer;
   }
 
   .welcome-note {

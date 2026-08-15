@@ -9,9 +9,8 @@ import {
   createConfirmedUser,
   deleteUser,
   e2eEmail,
-  magicLinkFor,
 } from './helpers/supabase-admin';
-import { reachAccountPage } from './helpers/auth';
+import { followMagicLink, reachAccountPage } from './helpers/auth';
 
 /**
  * v2-S4 part 2 — the admin surfaces.
@@ -127,7 +126,7 @@ test.describe('v2-S4 — the admin surfaces', () => {
         new_role: role,
       });
       expect(error, `admin_set_role failed: ${error?.message}`).toBeNull();
-      await page.goto(await magicLinkFor(email));
+      await followMagicLink(page, email);
       await reachAccountPage(page);
       return user;
     }
