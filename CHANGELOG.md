@@ -131,6 +131,33 @@ Seàn's.
   that still went red. Raising the TEST project’s limit is the real fix and is in
   BACKLOG.
 
+### Release engineering
+
+- **`npm run verify:deploy`** — the check v0.13.0 did not have. It compares the
+  **content-hashed** `/_astro/*` asset names on three live documents against the
+  same documents in `dist/`, so it answers the one question nothing else could:
+  *is the live site running the tree I just cut?* `smoke:prod` passed all 14
+  routes throughout the day production served a pre-v0.13.0 build, because it
+  asserts each page is reachable and correct — not which build made it, and
+  `wrangler deployments list` showed something recent, which it was and which
+  proved nothing. A per-release sentinel was rejected deliberately: the release
+  you forget to bump it on is the release you needed it for, and Astro already
+  fingerprints every bundle by content for free.
+- ⚠️ **The release gate now runs the matrix TWICE — once per flag shape.** The
+  policy said it runs once, on the default build, because that was "what
+  production ships". That premise has been false since accounts were switched on
+  in the Cloudflare dashboard: the default matrix skips every auth spec, so the
+  whole account stack was reaching production with **chromium coverage only**.
+  Neither shape subsumes the other — OFF is the only one that can prove Critical
+  Feature 18 (no route emitted, no Supabase ref in the bundle), ON is the only
+  one that exercises `/bienvenue/`, `/compte/` and `/admin*` at all. Recorded in
+  CLAUDE.md with the reason, so it can be removed honestly if the flag ever goes
+  back off.
+- `docs/ADMIN.md` carries the migration 0010 procedure for production: paste the
+  file rather than `db push`, which reads a ledger known to under-report here and
+  would replay 0005's unguarded `drop constraint`. Then verify against the
+  catalog, never against the ledger.
+
 ### Documentation
 
 - CLAUDE.md: Critical Features 57–61; the account-model section rewritten around

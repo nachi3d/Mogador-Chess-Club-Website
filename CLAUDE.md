@@ -1594,16 +1594,47 @@ overrides the comparison branch; it exists for testing the script itself.
 
 ---
 
-### ⚠️ VERIFICATION POLICY — TWO COMMANDS, AND THE MATRIX RUNS ONCE
+### ⚠️ VERIFICATION POLICY — TWO COMMANDS, AND THE MATRIX RUNS ONCE PER SHAPE
 
 | | Command | When | Cost |
 |---|---|---|---|
 | **Every feature branch** | `npm run test:branch` | every session, before merging to `dev` | ~1-3 min |
-| **Promotion only** | `npm run test:release` | once, when promoting `dev` → `main` | ~65-70 min |
+| **Promotion** | `npm run test:release` | once, promoting `dev` → `main` | ~65-70 min |
+| **Promotion, accounts ON** | `PUBLIC_AUTH_ENABLED=true npm run test:release` | ⚠️ **also**, while production runs with accounts on | ~65-70 min |
 
 `npm run test:branch` is **chromium only** and runs the specs mapped from what
 actually changed (`scripts/spec-map.mjs`). `--all` runs every chromium spec for
 a sweeping refactor — still one browser.
+
+#### ⚠️⚠️ THE GATE RUNS TWICE NOW, AND THE OLD PREMISE IS WHY (v0.14.0)
+
+The policy said the matrix runs once, on the default build, because **"a plain
+`npx playwright test` exercises the real artefact"** — the default build being
+what production ships. **That premise is FALSE and has been since the flag was
+turned on in the Cloudflare dashboard.** Production serves the accounts-**ON**
+build; the default matrix skips every auth spec, so the entire account stack was
+reaching production with **chromium coverage only**.
+
+The two shapes are not redundant — they test different things, and neither
+subsumes the other:
+
+- **OFF** is the only shape that can prove Critical Feature 18 (`auth-disabled
+  .spec.ts`: no route emitted, no Supabase ref, host or anon key in the bundle).
+  Those specs skip in the ON build.
+- **ON** is the only shape that exercises `/connexion/`, `/auth/callback/`,
+  `/bienvenue/`, `/compte/` and `/admin*` at all. Those specs skip in the OFF
+  build, **visibly and with a reason** — which is what stops the gate passing
+  vacuously, and is exactly why the hole was survivable long enough to matter.
+
+⚠️ **THE ON MATRIX HAMMERS SUPABASE'S AUTH RATE LIMIT — five projects at ~40
+magic-link verifications each.** `followMagicLink()` backs off and names a 429,
+but a project the limit takes out is **re-run on its own**, not waved through.
+See [`docs/reference/supabase.md`](./docs/reference/supabase.md).
+
+⚠️ **IF THE FLAG EVER GOES BACK OFF IN PRODUCTION, THIS ROW GOES WITH IT** —
+and the reason is recorded here rather than left as a habit, because a gate that
+runs twice for no current reason is the kind of cost a future session deletes
+without knowing what it was for.
 
 #### ⚠️ THE MATRIX RUNS ONE PROJECT AT A TIME, UNDER A WORKER CAP
 
@@ -1720,6 +1751,14 @@ Run `npm run demo`, which prints its path, and work down it. The release gate is
 □ npm run test:release — green, meaning ZERO failures. ⚠️ It runs its projects
   one at a time and it is EXPECTED TO BE GREEN now; a red matrix is a finding
   to chase, not a known flake to wave through. This is the ONE place it runs.
+□ ⚠️ PUBLIC_AUTH_ENABLED=true npm run test:release — green too, for as long as
+  production runs with accounts ON. The default matrix skips every auth spec,
+  so this is the ONLY cross-browser coverage the account stack gets. See the
+  verification policy above for why neither shape subsumes the other.
+□ ⚠️ PRODUCTION'S SCHEMA HOLDS THE MIGRATIONS THIS RELEASE NEEDS, applied
+  BEFORE the deploy — migrations first, build second, per the agenda incident.
+  Asked of the catalog, per migration. `db-push.mjs` refuses production by
+  design, so this is a human act against a ref typed by hand.
 □ docs/MANUAL-TESTS.md — worked through on desktop AND a real phone
 □ Lighthouse ≥ 90 (Performance, Accessibility, SEO)
 □ package.json "version" matches the tag about to be cut
@@ -1733,6 +1772,12 @@ Run `npm run demo`, which prints its path, and work down it. The release gate is
 □ ⚠️ /agenda/ on the live site matches the `sessions` table. `smoke:prod` now
   fails on a blank agenda and prints the count, but it cannot know the count is
   RIGHT — compare it against the table.
+□ ⚠️⚠️ AFTER DEPLOYING: `npm run verify:deploy` — green. This is the check that
+  v0.13.0 did not have: it compares the live site's CONTENT-HASHED asset names
+  against your `dist/`, so it answers "is the live site running the tree I just
+  cut?" — which `smoke:prod` and `wrangler deployments list` structurally
+  cannot. ⚠️ Then `npm run smoke:prod`. Both: one says it is THE build, the
+  other says the build is good.
 ```
 
 It is a **living document**: keep it in step with the site, in the same commit as the feature. See the session finish routine under Conventions.
@@ -1762,6 +1807,15 @@ It is a **living document**: keep it in step with the site, in the same commit a
   it asserts, per route, 200 + `lang` + a **structural** sentinel + the GPL footer
   link + canonical agreement + no third-party subresource, plus the manifest and
   `sw.js`. ⚠️ It is **not** part of `npm run build` and must not become part of it.
+- ⚠️⚠️ **`npm run verify:deploy` ANSWERS THE QUESTION NOTHING ELSE DOES: is the
+  live site running the tree I just cut?** It compares **content-hashed**
+  `/_astro/*` names on three live documents against `dist/` — a match is build
+  identity, with nothing to maintain and no per-release sentinel to forget.
+  **This is the check v0.13.0 did not have**, and it needs a `dist/` built from
+  the tree you are asking about. It asserts the build is THE ONE; `smoke:prod`
+  asserts the build is GOOD. Run both, in that order, after every deploy.
+  **➡️ Why the other signals cannot answer it:
+  [`docs/reference/deployment.md`](./docs/reference/deployment.md).**
 - **`wrangler` stays out of `package.json`** — invoked with `npx`, to keep its
   transitive advisories out of every install.
 - `not_found_handling` is `"none"` because there is no `404.astro`. When one

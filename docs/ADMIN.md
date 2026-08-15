@@ -227,3 +227,106 @@ Re-run the per-migration verification in
 both hold: the **catalog** contains 0003–0007's objects (it already did), and the
 **ledger** now says so. The ledger agreeing on its own has never been evidence —
 that is the whole reason this section exists.
+
+---
+
+## ⚠️ v0.14.0 — applying migration 0010 to PRODUCTION
+
+**Run once, on PRODUCTION only, in the Supabase SQL editor, BEFORE deploying
+v0.14.0.** The test project already has it (`npm run db:push`).
+
+⚠️ **MIGRATIONS FIRST, BUILD SECOND.** That ordering is not a preference — it is
+the lesson from 2026-08-14, when a credentialed build ran against a database
+missing 0005–0007 and served an empty public agenda to the club for fourteen
+hours. The fix was invisible until something rebuilt.
+
+### What happens if you deploy without it
+
+Nothing breaks, and that is exactly why it needs saying out loud. `getProfile()`
+walks a ladder of column lists (`PROFILE_COLUMNS` in `src/lib/supabase.ts`) and
+**degrades** to the pre-0010 rung when `account_shape` is absent. So:
+
+- every account reads as **"never answered"**, whatever the parent actually said;
+- `/compte/` shows the neutral, structure-naming copy to everybody;
+- the « Vous » badge never appears, because `is_self` is not there to read;
+- the three-answer welcome screen still *runs*, and its answer is silently lost.
+
+The feature is dark, not broken. There is no error anywhere and no test can see
+it from here — which is the same shape of silence as the agenda incident.
+
+### 1. Check what the ledger says (it has been wrong before)
+
+```sql
+select version, name from supabase_migrations.schema_migrations order by version;
+```
+
+⚠️ **This table is NOT evidence of what production holds.** On 2026-08-14 it
+listed `0001, 0002` while the catalog demonstrably carried everything through
+`0007`; on 2026-08-15 the catalog carries **0008 and 0009** as well. Ask the
+catalog, never the ledger — the per-migration queries are in
+[`reference/supabase.md`](./reference/supabase.md).
+
+If 0003–0009 are missing from the ledger, record them first — the section above
+covers 0003–0007; extend the same `insert` with:
+
+```sql
+insert into supabase_migrations.schema_migrations (version, name)
+values
+  ('0008', 'revoke_anon_defaults'),
+  ('0009', 'onboarding_and_account_hygiene')
+on conflict (version) do nothing;
+```
+
+### 2. Apply 0010 by pasting it, not by `db push`
+
+⚠️ **Paste the file, do not run `supabase db push`.** Push decides what to apply
+by reading the ledger, and a ledger that under-reports makes it **replay** older
+migrations — including 0005's unguarded `drop constraint`. Pasting one file
+sidesteps that entirely.
+
+Copy the whole of `supabase/migrations/0010_account_shape.sql` into the SQL
+editor and run it. Every statement in it is idempotent (`add column if not
+exists`, a guarded `add constraint`, `create unique index if not exists`), so
+running it twice is safe.
+
+Then record it:
+
+```sql
+insert into supabase_migrations.schema_migrations (version, name)
+values ('0010', 'account_shape')
+on conflict (version) do nothing;
+```
+
+### 3. Verify against the CATALOG
+
+```sql
+-- The column exists, and the check accepts exactly three values.
+select conname, pg_get_constraintdef(oid) from pg_constraint
+ where conrelid = 'public.profiles'::regclass and conname like '%account_shape%';
+-- → CHECK (account_shape IS NULL OR account_shape = ANY (ARRAY['self','children','both']))
+
+-- `authenticated` may write exactly FOUR columns of profiles.
+select column_name from information_schema.column_privileges
+ where table_schema='public' and table_name='profiles'
+   and grantee='authenticated' and privilege_type='UPDATE'
+ order by column_name;
+-- → account_shape, display_name, locale, onboarded_at   ⚠️ NEVER role
+
+-- The holder flag and its one-per-account index.
+select column_name, data_type, is_nullable from information_schema.columns
+ where table_schema='public' and table_name='child_profiles' and column_name='is_self';
+-- → is_self, boolean, NO
+
+select indexdef from pg_indexes
+ where schemaname='public' and indexname='child_profiles_one_self_idx';
+-- → CREATE UNIQUE INDEX … ON public.child_profiles USING btree (account_id) WHERE is_self
+```
+
+⚠️ **If the `UPDATE` column list ever comes back containing `role`, stop.** That
+is the one outcome these column-level grants exist to prevent, and it would mean
+somebody "tidied" them into a table-wide `grant update on public.profiles`.
+
+### 4. Only then, deploy
+
+And verify by **output**, not by the deployment list — see the deploy
+verification in [`reference/deployment.md`](./reference/deployment.md).

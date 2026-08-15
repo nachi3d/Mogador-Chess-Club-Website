@@ -433,3 +433,97 @@ Two things do discriminate:
 not a defect in the probe — a static check cannot know how many sessions ought
 to exist — but it does mean **the agenda is verified against the `sessions`
 table, by hand, and never against a 200.**
+
+---
+
+## ⚠️ Did the build actually land? — `npm run verify:deploy` (v0.14.0)
+
+**Read when:** promoting, deploying, or explaining why the live site does not
+match the repository.
+
+### The incident this exists for
+
+v0.13.0 was merged to `main`, tagged, and **never served**.
+
+```
+2026-08-14 20:55:33Z   merge(main): v0.13.0
+2026-08-14 20:57:28Z   deployment  ← Workers Build, 115s after the push
+2026-08-14 22:02:45Z   deployment  ← 67 minutes after the merge, an OLDER tree
+```
+
+For the next day production served a pre-v0.13.0 build. `/bienvenue/` and
+`/admin/comptes/` — both introduced in that merge — returned **404**, and the
+deployed callback chunk hard-coded `window.location.replace('/compte/')` with no
+`onboarded_at` read anywhere in it. A parent signed up and the welcome screen
+that had just been built, tested and documented simply did not exist for them.
+
+### Why every signal available at the time said it was fine
+
+| Signal | What it said | Why it could not help |
+|---|---|---|
+| `wrangler deployments list` | a deployment, minutes old | It **was** recent. Recency is not identity — the newest deployment can carry the oldest tree, which is exactly what happened |
+| `Source: Unknown (deployment)` | — | Does **not** discriminate a Workers Build from a CLI upload. This project published that conclusion once and had to retract it |
+| `npm run smoke:prod` | 14/14 routes green | It asserts each page is reachable, is the right page, in the right language. It has no idea **which build** produced it |
+| The rendered page | correct | A previous release's pages are still correct pages |
+| The agenda | one session, as expected | 0006 seeds the row with the same fixed id and text as the committed fallback, deliberately — so the card is byte-identical whichever source produced it |
+
+Every one of those is a real check and none of them is the one that was needed.
+**Nothing in the repository could answer "is the live site running this tree?"**
+
+### How the check works, and why it is derived rather than declared
+
+Astro fingerprints every bundle by **content**: `_astro/ChessBoard.BQ3f9k2p.js`
+changes name whenever the module graph behind it changes. So the set of
+`/_astro/*` names a document pulls is the identity of the build that produced it.
+
+`verify:deploy` fetches three live documents, extracts that set, and compares it
+against the same documents in `dist/`.
+
+⚠️ **A PER-RELEASE SENTINEL WOULD HAVE BEEN THE WRONG DESIGN**, and the reason
+generalises: a string that must be bumped every release will eventually not be,
+and *the release it is forgotten on is the release it was needed for*. The
+hashed names are already maintained, by the build, for free.
+
+⚠️ **THREE DOCUMENTS, NOT ONE.** `/` alone is a good identity probe because its
+bundle moves most releases — but a release touching only a route the home page
+never loads would match on `/` and be wrong everywhere else. `/`,
+`/exercices/mat-du-couloir/` and `/progres/` have different module graphs, so a
+partial or stale deploy cannot pass by luck.
+
+⚠️ **AND THAT IS NOT THEORETICAL — IT FIRED ON THE FIRST RUN.** Pointed at
+production on 2026-08-15, while the site was still serving the pre-v0.13.0
+build:
+
+```
+ok /                                  3 asset(s) match
+✗  /exercices/mat-du-couloir/         the live build is NOT this tree
+✗  /progres/                          the live build is NOT this tree
+```
+
+**The home page matched.** Its three assets happen to be unchanged between those
+trees, so a one-document check would have reported a clean pass on a site that
+was a whole release behind.
+
+⚠️ **IT NEEDS A `dist/` FROM THE TREE YOU ARE ASKING ABOUT.** Comparing against
+a stale `dist/` answers a question nobody asked, so the script refuses when
+`dist/index.html` is missing and reports `compared === 0` as a failure rather
+than as a pass.
+
+⚠️ **IT DOES NOT SAY THE BUILD IS GOOD.** It says it is THE ONE. `smoke:prod`
+and the Playwright matrix say it is good. Neither substitutes for the other, and
+running only one of them is how v0.13.0 happened.
+
+### What to do when it fails
+
+It is telling you the live site is a different build. Do **not** reach for the
+deployment list — that is what already failed. Work out which of the two paths
+won:
+
+- a **Cloudflare Workers Build**, triggered by a push to `main`, using the
+  **dashboard** build variables; or
+- an **`npx wrangler deploy`**, uploading a `dist/` built on somebody's machine
+  with whatever `.env.local` gave it.
+
+**Last writer wins**, and the two produce different sites — the local one bakes
+the committed agenda fallback, the Cloudflare one reads Supabase. Correlate the
+deployment timestamps against the push, and re-deploy from the intended path.
