@@ -11,6 +11,10 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+---
+
+## [0.14.0] — 2026-08-15
+
 **The site now asks who the account is for, and `/compte/` answers in their
 words rather than in ours.**
 
@@ -4256,7 +4260,8 @@ Foundation only: no real content, no interactive board yet.
   `url()` references unresolved and the fonts silently 404 into a Georgia
   fallback. `scripts/build-fonts.mjs` self-hosts them instead. See CLAUDE.md.
 
-[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.13.0...HEAD
+[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.14.0...HEAD
+[0.14.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.11.1...v0.12.0
 [0.11.1]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.11.0...v0.11.1
