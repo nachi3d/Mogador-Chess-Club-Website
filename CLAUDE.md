@@ -188,6 +188,12 @@ mentions this repo. `scripts/demo.mjs` does all three on startup **and** on
 Ctrl+C. ⚠️ **Stopping the npm wrapper does not stop the server**; verify the port
 is free and kill by PID.
 
+⚠️ **And the converse: what is on 4321 may not be ours.** Other local projects
+use that port too — `Caracol-Adventures-Website` among them. Confirm the
+listener's command line carries this repo's path before killing it, and on a
+collision run the suite on an alternate port (e.g. 4331) through a temporary
+config rather than taking down a neighbour's server.
+
 **➡️ The exact probes, the load-bearing details of each one, and the
 verification behind them: [`docs/reference/dev-environment.md`](./docs/reference/dev-environment.md).**
 Read it before writing or changing any sweep — matching on `chrome.exe` by name

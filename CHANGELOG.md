@@ -11,6 +11,21 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### 4321 is a shared port, and the sweep now says so
+
+The process-hygiene rules covered our own orphans — kill what this session
+started, sweep by repo path so an out-of-range `--port` is still found. They
+said nothing about the opposite mistake: `N:\Nachi3D-Labs` holds several Astro
+sites on the same defaults, `Caracol-Adventures-Website` foremost, so a listener
+on 4321 is evidence of *a* server, not of ours. A blind `kill-port` takes down
+whatever the session in the next window was mid-way through.
+
+The same repo-path match already written for the sweep is now also a
+precondition for killing, and a collision is resolved by moving this suite to an
+alternate port (4331) through a temporary config rather than by claiming 4321.
+Rule in CLAUDE.md, reasoning in
+[`docs/reference/dev-environment.md`](./docs/reference/dev-environment.md).
+
 ---
 
 ## [0.16.0] — 2026-08-16
