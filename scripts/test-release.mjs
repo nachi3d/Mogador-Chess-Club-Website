@@ -102,6 +102,46 @@ const LOG = join(LOG_DIR, 'matrix.log');
 const JSON_OUT = join(LOG_DIR, 'matrix.json');
 
 /** ⚠️ Must match `projects` in playwright.config.ts. Verified below. */
+/**
+ * ⚠️ SWEEP BEFORE EVERY PROJECT — ADDED AT v0.16.0, AFTER A ZOMBIE ATE A GATE.
+ *
+ * `webServer.reuseExistingServer` is true locally, so Playwright serves
+ * WHATEVER IS ALREADY LISTENING on 4321 rather than building. That is a
+ * feature between projects here — the first run builds and the rest reuse it —
+ * and a trap when the listener is not ours.
+ *
+ * ⚠️ WHAT ACTUALLY HAPPENED: a stray `node` held 4321 while matching NEITHER
+ * hand-run probe. Its command line named neither this repo nor `preview`, so a
+ * command-line grep missed it, and nobody asked the PORT who owned it. Firefox
+ * then "failed" 37 tests at ONE worker — worse than at three, which is
+ * impossible for a concurrency problem — because every page it loaded came
+ * from the squatter. The diagnosis went to the browser instead of the socket,
+ * and a release very nearly shipped on it.
+ *
+ * ⚠️ THE TWO PROBES CATCH DIFFERENT THINGS AND BOTH MUST RUN: a port walk by
+ * PID misses a preview on an unswept port, and a repo-path match misses a
+ * process whose command line does not name the repo. The zombie slipped
+ * between them because only one of them was ever run here — this gate swept
+ * nothing at all before v0.16.0.
+ *
+ * `scripts/demo.mjs --sweep-only` IS that sweep — the same implementation, not
+ * a copy — and it exits non-zero when something survived. A dirty machine is
+ * reported and the run continues: the per-project count comparison below is
+ * what ultimately catches a project that tested nothing real.
+ */
+function sweepMachine(label) {
+  const result = spawnSync(process.execPath, [join(ROOT, 'scripts', 'demo.mjs'), '--sweep-only'], {
+    cwd: ROOT,
+    encoding: 'utf8',
+  });
+  appendLog(`
+--- sweep before ${label} ---
+${result.stdout ?? ''}${result.stderr ?? ''}`);
+  if (result.status !== 0) {
+    console.log(`    ${yellow('! the machine was NOT clean before this project')}`);
+  }
+}
+
 const PROJECTS = ['chromium', 'firefox', 'webkit', 'pixel-5', 'iphone-13'];
 
 const MODE = process.env['MCC_MATRIX_MODE'] ?? 'per-project';
@@ -205,6 +245,7 @@ if (MODE === 'pooled') {
     const banner = `\n########## ${project} ##########\n`;
     appendLog(banner);
     console.log(bold(`\n  ▸ ${project}`));
+    sweepMachine(project);
     const run = runPlaywright(`--project=${project} --workers=${WORKERS}`, project);
     if (run.status !== 0) worstStatus = run.status;
     for (const [name, entry] of run.tally) {
