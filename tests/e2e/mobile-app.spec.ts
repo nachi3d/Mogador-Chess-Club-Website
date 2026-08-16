@@ -63,37 +63,129 @@ test.describe('the bottom navigation bar', () => {
     await page.setViewportSize(PHONE);
   });
 
-  test('renders four entries, and exactly four', async ({ page }) => {
+  test('renders five sections, and exactly five', async ({ page }) => {
     await page.goto('/');
     const bar = page.locator('[data-mobile-nav]');
     await expect(bar).toBeVisible();
 
     const links = bar.locator('.mobile-nav-link');
-    /* ⚠️ FOUR. Five targets across 390px is 78px each, which is where labels
-       truncate — and settings is deliberately NOT one of them: it is a
-       preference, not a destination, so it lives in the header. If this ever
-       reads five, that decision has been quietly reversed. */
-    await expect(links).toHaveCount(4);
-    await expect(links).toHaveText([/Accueil/, /Apprendre/, /Jouer/, /Progrès/]);
+    /* ⚠️ FIVE SECTIONS (M4), and "section" is the load-bearing word: every one
+       of these has a LANDING SCREEN, not a shortcut to a leaf page. That is
+       what makes a fifth entry defensible where M1 capped it at four — and
+       "Progrès", a leaf page with nothing under it, is the one that left. If
+       this ever reads four again, check whether a section lost its landing. */
+    await expect(links).toHaveCount(5);
+    await expect(links).toHaveText([/Accueil/, /Apprendre/, /Jouer/, /Moi/, /Réglages/]);
   });
 
-  test('every target clears 48px', async ({ page }) => {
-    await page.goto('/');
-    const links = page.locator('[data-mobile-nav] .mobile-nav-link');
-    const count = await links.count();
-    for (let i = 0; i < count; i++) {
-      const box = (await links.nth(i).boundingBox())!;
-      expect(box.height, `bar entry ${i} is ${box.height}px tall`).toBeGreaterThanOrEqual(48);
+  /**
+   * ⚠️ THE MEASUREMENT M1'S OBJECTION ASKED FOR, AND IT IS THE REASON A FIFTH
+   * ENTRY IS ALLOWED AT ALL.
+   *
+   * M1 capped the bar at four because "five targets across 390px is 78px each,
+   * which is where labels start truncating". The width was right and the
+   * conclusion was a guess. Measured, at the two phone widths that matter:
+   *
+   *              cell        longest label            headroom
+   *   390px   78.0 × 52   "Apprendre" 56.6px           21.4px
+   *   360px   72.0 × 52   "Apprendre" 56.6px           15.4px
+   *
+   * ⚠️ IT MEASURES THE RENDERED TEXT AGAINST ITS OWN CELL, not a hard-coded
+   * pixel budget — so the day somebody adds a longer word, or a translation
+   * lands, this fails here instead of shipping as an ellipsis nobody notices.
+   * The rule when it fails is to SHORTEN THE WORD, never to shrink the target.
+   */
+  for (const width of [360, 390] as const) {
+    for (const [label, home] of [
+      ['FR', '/'],
+      ['EN', '/en/'],
+    ] as const) {
+      test(`${label}: every target clears 48px and no label truncates at ${width}px`, async ({
+        page,
+      }) => {
+        await page.setViewportSize({ width, height: 800 });
+        await page.goto(home);
+
+        const measured = await page.evaluate(() =>
+          [...document.querySelectorAll('.mobile-nav-link')].map((a) => {
+            const cell = a.getBoundingClientRect();
+            const label = a.querySelector('.mobile-nav-label') as HTMLElement;
+            const range = document.createRange();
+            range.selectNodeContents(label);
+            return {
+              name: label.textContent?.trim() ?? '',
+              w: cell.width,
+              h: cell.height,
+              textW: range.getBoundingClientRect().width,
+              /**
+               * ⚠️ `scrollWidth` vs `clientWidth` IS THE TRUNCATION TEST, and
+               * the obvious alternative is circular. Comparing the text's width
+               * against the LABEL's width proves nothing: the label is a span
+               * in a centred flex column, so it shrink-wraps its own text and
+               * the two are equal by construction — this assertion first
+               * "failed" at 49.0px of text in a 49px box, which is not
+               * truncation, it is the same number twice.
+               *
+               * The label carries `overflow: hidden`, so overflow is exactly
+               * what `scrollWidth > clientWidth` reports. The cell width is
+               * carried alongside only so the failure message says how much
+               * room there actually was.
+               */
+              overflow: label.scrollWidth - label.clientWidth,
+            };
+          }),
+        );
+
+        expect(measured).toHaveLength(5);
+        for (const m of measured) {
+          expect(m.w, `"${m.name}" cell is ${m.w}px wide at ${width}px`).toBeGreaterThanOrEqual(48);
+          expect(m.h, `"${m.name}" cell is ${m.h}px tall at ${width}px`).toBeGreaterThanOrEqual(48);
+          expect(
+            m.overflow,
+            `"${m.name}" is ${m.textW.toFixed(1)}px of text in a ${m.w}px cell at ${width}px ` +
+              `and overflows by ${m.overflow}px — it truncates. ` +
+              'Shorten the WORD; do not shrink the target.',
+          ).toBeLessThanOrEqual(1);
+          /* And it must not merely fit — it must fit with the cell to spare, or
+             the next translation is a silent ellipsis. */
+          expect(
+            m.textW,
+            `"${m.name}" fills ${m.textW.toFixed(1)}px of its ${m.w}px cell at ${width}px`,
+          ).toBeLessThanOrEqual(m.w);
+        }
+      });
     }
-  });
+  }
 
+  /**
+   * ⚠️ THE DEEP ROUTES ARE THE POINT, NOT THE INDEXES.
+   *
+   * The bar's active tab was the only location signal a reader had, and it was
+   * correct on the four indexes and silent everywhere below them. A lesson
+   * inside a course inside Apprendre must still light Apprendre — that is
+   * three levels — and a trap, an exercise and a tutorial step likewise.
+   *
+   * ⚠️ '/apprendre-les-bases/' MUST LIGHT APPRENDRE WITHOUT MATCHING
+   * '/apprendre/'. The two are distinguished only by the trailing slash on the
+   * hub's prefix; drop it and this row still passes while the hub swallows the
+   * whole tutorial. It is here so that mistake fails loudly.
+   */
   for (const [path, expected] of [
     ['/', 'Accueil'],
+    ['/apprendre/', 'Apprendre'],
     ['/cours/', 'Apprendre'],
+    ['/cours/bien-ouvrir-une-partie/', 'Apprendre'],
+    ['/cours/bien-ouvrir-une-partie/occuper-le-centre/', 'Apprendre'],
     ['/pieges/', 'Apprendre'],
+    ['/pieges/legal/', 'Apprendre'],
+    ['/exercices/', 'Apprendre'],
+    ['/exercices/mat-du-couloir/', 'Apprendre'],
+    ['/apprendre-les-bases/', 'Apprendre'],
+    ['/apprendre-les-bases/la-tour/', 'Apprendre'],
     ['/jouer/', 'Jouer'],
-    ['/progres/', 'Progrès'],
-    ['/exercices/', 'Progrès'],
+    ['/moi/', 'Moi'],
+    ['/progres/', 'Moi'],
+    ['/parametres/', 'Réglages'],
   ] as const) {
     test(`${path} marks "${expected}" as the current section`, async ({ page }) => {
       await page.goto(path);
@@ -467,26 +559,26 @@ test.describe('every bottom-bar destination is reachable on desktop', () => {
     });
   }
 
-  test('the progress entry is visible without opening anything', async ({ page }) => {
+  test('the Moi entry is visible without opening anything', async ({ page }) => {
     await page.setViewportSize(DESKTOP);
     await page.goto('/');
 
     /* Top-level, so it is on screen immediately — not behind a disclosure and
        not below the fold. A link that needs two clicks to find is the thing
        this whole block exists to prevent coming back in a weaker form. */
-    const link = page.getByTestId('header-progress');
+    const link = page.getByTestId('header-me');
     await expect(link).toBeVisible();
-    await expect(link).toHaveAttribute('href', /\/progres\/$/);
+    await expect(link).toHaveAttribute('href', /\/moi\/$/);
 
     const box = (await link.boundingBox())!;
     expect(box.y + box.height).toBeLessThanOrEqual(DESKTOP.height);
     expect(await page.evaluate(() => window.scrollY)).toBe(0);
   });
 
-  test('it marks itself current on the progress page', async ({ page }) => {
+  test('it marks itself current on the Moi landing', async ({ page }) => {
     await page.setViewportSize(DESKTOP);
-    await page.goto('/progres/');
-    await expect(page.getByTestId('header-progress')).toHaveAttribute('aria-current', 'page');
+    await page.goto('/moi/');
+    await expect(page.getByTestId('header-me')).toHaveAttribute('aria-current', 'page');
   });
 
   test('its label is the one the bottom bar uses', async ({ page }) => {
@@ -495,12 +587,12 @@ test.describe('every bottom-bar destination is reachable on desktop', () => {
     await page.setViewportSize(PHONE);
     await page.goto('/');
     const barLabel = (
-      await page.locator('[data-mobile-nav] a[href="/progres/"]').innerText()
+      await page.locator('[data-mobile-nav] a[href="/moi/"]').innerText()
     ).trim();
 
     await page.setViewportSize(DESKTOP);
     await page.goto('/');
-    const headerLabel = (await page.getByTestId('header-progress').innerText()).trim();
+    const headerLabel = (await page.getByTestId('header-me').innerText()).trim();
 
     expect(headerLabel).toBe(barLabel);
   });
@@ -511,7 +603,7 @@ test.describe('every bottom-bar destination is reachable on desktop', () => {
        past on every page. */
     await page.setViewportSize(PHONE);
     await page.goto('/');
-    await expect(page.getByTestId('header-progress')).toBeHidden();
+    await expect(page.getByTestId('header-me')).toBeHidden();
   });
 });
 

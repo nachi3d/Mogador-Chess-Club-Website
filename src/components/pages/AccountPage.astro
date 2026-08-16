@@ -34,6 +34,7 @@ import { localizePath } from '@i18n/paths';
 import { useTranslations } from '@i18n/ui';
 import BaseLayout from '@layouts/BaseLayout.astro';
 import PageIntro from '@components/PageIntro.astro';
+import Trail from '@components/nav/Trail.astro';
 import FamilySection from '@components/account/FamilySection.astro';
 
 interface Props {
@@ -45,6 +46,7 @@ const t = useTranslations(locale);
 ---
 
 <BaseLayout locale={locale} title={t('account.title')} description={t('account.intro')}>
+  <Trail locale={locale} href={localizePath('/moi/', locale)} label={t('me.title')} />
   <PageIntro title={t('account.title')} intro={t('account.intro')} />
 
   <div

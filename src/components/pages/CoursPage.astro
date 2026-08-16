@@ -6,6 +6,7 @@ import { useTranslations } from '@i18n/ui';
 import { courseKeys, lessonJourney } from '@lib/journey';
 import BaseLayout from '@layouts/BaseLayout.astro';
 import PageIntro from '@components/PageIntro.astro';
+import Trail from '@components/nav/Trail.astro';
 import CardGrid, { type CardItem } from '@components/CardGrid.astro';
 import ResumeResolver from '@components/progress/ResumeResolver.astro';
 import ResumeCard from '@components/progress/ResumeCard.astro';
@@ -87,6 +88,7 @@ const items: CardItem[] = entries.map(({ data }) => {
 ---
 
 <BaseLayout locale={locale} title={t('courses.title')} description={t('courses.intro')} reveals>
+  <Trail locale={locale} href={localizePath('/apprendre/', locale)} label={t('learn.title')} />
   <PageIntro title={t('courses.title')} intro={t('courses.intro')} />
 
   {/* The tutorial is the prerequisite for these courses, so it is named at the

@@ -4,6 +4,8 @@ import { site, hasVenue, venueAddress, whatsappUrl, publishedSocials } from '@co
 import { useTranslations } from '@i18n/ui';
 import BaseLayout from '@layouts/BaseLayout.astro';
 import PageIntro from '@components/PageIntro.astro';
+import Trail from '@components/nav/Trail.astro';
+import { localizePath } from '@i18n/paths';
 
 interface Props {
   locale: Locale;
@@ -15,6 +17,7 @@ const address = venueAddress();
 ---
 
 <BaseLayout locale={locale} title={t('contact.title')} description={t('contact.intro')}>
+  <Trail locale={locale} href={localizePath('/', locale)} label={t('nav.home')} />
   <PageIntro title={t('contact.title')} intro={t('contact.intro')} />
 
   <div class="contact-blocks">

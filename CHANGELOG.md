@@ -13,6 +13,172 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ---
 
+## [0.15.0] — 2026-08-16
+
+**Five sections instead of four shortcuts, and a way back that says where it
+goes.**
+
+Two problems, and the second is the one that mattered. The bar was the wrong
+shape — four entries, one of them ("Progrès") a leaf page with nothing beneath
+it, sitting there because M3 needed a fourth destination. And you lost your
+place: the person who built this site repeatedly could not tell where he was, or
+get back to a page he had just seen, without the browser's own back button.
+
+⚠️ **Nothing was broken.** Every page rendered, every link worked, every spec
+passed. The defect was ABSENCE — the same class as `/progres/` existing on one
+layout only, and invisible for exactly the same reason.
+
+### Added
+
+- **Five sections in the bottom bar** — Accueil, Apprendre, Jouer, Moi,
+  Réglages — each with a **landing screen**. That is what makes a fifth entry
+  defensible where M1 capped it at four: the bar stopped being a row of links to
+  leaf pages and became a map of the site. Réglages earned its slot by becoming
+  a section; Progrès lost its slot by being a leaf, and now lives inside Moi.
+- **`/apprendre/`** — a chooser: Les bases, Leçons, Exercices, Pièges. Before
+  this, "Apprendre" pointed at `/cours/`, so the bar quietly claimed Apprendre
+  *was* the courses and four of the five teaching surfaces had no mobile entry
+  point of their own.
+- **`/moi/`** — a chooser: Ma progression, Mon compte, Réglages.
+- **The trail** (`src/components/nav/Trail.astro`) on **54 of 59 public routes**
+  — a back affordance that NAMES ITS PARENT. A lesson three levels down reads
+  « ‹ Bien ouvrir une partie », not « Retour » and not « Toutes les leçons ».
+  The five landings and the home page deliberately have none: the bar is already
+  their way out.
+- `wayfinding.spec.ts` — coverage assertions rather than component ones. "Every
+  route below a landing has a named way up" is the claim; a test that checked
+  the trail renders on one page somebody remembered would have passed throughout
+  the bug.
+
+### Changed
+
+- **The bar's active section is now correct at every depth.** A lesson inside a
+  course inside Apprendre lights Apprendre; so do traps, exercises and tutorial
+  steps. Previously the active tab was right on the four indexes and silent
+  everywhere below them — which, since it was the *only* location signal, is
+  most of why the site felt like it lost you.
+- **The four collection-named back links became parent-named.** "Tous les
+  pièges" is not wrong, it just does not answer the question a reader three
+  levels deep is asking. The end-of-page links keep the collection wording,
+  because those are a way ONWARD rather than a way up (Critical Feature 31).
+- **The lesson and tutorial step counters lost their inline parent link.** It
+  named the right thing at 17px inside a metadata line; two links to one place,
+  one of them impossible to hit, is how the way up got missed.
+- **Desktop:** the Apprendre group gained "Vue d'ensemble" → `/apprendre/`, and
+  the header's plain "Progrès" link became "Moi" → `/moi/` (Critical Feature 36
+  — every bar destination reachable on desktop). Nothing else moved.
+
+### Measured
+
+M1 capped the bar at four because "five targets across 390px is 78px each, which
+is where labels start truncating". The arithmetic was right and the conclusion
+was a guess:
+
+```
+           cell        longest label        headroom
+ 390px  78.0 × 52   "Apprendre" 56.6px       21.4px
+ 360px  72.0 × 52   "Apprendre" 56.6px       15.4px
+ (EN)               "Settings"  43.9px
+```
+
+Nothing truncates in either locale; every target clears 48px in **both**
+dimensions. ⚠️ **When a label does stop fitting, the rule is to shorten the
+WORD** — never shrink the target, never ellipsise.
+
+⚠️ **The first version of that assertion was circular and "failed" at 49.0px of
+text in a 49px box** — which is not truncation, it is the same number twice. The
+label is a span in a centred flex column, so it shrink-wraps its own text. It now
+compares `scrollWidth` against `clientWidth`, which is what overflow actually
+means.
+
+### Documentation
+
+- ⚠️ **CLAUDE.md split: 133 387 → 118 837 characters** (89% → 79% of the hard
+  limit). Four sessions overdue. Past 150 000 the tail of the file simply stops
+  being read — the rules are in the repository and absent from the session, with
+  nothing anywhere reporting it, which is how it once reached 247 KB.
+
+  Moved **verbatim**, each under a **Read when** line: the admin surfaces, the
+  public agenda and its fourteen-hour outage, the migration GRANT audit and the
+  account surfaces → `docs/reference/supabase.md`; the matrix measurements, the
+  four-red-gate diagnosis and the critical-path assertion list →
+  `docs/reference/testing.md`. Kept in CLAUDE.md: every rule a session could
+  break **without knowing the area exists** — the migration checklist itself,
+  the FR-only admin decision, the agenda's build-time rule, the two-shape gate,
+  the worker cap.
+
+- **`scripts/check-split.mjs`** makes "nothing was deleted silently" a CHECK
+  rather than a claim: every non-trivial line leaving CLAUDE.md must be findable
+  verbatim under `docs/`, and anything else must be declared by hand in
+  `docs/reference/.split-obsolete.txt` with its reason. **402 lines moved, 1169
+  stayed, 2 declared.** It caught the two lines I had rewritten rather than
+  moved, which is exactly what it is for — a line dropped mid-move is
+  indistinguishable from a line that was moved.
+
+### Fixed — found while verifying the split
+
+- ⚠️ **CLAUDE.md contradicted itself about `/progres/`.** The Routes table said
+  "Rank and points say *bientôt* and print no number — nothing computes one",
+  while Critical Feature 30 in the same file said the opposite ("Since E3
+  something computes rank and points, so it prints them"). The page has carried
+  `data-score-points` and `data-score-rank` since E3. Declared obsolete.
+- **The Routes table never gained `/apprendre/` and `/moi/`** when M4 added
+  them — the two section landings were missing from the one table that is
+  supposed to be the route vocabulary.
+- **`Header.astro` still claimed its plain nav link says `nav.progress`.** M4
+  moved it to `nav.me` and repointed it at `/moi/`; the comment above it did
+  not follow.
+- The `/` row described only the E5 retro menu, omitting that home is the
+  dashboard below 768px. Declared obsolete.
+
+### Deviations
+
+- **Traps carry a fact, not a tally.** The brief asked for "traps read", and
+  nothing in this codebase records that a trap has been READ — `progress.ts`
+  tracks *solving*, which is a different thing. The card says how many traps
+  exist. Inventing a "read" key to fill the slot would be a new progress
+  semantic smuggled in through a navigation change; it is in BACKLOG with the
+  question that has to be answered first (opened? scrolled? stepped to the end?).
+- **Language is not on `/parametres/`.** The brief lists Réglages as theme,
+  language and sound; theme and sound are there, and the language switcher is in
+  the header on every page including mobile. Adding a second control would be a
+  duplicate rather than a gain — flagged rather than silently skipped.
+
+---
+
+### Fixed
+
+- ⚠️ **`verify:deploy` compared build fingerprints, and would have failed on
+  every correct deploy.** It shipped in v0.14.0 comparing the content-hashed
+  `/_astro/*.HASH.js` names on three documents against `dist/` — reasoning that
+  Astro fingerprints by content, so equal names must mean equal source. It
+  reported a mismatch on the v0.14.0 deploy, which was in fact correct and live.
+
+  Cloudflare builds on Linux; this repository is developed on Windows. Rollup
+  emits a chunk's imports in filesystem order, so identical source yields
+  different minified identifiers and a different hash:
+
+  ```
+  live   import{t as e}from"./preload-helper…";import{a as t,i as n,n as r}from"./preact.module…"
+  local  import{a as e,i as t,n}from"./preact.module…";import{t as r}from"./preload-helper…"
+  ```
+
+  Partially, too — the chunks either side hashed **identically**, which is what
+  made it look like a genuine partial deploy rather than a measurement artefact.
+
+  It now compares the **rendered HTML** with the fingerprints normalised away,
+  which is a pure function of the source: 183 KB across three documents,
+  matching byte for byte. ⚠️ **A check that fails on every correct deploy is
+  worse than no check** — it trains whoever runs it to ignore the one signal
+  meant to catch a silent regression. The residual gap is now stated rather than
+  hidden: a release changing only island JS, with identical HTML, is invisible
+  here, and needs a behaviour verified instead. The rewrite was confirmed to
+  still FAIL on a single injected line before being trusted.
+
+---
+
+---
+
 ## [0.14.0] — 2026-08-15
 
 **The site now asks who the account is for, and `/compte/` answers in their
@@ -4300,7 +4466,8 @@ Foundation only: no real content, no interactive board yet.
   `url()` references unresolved and the fonts silently 404 into a Georgia
   fallback. `scripts/build-fonts.mjs` self-hosts them instead. See CLAUDE.md.
 
-[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.14.0...HEAD
+[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.11.1...v0.12.0

@@ -442,3 +442,146 @@ Two gates before a spec may interact, and skipping either produces an identical,
 2. `data-busy="false"` — no scripted reply or shake is in flight. `playMove()` waits on this itself.
 
 Chessground starts a drag on **movement**, not on press: `mouse.down()` then straight to `mouse.up()` registers as a click-select, not a move.
+
+---
+
+## The release matrix — the measurements behind the policy (moved from CLAUDE.md, v0.15.0)
+
+**Read when:** a release matrix goes red, or before changing the worker cap, the per-project ordering, or the two-shape rule. ⚠️ The POLICY stays in CLAUDE.md; this is the evidence.
+
+#### ⚠️⚠️ THE GATE RUNS TWICE NOW, AND THE OLD PREMISE IS WHY (v0.14.0)
+
+The policy said the matrix runs once, on the default build, because **"a plain
+`npx playwright test` exercises the real artefact"** — the default build being
+what production ships. **That premise is FALSE and has been since the flag was
+turned on in the Cloudflare dashboard.** Production serves the accounts-**ON**
+build; the default matrix skips every auth spec, so the entire account stack was
+reaching production with **chromium coverage only**.
+
+The two shapes are not redundant — they test different things, and neither
+subsumes the other:
+
+- **OFF** is the only shape that can prove Critical Feature 18 (`auth-disabled
+  .spec.ts`: no route emitted, no Supabase ref, host or anon key in the bundle).
+  Those specs skip in the ON build.
+- **ON** is the only shape that exercises `/connexion/`, `/auth/callback/`,
+  `/bienvenue/`, `/compte/` and `/admin*` at all. Those specs skip in the OFF
+  build, **visibly and with a reason** — which is what stops the gate passing
+  vacuously, and is exactly why the hole was survivable long enough to matter.
+
+⚠️ **THE ON MATRIX HAMMERS SUPABASE'S AUTH RATE LIMIT — five projects at ~40
+magic-link verifications each.** `followMagicLink()` backs off and names a 429,
+but a project the limit takes out is **re-run on its own**, not waved through.
+See [`docs/reference/supabase.md`](./docs/reference/supabase.md).
+
+⚠️ **IF THE FLAG EVER GOES BACK OFF IN PRODUCTION, THIS ROW GOES WITH IT** —
+and the reason is recorded here rather than left as a habit, because a gate that
+runs twice for no current reason is the kind of cost a future session deletes
+without knowing what it was for.
+
+#### ⚠️ THE MATRIX RUNS ONE PROJECT AT A TIME, UNDER A WORKER CAP
+
+`test:release` does **not** hand the whole matrix to Playwright at once. It runs
+each project on its own, sequentially, at **three** workers. That is slower than
+the old single pooled run and it is the reason the gate is green.
+
+**Why: the red gates were MEMORY EXHAUSTION, not browser bugs and not test
+bugs.** Playwright shares one worker pool across every project, so at the
+default six workers this machine ran six *mixed* browsers side by side — 80
+processes, 6.68 GB of browser memory, 2.08 GB of 15.8 GB free. At that point
+Firefox's software compositor cannot allocate, the browser stops answering, and
+whatever test was in flight dies of a bare timeout. That is why it landed on a
+different spec every run and why every one of them passed serially.
+
+- ⚠️ **`--workers=3` IS NOT A TUNING KNOB.** Three is roughly half the peak
+  memory, which is the difference between green and red. Raising it back
+  towards six reintroduces the entire problem.
+- ⚠️ **DO NOT "FIX" A RED MATRIX BY RAISING TIMEOUTS.** Tried on
+  `play.spec.ts`; the failure count went **up**. A starved browser given longer
+  to answer is still starved, and every test now waits longer to find out.
+- ⚠️ **A GATE THAT IS EXPECTED TO BE RED IS WORTH NOTHING.** v0.11.0 shipped on
+  4 waved-through failures and v0.11.1 on 7. Both diagnoses were right and both
+  promotions were sound — and that is exactly the habit that lets a real
+  regression through. The trend was the defect, not the individual runs.
+- **It proves every project actually ran.** Counts come from the JSON reporter
+  and are compared **project against project**, because the old "is the total a
+  multiple of five" check passes perfectly on four projects of 100 and one of 0.
+- ⚠️ **The alternatives were MEASURED and the numbers are in
+  `scripts/test-release.mjs` → MEASUREMENTS.** Pooling at three workers was
+  green too but not cheaper, and `fullyParallel: false` on firefox was rejected
+  without a run — webkit and iphone-13 already carry it and were two of the
+  three projects failing both gates. Re-measure before re-arguing; do not
+  re-reason.
+
+#### ⚠️ DO NOT RUN THE MATRIX ON A FEATURE BRANCH. EVER. NOT "TO BE SAFE".
+
+This is the rule most likely to be reasoned away, so here is the reasoning
+already done:
+
+- **The matrix answers exactly one question** — does this work in Firefox and
+  WebKit. Asking it on every branch does not make the answer truer. It moves
+  the cost from one run per release to one run per session.
+- **It was costing 30-45 minutes per session**, routinely, because it *felt*
+  prudent. That is not caution. It is a tax that discourages small fixes, and
+  unfixed small things are what a visitor actually sees. ⚠️ **The tax is now
+  ~65-70 minutes**, since the matrix runs its projects one at a time — so this
+  rule matters more than when it was written, not less.
+- **A chromium failure is a failure.** If `test:branch` fails, fix it. Do not
+  run the matrix to find out whether it is "really" broken.
+- **A chromium pass is enough to merge to `dev`.** `dev` is not production.
+  Nothing reaches a reader without passing through `test:release` first.
+
+#### ⚠️ THE "CRITICAL PATH" TRIGGER IS GONE, AND ITS REMOVAL IS THE POINT
+
+The old policy said the **board island**, the **exercise validator**, **i18n
+routing** and the **service worker** required the matrix *on any branch*. It
+read as prudence and it functioned as a loophole: almost everything on this
+site touches one of those four, so the exception quietly became the default.
+
+Those paths did not lose coverage — they gained precision. `scripts/spec-map.mjs`
+runs **seven** spec files for a `BoardSurface.tsx` change, which is more than
+any session ever selected by hand, and it runs them in seconds. Their
+cross-browser pass happens at the release gate, like everything else on the
+site.
+
+**If you believe you have found the exception:** change this policy in
+CLAUDE.md in the same commit, with the reason. Do not make a one-off exception
+no future session will know about — that is precisely how the last policy
+eroded.
+
+---
+
+## The critical-path assertions — the list in full (moved from CLAUDE.md, v0.15.0)
+
+**Read when:** deleting, weakening or rewriting ANY spec — this is the list of claims the suite exists to keep, and each line names a way the site has been or could be wrong. ⚠️ The RULE (never skip these, and a failure here is a regression rather than a test to update) stays in CLAUDE.md.
+
+### Critical-path tests (never skip)
+
+- Home renders in FR and EN; the switcher preserves the path on **every** route, round-tripping to the exact starting path
+- axe-core: zero violations on all public pages
+- Generated manifest carries the token theme colours and an installable icon set
+- `sw.js` mentions neither `stockfish` nor `.wasm`
+- No third-party requests when Umami is unconfigured
+- **No `astro-island` and no `cg-board` on any index page** — the one-board rule, enforced rather than trusted
+- The replayer: next/prev/jump/keyboard all move the highlight; **rapid** arrow presses drop nothing
+- Légal's mate ends in checkmate, in both locales — if the PGN or the parser drifts, this fails rather than teaching a wrong pattern
+- The WhatsApp share link is `wa.me` with **no recipient** (outbound-only rule)
+- **`onlyMove: false` never reports an off-line move as wrong**, in either language — the rule this whole feature exists to honour
+- An exercise solves end to end by dragging; a scripted `opponentReplies` move plays in between; a wrong move is refused, counted and reset
+- Progress survives a reload and marks the index; a **broken `localStorage` does not break the page**
+- The GPL source link is in the footer of **every** page; `/mentions-legales/` credits Colin M.L. Burnett and links CC BY-SA 3.0
+- The site sets **no cookies**
+- **An exercise is solvable from the keyboard alone**, in both notations and by coordinates; an unreadable or illegal entry is refused *without* being counted as an attempt
+- **Opening `/jouer/` fetches neither `stockfish.js` nor `stockfish.wasm`**; pressing start fetches both — asserted against the network log
+- The precache manifest contains no engine, and a runtime rule caches it instead
+- The engine actually answers: a game as black at Débutant gets an opening move, and resigning ends it
+- **Every theme brings its whole kit** — palette, board preset, piece set and heading face — and the **body face is identical in all four**
+- **A pinned board preset survives a theme change**; "Suivre le thème" un-pins it. Both branches have a spec
+- **A pre-E6 stored record leaves the reader on exactly the board they had**
+- A board page fetches **one** piece stylesheet, its own theme's; a boardless page fetches **none** — asserted against the network log
+- **Exactly one heading font is preloaded**, and it is the active theme's
+- The theme class is on `<html>` **before `<body>` exists**, alongside `data-theme`
+- axe on `/parametres/` in **all four themes × both modes**
+- Lesson notation resolves to a **monospace** family — asserting the rule rather than the resolved value would have passed throughout the `--font-mono` bug
+
+---

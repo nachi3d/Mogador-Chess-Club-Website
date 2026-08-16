@@ -64,6 +64,14 @@ export function otherLocale(locale: Locale): Locale {
  */
 export const ROUTES = [
   '/',
+  /**
+   * The two section landings (M4). ⚠️ `/apprendre/` and `/apprendre-les-bases/`
+   * are distinct prefixes ONLY because of the trailing slash every route here
+   * carries — drop it anywhere that matches on `startsWith` and every tutorial
+   * page reads as the hub.
+   */
+  '/apprendre/',
+  '/moi/',
   '/cours/',
   '/pieges/',
   '/exercices/',

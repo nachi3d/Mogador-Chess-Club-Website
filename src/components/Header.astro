@@ -119,18 +119,26 @@ const current = stripLocale(pathname);
             rather than a disclosure, so it adds no fourth panel; and it sits
             last, exactly where the bottom bar puts it.
 
-          The label is `nav.progress` — the SAME key the bar uses. Two names for
-          one destination reads as two different sites (Critical Feature 20),
-          and until now that key had only one caller.
+          The label is `nav.me` — the SAME key the bar uses. Two names for one
+          destination reads as two different sites (Critical Feature 20).
+          ⚠️ It pointed at `/progres/` and said `nav.progress` until M4; both
+          moved together, because the bar and the header must agree about what
+          the section IS, not merely about where a leaf lives.
         */}
+        {/* ⚠️ "MOI", NOT "PROGRÈS" (M4) — and it is the same destination change
+            the bottom bar made, for the same reason. Progress is a leaf inside
+            the personal section, not a peer of the teaching sections; pointing
+            the header at `/progres/` while the bar points at `/moi/` would give
+            the two layouts different maps of the same site.
+            `/progres/` stays reachable in one hop, from the chooser. */}
         <li>
           <a
-            href={localizePath('/progres/', locale)}
-            aria-current={current === '/progres/' ? 'page' : undefined}
-            class:list={['nav-link', { 'is-current': current === '/progres/' }]}
-            data-testid="header-progress"
+            href={localizePath('/moi/', locale)}
+            aria-current={current === '/moi/' ? 'page' : undefined}
+            class:list={['nav-link', { 'is-current': current === '/moi/' }]}
+            data-testid="header-me"
           >
-            {t('nav.progress')}
+            {t('nav.me')}
           </a>
         </li>
       </ul>

@@ -26,13 +26,36 @@
  * So the question "is the live site running the tree I am standing in?" had no
  * check at all. This is that check.
  *
- * ⚠️ IT COMPARES CONTENT-HASHED ASSET NAMES, NOT A VERSION STRING. A per-release
- * sentinel would need editing every release, and the release it was forgotten on
- * is exactly the release it was needed for. Astro fingerprints every bundle by
- * content, so the set of `/_astro/*.js` a page pulls IS the identity of the
- * build that produced it: if `dist/index.html` and the live `/` name the same
- * hashed files, they came from the same source. Nothing to maintain, and it
- * cannot drift.
+ * ⚠️ IT COMPARES RENDERED HTML WITH THE FINGERPRINTS NORMALISED AWAY, NOT A
+ * VERSION STRING. A per-release sentinel would need editing every release, and
+ * the release it was forgotten on is exactly the release it was needed for. The
+ * rendered HTML is a pure function of the source, so comparing it against
+ * `dist/` answers the question with nothing to maintain.
+ *
+ * ⚠️⚠️ AND IT DELIBERATELY IGNORES THE HASHES, WHICH IS THE OPPOSITE OF WHAT
+ * THIS SCRIPT DID WHEN IT WAS FIRST WRITTEN. Comparing `/_astro/*.HASH.js`
+ * names looked like the obvious identity check — Astro fingerprints by content,
+ * so equal names must mean equal source. It is wrong, and it failed on the very
+ * first real deploy it was used for.
+ *
+ * Cloudflare builds on Linux; this repository is developed on Windows. Rollup
+ * emits a chunk's imports in filesystem order, so the same source produces:
+ *
+ *     live   import{t as e}from"./preload-helper…";import{a as t,i as n,n as r}from"./preact.module…"
+ *     local  import{a as e,i as t,n}from"./preact.module…";import{t as r}from"./preload-helper…"
+ *
+ * Identical semantics, different bytes, different hash — while the chunks either
+ * side of it (`preact.module.Bl7PEaKa.js`, `preload-helper.CxFQXtKk.js`) hash
+ * IDENTICALLY. So the mismatch is partial, systematic, and has nothing to do
+ * with which tree is deployed. A check that reports failure on every correct
+ * deploy is worse than no check: it teaches the operator to ignore it.
+ *
+ * ⚠️ THE RESIDUAL GAP IS REAL AND IS NOT PAPERED OVER. A release that changes
+ * ONLY island JavaScript, leaving every byte of rendered HTML identical, is
+ * invisible here — the normalisation that removes the toolchain noise removes
+ * that signal with it. This site is content-heavy and that case is rare, but it
+ * exists: for a JS-only release, verify a BEHAVIOUR on the live site instead.
+ * Nothing in this script should be read as covering it.
  *
  * ⚠️ IT REQUIRES A LOCAL `dist/` BUILT FROM THE TREE YOU ARE ASKING ABOUT, and
  * it says so rather than guessing. Comparing against a stale `dist/` would
@@ -75,11 +98,36 @@ const origin =
     ? args[flagIndex + 1].replace(/\/$/, '')
     : parse('src/config/site.ts', /^\s*url:\s*'([^']+)'/m, '`url`').replace(/\/$/, '');
 
-/** Every fingerprinted asset a document references, as a sorted set. */
-function assetsOf(html) {
-  const found = new Set();
-  for (const m of html.matchAll(/\/_astro\/([A-Za-z0-9._-]+\.(?:js|css))/g)) found.add(m[1]);
-  return [...found].sort();
+/**
+ * A document with its content fingerprints removed.
+ *
+ * `/_astro/ChessBoard.14xj4iqu.js` → `/_astro/ChessBoard.js`. Everything that
+ * comes from the SOURCE — text, structure, attributes, inline scripts, the
+ * order assets are referenced in — survives; only the toolchain-dependent hash
+ * is dropped. See the header for why the hash cannot be trusted across build
+ * environments.
+ */
+function normalise(html) {
+  return html
+    .replace(/(\/_astro\/[^"'\s)]*?)\.[A-Za-z0-9_-]{8}(\.(?:js|css))/g, '$1$2')
+    .replace(/\r\n/g, '\n')
+    .trim();
+}
+
+/** The first line that differs, for a report that says something useful. */
+function firstDifference(a, b) {
+  const left = a.split('\n');
+  const right = b.split('\n');
+  for (let i = 0; i < Math.max(left.length, right.length); i += 1) {
+    if (left[i] !== right[i]) {
+      return {
+        line: i + 1,
+        local: (left[i] ?? '(end of file)').trim().slice(0, 140),
+        live: (right[i] ?? '(end of file)').trim().slice(0, 140),
+      };
+    }
+  }
+  return null;
 }
 
 async function fetchText(url) {
@@ -119,15 +167,11 @@ for (const doc of DOCUMENTS) {
     console.log(yellow(`  ?  ${doc.path.padEnd(34)} not in dist/ — skipped`));
     continue;
   }
-  const local = assetsOf(readFileSync(localPath, 'utf8'));
-  if (local.length === 0) {
-    console.log(yellow(`  ?  ${doc.path.padEnd(34)} no fingerprinted assets — skipped`));
-    continue;
-  }
+  const local = normalise(readFileSync(localPath, 'utf8'));
 
   let live;
   try {
-    live = assetsOf(await fetchText(`${origin}${doc.path}`));
+    live = normalise(await fetchText(`${origin}${doc.path}`));
   } catch (error) {
     console.log(red(`  ✗  ${doc.path.padEnd(34)} fetch failed: ${error.message}`));
     failures += 1;
@@ -135,18 +179,20 @@ for (const doc of DOCUMENTS) {
   }
 
   compared += 1;
-  const missing = local.filter((a) => !live.includes(a));
-  const extra = live.filter((a) => !local.includes(a));
 
-  if (missing.length === 0 && extra.length === 0) {
-    console.log(green(`  ok ${doc.path.padEnd(34)} ${local.length} asset(s) match`));
+  if (local === live) {
+    console.log(green(`  ok ${doc.path.padEnd(34)} ${local.length} bytes match`));
     continue;
   }
 
   failures += 1;
   console.log(red(`  ✗  ${doc.path.padEnd(34)} the live build is NOT this tree`));
-  for (const a of missing) console.log(dim(`       local only: ${a}`));
-  for (const a of extra) console.log(dim(`       live  only: ${a}`));
+  const diff = firstDifference(local, live);
+  if (diff) {
+    console.log(dim(`       first difference, line ${diff.line}:`));
+    console.log(dim(`       local: ${diff.local}`));
+    console.log(dim(`       live : ${diff.live}`));
+  }
 }
 
 if (compared === 0) {
@@ -173,7 +219,11 @@ if (failures > 0) {
 console.log(green(`\n  ✓ ${origin} is serving this exact build.\n`));
 console.log(
   dim(
-    '  This says the live site is THE build you cut. It does not say the build\n' +
-      '  is good — that is `npm run smoke:prod` and the suite.\n',
+    '  This says the live site renders byte-for-byte what your dist/ renders,\n' +
+      '  with content fingerprints normalised away (they are not reproducible\n' +
+      '  across build environments — see the header).\n' +
+      '  ⚠️ It does NOT say the build is good — that is `npm run smoke:prod` and\n' +
+      '     the suite. And it cannot see a release that changed island JS only,\n' +
+      '     leaving every byte of HTML identical; verify a behaviour for those.\n',
   ),
 );

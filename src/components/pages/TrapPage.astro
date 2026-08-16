@@ -11,6 +11,7 @@ import { site } from '@config/site';
 import { trapsPath } from '@i18n/paths';
 import { useTranslations } from '@i18n/ui';
 import BaseLayout from '@layouts/BaseLayout.astro';
+import Trail from '@components/nav/Trail.astro';
 import LevelBadge from '@components/LevelBadge.astro';
 import ReplayBoard from '@components/board/ReplayBoard.astro';
 
@@ -39,9 +40,11 @@ const whatsappShare = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
 
 <BaseLayout locale={locale} title={title} description={summary} board>
   <article class="trap">
-    <nav class="trap-back" aria-label={t('traps.backToIndex')}>
-      <a href={trapsPath(locale)}>← {t('traps.backToIndex')}</a>
-    </nav>
+    {/* ⚠️ THE PARENT, NAMED — was "Tous les pièges", which names the
+        COLLECTION rather than where you are going back to. The end-of-page
+        link (Critical Feature 31) keeps the collection wording, because that
+        one is a way ONWARD rather than a way up. */}
+    <Trail locale={locale} href={trapsPath(locale)} label={t('nav.traps')} />
 
     <header class="trap-header">
       <h1>{title}</h1>

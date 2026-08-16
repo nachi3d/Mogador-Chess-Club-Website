@@ -25,6 +25,65 @@ const fr = {
   'nav.group.practise': "S'entraîner",
   'nav.group.club': 'Le club',
   'nav.basics': 'Les bases',
+  /* ── The five SECTIONS (M4) ───────────────────────────────────────────
+     ⚠️ THESE ARE SECTIONS, NOT SHORTCUTS. Each has a landing screen, which is
+     what makes a fifth bar entry defensible after M1 capped it at four: the
+     bar stopped being a row of links to leaf pages and became a map of the
+     site. "Réglages" earns its slot as the home of theme, language and sound
+     rather than as a link to one settings page. */
+  'nav.me': 'Moi',
+  'nav.settings': 'Réglages',
+  /* The section landing, seen from inside the desktop "Apprendre" group —
+     "Apprendre › Apprendre" would read as a mistake. */
+  'nav.overview': 'Vue d’ensemble',
+
+  /* ── The trail (M4) ───────────────────────────────────────────────────
+     ⚠️ A BACK AFFORDANCE THAT DOES NOT SAY WHERE IT GOES IS A GUESS. Every
+     page below a section landing names its PARENT — "‹ Exercices", "‹ Bien
+     ouvrir une partie" — never a bare "Retour". The visible label is the
+     parent's own name; this string is only the accessible one, which needs to
+     say what the arrow means. */
+  'trail.upTo': 'Remonter à %s',
+
+  /* ── /apprendre — the learning chooser ──────────────────────────────── */
+  'learn.title': 'Apprendre',
+  'learn.intro': 'Trois façons d’avancer. Commence où tu veux, reviens quand tu veux.',
+  'learn.lessons.name': 'Leçons',
+  'learn.lessons.body': 'Des cours progressifs, du déplacement des pièces aux finales de tours.',
+  'learn.traps.name': 'Pièges',
+  'learn.traps.body': 'Les pièges d’ouverture classiques : comment les poser, comment ne pas y tomber.',
+  'learn.exercises.name': 'Exercices',
+  'learn.exercises.body': 'Des positions à résoudre sur un échiquier, avec un indice si tu bloques.',
+  'learn.basics.name': 'Les bases',
+  'learn.basics.body': 'Jamais joué ? Treize étapes courtes et tu sais jouer une partie.',
+  /* ⚠️ COUNTS, NOT PERCENTAGES. A reader mid-pass needs to know how much is
+     LEFT, which a percentage makes them work out — the same rule the
+     attendance summary follows. */
+  'learn.progress.lessons': '%s sur %s leçons terminées',
+  'learn.progress.exercises': '%s sur %s exercices résolus',
+  'learn.progress.traps': '%s sur %s pièges lus',
+  'learn.progress.steps': '%s sur %s étapes terminées',
+  'learn.progress.none': 'Pas encore commencé',
+  /* ⚠️ A FACT, NOT A TALLY. Nothing records that a trap has been READ — traps
+     are reading material and progress.ts tracks solving — so this card says
+     how many there are rather than inventing a "read" key to fill the slot.
+     A bare number with no unit was the first attempt and read as a bug. */
+  'learn.traps.count': '%s pièges à découvrir',
+
+  /* ── /moi — the personal chooser ────────────────────────────────────── */
+  'me.title': 'Moi',
+  'me.intro': 'Ta progression et ton compte.',
+  'me.progress.name': 'Ma progression',
+  'me.progress.body': 'Ce que tu as terminé, tes points et ton rang.',
+  'me.account.name': 'Mon compte',
+  'me.account.body': 'Les profils de ce compte, tes réglages et la suppression.',
+  /* ⚠️ SIGNED OUT, "MOI" LEADS TO LA CONNEXION RATHER QUE DE DISPARAÎTRE. A bar
+     whose shape changes is a bar you cannot learn, so the entry and the card
+     both stay put and only the sentence underneath changes. */
+  'me.account.signedOut': 'Se connecter pour retrouver ta progression sur tous tes appareils.',
+  'me.settings.name': 'Réglages',
+  'me.settings.body': 'Thème, langue et sons.',
+
   'nav.label': 'Navigation principale',
   'nav.skipToContent': 'Aller au contenu principal',
 
@@ -805,6 +864,43 @@ const en: Record<keyof typeof fr, string> = {
   'nav.group.practise': 'Practise',
   'nav.group.club': 'The club',
   'nav.basics': 'The basics',
+  /* ── The five SECTIONS (M4). See the FR note. ─────────────────────── */
+  'nav.me': 'Me',
+  'nav.settings': 'Settings',
+  'nav.overview': 'Overview',
+
+  /* ── The trail (M4). See the FR note. ─────────────────────────────── */
+  'trail.upTo': 'Back to %s',
+
+  /* ── /apprendre — the learning chooser ────────────────────────────── */
+  'learn.title': 'Learn',
+  'learn.intro': 'Three ways to make progress. Start anywhere, come back any time.',
+  'learn.lessons.name': 'Lessons',
+  'learn.lessons.body': 'Progressive courses, from how the pieces move to rook endgames.',
+  'learn.traps.name': 'Traps',
+  'learn.traps.body': 'The classic opening traps: how to set them, how not to fall for them.',
+  'learn.exercises.name': 'Exercises',
+  'learn.exercises.body': 'Positions to solve on a board, with a hint when you are stuck.',
+  'learn.basics.name': 'The basics',
+  'learn.basics.body': 'Never played? Thirteen short steps and you can play a game.',
+  'learn.progress.lessons': '%s of %s lessons finished',
+  'learn.progress.exercises': '%s of %s exercises solved',
+  'learn.progress.traps': '%s of %s traps read',
+  'learn.progress.steps': '%s of %s steps finished',
+  'learn.progress.none': 'Not started yet',
+  'learn.traps.count': '%s traps to discover',
+
+  /* ── /moi — the personal chooser ──────────────────────────────────── */
+  'me.title': 'Me',
+  'me.intro': 'Your progress and your account.',
+  'me.progress.name': 'My progress',
+  'me.progress.body': 'What you have finished, your points and your rank.',
+  'me.account.name': 'My account',
+  'me.account.body': 'The profiles on this account, your settings and deletion.',
+  'me.account.signedOut': 'Sign in to keep your progress across all your devices.',
+  'me.settings.name': 'Settings',
+  'me.settings.body': 'Theme, language and sound.',
+
   'nav.label': 'Main navigation',
   'nav.skipToContent': 'Skip to main content',
 
@@ -1448,6 +1544,13 @@ export const NAV_GROUPS = [
     key: 'nav.group.learn',
     id: 'learn',
     items: [
+      /* ⚠️ THE SECTION LANDING, AND IT IS HERE FOR CRITICAL FEATURE 36 (M4).
+         The bottom bar's "Apprendre" points at `/apprendre/`, so a desktop
+         reader must be able to reach it too — a route that exists on one
+         layout only is the bug `/progres/` shipped with in M3.
+         Labelled `nav.overview` rather than `nav.group.learn`: a group called
+         "Apprendre" whose first item is also "Apprendre" reads as a mistake. */
+      { path: '/apprendre/', key: 'nav.overview' },
       { path: '/apprendre-les-bases/', key: 'nav.basics' },
       { path: '/cours/', key: 'nav.courses' },
       { path: '/pieges/', key: 'nav.traps' },

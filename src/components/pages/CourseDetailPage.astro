@@ -10,6 +10,7 @@ import { localizePath } from '@i18n/paths';
 import { useTranslations } from '@i18n/ui';
 import BaseLayout from '@layouts/BaseLayout.astro';
 import PageIntro from '@components/PageIntro.astro';
+import Trail from '@components/nav/Trail.astro';
 import LevelBadge from '@components/LevelBadge.astro';
 import NumberedCard from '@components/NumberedCard.astro';
 import ProgressStates from '@components/ProgressStates.astro';
@@ -43,6 +44,7 @@ function lessonKeys(lesson: CollectionEntry<'lessons'>): string[] {
 ---
 
 <BaseLayout locale={locale} title={title} description={summary} reveals>
+  <Trail locale={locale} href={localizePath('/cours/', locale)} label={t('nav.courses')} />
   <PageIntro title={title} intro={summary} />
 
   <p class="course-level">

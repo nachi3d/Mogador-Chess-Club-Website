@@ -1,11 +1,12 @@
 ---
 import { getCollection } from 'astro:content';
 import type { Locale } from '@config/site';
-import { exercisePath } from '@i18n/paths';
+import { exercisePath, localizePath } from '@i18n/paths';
 import { useTranslations } from '@i18n/ui';
 import { exerciseJourney } from '@lib/journey';
 import BaseLayout from '@layouts/BaseLayout.astro';
 import PageIntro from '@components/PageIntro.astro';
+import Trail from '@components/nav/Trail.astro';
 import CardGrid, { type CardItem } from '@components/CardGrid.astro';
 import ResumeResolver from '@components/progress/ResumeResolver.astro';
 import ResumeCard from '@components/progress/ResumeCard.astro';
@@ -43,6 +44,7 @@ const items: CardItem[] = entries.map(({ data }) => ({
 ---
 
 <BaseLayout locale={locale} title={t('exercises.title')} description={t('exercises.intro')} reveals>
+  <Trail locale={locale} href={localizePath('/apprendre/', locale)} label={t('learn.title')} />
   <PageIntro title={t('exercises.title')} intro={t('exercises.intro')} />
   {/* NOTE: no board is mounted here. The single Chessground island is
       client:visible and belongs on the exercise DETAIL route, never on an
