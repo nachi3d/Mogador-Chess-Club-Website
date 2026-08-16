@@ -260,20 +260,92 @@ first.
 
 ---
 
-## The placeholder
+## The exercised path is a FIXTURE, not live content
 
-`src/content/traps/legal.json` carries `"youtube": "TODOvideo00"`. It is **not a
-video** — it is eleven characters chosen to read as a TODO in a log, so the
-facade has an exercised path in the specs rather than an untested one. Its
-poster is the house plate; a reader who presses play today gets YouTube's "video
-unavailable".
+⚠️ **No published trap or course carries a `youtube` id today.**
 
-JSON carries no comments, so this is the only place that fact is written down
-besides BACKLOG and the CHANGELOG. Replacing it: change the id, run
-`node scripts/fetch-video-posters.mjs`, commit `public/video/`.
+The facade first shipped with a placeholder id (`TODOvideo00`) on
+`/pieges/legal/` — a real trap, on the real index, whose play button handed a
+reader YouTube's *"video unavailable"*. That bought the specs a page to drive at
+the cost of a dead video on live content, which is the wrong way round: **the
+test harness's needs must not reach the reader.** It was reverted before the
+feature ever shipped to `main`.
 
-⚠️ **If the field is blanked instead, `video.spec.ts`'s first test fails by
-design** — the corpus assertion exists so the other twenty-eight cannot pass
+What replaced it is `src/content/traps/fixture-video-facade.json`, carrying
+`fixture: true`:
+
+| | |
+|---|---|
+| **Routable** | only when `PUBLIC_FIXTURES=true` |
+| **Listed** | **never, in any build** |
+
+⚠️ **THE TWO PREDICATES IN `src/config/fixtures.ts` ARE TWO ON PURPOSE.**
+`isRoutable()` decides whether the page exists; `isListed()` decides whether a
+reader can find it, and it does not consult the flag at all. Collapsing them
+into one would put the fixture on `/pieges/` in every test build — where
+`index-cards.spec.ts` would assert a card for it and `/apprendre/`'s trap count
+would be one too high, neither of which looks wrong on the page.
+
+⚠️ **`fixture` IS A SEPARATE FIELD FROM `draft`.** A draft is content being
+written that will one day be published, and unparking it is meant to be a
+one-character edit. A fixture must *never* be published. Overloading `draft`
+would make "unpublish this trap for a week" and "this is not real content" the
+same edit, and only one of them should be easy to undo.
+
+### Why the flag defaults OFF and the harness turns it on
+
+Default OFF, because **the default must be the shape production ships** — the
+discipline `src/config/auth.ts` is written to, for the reason recorded in
+CLAUDE.md: production's flags live in a Cloudflare dashboard nothing in this
+repository can see. A fixtures flag defaulting ON and relying on the dashboard
+to switch it off would ship a fixture the first time somebody forgot, and
+nothing here would fail.
+
+`playwright.config.ts` passes `PUBLIC_FIXTURES: 'true'` to the build it tests —
+**hardcoded, not read from the environment**, and the difference from
+`PUBLIC_AUTH_ENABLED` beside it is deliberate. The auth flag selects between two
+real product shapes, so the release gate runs the matrix once for each. Fixtures
+are a property of the *harness*: constant across both shapes, so they give the
+facade full cross-browser coverage and **add no third matrix run**.
+
+### ⚠️ The OFF shape can only be proved in production
+
+No local spec can assert the fixture is absent, because the build under test is
+by construction the one where it is present — asking it would be asking the
+wrong build. Same limitation as `auth-disabled.spec.ts`, which can only speak
+about the shape it was built in.
+
+So `scripts/smoke-prod.mjs` checks it where it is true: both fixture routes must
+**404** on the live site, and a 200 fails the smoke run naming the variable.
+It is on the promotion checklist.
+
+⚠️ **404 is the pass, and that depends on `not_found_handling: "none"`.** If a
+404 page ever lands, this check changes in the same commit.
+
+### Seeing a fixture by hand
+
+```sh
+PUBLIC_FIXTURES=true npm run demo
+```
+
+⚠️ **Never put `PUBLIC_FIXTURES` in `.env.local`** — same rule as
+`PUBLIC_AUTH_ENABLED`. The default build on this machine must stay the shape
+production ships.
+
+### When Michael's first video lands
+
+1. Add the `youtube` id to the real trap or course.
+2. `node scripts/fetch-video-posters.mjs` — it will fetch the real thumbnail
+   rather than the house plate.
+3. Commit `public/video/`.
+4. ⚠️ **`video.spec.ts`'s "real published content carries no video" test will
+   fail, by design.** Update it deliberately in the same commit; that assertion
+   exists so a placeholder cannot creep back onto live content unnoticed.
+5. The id, the poster run and the release go together — a video id merged
+   without a deploy is a poster nobody has.
+
+⚠️ **If the fixture's `youtube` field is ever blanked, `video.spec.ts`'s first
+test fails by design** — the corpus assertion exists so the rest cannot pass
 vacuously. That failure is the honest signal that the feature has no exercised
 path, not a bug to route around.
 
@@ -291,5 +363,13 @@ path, not a bug to route around.
   it was never requested would be a false pass.
 - The measured Lighthouse numbers, before and after, are in the CHANGELOG entry
   for this feature. The row that matters is the **real photographic still**, not
-  the placeholder: the house plate is flat and compresses to 3 KB, which would
+  the house plate: the plate is flat and compresses to 3 KB, which would
   understate the real cost by an order of magnitude.
+- ⚠️ **Posters are NOT precached.** `build-sw.mjs`'s `globPatterns` lists
+  `html,css,js,woff2,svg,png,webmanifest,json` — **no `webp`** — so a poster is
+  served but never swept into the precache manifest. That is the right answer
+  and is worth stating rather than discovering: precaching them would charge
+  every first visit ~26 KB per video on the site, for a below-the-fold lazy
+  image most readers never scroll to. Same argument as the piece sets and the
+  engine. A poster therefore does not appear on a cold offline load; the facade
+  still renders its frame, its button and its title.

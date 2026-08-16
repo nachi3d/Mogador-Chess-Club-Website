@@ -256,6 +256,23 @@ const traps = defineCollection({
     youtube: youtubeId,
     /** Hidden from the index without deleting the file. */
     draft: z.boolean().default(false),
+    /**
+     * ⚠️ TEST FIXTURE — ROUTABLE BUT NEVER LISTED, AND NEVER IN PRODUCTION.
+     *
+     * A fixture exists so a spec has something real to drive. It is emitted as
+     * a page only when `PUBLIC_FIXTURES=true` (which `playwright.config.ts`
+     * sets for the build it tests, and nothing else does), and it is left off
+     * every index and every count in EVERY build.
+     *
+     * ⚠️ IT IS A SEPARATE FIELD FROM `draft`, DELIBERATELY. A draft is content
+     * being written that will one day be published; a fixture must never be.
+     * Overloading `draft` would make "unpublish this trap for a week" and
+     * "this is not real content" the same edit, and the first is reversible by
+     * design while the second must not be.
+     *
+     * See `src/config/fixtures.ts` for the two predicates and why they are two.
+     */
+    fixture: z.boolean().default(false),
   }),
 });
 

@@ -78,9 +78,47 @@ than a performance one, and Critical Feature 9 already forbade it.
   iframe is created by script at click time and carries no `data-astro-cid`
   attribute, so every scoped rule would silently miss it. Same trap as
   `admin.css` and `family.css`.
-- **`src/content/traps/legal.json`** carries `"youtube": "TODOvideo00"` — a
-  **placeholder**, so the facade has an exercised path in the specs rather than
-  an untested one. See BACKLOG: replacing it is one id and one script run.
+- ⚠️ **The exercised path is a FIXTURE, not live content.** The facade was first
+  wired to a placeholder id (`TODOvideo00`) on `/pieges/legal/` — a real trap, on
+  the real index, whose play button handed a reader YouTube's *"video
+  unavailable"*. That bought the specs a page to drive at the cost of a dead
+  video on published content, which is the wrong way round: **the test harness's
+  needs must not reach the reader.** Reverted before this ever shipped.
+  **No published trap or course carries a `youtube` id today.**
+
+### Added — test fixtures as a mechanism
+
+- **`src/config/fixtures.ts`** and a `fixture` flag on the `traps` schema.
+  `src/content/traps/fixture-video-facade.json` is a full trap page — board,
+  replayer, facade — that exists only so `video.spec.ts` has something real to
+  drive. It is a whole page rather than a bare component harness on purpose:
+  that is what keeps the *integration* in scope, the field travelling from the
+  collection through `TrapPage.astro` and landing below the board.
+- ⚠️ **TWO PREDICATES, AND THE SPLIT IS THE DESIGN.** `isRoutable()` decides
+  whether the page is emitted — fixtures only when `PUBLIC_FIXTURES=true`.
+  `isListed()` decides whether a reader can find it, and **does not consult the
+  flag at all**: a fixture is off every index and every count in *every* build.
+  Collapsing them would put it on `/pieges/` in each test build, where
+  `index-cards.spec.ts` draws a card for it and `/apprendre/`'s trap count goes
+  one too high — neither of which looks wrong on the page.
+- ⚠️ **`fixture` is a separate field from `draft`.** A draft is content being
+  written that will one day be published; a fixture must never be. Overloading
+  `draft` makes "unpublish this for a week" and "this is not real content" the
+  same edit, and only one of those should be easy to undo.
+- ⚠️ **The flag defaults OFF, because the default must be what production
+  ships** — the discipline `auth.ts` is written to, for the recorded reason that
+  production's flags live in a dashboard this repository cannot see.
+  `playwright.config.ts` sets `PUBLIC_FIXTURES: 'true'` for the build it tests,
+  **hardcoded and in both auth shapes**, so the facade gets full cross-browser
+  coverage and **no third matrix shape is added**.
+- ⚠️ **`smoke:prod` now fails if a fixture route answers anything but 404 on the
+  live site.** No local spec can prove the OFF shape — the build under test is by
+  construction the ON one, the same limitation `auth-disabled.spec.ts` has — so
+  the guarantee is checked where it is true. Added to the promotion checklist.
+- **Four more tests in `video.spec.ts`**: the fixture is on no index in either
+  locale, linked from nowhere reader-facing, absent from `/apprendre/`'s trap
+  count, and — the one that matters for next time — **real published content
+  carries no video**, so a placeholder cannot creep back unnoticed.
 
 ### Placement, and why
 

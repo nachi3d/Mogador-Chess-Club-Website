@@ -1,0 +1,28 @@
+{
+  "title_fr": "FIXTURE — aperçu vidéo (page de test)",
+  "title_en": "FIXTURE — video facade (test page)",
+  "slug": "fixture-video-facade",
+  "level": "debutant",
+  "themes": ["fixture"],
+  "pgn": "1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5",
+  "moveComments": [
+    {
+      "ply": 0,
+      "fr": "Cette page n'est pas du contenu. Elle existe pour que tests/e2e/video.spec.ts ait un vrai aperçu vidéo à piloter, et elle n'est construite que lorsque PUBLIC_FIXTURES=true.",
+      "en": "This page is not content. It exists so tests/e2e/video.spec.ts has a real video facade to drive, and it is only built when PUBLIC_FIXTURES=true."
+    }
+  ],
+  "shapes": [],
+  "claims": [
+    {
+      "kind": "manual",
+      "ply": 5,
+      "note": "Fixture, not teaching content — the Giuoco Piano's first three moves, present only so the page carries a real replayer beneath the video facade. Nothing here makes a claim about the position."
+    }
+  ],
+  "summary_fr": "Page de test. Si vous lisez ceci sur le site public, un build de production a été fait avec PUBLIC_FIXTURES=true — ce n'est pas censé arriver.",
+  "summary_en": "Test page. If you are reading this on the public site, a production build was made with PUBLIC_FIXTURES=true — that is not supposed to happen.",
+  "youtube": "FIXTUREvid0",
+  "draft": false,
+  "fixture": true
+}

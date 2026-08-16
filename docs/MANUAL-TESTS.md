@@ -1880,12 +1880,27 @@ account promoted to `prof` with the SQL in `docs/ADMIN.md`.
 
 ---
 
-## 8b. ⚠️ THE VIDEO FACADE — `/pieges/legal/`
+## 8b. ⚠️ THE VIDEO FACADE — a FIXTURE page, not live content
 
-⚠️ **`/pieges/legal/` is the only page carrying a video today, and its id
-(`TODOvideo00`) is a PLACEHOLDER.** Pressing play gets YouTube's "video
-unavailable" until Michael's video replaces it — that is expected, and it does
-not affect any check below except the last one.
+⚠️ **No published trap or course carries a video today.** The facade's test page
+is a fixture, and `npm run demo` builds the production shape, so **it is not
+there by default**. To work through this section:
+
+```sh
+PUBLIC_FIXTURES=true npm run demo
+```
+
+then go to **`/pieges/fixture-video-facade/`**. Its id (`FIXTUREvid0`) is not a
+video: pressing play gets YouTube's "video unavailable", which is expected and
+affects no check below except the network one — where the requests going to
+`youtube-nocookie.com` is exactly the point.
+
+### ⚠️ First, the thing that must be true of the PRODUCTION shape
+
+- [ ] `npm run demo` (no env var): `/pieges/fixture-video-facade/` **404s**
+- [ ] `/pieges/` shows the real traps and **no FIXTURE card**, in both locales —
+      check this in the `PUBLIC_FIXTURES=true` build too, where the page exists
+- [ ] `/pieges/legal/` has **no video block at all**
 
 ### Before the click — this is the whole feature
 
@@ -1896,7 +1911,7 @@ not affect any check below except the last one.
       is easy to miss — **`i.ytimg.com`**. Sort the Network panel by Domain and
       read it; do not filter for "youtube"
 - [ ] Application → Cookies: **none**
-- [ ] The poster's URL is `/video/TODOvideo00.webp` (or `@2x` on a retina
+- [ ] The poster's URL is `/video/FIXTUREvid0.webp` (or `@2x` on a retina
       screen), served by this site
 - [ ] The video sits **BELOW the board**, under a "Vidéo" / "Video" heading
 - [ ] The privacy line under it links to **Ce qu'un clic envoie** → the `#video`
@@ -1914,7 +1929,7 @@ not affect any check below except the last one.
 
 - [ ] Tab to the play button. It takes a visible focus ring around the **video**,
       not around the badge
-- [ ] It announces the video by name — "Lire la vidéo : Le mat de Légal"
+- [ ] It announces the video by name — "Lire la vidéo : " plus the page's own title
 - [ ] Press **Enter**: the video starts. Press Tab: you are **inside the
       player**, not back at the top of the page
 - [ ] Reload and repeat with **Space** — it must work too
@@ -1927,8 +1942,8 @@ not affect any check below except the last one.
       full width — the video must never have squeezed the board
 - [ ] With **reduced motion** on: the badge does not grow on hover or focus, but
       it still changes colour and still takes the focus ring
-- [ ] `/pieges/fegatello/` and `/cours/bien-ouvrir-une-partie/` (no `youtube`
-      field): **no heading, no empty box, nothing at all**
+- [ ] `/pieges/fegatello/`, `/pieges/legal/` and `/cours/bien-ouvrir-une-partie/`
+      (no `youtube` field): **no heading, no empty box, nothing at all**
 
 ### If you change the video
 
@@ -1991,6 +2006,11 @@ axe covers a lot of this automatically; these are the parts it cannot judge.
 - [ ] `npx playwright test` — full matrix (see CLAUDE.md for the known environmental flakes)
 - [ ] This checklist, worked through on desktop **and** a real phone
 - [ ] Lighthouse ≥ 90 on Performance, Accessibility and SEO
+- [ ] ⚠️ **No test fixture is live** — after deploying, `npm run smoke:prod`
+      asserts `/pieges/fixture-video-facade/` 404s. A 200 means the production
+      build ran with `PUBLIC_FIXTURES=true`; unset it in the Cloudflare build
+      variables and redeploy. **No local check can catch this** — every
+      Playwright build has fixtures ON by design
 
 ---
 

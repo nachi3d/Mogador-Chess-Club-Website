@@ -174,6 +174,29 @@ export default defineConfig({
            against a site that has no auth in it. Set PUBLIC_AUTH_ENABLED=true
            to build and test the ON path. See tests/e2e/helpers/auth-mode.ts. */
         PUBLIC_AUTH_ENABLED: process.env['PUBLIC_AUTH_ENABLED'] ?? '',
+        /**
+         * ⚠️ TEST FIXTURES ARE ON FOR EVERY RUN, AND OFF EVERYWHERE ELSE.
+         *
+         * Fixtures are content that exists only so a spec has something real
+         * to drive — today, the video facade, which would otherwise need a
+         * placeholder video id on a page a reader can reach. They are emitted
+         * only when this is `'true'`, and `src/config/fixtures.ts` keeps them
+         * off every index and every count even then.
+         *
+         * ⚠️ HARDCODED, NOT `process.env[...] ?? ''` LIKE THE FLAG ABOVE, and
+         * the difference is deliberate. `PUBLIC_AUTH_ENABLED` selects between
+         * two real product shapes, so the release gate runs the matrix once for
+         * each. Fixtures are a property of the HARNESS: constant across both
+         * shapes, so they add no third matrix run — and forcing them on here is
+         * what gives the facade cross-browser coverage without putting a test
+         * page anywhere near a build a reader sees.
+         *
+         * ⚠️ NOTHING LOCAL CAN PROVE THE OFF SHAPE, because the build under
+         * test is by construction the ON one. `npm run smoke:prod` asserts a
+         * fixture route 404s on the live site; that is where the guarantee is
+         * checked, and it is on the promotion checklist.
+         */
+        PUBLIC_FIXTURES: 'true',
       };
     })(),
   },
