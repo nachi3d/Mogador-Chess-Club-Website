@@ -1,0 +1,35 @@
+{
+  "title_fr": "Mat en 2 — donner la dame",
+  "title_en": "Mate in 2 — give up the queen",
+  "slug": "sacrifice-puis-mat",
+  "fen": "2r3k1/5ppp/8/Q7/8/8/8/3R2K1 w - - 0 1",
+  "solution": [
+    "a5d8",
+    "d1d8"
+  ],
+  "opponentReplies": [
+    "c8d8"
+  ],
+  "onlyMove": false,
+  "hint_fr": "La tour noire garde la dernière rangée. Elle ne peut garder qu'une chose à la fois : obligez-la à prendre.",
+  "hint_en": "Black's rook guards the back rank. It can only guard one thing at a time — make it capture something.",
+  "level": "intermediaire",
+  "themes": [
+    "mat",
+    "sacrifice",
+    "couloir",
+    "tour"
+  ],
+  "claims": [
+    {
+      "kind": "line",
+      "moves": [
+        "a5d8",
+        "c8d8",
+        "d1d8"
+      ],
+      "ends": "mate"
+    }
+  ],
+  "forcedReplies": true
+}

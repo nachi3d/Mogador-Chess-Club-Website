@@ -873,6 +873,14 @@ const fr = {
   'video.note':
     "L'aperçu est hébergé par ce site. Appuyer sur lecture connecte votre appareil à YouTube.",
   'video.noteLink': 'Ce qu’un clic envoie',
+
+  /* ── Filtres des exercices (batch 5) ──────────────────────────
+     27 exercices, ce n'est plus une grille qu'on parcourt à l'œil. Chaque
+     puce est un lien vers une vraie page — rien n'est scripté ici. */
+  'exercises.filter.label': 'Filtrer les exercices',
+  'exercises.filter.byLevel': 'Par niveau',
+  'exercises.filter.byTheme': 'Par thème',
+  'exercises.filter.all': '← Tous les exercices',
 } as const;
 
 const en: Record<keyof typeof fr, string> = {
@@ -1554,6 +1562,11 @@ const en: Record<keyof typeof fr, string> = {
   'video.play': 'Play the video',
   'video.note': 'The preview is hosted by this site. Pressing play connects your device to YouTube.',
   'video.noteLink': 'What a click sends',
+
+  'exercises.filter.label': 'Filter the exercises',
+  'exercises.filter.byLevel': 'By level',
+  'exercises.filter.byTheme': 'By theme',
+  'exercises.filter.all': '← All exercises',
 };
 
 export type UIKey = keyof typeof fr;

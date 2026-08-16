@@ -20,3 +20,5 @@ When your opponent castles queenside, his king ends up on c8 with his own pieces
 ## Your turn
 
 <!--board-->
+
+You now know the six basic mates. Recognising them in a second rather than a minute takes one thing only: repetition. Go and drill them on [the mating exercises](/en/exercices/theme/mat/).

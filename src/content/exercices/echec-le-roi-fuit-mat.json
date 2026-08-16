@@ -1,0 +1,35 @@
+{
+  "title_fr": "Mat en 2 — le roi n'a qu'une case",
+  "title_en": "Mate in 2 — the king has one square",
+  "slug": "echec-le-roi-fuit-mat",
+  "fen": "r5k1/5p1p/4N3/8/8/1Q6/8/6K1 w - - 0 1",
+  "solution": [
+    "b3g3",
+    "g3g7"
+  ],
+  "opponentReplies": [
+    "g8h8"
+  ],
+  "onlyMove": true,
+  "hint_fr": "Avant de faire échec, comptez les cases où le roi pourra aller. Le cavalier en couvre déjà deux. S'il n'en reste qu'une, regardez ce qui l'attend là-bas.",
+  "hint_en": "Before you check, count the squares the king can go to. The knight already covers two. If only one is left, look at what is waiting for him there.",
+  "level": "debutant",
+  "themes": [
+    "mat",
+    "echec",
+    "cavalier",
+    "dame"
+  ],
+  "claims": [
+    {
+      "kind": "line",
+      "moves": [
+        "b3g3",
+        "g8h8",
+        "g3g7"
+      ],
+      "ends": "mate"
+    }
+  ],
+  "forcedReplies": true
+}

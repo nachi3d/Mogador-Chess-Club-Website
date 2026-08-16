@@ -20,3 +20,5 @@ Quand ton adversaire a roqué du grand côté, son roi se retrouve en c8 avec se
 ## Essaie toi-même
 
 <!--board-->
+
+Tu connais maintenant les six mats de base. Pour les reconnaître en une seconde plutôt qu'en une minute, il n'y a qu'une méthode : en faire beaucoup. Va t'entraîner sur [les exercices de mat](/exercices/theme/mat/).

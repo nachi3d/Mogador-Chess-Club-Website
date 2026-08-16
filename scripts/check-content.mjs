@@ -420,6 +420,11 @@ for (const { file, data } of readCollection('exercices')) {
   // the gap nobody notices until someone reports it. Same rule as moveComments.
   if (!data.hint_fr?.trim()) fail(file, 'hint_fr is empty');
   if (!data.hint_en?.trim()) fail(file, 'hint_en is empty');
+  /* ⚠️ AND THE TITLES, for the same reason and in the same breath. A missing
+     title_en renders a card with no name to exactly one half of the readers,
+     and the page around it looks perfectly healthy. */
+  if (!data.title_fr?.trim()) fail(file, 'title_fr is empty');
+  if (!data.title_en?.trim()) fail(file, 'title_en is empty');
 
   // Six fields, because the side to move and the castling rights are part of
   // the puzzle. A four-field FEN parses in chess.js and silently assumes white.
@@ -475,12 +480,32 @@ for (const { file, data } of readCollection('exercices')) {
     }
     const reply = replies[i];
     if (reply === undefined) continue;
+
+    /**
+     * ⚠️ A CLAIMED-FORCED REPLY IS PROVED, NOT ASSUMED.
+     *
+     * A mate-in-2 whose first move is meant to be forcing is only an exercise
+     * if Black has exactly one answer. If Black has two, the second move works
+     * against the one we happened to store and the position is ambiguous
+     * rather than hard — and the board would still play our reply, so nothing
+     * on screen would ever look wrong. Counted BEFORE the reply is made.
+     */
+    const legalReplies = game.moves().length;
     try {
       game.move(uci(reply));
     } catch {
       fail(file, `opponentReplies[${i}] "${reply}" is not legal in ${game.fen()}`);
       broke = true;
       break;
+    }
+    if (data.forcedReplies === true && legalReplies !== 1) {
+      fail(
+        file,
+        `forcedReplies is true, but after solution[${i}] Black has ${legalReplies} legal ` +
+          'moves, not 1. Either make the first move genuinely forcing, or drop the flag — ' +
+          'an exercise whose second move only refutes the reply we stored is ambiguous, ' +
+          'not difficult.',
+      );
     }
   }
   if (broke) continue;
@@ -525,11 +550,43 @@ for (const { file, data } of readCollection('exercices')) {
     }
   }
 
+  /**
+   * ⚠️ THE CLAIMS — the same union, the same assertions and the same reason as
+   * the lesson boards. `assertClaim` is given the exercise's OWN starting
+   * position; a claim's `after` replays into the position it is about, which
+   * is how a fork claim can be stated about the square the knight has not
+   * jumped to yet.
+   *
+   * ⚠️ A `ply` IS FORBIDDEN, exactly as on a lesson board. An exercise carries
+   * its own FEN, so a ply indexes nothing — and an author who wrote one
+   * believed something about a move list that does not exist here.
+   */
+  const claims = data.claims ?? [];
+  for (const c of claims) {
+    if (c.ply !== undefined) {
+      fail(
+        file,
+        `claim ${c.kind}: an exercise carries its own FEN, so "ply" indexes nothing — ` +
+          'remove it (a `ply` belongs on a TRAP claim, which has a PGN)',
+      );
+      continue;
+    }
+    if (c.kind === 'manual') {
+      manualReview.push(`${file} (exercise) — ${c.note}`);
+      continue;
+    }
+    for (const problem of assertClaim(startFen, c)) fail(file, `claim: ${problem}`);
+  }
+  /* Silence is the failure mode the review queue exists to remove: an exercise
+     with no claim at all is printed, exactly like a lesson board with none. */
+  if (claims.length === 0) manualReview.push(`${file} (exercise) — no claim declared`);
+
   const note = mates
     ? `ends in mate, onlyMove=${data.onlyMove === true}${onlyMoveNote}`
     : `ends quiet (${game.turn() === 'w' ? 'white' : 'black'} to move)`;
+  const claimNote = claims.length ? `, ${claims.length} claim(s)` : '';
 
-  console.log(`  ok  ${file} — ${solution.length} player move(s), ${note}`);
+  console.log(`  ok  ${file} — ${solution.length} player move(s), ${note}${claimNote}`);
 }
 
 /* ──────────────────────────── lessons ──────────────────────────── */

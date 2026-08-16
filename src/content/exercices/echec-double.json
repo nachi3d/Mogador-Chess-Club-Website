@@ -1,0 +1,31 @@
+{
+  "title_fr": "L'échec double",
+  "title_en": "The double check",
+  "slug": "echec-double",
+  "fen": "3k4/2p3q1/8/8/3N4/8/6PP/3R2K1 w - - 0 1",
+  "solution": [
+    "d4e6",
+    "e6g7"
+  ],
+  "opponentReplies": [
+    "d8e8"
+  ],
+  "onlyMove": false,
+  "hint_fr": "Contre un échec double, on ne peut ni prendre ni interposer : le roi doit bouger, point. Trouvez la case d'où votre cavalier fait échec lui aussi — et regardez ce qu'il attaque en plus.",
+  "hint_en": "Against a double check you can neither capture nor block: the king simply has to move. Find the square where your knight gives check as well — and see what else it attacks from there.",
+  "level": "intermediaire",
+  "themes": [
+    "decouverte",
+    "echec-double",
+    "cavalier",
+    "tactique"
+  ],
+  "claims": [
+    {
+      "kind": "discovery",
+      "screen": "d4",
+      "by": "d1",
+      "target": "d8"
+    }
+  ]
+}

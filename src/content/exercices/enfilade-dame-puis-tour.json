@@ -1,0 +1,34 @@
+{
+  "title_fr": "L'enfilade sans échec",
+  "title_en": "The skewer without check",
+  "slug": "enfilade-dame-puis-tour",
+  "fen": "r6k/6pp/8/3q4/8/8/5P1P/5BK1 w - - 0 1",
+  "solution": [
+    "f1g2",
+    "g2a8"
+  ],
+  "opponentReplies": [
+    "d5b5"
+  ],
+  "onlyMove": false,
+  "hint_fr": "Pas d'échec ici : c'est la valeur des pièces qui fait le travail. Alignez votre fou sur la dame, et regardez ce qui se trouve derrière elle.",
+  "hint_en": "No check here — it is the value of the pieces that does the work. Line your bishop up on the queen, and look at what stands behind her.",
+  "level": "intermediaire",
+  "themes": [
+    "enfilade",
+    "fou",
+    "tactique"
+  ],
+  "claims": [
+    {
+      "kind": "line",
+      "moves": [
+        "f1g2",
+        "d5b5",
+        "g2a8"
+      ],
+      "ends": "quiet",
+      "captures": "r"
+    }
+  ]
+}

@@ -331,6 +331,32 @@ const exercices = defineCollection({
       hint_en: z.string(),
       level,
       themes: z.array(z.string()).default([]),
+      /**
+       * ⚠️ WHAT THE EXERCISE CLAIMS ITS POSITION DOES — proved at build time.
+       *
+       * Same union, same rules and the same reason as the lesson boards: a
+       * legal position is not a correct one, and the sentence beside the board
+       * is where content actually goes wrong. Batch 3 shipped four positions
+       * that passed every mechanical check and each described a mechanism the
+       * board did not contain.
+       *
+       * ⚠️ A `ply` is FORBIDDEN here, exactly as on a lesson board: an exercise
+       * carries its own FEN, so a ply would index nothing.
+       * `scripts/check-content.mjs` rejects it.
+       */
+      claims: z.array(claim).default([]),
+      /**
+       * ⚠️ THE EXERCISE CLAIMS EACH STORED REPLY IS BLACK'S ONLY LEGAL MOVE.
+       *
+       * Set it on a mate-in-2 whose first move is meant to be forcing. The
+       * checker then proves it, and a position where Black has two answers
+       * fails the build instead of shipping as an "exercise" whose second move
+       * only works against the reply we happened to store.
+       *
+       * Default false: most tactical exercises legitimately leave the opponent
+       * a choice, and claiming otherwise would be a lie the build would catch.
+       */
+      forcedReplies: z.boolean().default(false),
       draft: z.boolean().default(false),
     })
     .refine((e) => e.opponentReplies.length <= e.solution.length, {

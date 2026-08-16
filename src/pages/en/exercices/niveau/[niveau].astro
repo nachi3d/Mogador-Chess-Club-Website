@@ -1,0 +1,27 @@
+---
+/**
+ * `/en/exercices/niveau/<niveau>/` — the exercise index, filtered.
+ *
+ * ⚠️ A REAL PAGE PER FILTER VALUE, not `?niveau=`. This site is
+ * `output: 'static'` with no adapter, so there is no server to read a query
+ * string — and a browser-side filter would leave the controls dead with JS
+ * off. The full reasoning is in `src/lib/exercise-filters.ts`.
+ *
+ * ⚠️ THE VALUES ARE DERIVED FROM THE CONTENT, never listed here. That is what
+ * makes an empty filter page impossible: a route exists only where something
+ * matches, and everything else 404s like any unwritten URL.
+ */
+import { getCollection } from 'astro:content';
+import type { GetStaticPaths } from 'astro';
+import ExercicesPage from '@components/pages/ExercicesPage.astro';
+import { levelsIn } from '@lib/exercise-filters';
+
+export const getStaticPaths = (async () => {
+  const entries = await getCollection('exercices', ({ data }) => !data.draft);
+  return levelsIn(entries).map((niveau) => ({ params: { niveau } }));
+}) satisfies GetStaticPaths;
+
+const { niveau } = Astro.params;
+---
+
+<ExercicesPage locale="en" filter={{ kind: 'niveau', value: niveau! }} />

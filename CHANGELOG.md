@@ -11,6 +11,79 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+**24 exercises, and every position built against chess.js rather than by hand.**
+
+`/exercices/` had three entries for three courses. It has 27, and every course
+has a matching drill set.
+
+⚠️ **The brief supplied motifs, not FENs, and that was the point.** Batch 3
+shipped eight hand-written positions of which **four were legal and wrong** —
+the prose described a mechanism the board did not contain. So every position
+here was constructed and then interrogated by a workbench built for the job:
+legality, side to move, solution legality, mate/material actually achieved,
+mate uniqueness, and whether a claimed-forced reply really is Black's only move.
+
+⚠️ **It caught nine errors I would otherwise have shipped** — an illegal
+knight move, a bishop pair that did not cover the escape squares, **three
+positions where the side not to move was already in check** (chess.js loads
+those happily and only dies later), and **three "mate in 2" claims that were
+mate in 1**. None of them would have been visible on screen.
+
+### Added
+
+- **24 exercises** — 6 mates in 1, 4 mates in 2, 4 forks, 4 pins/skewers,
+  3 discoveries, 3 advanced motifs. FR and EN written natively; hints name the
+  idea and never the move.
+- **`claims[]` on the `exercices` collection**, the same union the lesson boards
+  use, so the build proves each position's mechanism. All 24 declare one, and
+  the three pre-existing exercises were retrofitted — the exercise review queue
+  is now empty.
+- **`forcedReplies`** — an exercise may claim its stored reply is Black's ONLY
+  legal move, and `check-content.mjs` proves it. Without it a mate-in-2 whose
+  first move is not forcing "works" against the reply we happened to store, and
+  nothing on screen ever looks wrong.
+- **Filtering on `/exercices/`** by level and by theme, plus reverse links from
+  the final lesson of courses 2 and 3 to the matching drill set.
+
+### Changed
+
+- `check-content.mjs` also fails on an empty `title_fr`/`title_en` (the same
+  half-a-page-for-half-the-readers gap the hint check already covered), and
+  rejects a `ply` on an exercise claim — an exercise carries its own FEN, so a
+  ply indexes nothing.
+
+### ⚠️ Deviation — the filters are ROUTES, not `?niveau=`
+
+The brief asked for **server-side** filtering on `?niveau=` and `?theme=`.
+**This site cannot do it**: `output: 'static'`, no adapter, no SSR — a hard
+rule in CLAUDE.md, not a setting. There is no server to read a query string.
+
+Reading the query string in the browser was rejected: the chips would be dead
+without JavaScript, and a control that visibly does nothing is worse than no
+control. So each filter is a real page — `/exercices/niveau/debutant/`,
+`/exercices/theme/fourchette/` — linkable, bookmarkable, crawlable, and
+**tested with JavaScript disabled**, which is the property the whole decision
+was made for.
+
+⚠️ **There is no empty state because an empty filter page cannot exist.** The
+values are derived from the content, so a route is emitted only where something
+matches; anything else 404s. A hand-written list of themes would have needed the
+empty state — and would have been the thing that rots.
+
+### Uniqueness — where `onlyMove` had to be false
+
+All six mates in 1 have a **unique** mating move, verified by brute force, so
+they are `onlyMove: true`. Three of the four mates in 2 are unique too. One is
+not: **`sacrifice-puis-mat` has two mates in 2** (`Qd8+` and `Rd8+`, both
+sacrifices, both mating), so it is `onlyMove: false` — the rule that a correct
+move must never be called wrong outranks the tidier flag.
+
+Every tactical (non-mating) exercise is `onlyMove: false` by default, per
+CLAUDE.md: where we cannot prove uniqueness, we implement the behaviour that
+cannot lie to a student.
+
+---
+
 **A video you have to ask for.**
 
 The `youtube` field has sat on `traps` and `cours` since Session 2, validating an

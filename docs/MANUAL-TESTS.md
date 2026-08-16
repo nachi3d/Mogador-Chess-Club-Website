@@ -1106,6 +1106,46 @@ exercise never reaches the code path.
 
 ---
 
+## 4c. ⚠️ THE EXERCISE FILTERS — batch 5
+
+`/exercices/` is 27 entries. The filters are **real pages**, not `?niveau=`:
+static output leaves no server to read a query string, and a browser-side
+filter would leave the chips dead with JS off.
+
+- [ ] `/exercices/` lists **27** exercises, with two rows of chips above them:
+      **Par niveau** and **Par thème**
+- [ ] Click a level chip — the URL becomes `/exercices/niveau/debutant/`, fewer
+      cards are shown, and **every one of them really is at that level**
+- [ ] The chip you clicked is visibly marked, and a **← Tous les exercices**
+      link brings everything back
+- [ ] Click a theme chip — same behaviour, and every card carries that theme
+- [ ] ⚠️ **Turn JavaScript off** (DevTools → Settings → Debugger → Disable
+      JavaScript) and do it again. **The filters must still work.** This is the
+      whole reason they are routes; a query-string filter would look identical
+      until this step
+- [ ] `/exercices/theme/pas-un-theme/` **404s** — a filter with no matches is
+      never built, which is why there is no empty state
+- [ ] `/en/exercices/` — the segments are **not** translated
+      (`/en/exercices/niveau/…`, never `…/level/…`), and the language switcher
+      still lands on the counterpart page
+- [ ] The last lesson of **Les mats élémentaires** and of **Les motifs
+      tactiques** each end with a link into the matching drill set
+
+### The chess itself — ⚠️ the part a machine cannot check
+
+`check-content.mjs` proves every position is legal, that each solution does what
+it claims, and that every `onlyMove: true` mate is unique. **It cannot read the
+hint next to the board.** Spot-check a handful:
+
+- [ ] Solve three mates in 1 by tapping. Each mates on the first move
+- [ ] `/exercices/sacrifice-puis-mat/` — play **Rd8+** instead of the stored
+      **Qd8+**. It must say *"ce n'est pas la ligne que nous avions en tête"*,
+      **never "faux"**: both moves mate, which is exactly why it is
+      `onlyMove: false`
+- [ ] Read three hints. None of them names the move
+
+---
+
 ## 5. Keyboard move entry
 
 On any exercise, and on `/jouer/` — **without touching the board at all**:

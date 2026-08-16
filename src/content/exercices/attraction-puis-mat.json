@@ -1,0 +1,36 @@
+{
+  "title_fr": "Mat en 2 — attirer la tour",
+  "title_en": "Mate in 2 — draw the rook in",
+  "slug": "attraction-puis-mat",
+  "fen": "5r1k/6pp/7N/8/8/1Q6/8/6K1 w - - 0 1",
+  "solution": [
+    "b3g8",
+    "h6f7"
+  ],
+  "opponentReplies": [
+    "f8g8"
+  ],
+  "onlyMove": true,
+  "hint_fr": "Le roi noir est déjà presque enfermé par ses pions. Il lui reste une case — et sa propre tour peut venir la boucher, si vous l'y obligez.",
+  "hint_en": "The black king is already nearly shut in by his pawns. One square is left — and his own rook can come and block it, if you make it.",
+  "level": "intermediaire",
+  "themes": [
+    "mat",
+    "attraction",
+    "sacrifice",
+    "cavalier",
+    "etouffe"
+  ],
+  "claims": [
+    {
+      "kind": "line",
+      "moves": [
+        "b3g8",
+        "f8g8",
+        "h6f7"
+      ],
+      "ends": "mate"
+    }
+  ],
+  "forcedReplies": true
+}

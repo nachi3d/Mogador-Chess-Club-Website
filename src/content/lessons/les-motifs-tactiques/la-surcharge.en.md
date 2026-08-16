@@ -24,3 +24,5 @@ The threat that makes the overload bite is the [back-rank mate](/en/cours/les-ma
 ## Your turn
 
 <!--board-->
+
+That was the last motif in the course. None of them is worth anything until you spot it yourself over the board, so go and hunt for them in [the tactical exercises](/en/exercices/theme/tactique/).
