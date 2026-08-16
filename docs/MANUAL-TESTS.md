@@ -1880,6 +1880,65 @@ account promoted to `prof` with the SQL in `docs/ADMIN.md`.
 
 ---
 
+## 8b. ⚠️ THE VIDEO FACADE — `/pieges/legal/`
+
+⚠️ **`/pieges/legal/` is the only page carrying a video today, and its id
+(`TODOvideo00`) is a PLACEHOLDER.** Pressing play gets YouTube's "video
+unavailable" until Michael's video replaces it — that is expected, and it does
+not affect any check below except the last one.
+
+### Before the click — this is the whole feature
+
+- [ ] DevTools → Network, **hard reload with the cache disabled**, then scroll
+      right down to the video
+- [ ] ⚠️ **Every request still goes to localhost.** Nothing to `youtube.com`,
+      `youtube-nocookie.com`, `google.com`, `googlevideo.com` or — the one that
+      is easy to miss — **`i.ytimg.com`**. Sort the Network panel by Domain and
+      read it; do not filter for "youtube"
+- [ ] Application → Cookies: **none**
+- [ ] The poster's URL is `/video/TODOvideo00.webp` (or `@2x` on a retina
+      screen), served by this site
+- [ ] The video sits **BELOW the board**, under a "Vidéo" / "Video" heading
+- [ ] The privacy line under it links to **Ce qu'un clic envoie** → the `#video`
+      section of the legal notice, and that section actually scrolls into view
+
+### The click
+
+- [ ] Press play: the still is replaced by the player **in the same box** — the
+      page below it does not jump
+- [ ] Network now shows requests to **`youtube-nocookie.com`** and to nothing
+      else that is new
+- [ ] The play button is **gone**, not sitting behind the player
+
+### Keyboard — do this one, it is the one that regresses silently
+
+- [ ] Tab to the play button. It takes a visible focus ring around the **video**,
+      not around the badge
+- [ ] It announces the video by name — "Lire la vidéo : Le mat de Légal"
+- [ ] Press **Enter**: the video starts. Press Tab: you are **inside the
+      player**, not back at the top of the page
+- [ ] Reload and repeat with **Space** — it must work too
+
+### The rest
+
+- [ ] All four themes, light and dark: the badge is clearly visible against the
+      still, and the title and privacy line below it are comfortably readable
+- [ ] At **360px**: the facade fits the column, and the board above it is still
+      full width — the video must never have squeezed the board
+- [ ] With **reduced motion** on: the badge does not grow on hover or focus, but
+      it still changes colour and still takes the focus ring
+- [ ] `/pieges/fegatello/` and `/cours/bien-ouvrir-une-partie/` (no `youtube`
+      field): **no heading, no empty box, nothing at all**
+
+### If you change the video
+
+- [ ] Change the id in the content JSON, run
+      `node scripts/fetch-video-posters.mjs`, and **commit `public/video/`**
+- [ ] `node scripts/check-content.mjs` fails loudly if you forget the poster —
+      that is the guard, not a nuisance
+
+---
+
 ## 9. PWA
 
 - [ ] `/manifest.webmanifest` loads and carries the club name and the green theme colour

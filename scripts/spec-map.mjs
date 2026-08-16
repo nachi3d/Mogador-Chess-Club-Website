@@ -24,9 +24,9 @@ export const SPEC_MAP = [
   /* Content that an index draws a card for maps to `index-cards.spec.ts` as
      well as to its own spec: adding or removing an entry is exactly when a
      card can end up on a page with nowhere to go. */
-  [/^src\/content\/traps\//, ['replayer.spec.ts', 'index-cards.spec.ts']],
+  [/^src\/content\/traps\//, ['replayer.spec.ts', 'index-cards.spec.ts', 'video.spec.ts']],
   [/^src\/content\/exercices\//, ['exercise.spec.ts', 'index-cards.spec.ts']],
-  [/^src\/content\/(cours|lessons)\//, ['lessons.spec.ts', 'index-cards.spec.ts']],
+  [/^src\/content\/(cours|lessons)\//, ['lessons.spec.ts', 'index-cards.spec.ts', 'video.spec.ts']],
   [/^src\/content\/tutoriel\//, ['tutorial.spec.ts']],
   /* The public agenda. ⚠️ The git collection is GONE — sessions come from the
      database via `scripts/fetch-agenda.mjs`, so the things that can break it
@@ -207,8 +207,22 @@ export const SPEC_MAP = [
   [/^src\/components\/home\//, ['main-menu.spec.ts', 'mobile-app.spec.ts', 'progression.spec.ts']],
   [/^src\/components\/pages\/HomePage\./, ['main-menu.spec.ts', 'mobile-app.spec.ts', 'resume.spec.ts']],
   [/^src\/components\/pages\/(Trap|Exercice)Page\./, ['mobile-fit.spec.ts']],
+  /* Both mount the facade — the two placements the one rule produces. */
+  [/^src\/components\/pages\/(Trap|CourseDetail)Page\./, ['video.spec.ts']],
   [/^src\/components\/pages\/SettingsPage\./, ['theme.spec.ts', 'themes.spec.ts', 'sound.spec.ts']],
-  [/^src\/components\/pages\/LegalPage\./, ['legal.spec.ts']],
+  /* ⚠️ THE LEGAL NOTICE AND THE FACADE ARE ONE FEATURE. `#video` on
+     `/mentions-legales/` is what every facade links to and where the site
+     states what pressing play sends to Google; renaming the section would
+     break a link on every video page and nothing else would notice. */
+  [/^src\/components\/pages\/LegalPage\./, ['legal.spec.ts', 'video.spec.ts']],
+
+  /* The video facade — the component, its stylesheet and the poster pipeline.
+     ⚠️ `pwa.spec.ts` rides along on the poster script: posters are files in
+     `public/`, so they land in the precache manifest and their size is charged
+     to every first visit. */
+  [/^src\/components\/VideoFacade\./, ['video.spec.ts', 'mobile-fit.spec.ts', 'themes.spec.ts']],
+  [/^src\/styles\/video\./, ['video.spec.ts', 'themes.spec.ts', 'feel.spec.ts']],
+  [/^(scripts\/fetch-video-posters\.|public\/video\/)/, ['video.spec.ts', 'pwa.spec.ts']],
   [/^src\/components\/pages\/ProgressPage\./, ['mobile-app.spec.ts', 'resume.spec.ts', 'progression.spec.ts']],
   [/^src\/components\/pages\/(Cours|Exercices|Pieges|TutorialIndex)Page\./, ['exercise.spec.ts', 'tutorial.spec.ts', 'lessons.spec.ts', 'resume.spec.ts', 'index-cards.spec.ts']],
   [/^src\/components\/pages\/(Lesson|CourseDetail|TutorialStep)Page\./, ['lessons.spec.ts', 'tutorial.spec.ts', 'board-pointer.spec.ts']],

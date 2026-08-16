@@ -180,6 +180,31 @@ const { legal } = site;
       <h2>{t('legal.thirdParty.heading')}</h2>
       <p>{t('legal.thirdParty.body')}</p>
     </section>
+
+    {/*
+      ⚠️ THE VIDEO SECTION IS AN OBLIGATION THIS SITE GAVE ITSELF, and it is
+      the reason the facade was worth building rather than dropping an iframe
+      in. Every other page on this site contacts nobody; a video is the ONE
+      place a reader can hand data to Google, so the exchange is described in
+      full — before the click, after the click, and what "nocookie" does and
+      does not mean.
+
+      ⚠️ IT DELIBERATELY UNDERSELLS `youtube-nocookie.com`. The domain name
+      invites the reader to conclude "no data", which is false; saying so
+      ourselves is worth more than the sentence it costs. If that paragraph
+      ever reads like reassurance rather than disclosure, it is wrong.
+
+      ⚠️ `id="video"` IS LINKED FROM EVERY FACADE — `VideoFacade.astro` builds
+      `/mentions-legales/#video`. Renaming it breaks a link on every page that
+      carries a video, and nothing else would notice.
+    */}
+    <section id="video">
+      <h2>{t('legal.video.heading')}</h2>
+      <p>{t('legal.video.before')}</p>
+      <p>{t('legal.video.after')}</p>
+      <p>{t('legal.video.nocookie')}</p>
+      <p>{t('legal.video.choice')}</p>
+    </section>
   </div>
 </BaseLayout>
 

@@ -900,6 +900,61 @@ if (tutorialOrders.length > 0) {
   }
 }
 
+/* ──────────────────────── video posters ────────────────────────── */
+
+/**
+ * ⚠️ A `youtube` ID WITHOUT A COMMITTED POSTER FAILS THE BUILD.
+ *
+ * The facade's whole claim is that it contacts nobody before a click, which is
+ * only true because the still is a file this site serves. The tempting repair
+ * for a missing poster — point the `<img>` at i.ytimg.com — reinstates exactly
+ * the third-party request on page load that Critical Feature 9 forbids, and it
+ * would look completely correct on screen. So the missing file is caught here,
+ * where nobody is tempted by anything.
+ *
+ * The alternative failure is just as bad and quieter: the facade renders with a
+ * broken image, on a page that is otherwise fine, and nothing anywhere reports
+ * it. `CardItem.href` is required for the same reason (Critical Feature 32) —
+ * a control that renders must work.
+ *
+ * ⚠️ THE FILENAMES ARE MIRRORED IN `scripts/fetch-video-posters.mjs` (which
+ * writes them) AND `src/components/VideoFacade.astro` (which requests them).
+ * Three files, one convention; each names the other two, and this is the one
+ * that fails when they disagree.
+ */
+const PUBLIC_VIDEO = new URL('../public/video/', import.meta.url).pathname.replace(
+  /^\/([A-Za-z]:)/,
+  '$1',
+);
+
+for (const collection of ['traps', 'cours']) {
+  for (const { file, data } of readCollection(collection)) {
+    if (!data.youtube) continue;
+
+    /* The schema checks the shape; this catches a URL pasted where an id
+       belongs before it becomes a filename with a slash in it. */
+    if (!/^[A-Za-z0-9_-]{11}$/.test(data.youtube)) {
+      fail(file, `youtube: "${data.youtube}" is not an 11-character video ID`);
+      continue;
+    }
+
+    const missing = [`${data.youtube}.webp`, `${data.youtube}@2x.webp`].filter(
+      (name) => !existsSync(join(PUBLIC_VIDEO, name)),
+    );
+
+    if (missing.length > 0) {
+      fail(
+        file,
+        `youtube "${data.youtube}" has no self-hosted poster (missing ${missing.join(', ')}). ` +
+          'Run `node scripts/fetch-video-posters.mjs` and commit public/video/. ' +
+          'The poster is NEVER hot-linked from i.ytimg.com — see CLAUDE.md → the video facade.',
+      );
+    } else {
+      console.log(`  ok  ${file} — video ${data.youtube}, poster self-hosted`);
+    }
+  }
+}
+
 /* ───────────────────── the manual review queue ─────────────────── */
 
 /**

@@ -1,0 +1,195 @@
+/* ============================================================
+   The video facade — a still, a play button, and no YouTube
+   until the reader asks for it.
+
+   ── Why this is a real stylesheet and not a scoped <style> ───
+   ⚠️ A SCOPED BLOCK DOES NOT REACH AN ELEMENT THE SCRIPT MADE.
+   Astro stamps `data-astro-cid-*` at BUILD time onto the elements
+   a component declares, and compiles `.mcc-video-frame iframe`
+   to `.mcc-video-frame iframe[data-astro-cid-…]`. The iframe is
+   created at RUNTIME, on the click — it carries no such attribute,
+   so every rule would silently miss it and the player would render
+   as an unstyled 300×150 box inside a 16:9 frame.
+
+   Same reason `admin.css` and `family.css` exist. Every rule is
+   prefixed with `.mcc-video` so the cascade is settled by
+   SPECIFICITY rather than by the order a component-imported sheet
+   happens to land in, which is not guaranteed.
+   ============================================================ */
+
+/* ── The block ───────────────────────────────────────────────
+   Capped at the board's own max width and centred on the same
+   axis, so a trap page reads as ONE column: board, then video.
+   A full-bleed video beside a 34rem board looks like two pages
+   stapled together. */
+.mcc-video {
+  max-width: var(--mcc-board-max);
+  margin: 2.5rem auto 0;
+}
+
+.mcc-video-heading {
+  margin: 0 0 0.75rem;
+  color: var(--mcc-text-secondary);
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* ── The frame ───────────────────────────────────────────────
+   ⚠️ THE ASPECT RATIO LIVES HERE, NOT ON THE BUTTON OR THE
+   IFRAME. Both of those come and go; the box must not resize
+   when one is swapped for the other, or pressing play shoves
+   the rest of the page down — a layout shift Lighthouse counts
+   and a reader feels. The frame is 16:9 before the click and
+   16:9 after it. */
+.mcc-video .mcc-video-frame {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border: 1px solid var(--mcc-border-strong);
+  border-radius: var(--radius-card);
+  background-color: var(--mcc-surface-sunken);
+}
+
+/* ── The button ──────────────────────────────────────────────
+   A real <button>, not a div with a click handler: it is in the
+   tab order, it answers Enter AND Space, and a screen reader
+   announces it as a button rather than as a picture. Its
+   accessible name is the .sr-only span plus the video's title —
+   "Play the video: Legal's Mate". */
+.mcc-video .mcc-video-play {
+  display: block;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.mcc-video .mcc-video-poster {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ── The play badge ──────────────────────────────────────────
+   ⚠️ NO TEXT SITS ON THE POSTER, DELIBERATELY. `check-contrast`
+   proves token PAIRS; it cannot see a caption laid over a
+   photograph, so a title band across the still would be exactly
+   the unauditable contrast this codebase has been bitten by
+   before. The title renders BELOW the frame, on the page
+   surface, in an audited pair.
+
+   The badge itself is the one thing over the image, and it is a
+   solid fill rather than a translucent one for the same reason:
+   `--mcc-primary-contrast` on `--mcc-primary` is a pair the
+   auditor has proved, whatever the still behind it looks like. */
+.mcc-video .mcc-video-badge {
+  display: grid;
+  place-items: center;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 4rem;
+  height: 4rem;
+  margin: -2rem 0 0 -2rem;
+  border-radius: 50%;
+  background-color: var(--mcc-primary);
+  color: var(--mcc-primary-contrast);
+  /* A ring in the page colour so the disc reads as a control on a busy
+     still as well as on a plain one. Non-text, and it is the badge's
+     own edge rather than anything carrying meaning. */
+  box-shadow: 0 0 0 3px var(--mcc-surface-page);
+  /* Réponse — it answers a hover or a focus. Never in the 180–250ms gap:
+     the token IS the family. */
+  transition:
+    transform var(--motion-response) var(--ease-response),
+    background-color var(--motion-response) var(--ease-response);
+}
+
+.mcc-video .mcc-video-badge svg {
+  /* Optically centred: a triangle's visual centre sits left of its box. */
+  margin-left: 0.2rem;
+  width: 1.5rem;
+  height: 1.5rem;
+  fill: currentcolor;
+}
+
+.mcc-video .mcc-video-play:hover .mcc-video-badge,
+.mcc-video .mcc-video-play:focus-visible .mcc-video-badge {
+  transform: scale(1.08);
+  background-color: var(--mcc-primary-hover);
+}
+
+.mcc-video .mcc-video-play:active .mcc-video-badge {
+  transform: scale(0.96);
+}
+
+/* The ring is drawn on the button, which fills the frame — so it traces
+   the video, not the badge. `outline-offset` is negative because the
+   frame clips its overflow. */
+.mcc-video .mcc-video-play:focus-visible {
+  outline: 2px solid var(--mcc-focus-ring);
+  outline-offset: -5px;
+}
+
+/* ── The player ──────────────────────────────────────────────
+   Written at RUNTIME into the frame. See the header: this rule
+   could not live in a scoped block and reach it. */
+.mcc-video .mcc-video-frame iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+/* ── The title and the privacy line ──────────────────────────
+   Both below the frame, on the page surface, in pairs
+   `check-contrast.mjs` already proves in all eight theme/mode
+   combinations. Nothing new to audit is the point. */
+.mcc-video .mcc-video-title {
+  margin: 0.75rem 0 0;
+  color: var(--mcc-text-primary);
+  font-size: 1rem;
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+
+.mcc-video .mcc-video-note {
+  margin: 0.35rem 0 0;
+  color: var(--mcc-text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.6;
+  text-wrap: pretty;
+}
+
+/* Underlined, not merely coloured — the link sits inside a sentence, and
+   `link-in-text-block` is a real axe failure this site has shipped before. */
+.mcc-video .mcc-video-note a {
+  color: var(--mcc-link);
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+/* ── Reduced motion ──────────────────────────────────────────
+   The badge's scale is DECORATION — nothing is communicated by
+   it that the colour change and the focus ring do not already
+   say — so it is switched off rather than slowed. The colour
+   change is FEEDBACK and survives, made instant by the token. */
+@media (prefers-reduced-motion: reduce) {
+  .mcc-video .mcc-video-badge {
+    transition-duration: 1ms;
+  }
+
+  .mcc-video .mcc-video-play:hover .mcc-video-badge,
+  .mcc-video .mcc-video-play:focus-visible .mcc-video-badge,
+  .mcc-video .mcc-video-play:active .mcc-video-badge {
+    transform: none;
+  }
+}

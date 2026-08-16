@@ -11,6 +11,107 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+**A video you have to ask for.**
+
+The `youtube` field has sat on `traps` and `cours` since Session 2, validating an
+eleven-character id and rendering nothing. Michael's workshop videos are coming,
+so it renders now — as a **facade**, because the obvious implementation is not
+available to this site.
+
+⚠️ **A plain `<iframe src="https://www.youtube.com/…">` contacts Google on page
+load.** Not on play — on load, for every reader, including the ones who never
+press anything: youtube.com, google.com, googlevideo.com and doubleclick.net,
+plus cookies. On a site for children that is a data-protection question rather
+than a performance one, and Critical Feature 9 already forbade it.
+
+### Added
+
+- **`src/components/VideoFacade.astro`** — a still, a play button and the title.
+  Nothing leaves the reader's device until they press it; then, and only then, an
+  iframe is built pointing at **`youtube-nocookie.com`**. Absent field ⇒ absent
+  component: no empty box, no reserved hole.
+- **`scripts/fetch-video-posters.mjs`** — the still is **self-hosted**, and that
+  is the half of this that is easy to get wrong. `<img src="https://i.ytimg.com/…">`
+  is the same third-party request wearing a different hostname: a Google origin,
+  the reader's IP and Referer, on page load, for everyone. So every poster is a
+  WebP in `public/video/`, at 640w and 1280w, produced by this script and
+  committed — the same "run it by hand, commit the output" shape as
+  `build-icons.mjs`, and deliberately **not** part of `npm run build` (a
+  Cloudflare build must need no image toolchain and no reach to Google).
+  Three sources in order: an author-supplied still under `src/assets/video/`,
+  then YouTube's own thumbnail fetched once here in Node, then a generated
+  **house plate** — the brand mark on the site's dark ground, drawn with its
+  centre clear because the facade's play badge lands there.
+  ⚠️ **The plate is deliberately not green-800**, which was the first choice and
+  is also exactly `--mcc-primary-hover`: the badge went one shade darker on
+  hover and vanished into its own background. A photographic still would never
+  collide like that, so the plate — the one still we control — is what moved.
+- **`/mentions-legales/#video`** — what a click sends, in plain language, in both
+  locales: IP address, device and browser, which video, and the site's address
+  (origin only, not the page). ⚠️ **It deliberately undersells
+  `youtube-nocookie.com`** — the domain name invites the reader to conclude "no
+  data", which is false, and saying so ourselves is worth the sentence it costs.
+  Every facade links to it, before the click, not only after.
+- **`tests/e2e/video.spec.ts`** — 29 tests. Zero third-party requests on a page
+  that HAS a video (`pwa.spec.ts` could only ever prove it on `/`, which has
+  none); the iframe appearing only after a click, on the nocookie domain, with
+  the id from the collection; Enter and Space; focus landing in the player; the
+  facade absent where the field is; the board keeping its size at 360px; and the
+  legal notice still naming the specifics.
+  ⚠️ **The guarantee was watched to FAIL before it was trusted** — pointing the
+  poster at `i.ytimg.com` turned three tests red, which is the only reason to
+  believe the green ones.
+- **A build-time guard.** `check-content.mjs` fails, naming the id and the
+  command, when a `youtube` id has no committed poster. The tempting repair for a
+  missing poster is to hot-link it, which reinstates exactly what the facade
+  exists to prevent and looks perfect on screen.
+
+### Changed
+
+- **`src/styles/video.css` is imported by `global.css`, not by the component** —
+  the same decision as `score.css`, and measured. `VideoFacade` is imported by
+  every trap and course page (twenty documents) and Astro collects a component's
+  CSS from the module *graph*, not from what renders: imported by the component
+  it inlined 1.4 KB into all twenty, eighteen of which carry no video. The
+  precache manifest fell 6363 → 6322 KiB when it moved.
+- ⚠️ **It is not a scoped `<style>` for a second, independent reason:** the player
+  iframe is created by script at click time and carries no `data-astro-cid`
+  attribute, so every scoped rule would silently miss it. Same trap as
+  `admin.css` and `family.css`.
+- **`src/content/traps/legal.json`** carries `"youtube": "TODOvideo00"` — a
+  **placeholder**, so the facade has an exercised path in the specs rather than
+  an untested one. See BACKLOG: replacing it is one id and one script run.
+
+### Placement, and why
+
+The video sits **below** the page's primary content and above the way onward —
+after the replayer on a trap, after the lesson list on a course. One rule, both
+pages.
+
+⚠️ **A 16:9 facade above the board costs ~200px on a phone before the reader
+reaches the position the page is named after** — the same defect M3 measured in
+the exercise control stack, arriving from the other direction. A course page is a
+chooser (Critical Feature 65), and a video above the list puts a video between a
+reader and the lesson they came to start. `video.spec.ts` asserts the ordering at
+390px and 360px rather than trusting it.
+
+### Measured
+
+Lighthouse, mobile, `/pieges/legal/`, three runs each, same page before and after:
+
+| | Perf | A11y | BP | SEO | weight | CLS |
+|---|---|---|---|---|---|---|
+| before | 99 | 100 | 100 | 100 | 161.0 KB | 0 |
+| after (placeholder plate) | 99 | 100 | 100 | 100 | 165.8 KB | 0 |
+| after (real photographic still) | 99 | 100 | 100 | 100 | 187.0 KB | 0 |
+
+⚠️ **The third row is the honest one.** The placeholder is a flat plate and
+compresses to 3 KB, which would understate the real cost; a genuine 1280×720
+thumbnail re-encoded at q78 measures 25.7 KB (640w: 12.0 KB), and that build was
+measured too. No score moves, CLS stays 0 — the frame holds 16:9 before and after
+the click, so pressing play shifts nothing — and the poster is `loading="lazy"`
+below the fold, so it is never the LCP element. Net: **+1 request, the poster.**
+
 ---
 
 ## [0.15.0] — 2026-08-16

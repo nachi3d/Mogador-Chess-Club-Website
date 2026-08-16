@@ -14,6 +14,7 @@ import BaseLayout from '@layouts/BaseLayout.astro';
 import Trail from '@components/nav/Trail.astro';
 import LevelBadge from '@components/LevelBadge.astro';
 import ReplayBoard from '@components/board/ReplayBoard.astro';
+import VideoFacade from '@components/VideoFacade.astro';
 
 interface Props {
   locale: Locale;
@@ -73,6 +74,30 @@ const whatsappShare = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
       moveComments={data.moveComments}
       shapes={data.shapes}
     />
+
+    {/*
+      ⚠️ THE VIDEO GOES BELOW THE BOARD, AND THAT IS THE DECISION.
+
+      Three reasons, in the order they decided it:
+
+      1. THE BOARD IS THE THING BEING TAUGHT WITH. It is interactive, it is
+         in both languages, it works with no network and it costs no reader
+         anything. A 16:9 facade above it is ~200px on a phone before the
+         reader reaches the position the page is named after — the same
+         mistake M3 measured and undid with the control stack, arriving from
+         a different direction. `mobile-fit.spec.ts` pins the board's size at
+         360px; this placement is what keeps it true with a video present.
+
+      2. THE VIDEO IS A SUPPLEMENT, AND ONLY THE READER KNOWS IF THEY WANT IT.
+         Whoever came here for the line gets the line. Whoever wants Michael
+         to walk them through it scrolls once and finds it, under a heading.
+
+      3. IT IS THE ONE PLACEMENT RULE, NOT TWO. `/cours/<slug>/` puts it in
+         the same relation to ITS primary content (the lesson list): after
+         the thing the page is for, before the way onward. One rule, one
+         place to look, and neither page displaces what it exists to show.
+    */}
+    <VideoFacade locale={locale} videoId={data.youtube} title={title} />
 
     {/* ⚠️ THE WAY OUT BELONGS AT THE END TOO (M3).
         The back link at the top of this page is the only one there was, so a

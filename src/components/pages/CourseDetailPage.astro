@@ -14,6 +14,7 @@ import Trail from '@components/nav/Trail.astro';
 import LevelBadge from '@components/LevelBadge.astro';
 import NumberedCard from '@components/NumberedCard.astro';
 import ProgressStates from '@components/ProgressStates.astro';
+import VideoFacade from '@components/VideoFacade.astro';
 
 interface Props {
   locale: Locale;
@@ -68,6 +69,18 @@ function lessonKeys(lesson: CollectionEntry<'lessons'>): string[] {
   </ol>
 
   <ProgressStates />
+
+  {/*
+    ⚠️ SAME RULE AS THE TRAP PAGE: after the page's primary content, before
+    the way onward. Here the primary content is the LESSON LIST — this page
+    is a chooser (Critical Feature 65), and a video above the list would put
+    a 16:9 block between a reader and the lesson they came to start.
+
+    A course intro video is genuinely useful, so it is not buried: it sits
+    under its own heading immediately after the list, above the fold on a
+    desktop and one flick away on a phone.
+  */}
+  <VideoFacade locale={locale} videoId={course.data.youtube} title={title} />
 
   <p class="course-back">
     <a href={localizePath('/cours/', locale)}>← {t('courses.title')}</a>
