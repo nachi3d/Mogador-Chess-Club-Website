@@ -31,6 +31,7 @@ before touching that area, not speculatively.
 | Stockfish, `/jouer/`, the level presets | [`docs/reference/engine.md`](./docs/reference/engine.md) |
 | Adding a dependency, piece set, font or any third-party asset | [`docs/reference/licence.md`](./docs/reference/licence.md) |
 | Any animation, duration, pacing delay or sound | [`docs/reference/motion-sound.md`](./docs/reference/motion-sound.md) |
+| The video facade, a poster, or ANY third-party embed | [`docs/reference/video.md`](./docs/reference/video.md) |
 | Points, ranks, achievements, streaks, index cards | [`docs/reference/progression.md`](./docs/reference/progression.md) |
 | Auth, migrations, RLS, sync, the child-profile model | [`docs/reference/supabase.md`](./docs/reference/supabase.md) |
 | Writing or debugging a spec; explaining a browser-specific failure | [`docs/reference/testing.md`](./docs/reference/testing.md) |
@@ -306,6 +307,7 @@ it. Tags said one thing and the manifest said another.
 63. **The bar's active section is correct at every depth**, including a lesson inside a course inside Apprendre. A leaf that lights nothing is the defect the trail exists beside.
 64. **Going UP and going BACK IN A SEQUENCE are different controls and both survive.** Prev/next inside a course or the tutorial is not a way out of it.
 65. **A section landing is a chooser, not a menu.** Every card carries a name, one line of what is behind it, and the reader's own state where any exists — otherwise it is a second menu after the bar and does not earn the tap it costs.
+66. **A video is a FACADE, and its POSTER IS SELF-HOSTED.** No iframe before a click; the still is a committed file in `public/video/`, never `i.ytimg.com`. ⚠️ **The poster is the half that gets lost** — hot-linking it removes a build step, looks identical on screen, and breaks Critical Feature 9 by a hostname nobody thinks of as YouTube. See the section below.
 
 ---
 
@@ -1144,6 +1146,60 @@ decisions and their reasoning, the offline queue, the anti-cheat position and wh
 a real fix would need, the parent/child model in full, the RLS/GRANT audit, the
 env-var table and both `.env.test` traps. **Read it before any migration or auth
 work.**
+
+---
+
+## ⚠️ VIDEO — A FACADE, AND A SELF-HOSTED POSTER (Critical Feature 66)
+
+The `youtube` field on `traps` and `cours` renders `VideoFacade.astro`: a still,
+a play button and the title. Nothing is requested until the reader presses it;
+then an iframe is built pointing at **`youtube-nocookie.com`**.
+
+- ⚠️ **A PLAIN IFRAME CONTACTS GOOGLE ON PAGE LOAD, NOT ON PLAY** — youtube.com,
+  google.com, googlevideo.com, plus cookies, for every reader including the ones
+  who never press anything. That is Critical Feature 9, on a site for children,
+  against a privacy notice that says the site contacts nobody.
+- ⚠️⚠️ **AND SO DOES `<img src="https://i.ytimg.com/…">`.** It is a Google
+  origin carrying the reader's IP and Referer on page load — **the same
+  violation wearing a hostname nobody thinks of as YouTube**, and *more*
+  tempting than the iframe because it deletes a build step. Every poster is a
+  committed file in `public/video/`, written by
+  `scripts/fetch-video-posters.mjs`. ⚠️ **`check-content.mjs` FAILS THE BUILD**
+  when an id has no poster, because the obvious repair for a missing file is the
+  hot-link.
+- ⚠️ **The zero-request spec filters on `hostname !== localhost`, NEVER on
+  `includes('youtube')`.** A youtube-only filter passes a hot-linked poster
+  cleanly — which is the exact case it exists to catch.
+- ⚠️ **NO `preconnect` OR `dns-prefetch` FOR YOUTUBE, EVER.** It looks like a
+  free performance win and it resolves DNS and completes a TLS handshake with
+  Google before the reader has decided anything.
+- ⚠️ **THE POSTER SCRIPT IS RUN BY HAND, LIKE `build-icons.mjs`** — never part
+  of `npm run build`. A Cloudflare build must need no image toolchain and no
+  reach to Google. ⚠️ **A thumbnail is a frame of the video**, so fetching one
+  from YouTube is for the club's OWN videos; anybody else's takes an
+  author-supplied still under `src/assets/video/`.
+- ⚠️ **PLACEMENT IS ONE RULE, BOTH PAGES: BELOW the page's primary content,
+  above the way onward.** After the replayer on a trap, after the lesson list on
+  a course. A 16:9 facade above the board costs ~200px on a phone before the
+  reader reaches the position the page is named after — the same defect M3
+  measured in the control stack, from the other direction. Asserted at 390px and
+  360px, not trusted.
+- ⚠️ **`src/styles/video.css` IS IMPORTED BY `global.css`, AND IS NOT SCOPED.**
+  Two independent reasons: a scoped rule cannot reach the script-created iframe
+  (no `data-astro-cid`), and the component is on twenty pages so a scoped block
+  inlines into all of them. Same two lessons as `admin.css` and `score.css`.
+- ⚠️ **`/mentions-legales/#video` STATES WHAT A CLICK SENDS, and deliberately
+  UNDERSELLS `youtube-nocookie.com`** — the domain name invites "no data", which
+  is false. Every facade links to it **before** the click. If that section ever
+  reads like reassurance rather than disclosure, it is wrong.
+- ⚠️ **`traps/legal.json` carries `"youtube": "TODOvideo00"` — A PLACEHOLDER,
+  NOT A VIDEO.** It exists so the facade has an exercised path in the specs.
+  JSON takes no comments, so this line and BACKLOG are where that is recorded.
+
+**➡️ [`docs/reference/video.md`](./docs/reference/video.md)** — the poster
+pipeline and its three sources, the measured Lighthouse before/after, the
+accessibility decisions, the house plate, and the fixture that was watched to
+fail. **Read it before touching the facade or adding any third-party embed.**
 
 ---
 
