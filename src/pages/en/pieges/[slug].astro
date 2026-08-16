@@ -4,9 +4,12 @@
 import { getCollection } from 'astro:content';
 import type { GetStaticPaths } from 'astro';
 import TrapPage from '@components/pages/TrapPage.astro';
+import { isRoutable } from '@config/fixtures';
 
 export const getStaticPaths = (async () => {
-  const traps = await getCollection('traps', ({ data }) => !data.draft);
+  // ⚠️ `isRoutable`, not `!draft`: a fixture is a page only in a fixtures
+  // build, and it is never listed in ANY build. See src/config/fixtures.ts.
+  const traps = await getCollection('traps', ({ data }) => isRoutable(data));
   // Slugs are NOT translated — /en/pieges/legal/ mirrors /pieges/legal/ exactly,
   // which is what lets the language switcher stay a pure prefix swap.
   return traps.map((entry) => ({ params: { slug: entry.data.slug }, props: { entry } }));

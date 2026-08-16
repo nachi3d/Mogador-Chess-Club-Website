@@ -223,8 +223,20 @@ export const SPEC_MAP = [
   [/^src\/components\/VideoFacade\./, ['video.spec.ts', 'mobile-fit.spec.ts', 'themes.spec.ts']],
   [/^src\/styles\/video\./, ['video.spec.ts', 'themes.spec.ts', 'feel.spec.ts']],
   [/^(scripts\/fetch-video-posters\.|public\/video\/)/, ['video.spec.ts', 'pwa.spec.ts']],
+  /* ⚠️ THE FIXTURE GATE. `isListed` keeps test content off every index and
+     every count, so a change here can put a fixture on `/pieges/` or make the
+     trap count on `/apprendre/` one too high — neither of which looks wrong on
+     the page. `index-cards.spec.ts` is the one that would catch a card with
+     nowhere to go; `video.spec.ts` owns the reachability assertions. */
+  [
+    /^(src\/config\/fixtures\.|src\/content\/traps\/fixture-)/,
+    ['video.spec.ts', 'index-cards.spec.ts', 'lessons.spec.ts', 'smoke.spec.ts'],
+  ],
   [/^src\/components\/pages\/ProgressPage\./, ['mobile-app.spec.ts', 'resume.spec.ts', 'progression.spec.ts']],
   [/^src\/components\/pages\/(Cours|Exercices|Pieges|TutorialIndex)Page\./, ['exercise.spec.ts', 'tutorial.spec.ts', 'lessons.spec.ts', 'resume.spec.ts', 'index-cards.spec.ts']],
+  /* Both consume the fixture predicates — the index draws the cards and the hub
+     prints the count, and a fixture must appear in neither. */
+  [/^src\/components\/pages\/(Pieges|LearnHub)Page\./, ['video.spec.ts']],
   [/^src\/components\/pages\/(Lesson|CourseDetail|TutorialStep)Page\./, ['lessons.spec.ts', 'tutorial.spec.ts', 'board-pointer.spec.ts']],
   [/^src\/components\//, ['smoke.spec.ts']],
 

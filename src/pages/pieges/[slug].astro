@@ -4,9 +4,12 @@
 import { getCollection } from 'astro:content';
 import type { GetStaticPaths } from 'astro';
 import TrapPage from '@components/pages/TrapPage.astro';
+import { isRoutable } from '@config/fixtures';
 
 export const getStaticPaths = (async () => {
-  const traps = await getCollection('traps', ({ data }) => !data.draft);
+  // ⚠️ `isRoutable`, not `!draft`: a fixture is a page only in a fixtures
+  // build, and it is never listed in ANY build. See src/config/fixtures.ts.
+  const traps = await getCollection('traps', ({ data }) => isRoutable(data));
   // The URL slug comes from the `slug` FIELD, not the filename, so renaming a
   // file can never silently move a published URL.
   return traps.map((entry) => ({ params: { slug: entry.data.slug }, props: { entry } }));

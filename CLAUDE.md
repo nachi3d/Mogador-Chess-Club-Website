@@ -1192,9 +1192,39 @@ then an iframe is built pointing at **`youtube-nocookie.com`**.
   UNDERSELLS `youtube-nocookie.com`** — the domain name invites "no data", which
   is false. Every facade links to it **before** the click. If that section ever
   reads like reassurance rather than disclosure, it is wrong.
-- ⚠️ **`traps/legal.json` carries `"youtube": "TODOvideo00"` — A PLACEHOLDER,
-  NOT A VIDEO.** It exists so the facade has an exercised path in the specs.
-  JSON takes no comments, so this line and BACKLOG are where that is recorded.
+- ⚠️⚠️ **NO PUBLISHED CONTENT CARRIES A `youtube` ID TODAY.** The facade's
+  exercised path is a **FIXTURE**, not live content — see the rule below. The
+  first version shipped a placeholder id on `/pieges/legal/`, which handed a
+  reader "video unavailable" on a real trap; **do not put a placeholder back on
+  published content to give a spec something to drive.**
+
+### ⚠️ TEST FIXTURES — ROUTABLE, NEVER LISTED, NEVER IN PRODUCTION
+
+`src/config/fixtures.ts`. A fixture is content that exists **only** so a spec
+has something real to drive. Today that is
+`src/content/traps/fixture-video-facade.json`, and the mechanism generalises.
+
+- ⚠️ **TWO PREDICATES, AND THE SPLIT IS THE WHOLE DESIGN.** `isRoutable()`
+  decides whether a page is emitted (fixtures: only when `PUBLIC_FIXTURES=true`);
+  `isListed()` decides whether a reader can find it (fixtures: **never, in any
+  build** — the flag is not even consulted). Collapsing them puts the fixture on
+  `/pieges/` in every test build, where `index-cards.spec.ts` draws a card for it
+  and `/apprendre/`'s trap count goes one too high.
+- ⚠️ **`fixture` IS A SEPARATE FIELD FROM `draft`.** A draft is content being
+  written that will one day be published; a fixture must never be. Overloading
+  `draft` makes those two the same edit.
+- ⚠️ **THE DEFAULT IS OFF, BECAUSE THE DEFAULT MUST BE WHAT PRODUCTION SHIPS** —
+  the same discipline as `PUBLIC_AUTH_ENABLED`, for the same recorded reason.
+  **`playwright.config.ts` sets `PUBLIC_FIXTURES: 'true'` for the build it
+  tests**, hardcoded and in both auth shapes, so every run — branch and matrix —
+  covers the facade and **no third matrix shape is added**.
+- ⚠️ **NO LOCAL SPEC CAN PROVE THE OFF SHAPE**, because the build under test is
+  by construction the ON one. **`npm run smoke:prod` fails if a fixture route
+  answers anything but 404 on the live site**, and that is on the promotion
+  checklist. A 200 there means a production build ran with the variable set.
+- ⚠️ **`PUBLIC_FIXTURES` MUST NEVER GO IN `.env.local`** — same rule as
+  `PUBLIC_AUTH_ENABLED`. To see a fixture by hand:
+  `PUBLIC_FIXTURES=true npm run demo`.
 
 **➡️ [`docs/reference/video.md`](./docs/reference/video.md)** — the poster
 pipeline and its three sources, the measured Lighthouse before/after, the
@@ -1629,6 +1659,9 @@ Run `npm run demo`, which prints its path, and work down it. The release gate is
 □ ⚠️ /agenda/ on the live site matches the `sessions` table. `smoke:prod` now
   fails on a blank agenda and prints the count, but it cannot know the count is
   RIGHT — compare it against the table.
+□ ⚠️ NO TEST FIXTURE IS LIVE — `smoke:prod` asserts the fixture routes 404. A
+  200 means the build ran with `PUBLIC_FIXTURES=true`. **No local spec can
+  check this**: the build under test always has fixtures ON, by design.
 □ ⚠️⚠️ AFTER DEPLOYING: `npm run verify:deploy` — green. This is the check that
   v0.13.0 did not have: it compares the live site's CONTENT-HASHED asset names
   against your `dist/`, so it answers "is the live site running the tree I just

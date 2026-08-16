@@ -21,17 +21,41 @@ import AxeBuilder from '@axe-core/playwright';
  * is a failure, named in the message.
  * ═════════════════════════════════════════════════════════════════════════
  *
- * ⚠️ WHICH PAGE. `/pieges/legal/` is the one content entry carrying a
- * `youtube` id (`TODOvideo00`, a placeholder until Michael's video lands). The
- * corpus is asserted before anything is concluded from it — a suite that
- * silently found no facade would report five green tests about nothing, which
- * is the vacuous-pass failure this repository has shipped before.
+ * ⚠️ WHICH PAGE, AND WHY IT IS NOT REAL CONTENT.
+ *
+ * The facade first shipped with a placeholder `youtube` id on `/pieges/legal/`
+ * — a real trap, on the real index, whose play button handed a reader
+ * YouTube's "video unavailable". That bought this file a page to drive at the
+ * cost of a dead video on live content, which is the wrong way round: the test
+ * harness's needs must not reach the reader.
+ *
+ * So the page below is a FIXTURE: `src/content/traps/fixture-video-facade.json`
+ * carries `fixture: true`, which makes it
+ *
+ *   - emitted ONLY when `PUBLIC_FIXTURES=true` — set by `playwright.config.ts`
+ *     for the build it tests, and by nothing else, so it is in every Playwright
+ *     run and in no production build;
+ *   - absent from every index and every count in EVERY build, including this
+ *     one. Asserted below, because "routable" and "reachable" are different
+ *     claims and only the second one is what protects a reader.
+ *
+ * ⚠️ IT IS A FULL TRAP PAGE, NOT A BARE COMPONENT HARNESS. That is what keeps
+ * the integration in scope: the field travelling from the collection through
+ * `TrapPage.astro`, and the facade landing BELOW the board rather than above
+ * it. A fixture route that mounted `VideoFacade` directly would test the
+ * component and quietly stop testing the placement.
+ *
+ * The corpus is asserted before anything is concluded from it — a suite that
+ * silently found no facade would report green tests about nothing, which is the
+ * vacuous-pass failure this repository has shipped before.
  */
 
-const WITH_VIDEO = '/pieges/legal/';
-const WITH_VIDEO_EN = '/en/pieges/legal/';
+const WITH_VIDEO = '/pieges/fixture-video-facade/';
+const WITH_VIDEO_EN = '/en/pieges/fixture-video-facade/';
 /** Same collection, same template, no `youtube` field. The control. */
 const WITHOUT_VIDEO = '/pieges/fegatello/';
+/** Real, published content — must carry no video and no fixture. */
+const REAL_TRAP = '/pieges/legal/';
 
 const NOCOOKIE = 'https://www.youtube-nocookie.com/embed/';
 
@@ -70,12 +94,14 @@ const playButton = (page: Page) => page.locator('[data-video-play]');
 
 /* ═══ The corpus ════════════════════════════════════════════════════════ */
 
-test('the fixture is real — a trap carries a video and another does not', async ({ page }) => {
+test('the fixture is real — it renders a facade, and the control does not', async ({ page }) => {
   await page.goto(WITH_VIDEO);
   await expect(
     facade(page),
-    `no facade on ${WITH_VIDEO} — every test in this file would pass vacuously. ` +
-      'Has the `youtube` field been removed from src/content/traps/legal.json?',
+    `no facade on ${WITH_VIDEO} — every test in this file would pass vacuously.\n` +
+      'Either src/content/traps/fixture-video-facade.json lost its `youtube` field, ' +
+      'or this build was made without PUBLIC_FIXTURES=true (playwright.config.ts ' +
+      'sets it for the build it tests — see src/config/fixtures.ts).',
   ).toHaveCount(1);
 
   await page.goto(WITHOUT_VIDEO);
@@ -83,6 +109,103 @@ test('the fixture is real — a trap carries a video and another does not', asyn
     facade(page),
     `${WITHOUT_VIDEO} has grown a video — pick another trap for the control case`,
   ).toHaveCount(0);
+});
+
+/* ═══ The fixture is routable, and NOT reachable ════════════════════════ */
+
+/**
+ * ⚠️ "IT EXISTS" AND "A READER CAN GET TO IT" ARE DIFFERENT CLAIMS, and only
+ * the second one protects anybody. The fixture page is deliberately present in
+ * this build; what must hold even here is that nothing points at it.
+ *
+ * This is the same shape of defect as the one that made "Ajouter un élève"
+ * unreachable for two releases with its RLS spec fully green — asserted from
+ * the other direction.
+ */
+test.describe('the fixture is invisible to readers even where it exists', () => {
+  /**
+   * ⚠️ COUNT THE CARDS, NOT EVERY `/pieges/` LINK ON THE PAGE. The header, the
+   * bottom bar, the trail and the canonical/hreflang tags all point at
+   * `/pieges/` too — an early draft of this test counted nine on an index of
+   * seven traps and failed for a reason that had nothing to do with fixtures.
+   * A trap CARD is the only link with a slug segment after it.
+   */
+  const TRAP_CARD = /^\/(en\/)?pieges\/[a-z0-9-]+\/$/;
+
+  async function trapCardHrefs(page: Page, index: string): Promise<string[]> {
+    await page.goto(index);
+    const all = await page
+      .locator('a[href]')
+      .evaluateAll((els) => els.map((el) => el.getAttribute('href') ?? ''));
+    return all.filter((h) => TRAP_CARD.test(h));
+  }
+
+  test('it is not a card on the traps index, in either locale', async ({ page }) => {
+    for (const index of ['/pieges/', '/en/pieges/']) {
+      const hrefs = await trapCardHrefs(page, index);
+      expect(
+        hrefs.filter((h) => h.includes('fixture')),
+        `the fixture is linked from ${index} — a reader can reach a test page`,
+      ).toEqual([]);
+      /* Non-empty corpus: an index that drew no cards would pass the above
+         for entirely the wrong reason. */
+      expect(hrefs.length, `${index} drew no trap cards at all`).toBeGreaterThan(3);
+    }
+  });
+
+  test('nothing anywhere on the reader-facing site links it', async ({ page }) => {
+    for (const path of ['/', '/apprendre/', '/pieges/', '/cours/', '/exercices/']) {
+      await page.goto(path);
+      const linked = await page
+        .locator('a[href]')
+        .evaluateAll((els) => els.map((el) => el.getAttribute('href') ?? ''));
+      expect(
+        linked.filter((h) => h.includes('fixture')),
+        `${path} links the fixture page`,
+      ).toEqual([]);
+    }
+  });
+
+  test('the trap count on /apprendre/ does not include it', async ({ page }) => {
+    /* ⚠️ `LearnHubPage` prints "N pièges à découvrir" from its own
+       `getCollection` call, which is a SECOND place the fixture could leak —
+       and one where it would make the number exactly one too high while
+       nothing on the page looked wrong. So the two are compared rather than
+       either being trusted. */
+    const cards = (await trapCardHrefs(page, '/pieges/')).length;
+    expect(cards, 'no trap cards to count').toBeGreaterThan(3);
+
+    await page.goto('/apprendre/');
+    /* ⚠️ SCOPED TO THE TRAPS CARD, not the whole page. An earlier draft read
+       `main` and asserted the page did not contain the string "8" — which is a
+       digit, and appears in step counts and elsewhere. A negative assertion on
+       a bare numeral is noise, not a check. */
+    const card = page.locator('.hub-card', { has: page.locator('a[href="/pieges/"]') });
+    await expect(card, 'no hub card links /pieges/ — has the hub changed shape?').toHaveCount(1);
+
+    const state = (await card.innerText()).trim();
+    expect(
+      state,
+      `the traps hub card does not print ${cards} — is the fixture counted? Card reads: ${state}`,
+    ).toContain(String(cards));
+    expect(
+      state,
+      `the traps hub card prints ${cards + 1} — one too many, which is the fixture`,
+    ).not.toContain(String(cards + 1));
+  });
+
+  test('real published content carries no video and no fixture flag', async ({ page }) => {
+    /* ⚠️ THE REGRESSION THIS EXISTS FOR: the placeholder id going back onto
+       `/pieges/legal/` because it is convenient. If a real video legitimately
+       lands there one day, this assertion is what makes that a deliberate
+       edit rather than a silent one. */
+    await page.goto(REAL_TRAP);
+    await expect(
+      facade(page),
+      `${REAL_TRAP} carries a video. If that is Michael's real video, update ` +
+        'this test deliberately; if it is a placeholder, take it off live content.',
+    ).toHaveCount(0);
+  });
 });
 
 /* ═══ Critical Feature 9 ════════════════════════════════════════════════ */
@@ -152,7 +275,7 @@ test.describe('after the click', () => {
       'www.youtube.com',
     );
     expect(src, 'the embed does not name the video from the content collection').toContain(
-      'TODOvideo00',
+      'FIXTUREvid0',
     );
 
     /* The frame carries its own accessible name — an unnamed iframe is
@@ -224,9 +347,14 @@ test.describe('keyboard', () => {
 
     const name = await button.evaluate((el) => (el as HTMLElement).innerText.trim());
     /* `innerText` skips the aria-hidden badge; what is left is the sr-only
-       label, which must name the video rather than say "play". */
-    expect(name, `the button announces "${name}" — it must name the video`).toContain(
-      'Le mat de Légal',
+       label, which must name the video rather than say "play". Compared
+       against the page's own <h1> so the assertion cannot drift when the
+       fixture's title changes — and so it keeps testing the rule (the button
+       is named after what the video is about) rather than one string. */
+    const heading = (await page.locator('h1').first().innerText()).trim();
+    expect(name, `the button announces "${name}" — it must name the video`).toContain(heading);
+    expect(name, 'the button says only "play" — it does not name the video').not.toBe(
+      name.replace(heading, ''),
     );
   });
 
