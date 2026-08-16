@@ -1,0 +1,28 @@
+{
+  "title_fr": "Mat en 1 — les deux fous",
+  "title_en": "Mate in 1 — the two bishops",
+  "slug": "mat-des-deux-fous",
+  "fen": "2kb4/pp6/8/8/4BB2/8/8/6K1 w - - 0 1",
+  "solution": [
+    "e4f5"
+  ],
+  "opponentReplies": [],
+  "onlyMove": true,
+  "hint_fr": "Un fou tient déjà la case de fuite du roi. L'autre doit venir faire échec sur la deuxième diagonale — et une seule case marche.",
+  "hint_en": "One bishop already covers the king's escape square. The other has to give check on the second diagonal — and only one square does it.",
+  "level": "debutant",
+  "themes": [
+    "mat",
+    "fous",
+    "diagonale"
+  ],
+  "claims": [
+    {
+      "kind": "line",
+      "moves": [
+        "e4f5"
+      ],
+      "ends": "mate"
+    }
+  ]
+}

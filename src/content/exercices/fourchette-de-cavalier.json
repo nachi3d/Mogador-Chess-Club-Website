@@ -3,11 +3,33 @@
   "title_en": "The fork that wins the queen",
   "slug": "fourchette-de-cavalier",
   "fen": "6k1/pp1q1p1p/8/3NP3/8/8/5PPP/6K1 w - - 0 1",
-  "solution": ["d5f6", "f6d7"],
-  "opponentReplies": ["g8h8"],
+  "solution": [
+    "d5f6",
+    "f6d7"
+  ],
+  "opponentReplies": [
+    "g8h8"
+  ],
   "onlyMove": false,
   "hint_fr": "Cherchez la case d'où le cavalier attaque le roi et la dame en même temps. Vérifiez qu'il y est défendu avant de sauter.",
   "hint_en": "Look for the square where the knight attacks the king and the queen at once. Check that it is defended there before you jump.",
   "level": "debutant",
-  "themes": ["fourchette", "cavalier", "tactique"]
+  "themes": [
+    "fourchette",
+    "cavalier",
+    "tactique"
+  ],
+  "claims": [
+    {
+      "kind": "fork",
+      "after": [
+        "d5f6"
+      ],
+      "from": "f6",
+      "targets": [
+        "g8",
+        "d7"
+      ]
+    }
+  ]
 }

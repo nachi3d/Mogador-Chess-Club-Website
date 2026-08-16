@@ -1,0 +1,34 @@
+{
+  "title_fr": "L'enfilade : le roi devant, la dame derrière",
+  "title_en": "The skewer: king in front, queen behind",
+  "slug": "enfilade-roi-puis-dame",
+  "fen": "8/8/7q/8/7k/8/8/K2R4 w - - 0 1",
+  "solution": [
+    "d1h1",
+    "h1h6"
+  ],
+  "opponentReplies": [
+    "h4g5"
+  ],
+  "onlyMove": false,
+  "hint_fr": "Le roi et la dame sont sur la même colonne. Faites échec au roi : il devra bouger, et il ne peut pas emmener la dame avec lui.",
+  "hint_en": "The king and the queen stand on the same file. Check the king: he has to move, and he cannot take the queen with him.",
+  "level": "intermediaire",
+  "themes": [
+    "enfilade",
+    "tour",
+    "tactique"
+  ],
+  "claims": [
+    {
+      "kind": "line",
+      "moves": [
+        "d1h1",
+        "h4g5",
+        "h1h6"
+      ],
+      "ends": "quiet",
+      "captures": "q"
+    }
+  ]
+}

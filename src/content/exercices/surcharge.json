@@ -1,0 +1,34 @@
+{
+  "title_fr": "La surcharge",
+  "title_en": "The overloaded defender",
+  "slug": "surcharge",
+  "fen": "3r2k1/5ppp/8/1R1b4/8/8/6PP/4R1K1 w - - 0 1",
+  "solution": [
+    "b5d5",
+    "e1e8"
+  ],
+  "opponentReplies": [
+    "d8d5"
+  ],
+  "onlyMove": false,
+  "hint_fr": "La tour noire a deux métiers : défendre le fou et garder la dernière rangée. Donnez-lui les deux à faire en même temps.",
+  "hint_en": "Black's rook has two jobs: defend the bishop and guard the back rank. Ask it to do both at once.",
+  "level": "intermediaire",
+  "themes": [
+    "surcharge",
+    "mat",
+    "couloir",
+    "tour"
+  ],
+  "claims": [
+    {
+      "kind": "line",
+      "moves": [
+        "b5d5",
+        "d8d5",
+        "e1e8"
+      ],
+      "ends": "mate"
+    }
+  ]
+}

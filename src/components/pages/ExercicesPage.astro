@@ -1,7 +1,7 @@
 ---
 import { getCollection } from 'astro:content';
 import type { Locale } from '@config/site';
-import { exercisePath, localizePath } from '@i18n/paths';
+import { exercisePath, exercisesPath, localizePath } from '@i18n/paths';
 import { useTranslations } from '@i18n/ui';
 import { exerciseJourney } from '@lib/journey';
 import BaseLayout from '@layouts/BaseLayout.astro';
@@ -10,17 +10,36 @@ import Trail from '@components/nav/Trail.astro';
 import CardGrid, { type CardItem } from '@components/CardGrid.astro';
 import ResumeResolver from '@components/progress/ResumeResolver.astro';
 import ResumeCard from '@components/progress/ResumeCard.astro';
+import ExerciseFilters from '@components/ExerciseFilters.astro';
+import { matches, sortExercises, type ExerciseFilter } from '@lib/exercise-filters';
 
 interface Props {
   locale: Locale;
+  /**
+   * ⚠️ THE FILTERED PAGES ARE THIS PAGE, not a copy of it.
+   *
+   * `/exercices/niveau/debutant/` and `/exercices/` differ by which cards they
+   * draw and one heading. Two components would be two card layouts, two resume
+   * cards and two solved-tick behaviours a month from now — the exact drift
+   * that produced three `.chip` definitions before M3.
+   */
+  filter?: ExerciseFilter | undefined;
 }
 
-const { locale } = Astro.props;
+const { locale, filter } = Astro.props;
 const t = useTranslations(locale);
 
-const entries = (await getCollection('exercices', ({ data }) => !data.draft)).sort((a, b) =>
-  a.data.slug.localeCompare(b.data.slug),
-);
+const all = sortExercises(await getCollection('exercices', ({ data }) => !data.draft));
+const entries = filter ? all.filter((entry) => matches(entry, filter)) : all;
+
+/* A filtered page names its filter; the index keeps its own title. Levels are
+   translated, themes are the author's own tags and are shown as written. */
+const filterLabel = !filter
+  ? ''
+  : filter.kind === 'niveau'
+    ? t(`level.${filter.value}` as 'level.debutant')
+    : filter.value;
+const pageTitle = filter ? `${t('exercises.title')} — ${filterLabel}` : t('exercises.title');
 
 /**
  * ⚠️ THE JOURNEY IS BUILT IN THE SAME ORDER THIS PAGE LISTS THE CARDS, and it
@@ -28,6 +47,11 @@ const entries = (await getCollection('exercices', ({ data }) => !data.draft)).so
  * looking at would send them to a card further down the page than the one they
  * expected. `exerciseJourney()` sorts by slug, exactly as the line above does.
  */
+/* ⚠️ THE JOURNEY IS ALWAYS THE WHOLE COLLECTION, never the filtered slice.
+   "Reprendre" means "the next thing you have not solved on this site", not
+   "the next one inside the filter you happen to be looking at" — a reader who
+   filtered by theme and then resumed would be sent somewhere the page never
+   showed them. So the resume card is rendered on the index only. */
 const journey = await exerciseJourney(locale);
 
 const items: CardItem[] = entries.map(({ data }) => ({
@@ -43,17 +67,27 @@ const items: CardItem[] = entries.map(({ data }) => ({
 }));
 ---
 
-<BaseLayout locale={locale} title={t('exercises.title')} description={t('exercises.intro')} reveals>
-  <Trail locale={locale} href={localizePath('/apprendre/', locale)} label={t('learn.title')} />
-  <PageIntro title={t('exercises.title')} intro={t('exercises.intro')} />
+<BaseLayout locale={locale} title={pageTitle} description={t('exercises.intro')} reveals>
+  {/* ⚠️ A FILTERED PAGE'S PARENT IS THE INDEX, NOT THE SECTION (CF62). The
+      trail names where you actually came from, so it differs by variant. */}
+  {
+    filter ? (
+      <Trail locale={locale} href={exercisesPath(locale)} label={t('exercises.title')} />
+    ) : (
+      <Trail locale={locale} href={localizePath('/apprendre/', locale)} label={t('learn.title')} />
+    )
+  }
+  <PageIntro title={pageTitle} intro={t('exercises.intro')} />
   {/* NOTE: no board is mounted here. The single Chessground island is
       client:visible and belongs on the exercise DETAIL route, never on an
       index — see the architecture rule in CLAUDE.md. */}
-  <ResumeCard id="exercices" locale={locale} testId="resume-exercices" />
+  {!filter && <ResumeCard id="exercices" locale={locale} testId="resume-exercices" />}
+
+  <ExerciseFilters locale={locale} entries={all} active={filter} />
 
   <CardGrid locale={locale} items={items} emptyMessage={t('agenda.empty')} />
 
-  <ResumeResolver journeys={{ exercices: journey }} />
+  {!filter && <ResumeResolver journeys={{ exercices: journey }} />}
 </BaseLayout>
 
 {/*

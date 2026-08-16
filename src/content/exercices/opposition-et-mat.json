@@ -3,11 +3,31 @@
   "title_en": "Opposition, then mate",
   "slug": "opposition-et-mat",
   "fen": "7k/8/5K2/8/8/8/8/R7 w - - 0 1",
-  "solution": ["f6g6", "a1a8"],
-  "opponentReplies": ["h8g8"],
+  "solution": [
+    "f6g6",
+    "a1a8"
+  ],
+  "opponentReplies": [
+    "h8g8"
+  ],
   "onlyMove": false,
   "hint_fr": "La tour ne mate pas encore : le roi noir a deux cases. Avancez d'abord votre roi pour ne lui en laisser qu'une, puis matez.",
   "hint_en": "The rook cannot mate yet: the black king has two squares. Walk your king up to leave it only one, then mate.",
   "level": "debutant",
-  "themes": ["mat", "finale", "opposition"]
+  "themes": [
+    "mat",
+    "finale",
+    "opposition"
+  ],
+  "claims": [
+    {
+      "kind": "line",
+      "moves": [
+        "f6g6",
+        "h8g8",
+        "a1a8"
+      ],
+      "ends": "mate"
+    }
+  ]
 }

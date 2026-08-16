@@ -1,0 +1,28 @@
+{
+  "title_fr": "La découverte",
+  "title_en": "The discovered attack",
+  "slug": "decouverte-simple",
+  "fen": "3k4/ppp5/8/5q2/3N4/8/6PP/3R2K1 w - - 0 1",
+  "solution": [
+    "d4f5"
+  ],
+  "opponentReplies": [],
+  "onlyMove": false,
+  "hint_fr": "Votre tour et le roi noir sont sur la même colonne, et une seule pièce les sépare : la vôtre. Où doit-elle aller pour que son départ serve à quelque chose ?",
+  "hint_en": "Your rook and the black king are on the same file, with just one piece between them — yours. Where should it go so that leaving is worth something?",
+  "level": "intermediaire",
+  "themes": [
+    "decouverte",
+    "cavalier",
+    "tour",
+    "tactique"
+  ],
+  "claims": [
+    {
+      "kind": "discovery",
+      "screen": "d4",
+      "by": "d1",
+      "target": "d8"
+    }
+  ]
+}

@@ -567,6 +567,15 @@ Astro 7 deltas to remember: config lives at `src/content.config.ts`, each collec
 | `cours` | `title_fr/_en`, `slug`, `level`, `order`, `summary_fr/_en` |
 | `exercices` | `title_fr/_en`, `slug`, `fen`, `solution[]` (UCI), `opponentReplies[]` (UCI), `onlyMove`, `hint_fr/_en`, `level`, `themes[]` |
 
+⚠️ **An exercise's `claims[]` and `forcedReplies` are PROVED BY THE BUILD.**
+`claims[]` is the same union the lesson boards use — a `ply` is forbidden,
+because an exercise carries its own FEN. `forcedReplies: true` asserts each
+stored reply is Black's **only** legal move; without it a mate-in-2 whose first
+move is not forcing "works" against the reply we stored and nothing on screen
+ever looks wrong. ⚠️ **Build every position against chess.js, never by hand** —
+batch 5's workbench caught three positions where the side NOT to move was
+already in check and three "mate in 2"s that were mate in 1.
+
 `level` is `debutant | intermediaire | avance` everywhere. Every collection has `draft: boolean` (default false) so an entry can be parked without deleting it.
 
 ---
@@ -623,6 +632,7 @@ FR at the root, EN under `/en/...`. **Route segments are not translated** (`/en/
 | `/pieges/` | `/en/pieges/` | Trap index (cards, ECO + theme chips) — **no board mounted here** |
 | `/pieges/[slug]/` | `/en/pieges/[slug]/` | Trap detail — the replayer, commentary, outbound WhatsApp share |
 | `/exercices/` | `/en/exercices/` | Exercise index — **no board mounted here**; solved ticks from `localStorage` |
+| `/exercices/niveau/[niveau]/`<br>`/exercices/theme/[theme]/` | same, `/en/` prefixed | ⚠️ **The exercise filters are ROUTES, not `?niveau=`.** Static output leaves no server to read a query string, and a browser-side filter would leave the chips dead with JS off — a spec runs them with JavaScript disabled. ⚠️ **The values are DERIVED from the content**, so an empty filter page cannot exist and there is no empty state; an unknown value 404s. Segments are **not** translated. See `src/lib/exercise-filters.ts` |
 | `/exercices/[slug]/` | `/en/exercices/[slug]/` | Exercise detail — the interactive board, hint, attempts, outbound WhatsApp share |
 | `/jouer/` | `/en/jouer/` | Play the computer. Engine loaded on a click, never before. |
 | `/agenda/` | `/en/agenda/` | Sessions, **from the `sessions` table, baked at build**. Venue falls back to site config. See the agenda rule below |

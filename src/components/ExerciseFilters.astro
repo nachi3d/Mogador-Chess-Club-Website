@@ -1,0 +1,169 @@
+---
+/**
+ * The exercise index's filter row — real links, no JavaScript.
+ *
+ * ⚠️ EVERY CHIP IS AN `<a>` TO A REAL PAGE. Nothing here is scripted, so the
+ * whole control works with JS off, which is why the filters are static routes
+ * in the first place — see `src/lib/exercise-filters.ts` for that decision and
+ * why `?niveau=` was not available to this site.
+ *
+ * ⚠️ IT REUSES `.chip` FROM `src/styles/cards.css` RATHER THAN DEFINING A
+ * SEVENTH ONE. `.chip` was three separate definitions with two different
+ * paddings before M3 consolidated it; the only thing added here is the
+ * interactive state a link needs and the current-filter mark, both scoped.
+ */
+import type { Locale } from '@config/site';
+import { useTranslations } from '@i18n/ui';
+import { exercisesPath } from '@i18n/paths';
+import { filterPath, type Exercise, type ExerciseFilter } from '@lib/exercise-filters';
+import { levelsIn, themesIn } from '@lib/exercise-filters';
+
+interface Props {
+  locale: Locale;
+  /** All published exercises — the chips are derived from them, never listed. */
+  entries: Exercise[];
+  /** The filter this page is showing, if any. Marked as current. */
+  active?: ExerciseFilter | undefined;
+}
+
+const { locale, entries, active } = Astro.props;
+const t = useTranslations(locale);
+
+const levels = levelsIn(entries);
+const themes = themesIn(entries);
+
+const isActive = (kind: 'niveau' | 'theme', value: string) =>
+  active?.kind === kind && active.value === value;
+---
+
+<nav class="ex-filters" aria-label={t('exercises.filter.label')} data-exercise-filters>
+  <div class="ex-filter-row">
+    <h2 class="ex-filter-heading" id="filter-level">{t('exercises.filter.byLevel')}</h2>
+    <ul class="chip-list" aria-labelledby="filter-level">
+      {
+        levels.map((level) => (
+          <li>
+            <a
+              class="chip chip-link"
+              href={filterPath({ kind: 'niveau', value: level }, locale)}
+              aria-current={isActive('niveau', level) ? 'page' : undefined}
+            >
+              {t(`level.${level}` as 'level.debutant')}
+            </a>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+
+  <div class="ex-filter-row">
+    <h2 class="ex-filter-heading" id="filter-theme">{t('exercises.filter.byTheme')}</h2>
+    <ul class="chip-list" aria-labelledby="filter-theme">
+      {
+        themes.map(({ value, count }) => (
+          <li>
+            <a
+              class="chip chip-link"
+              href={filterPath({ kind: 'theme', value }, locale)}
+              aria-current={isActive('theme', value) ? 'page' : undefined}
+            >
+              {value} <span class="ex-filter-count">{count}</span>
+            </a>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+
+  {
+    /* ⚠️ THE WAY BACK TO EVERYTHING IS PART OF THE CONTROL, not a footnote.
+       A reader who filters must be able to unfilter without the browser's back
+       button — the same reason every long route on this site ends with a way
+       onward. Rendered only where it does something. */
+    active && (
+      <p class="ex-filter-clear">
+        <a href={exercisesPath(locale)} data-testid="exercise-filter-clear">
+          {t('exercises.filter.all')}
+        </a>
+      </p>
+    )
+  }
+</nav>
+
+<style>
+  .ex-filters {
+    margin: 0 0 1.75rem;
+  }
+
+  .ex-filter-row + .ex-filter-row {
+    margin-top: 0.85rem;
+  }
+
+  .ex-filter-heading {
+    margin: 0 0 0.4rem;
+    color: var(--mcc-text-secondary);
+    font-family: var(--font-body);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  /* `.chip` and `.chip-list` come from src/styles/cards.css. Only the link
+     behaviour is added here — see the header. */
+  .chip-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    color: var(--mcc-text-primary);
+    text-decoration: none;
+    /* Réponse: it answers a press. The token IS the family, so this can never
+       drift into the forbidden 180–250ms gap. */
+    transition:
+      background-color var(--motion-response) var(--ease-response),
+      border-color var(--motion-response) var(--ease-response);
+  }
+
+  .chip-link:hover {
+    border-color: var(--mcc-border-strong);
+  }
+
+  /* ⚠️ THE CURRENT FILTER IS MARKED BY `aria-current`, AND STYLED FROM IT.
+     One source of truth: a chip cannot look selected while telling a screen
+     reader it is not, which is what a separate `.is-current` class allows. */
+  .chip-link[aria-current='page'] {
+    background-color: var(--mcc-surface-inverse);
+    color: var(--mcc-text-inverse);
+    border-color: var(--mcc-surface-inverse);
+  }
+
+  .ex-filter-count {
+    color: var(--mcc-text-secondary);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .chip-link[aria-current='page'] .ex-filter-count {
+    color: var(--mcc-text-on-inverse-muted);
+  }
+
+  .ex-filter-clear {
+    margin: 0.85rem 0 0;
+  }
+
+  .ex-filter-clear a {
+    display: inline-flex;
+    align-items: center;
+    /* 44px — it is a real destination on a phone, not a footnote. */
+    min-height: 2.75rem;
+    color: var(--mcc-link);
+    font-size: 0.9375rem;
+    text-decoration: underline;
+    text-underline-offset: 0.15em;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .chip-link {
+      transition-duration: 1ms;
+    }
+  }
+</style>
