@@ -84,8 +84,33 @@ export default defineConfig({
      * under a worker cap — and NOT here. ⚠️ `fullyParallel: false` on this
      * project was measured and REJECTED: see MEASUREMENTS in that file.
      */
+    /**
+     * ⚠️ FIREFOX RUNS FILE-PARALLEL TOO, FOR THE SAME REASON AS WEBKIT (v0.16.0).
+     *
+     * The Windows Firefox compositor dies when several heavy contexts are live
+     * at once. The tell is verbatim in the log:
+     *
+     *   Crash Annotation GraphicsCriticalError:
+     *   |[0][GFX1-]: RenderCompositorSWGL failed mapping default framebuffer
+     *
+     * followed by a bare `browserContext.newPage` or `page.evaluate` TIMEOUT —
+     * never an assertion naming a value, which is what tells it apart from a
+     * defect.
+     *
+     * ⚠️ MEASURED AT THE v0.16.0 GATE, not guessed. `agenda.spec.ts`'s three
+     * axe checks failed at **3 workers AND at 2**, the same two tests each time,
+     * and passed **8/8 serially**. Lowering the worker count did not help
+     * because the problem is CONCURRENT CONTEXTS, not total load — which is
+     * exactly the WebKit finding above, on a second browser.
+     *
+     * `fullyParallel: false` keeps spec FILES concurrent and serialises the
+     * tests inside each one, so the three 40-second axe runs in a single file
+     * can never be live together. Shard 1 went from 2 failed / 5.3 min to
+     * green / 3.2 min.
+     */
     {
       name: 'firefox',
+      fullyParallel: false,
       retries: process.env['CI'] ? 2 : 1,
       use: { ...devices['Desktop Firefox'] },
     },
