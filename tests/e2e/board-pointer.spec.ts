@@ -119,11 +119,32 @@ test.describe('course index cards are links', () => {
       const card = page.locator('.card-linked').first();
       await expect(card).toBeVisible();
 
-      /* Click well away from the title — the WHOLE card must be the hit area,
-         not just the heading. The overlay is a ::after on the single link. */
+      /**
+       * Click well away from the title — the WHOLE card must be the hit area,
+       * not just the heading. The overlay is a `::after` on the single link.
+       *
+       * ⚠️ `click({ position })` RATHER THAN RAW `page.mouse.click()` COORDINATES.
+       * The old form read `boundingBox()` and clicked those numbers, which does
+       * three unsafe things at once: it does not scroll, it does not wait for
+       * the element to stop moving, and it does not hit-test. On this page the
+       * cards carry `[data-reveal]`, which animates them 12px vertically — so
+       * the coordinates were read mid-transition and the click landed 12px away
+       * from where it was aimed.
+       *
+       * That was survivable while there was ~63px between the card and the
+       * fixed bottom bar. M4's trail costs 44px at the top of every page below
+       * a section landing, leaving 19px on the shortest phone (iphone-13,
+       * 390×664) — and the miss started landing on the bar's fifth entry, so
+       * the test failed with `Received: /parametres/`, which reads like a
+       * routing bug and is not one.
+       *
+       * `position` is measured from the element's own box, so "away from the
+       * title" is unchanged; Playwright scrolls, waits for stability and
+       * refuses to click through an overlay.
+       */
       const box = await card.boundingBox();
       if (!box) throw new Error('no card box');
-      await page.mouse.click(box.x + box.width - 12, box.y + box.height - 12);
+      await card.click({ position: { x: box.width - 12, y: box.height - 12 } });
       await expect(page).toHaveURL(new RegExp(`${slug.replace(/\//g, '\\/')}$`));
     });
   }
