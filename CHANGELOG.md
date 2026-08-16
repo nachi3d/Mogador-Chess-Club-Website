@@ -13,7 +13,7 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ---
 
-## [0.15.0] — 2026-08-15
+## [0.15.0] — 2026-08-16
 
 **Five sections instead of four shortcuts, and a way back that says where it
 goes.**
