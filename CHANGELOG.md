@@ -11,6 +11,43 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+---
+
+## [0.16.0] — 2026-08-16
+
+**Twenty-four exercises whose chess is checked by the build, a video that
+contacts nobody until you ask it to, and a CLAUDE.md that fits in a session
+again.**
+
+Three pieces of work, and the thread between them is the same one: **a claim
+this repository makes about itself should be checked by something, not
+remembered by someone.**
+
+- The exercises' chess is proved by `check-content.mjs` rather than by review.
+- The video's "no third-party request" promise is proved by a spec that was
+  watched to go red before it was trusted.
+- CLAUDE.md's "nothing was deleted" is proved by `check-split.mjs`.
+
+### CLAUDE.md — split, and proved lossless
+
+**127,968 → 115,276 characters (85% → 77% of the hard limit).** It had been
+over the guard's warn line for three sessions.
+
+Five detail blocks moved into the reference set **verbatim**, each under a
+**Read when** line: the environment-symptom table and the four board-driving
+gates to `testing.md`, the migration checklist and the account surfaces to
+`supabase.md`, the two configuration invariants to `deployment.md`. The binding
+rules stayed in CLAUDE.md with a pointer.
+
+⚠️ **`check-split.mjs` proves the move lost nothing: 222 lines moved, 1,251
+stayed, and NOTHING was newly declared obsolete.** That last part matters — the
+whole hazard of splitting is that a line dropped mid-move is indistinguishable
+from a line that was moved, which is the same silent failure the size guard
+exists for. Nothing was re-worded on the way out; the condensed summaries left
+behind are additions, not rewrites.
+
+---
+
 **24 exercises, and every position built against chess.js rather than by hand.**
 
 `/exercices/` had three entries for three courses. It has 27, and every course
@@ -4678,7 +4715,8 @@ Foundation only: no real content, no interactive board yet.
   `url()` references unresolved and the fonts silently 404 into a Georgia
   fallback. `scripts/build-fonts.mjs` self-hosts them instead. See CLAUDE.md.
 
-[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.15.0...HEAD
+[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.16.0...HEAD
+[0.16.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.12.0...v0.13.0

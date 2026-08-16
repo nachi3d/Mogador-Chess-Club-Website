@@ -585,3 +585,103 @@ eroded.
 - Lesson notation resolves to a **monospace** family — asserting the rule rather than the resolved value would have passed throughout the `--font-mono` bug
 
 ---
+
+---
+
+## ⚠️ Symptoms that are the ENVIRONMENT, not the application
+
+**Read when:** a spec fails and you are not yet sure whether the application is wrong — read the signature BEFORE touching code.
+
+> Moved verbatim out of CLAUDE.md at the v0.16.0 split. The binding
+> rule stayed there; this is the detail behind it.
+
+### ⚠️ Symptoms that are the ENVIRONMENT, not the application
+
+Each of these has cost real debugging time. **Recognise the signature before
+touching application code.**
+
+| Symptom | Almost certainly |
+|---|---|
+| A fixed bug still "fails"; the fix is in the source but not in `dist/_astro/*.js` | **A stale preview server** — Playwright's `reuseExistingServer` skipped its own build. `astro preview` also moves quietly to 4322 |
+| **Every project fails identically**, chromium included, on a Critical Feature | **A stale `dist/`** from an experiment. Reverting source does not rebuild. `grep` the built HTML for the string you expect, then rebuild |
+| WebKit: *"Target page, context or browser has been closed"* | **The Windows WebKit build crashing under fan-out.** Re-check with `--workers=1` |
+| Firefox: `RenderCompositorSWGL failed`, then a `mouse.move`/`reload` **timeout**, on a **different test each run** | **The Windows Firefox compositor** under fan-out |
+| `auth.spec.ts`: `createConfirmedUser: fetch failed` — the error comes from **Node**, not from a page | **Network contention** minting users, not the browser. Not absorbed by the retry |
+| Several auth specs die of a bare `waitForURL` timeout on a **different set each run**, and pass when run file-by-file | **Supabase's auth burst limit.** The browser is parked on `{"code":429,"error_code":"over_request_rate_limit"}` — **measured at ~22 verifications in 7s**, clearing within minutes. `followMagicLink()` now retries and names it; if you see a raw timeout, check the page body before touching the callback |
+| `net::ERR_CONNECTION_REFUSED at https://<ref>.supabase.co/…` from the BROWSER, while `curl` from Node reaches the same project fine | ⚠️ **SUSTAINED rate-limit abuse, escalated.** After a couple of hours of back-to-back auth runs the project stops answering the browser altogether. **Read the host in the error** — this looks identical to a dead preview server until you notice the refusals are to supabase.co, not to `localhost:4321`. Nothing in the repo fixes it: **stop running, wait, then run ONCE.** Raising the TEST project's limit is in BACKLOG |
+| A run collapses part-way, and everything after a certain point fails `ERR_CONNECTION_REFUSED at http://localhost:4321/` | **The preview server went away mid-run.** ⚠️ **Often self-inflicted: piping a run into `head`/`grep -m1` SIGPIPEs it**, killing the runner while its `astro preview` teardown races the next run's server. CLAUDE.md already says never pipe a test run — this is the failure it produces. **Redirect to a file and read the file** |
+| A board spec fails on a tree that already shipped green | **A harness assumption**, not the app. **Drive the page by hand before believing it** |
+
+**A genuine failure is deterministic and fails A SERIAL RE-RUN too, and it fails
+with an assertion naming a value.** WebKit and Firefox carry one local retry;
+chromium has none. A run reporting `N passed, 1 flaky` on WebKit is green.
+
+⚠️ **THE TWO BROWSER-CRASH ROWS ARE NOW A FINDING WHEN THEY COME FROM
+`test:release`.** They belong to a raw `npx playwright test`, which still pools
+every project at the default fan-out. The matrix caps its workers and runs one
+project at a time precisely so it never reaches that state — so a compositor
+death *from the gate* means the cap has stopped being enough, and the next step
+is to check free RAM during the run, not to re-run and hope.
+
+⚠️ **THE LOCAL RETRY IS NOT THE ARBITER — `--workers=1` IS.** The v0.11.0 gate
+failed four Firefox specs that also failed their retries, in four unrelated
+files, and all 102 tests in those files then passed serially first time: when the
+compositor has died the retry runs inside the same broken process, so it proves
+nothing. Read the errors rather than counting them — bare timeouts and
+`browserContext.close` protocol errors are a dead browser; an assertion naming a
+value is a defect. See [`docs/reference/testing.md`](./docs/reference/testing.md).
+
+⚠️ **Never pipe the test run into `tail`** — it reports tail's exit code, so 14
+failures read as "196 passed, exit 0". Redirect to a file and check the status.
+`test:release` does both for you, and it also **compares the projects against
+each other** and fails if one ran zero tests — a hole the old "the total must be
+a multiple of 5" check could not see, since four projects of 100 and one of 0
+divides just as neatly as five of 80.
+
+---
+
+## ⚠️ Driving a board from a spec — the four gates
+
+**Read when:** writing or debugging any spec that touches a board — all four gates have produced false failures that looked like application bugs.
+
+> Moved verbatim out of CLAUDE.md at the v0.16.0 split. The binding
+> rule stayed there; this is the detail behind it.
+
+### ⚠️ Driving a board from a spec — the four gates
+
+1. **Scroll the board fully into view** — `scrollIntoView({ block: 'center' })`,
+   never `scrollIntoViewIfNeeded()`, which guarantees only *partly* visible. A tap
+   at an off-screen square is silently dropped and the board looks dead.
+2. **Wait on `<cg-board>`** — it is created inside a `useEffect`, so it is a
+   genuine hydration signal. `[data-testid="replayer"]` is **not**: Astro
+   server-renders it whether or not any JS ran.
+3. **Wait on `data-ready="true"` and `data-busy="false"`** before interacting.
+4. **Tap, and press for a DURATION.** `click()` with no `delay` sends mousedown
+   and mouseup in **one animation frame**, and Chessground does its drag
+   bookkeeping in a `requestAnimationFrame` loop — measured **1/8 solved at 0ms
+   against 8/8 at 60ms**. Use `movePiece()` from `tests/e2e/helpers/board.ts`:
+   element-relative positions, and `tap()` on touch projects.
+
+⚠️ **Test the pointer path BY POINTER.** Every exercise spec that solved by typing
+into `MoveInput` bypassed Chessground entirely and would stay green if the board
+refused every tap.
+
+⚠️ **Never assert a short-lived class with a MutationObserver alone** — callbacks
+are batched, and one that re-queries the **live DOM** can run after the window has
+closed. Sample from a `requestAnimationFrame` loop, and if you keep an observer,
+read its **records**. The tell that this is your bug rather than the browser's: a
+`length` of 0 on a collection that should be non-empty, moving between projects.
+
+⚠️ **Every axe check on a reveal-bearing page must call `settleReveals(page)`** —
+a `[data-reveal]` element sits at `opacity: 0` and is transparent text axe can
+still find. It presents as **flakiness, not breakage**, so a flaky `color-contrast`
+on an index page should be investigated rather than retried.
+
+⚠️ **`play.spec.ts` runs ONE AT A TIME** — every test boots a real engine with
+64 MiB of linear memory. Raising the timeouts was tried and made it **worse**.
+
+**➡️ [`docs/reference/testing.md`](./docs/reference/testing.md)** — each of these
+in full, with the measurements and the false positives they produced, plus the
+focus-modality rule, the `disabled`-in-deps trap, and the board-driving helpers.
+
+---
