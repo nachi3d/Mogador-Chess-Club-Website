@@ -11,6 +11,92 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+_Nothing yet._
+
+---
+
+## [0.16.0] — 2026-08-17
+
+**Twenty-four exercises whose chess is checked by the build, a video that
+contacts nobody until you ask it to, and a CLAUDE.md that fits in a session
+again.**
+
+### ⚠️ HOW THIS RELEASE'S GATE ACTUALLY WENT — read this before trusting it
+
+Recorded because a release that shipped on a partly-red gate should be
+auditable later, not reconstructed from memory.
+
+| Shape | Result |
+|---|---|
+| accounts **OFF** matrix | green — 3,138 passed, 65.9 min, no project short |
+| accounts **ON** matrix | 3,475 passed, **9 failed**, 4 flaky, 107.1 min |
+
+**All 9 failures were on firefox**; chromium, webkit, pixel-5 and iphone-13 were
+clean, and all nine bottomed out in a 30-second test timeout. They are **not one
+cause but three**, which is worth recording because "9 firefox failures" reads
+like a single event and is not:
+
+- **Six on the magic-link sign-in path** (`onboarding` ×4, `progress-sync` ×2) —
+  `page.waitForURL` and `page.goto` hanging against
+  `…supabase.co/auth/v1/verify`. ⚠️ **The rate-limit detector in
+  `helpers/auth.ts` never fired**, which is the tell: the verify request
+  *stalled*, it did not come back `over_request_rate_limit`. Four of these
+  present as an assertion naming a value (`welcome-question` / `sync-import`
+  Expected `visible`, Received `hidden`), but each names an element gated on the
+  sign-in that never landed, and the same test's other attempt died at the bare
+  network timeout — so the assertion is downstream, not an independent claim.
+- **One lost browser context** — `progress-sync.spec.ts:279` retried into
+  `browserContext.setOffline: Protocol error … browserContextForId(...) is
+  undefined`. The context itself was gone.
+- **⚠️ One already on the BACKLOG, and predicted there by name.**
+  `progression.spec.ts:428` is the "axe samples before the page has settled"
+  entry, which says in as many words that this spec "has the identical shape and
+  stayed flaky in the green run… it is the next one to bite." It bit. The two
+  flaky `wayfinding.spec.ts` axe checks are the same shape. **This one is a
+  known defect with a one-line fix (`await settleAnimations(page)`) and is not
+  an environmental stall** — it is the item that should be picked up first.
+
+The ninth (`auth.spec.ts:65`, a guest zero-Supabase check) timed out in
+`waitForLoadState('networkidle')` on both attempts, with no Supabase involvement
+at all.
+
+**All nine were cleared by a serial re-run**: `--project=firefox --workers=1`
+over the four affected spec files, **81 passed, 0 failed, 0 flaky, 0 skipped,
+12.0 min**. Per the standing rule, a genuine failure is deterministic and fails
+a serial re-run too. None of these did.
+
+⚠️ **What that does NOT establish**: a serial re-run does not reproduce the load
+condition, so it proves the failures are not deterministic — not that the next
+accounts-ON matrix will be green at three workers.
+
+The session-leak cause behind the v0.16.0 agenda failures was ruled out by
+counting rather than assuming: the test project holds **7 `sessions` rows, 0
+matching the leak predicate**, exactly the post-clean state, and `agenda.spec.ts`
+was not among the failures.
+
+### Free RAM is now measured per project, instead of being guessed at
+
+`scripts/test-release.mjs` has been telling readers to "check free RAM during
+the run" since v0.11.1, and nothing measured it — by the time the summary
+prints, the trough is gone. The whole memory diagnosis rested on **one**
+hand-sampling (`2.08 GB`) taken once and never repeated, and this release's gate
+spent a session on a memory hypothesis nobody could confirm or rule out.
+
+It now samples `os.freemem()` every two seconds for the length of each project,
+prints the trough beside that project's result, writes it to the log, and warns
+under 3 GB. The failure message says what to conclude from the number in both
+directions — under ~2 GB believe the browser was starved, comfortably above it
+the memory explanation is **ruled out**.
+
+⚠️ **The sampler is a separate process, and that is forced rather than stylistic.**
+`runPlaywright` uses `spawnSync`, which blocks the script's event loop for the
+entire project; a `setInterval` in the parent would not fire once in that window
+and would miss every value that matters.
+
+⚠️ **It measures the machine, not the browsers** — anything else running counts
+against the same figure. That is the right number for "could Firefox allocate"
+and the wrong one for "how much did Playwright use".
+
 ### 4321 is a shared port, and the sweep now says so
 
 The process-hygiene rules covered our own orphans — kill what this session
@@ -25,14 +111,6 @@ precondition for killing, and a collision is resolved by moving this suite to an
 alternate port (4331) through a temporary config rather than by claiming 4321.
 Rule in CLAUDE.md, reasoning in
 [`docs/reference/dev-environment.md`](./docs/reference/dev-environment.md).
-
----
-
-## [0.16.0] — 2026-08-16
-
-**Twenty-four exercises whose chess is checked by the build, a video that
-contacts nobody until you ask it to, and a CLAUDE.md that fits in a session
-again.**
 
 Three pieces of work, and the thread between them is the same one: **a claim
 this repository makes about itself should be checked by something, not

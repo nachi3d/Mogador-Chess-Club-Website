@@ -91,8 +91,9 @@
  *   MCC_MATRIX_WORKERS=<n>               workers per run; default 3
  * ═════════════════════════════════════════════════════════════════════════
  */
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { readFileSync, writeFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
+import { totalmem } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -140,6 +141,85 @@ ${result.stdout ?? ''}${result.stderr ?? ''}`);
   if (result.status !== 0) {
     console.log(`    ${yellow('! the machine was NOT clean before this project')}`);
   }
+}
+
+/**
+ * ⚠️ FREE RAM, SAMPLED PER PROJECT — BECAUSE THE DIAGNOSIS ABOVE IS UNTESTABLE
+ * WITHOUT IT.
+ *
+ * Everything this file says about memory exhaustion rests on ONE hand-sampling
+ * (`minimum free RAM 2.08 GB`, in MEASUREMENTS above) taken during a single
+ * investigation and never repeated. The failure message at the foot of this
+ * script has been telling readers to "check free RAM during the run" ever
+ * since — advice nobody could act on, because by the time the summary prints
+ * the run is over and the trough is gone.
+ *
+ * ⚠️ WHAT IT COST: the v0.16.0 accounts-ON gate came back with 9 firefox
+ * failures. The memory hypothesis was the leading explanation, it could not be
+ * confirmed or ruled out, and a session went on the question with nothing to
+ * read. That is the gap this closes — the number is now recorded whether or
+ * not anybody suspects it, which is the only version that is there when you
+ * need it.
+ *
+ * ⚠️ IT IS A SEPARATE PROCESS, AND THAT IS FORCED, NOT STYLE. `runPlaywright`
+ * uses `spawnSync`, which blocks this script's event loop for the entire
+ * project — 10 to 40 minutes. A `setInterval` here would not fire once in that
+ * window; it would sample before the run and after it and miss every value
+ * that matters. So the sampler is its own node process, polling on its own
+ * loop, appending one figure per line to a file the parent reads afterwards.
+ *
+ * Sampling is deliberately cheap and deliberately dumb: `os.freemem()` every
+ * two seconds, no aggregation in the child. A truncated final line from the
+ * kill is dropped by the parse rather than guarded against.
+ *
+ * ⚠️ `os.EOL`, NOT A `\n` LITERAL. This string is source code for another
+ * process, so a newline inside it needs a DOUBLE backslash here — and a
+ * single-backslash version is still valid JavaScript in this file, produces a
+ * real line break inside the child's string literal, and kills the child with
+ * a syntax error it has no way to report. The sampler would then simply never
+ * write, and `stopMemorySampler` would say "not sampled" forever. Caught in
+ * exactly that state while this was being written; `os.EOL` has no escape to
+ * get wrong.
+ *
+ * ⚠️ IT MEASURES THE MACHINE, NOT THE BROWSERS. Anything else running on
+ * Seàn's desktop counts against the same figure — which is the right number
+ * for "could Firefox allocate", and the wrong one for "how much did Playwright
+ * use". Read it as the headroom the run actually had.
+ */
+const SAMPLER = `
+  const fs = require('fs'), os = require('os');
+  const out = process.argv[1];
+  setInterval(() => {
+    try { fs.appendFileSync(out, os.freemem() + os.EOL); } catch {}
+  }, 2000);
+`;
+
+const GB = (bytes) => (bytes / 1024 ** 3).toFixed(2);
+
+function startMemorySampler(label) {
+  const file = join(LOG_DIR, `freemem-${label}.txt`);
+  rmSync(file, { force: true });
+  const child = spawn(process.execPath, ['-e', SAMPLER, file], { cwd: ROOT, stdio: 'ignore' });
+  child.on('error', () => {}); // a sampler that cannot start must never fail the gate
+  return { child, file };
+}
+
+/** Stop the sampler and return the trough, or null if it produced nothing. */
+function stopMemorySampler(handle) {
+  handle.child.kill();
+  let samples = [];
+  try {
+    samples = readFileSync(handle.file, 'utf8')
+      .split('\n')
+      .map((line) => Number(line.trim()))
+      .filter((n) => Number.isFinite(n) && n > 0);
+  } catch {
+    /* No file ⇒ the sampler never started. Reported as absent, never as 0 —
+       the same rule as the per-project counts: an unmeasured number and a
+       measured zero must not look alike. */
+  }
+  if (samples.length === 0) return null;
+  return { min: Math.min(...samples), max: Math.max(...samples), samples: samples.length };
 }
 
 const PROJECTS = ['chromium', 'firefox', 'webkit', 'pixel-5', 'iphone-13'];
@@ -223,10 +303,14 @@ function runPlaywright(args, label) {
 /* ── Run ──────────────────────────────────────────────────────────────── */
 
 const totals = new Map();
+/** project ⇒ { min, max, samples }, or null where the sampler produced nothing. */
+const memory = new Map();
 let worstStatus = 0;
 
 if (MODE === 'pooled') {
+  const sampler = startMemorySampler('pooled');
   const run = runPlaywright(`--workers=${WORKERS}`, 'pooled');
+  memory.set('pooled', stopMemorySampler(sampler));
   worstStatus = run.status;
   for (const [project, entry] of run.tally) totals.set(project, entry);
 } else {
@@ -246,7 +330,17 @@ if (MODE === 'pooled') {
     appendLog(banner);
     console.log(bold(`\n  ▸ ${project}`));
     sweepMachine(project);
+    const sampler = startMemorySampler(project);
     const run = runPlaywright(`--project=${project} --workers=${WORKERS}`, project);
+    const trough = stopMemorySampler(sampler);
+    memory.set(project, trough);
+    appendLog(
+      `\n--- free RAM during ${project} ---\n` +
+        (trough
+          ? `min ${GB(trough.min)} GB, max ${GB(trough.max)} GB, ` +
+            `of ${GB(totalmem())} GB total (${trough.samples} samples)\n`
+          : 'not sampled\n'),
+    );
     if (run.status !== 0) worstStatus = run.status;
     for (const [name, entry] of run.tally) {
       const previous = totals.get(name) ?? { passed: 0, failed: 0, flaky: 0, skipped: 0 };
@@ -274,12 +368,36 @@ for (const project of PROJECTS) {
     continue;
   }
   const ran = entry.passed + entry.failed + entry.flaky;
+  /**
+   * ⚠️ THE TROUGH IS PRINTED BESIDE THE RESULT, NOT IN A SECTION OF ITS OWN.
+   * The question it answers is always "was THIS project starved", and a figure
+   * three lines away from the failure count does not get read.
+   */
+  const trough = memory.get(project);
+  const ram = trough
+    ? dim(`  ${GB(trough.min)} GB free at the trough`)
+    : dim('  RAM not sampled');
+
   const line =
     `${project.padEnd(11)} ${String(entry.passed).padStart(4)} passed` +
     `${entry.failed ? red(`  ${entry.failed} failed`) : ''}` +
     `${entry.flaky ? yellow(`  ${entry.flaky} flaky`) : ''}` +
-    `${entry.skipped ? dim(`  ${entry.skipped} skipped`) : ''}`;
+    `${entry.skipped ? dim(`  ${entry.skipped} skipped`) : ''}` +
+    ram;
   console.log(`    ${line}`);
+
+  /**
+   * ⚠️ A WARNING, NEVER A FAILURE. The 2.08 GB in MEASUREMENTS is where
+   * Firefox's compositor was measured to stop allocating; 3 GB is that with a
+   * little room. Crossing it does not mean the run is invalid — it means a
+   * bare timeout in this project has a likely cause, and that is a hint for a
+   * reader, not a verdict this script is entitled to reach.
+   */
+  if (trough && trough.min < 3 * 1024 ** 3) {
+    console.log(
+      `    ${yellow(`  ! ${project} ran with under 3 GB free — see MEASUREMENTS in this script.`)}`,
+    );
+  }
 
   /**
    * ⚠️ THE ZERO-TEST CHECK. A project that ran nothing is not a pass, and the
@@ -338,8 +456,12 @@ if (worstStatus !== 0 || failed > 0) {
       '  A genuine failure is deterministic and fails a SERIAL re-run too, and it\n' +
         '  fails with an assertion naming a value. Bare timeouts and\n' +
         '  `browserContext.close` protocol errors are a starved browser — but that\n' +
-        '  should no longer happen now the projects run one at a time. If it does,\n' +
-        '  check free RAM during the run before touching application code.\n',
+        '  should no longer happen now the projects run one at a time.\n' +
+        '\n' +
+        '  ⚠️ FREE RAM IS NOW MEASURED, so do not guess at it: the trough is printed\n' +
+        '  beside each project above and written to the log per project. Under\n' +
+        '  ~2 GB, believe the browser was starved. Comfortably above it, the memory\n' +
+        '  explanation is RULED OUT and the failure needs a real diagnosis.\n',
     ),
   );
   process.exit(worstStatus || 1);
