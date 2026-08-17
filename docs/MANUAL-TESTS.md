@@ -1106,6 +1106,46 @@ exercise never reaches the code path.
 
 ---
 
+## 4c. ⚠️ THE EXERCISE FILTERS — batch 5
+
+`/exercices/` is 27 entries. The filters are **real pages**, not `?niveau=`:
+static output leaves no server to read a query string, and a browser-side
+filter would leave the chips dead with JS off.
+
+- [ ] `/exercices/` lists **27** exercises, with two rows of chips above them:
+      **Par niveau** and **Par thème**
+- [ ] Click a level chip — the URL becomes `/exercices/niveau/debutant/`, fewer
+      cards are shown, and **every one of them really is at that level**
+- [ ] The chip you clicked is visibly marked, and a **← Tous les exercices**
+      link brings everything back
+- [ ] Click a theme chip — same behaviour, and every card carries that theme
+- [ ] ⚠️ **Turn JavaScript off** (DevTools → Settings → Debugger → Disable
+      JavaScript) and do it again. **The filters must still work.** This is the
+      whole reason they are routes; a query-string filter would look identical
+      until this step
+- [ ] `/exercices/theme/pas-un-theme/` **404s** — a filter with no matches is
+      never built, which is why there is no empty state
+- [ ] `/en/exercices/` — the segments are **not** translated
+      (`/en/exercices/niveau/…`, never `…/level/…`), and the language switcher
+      still lands on the counterpart page
+- [ ] The last lesson of **Les mats élémentaires** and of **Les motifs
+      tactiques** each end with a link into the matching drill set
+
+### The chess itself — ⚠️ the part a machine cannot check
+
+`check-content.mjs` proves every position is legal, that each solution does what
+it claims, and that every `onlyMove: true` mate is unique. **It cannot read the
+hint next to the board.** Spot-check a handful:
+
+- [ ] Solve three mates in 1 by tapping. Each mates on the first move
+- [ ] `/exercices/sacrifice-puis-mat/` — play **Rd8+** instead of the stored
+      **Qd8+**. It must say *"ce n'est pas la ligne que nous avions en tête"*,
+      **never "faux"**: both moves mate, which is exactly why it is
+      `onlyMove: false`
+- [ ] Read three hints. None of them names the move
+
+---
+
 ## 5. Keyboard move entry
 
 On any exercise, and on `/jouer/` — **without touching the board at all**:
@@ -1880,6 +1920,80 @@ account promoted to `prof` with the SQL in `docs/ADMIN.md`.
 
 ---
 
+## 8b. ⚠️ THE VIDEO FACADE — a FIXTURE page, not live content
+
+⚠️ **No published trap or course carries a video today.** The facade's test page
+is a fixture, and `npm run demo` builds the production shape, so **it is not
+there by default**. To work through this section:
+
+```sh
+PUBLIC_FIXTURES=true npm run demo
+```
+
+then go to **`/pieges/fixture-video-facade/`**. Its id (`FIXTUREvid0`) is not a
+video: pressing play gets YouTube's "video unavailable", which is expected and
+affects no check below except the network one — where the requests going to
+`youtube-nocookie.com` is exactly the point.
+
+### ⚠️ First, the thing that must be true of the PRODUCTION shape
+
+- [ ] `npm run demo` (no env var): `/pieges/fixture-video-facade/` **404s**
+- [ ] `/pieges/` shows the real traps and **no FIXTURE card**, in both locales —
+      check this in the `PUBLIC_FIXTURES=true` build too, where the page exists
+- [ ] `/pieges/legal/` has **no video block at all**
+
+### Before the click — this is the whole feature
+
+- [ ] DevTools → Network, **hard reload with the cache disabled**, then scroll
+      right down to the video
+- [ ] ⚠️ **Every request still goes to localhost.** Nothing to `youtube.com`,
+      `youtube-nocookie.com`, `google.com`, `googlevideo.com` or — the one that
+      is easy to miss — **`i.ytimg.com`**. Sort the Network panel by Domain and
+      read it; do not filter for "youtube"
+- [ ] Application → Cookies: **none**
+- [ ] The poster's URL is `/video/FIXTUREvid0.webp` (or `@2x` on a retina
+      screen), served by this site
+- [ ] The video sits **BELOW the board**, under a "Vidéo" / "Video" heading
+- [ ] The privacy line under it links to **Ce qu'un clic envoie** → the `#video`
+      section of the legal notice, and that section actually scrolls into view
+
+### The click
+
+- [ ] Press play: the still is replaced by the player **in the same box** — the
+      page below it does not jump
+- [ ] Network now shows requests to **`youtube-nocookie.com`** and to nothing
+      else that is new
+- [ ] The play button is **gone**, not sitting behind the player
+
+### Keyboard — do this one, it is the one that regresses silently
+
+- [ ] Tab to the play button. It takes a visible focus ring around the **video**,
+      not around the badge
+- [ ] It announces the video by name — "Lire la vidéo : " plus the page's own title
+- [ ] Press **Enter**: the video starts. Press Tab: you are **inside the
+      player**, not back at the top of the page
+- [ ] Reload and repeat with **Space** — it must work too
+
+### The rest
+
+- [ ] All four themes, light and dark: the badge is clearly visible against the
+      still, and the title and privacy line below it are comfortably readable
+- [ ] At **360px**: the facade fits the column, and the board above it is still
+      full width — the video must never have squeezed the board
+- [ ] With **reduced motion** on: the badge does not grow on hover or focus, but
+      it still changes colour and still takes the focus ring
+- [ ] `/pieges/fegatello/`, `/pieges/legal/` and `/cours/bien-ouvrir-une-partie/`
+      (no `youtube` field): **no heading, no empty box, nothing at all**
+
+### If you change the video
+
+- [ ] Change the id in the content JSON, run
+      `node scripts/fetch-video-posters.mjs`, and **commit `public/video/`**
+- [ ] `node scripts/check-content.mjs` fails loudly if you forget the poster —
+      that is the guard, not a nuisance
+
+---
+
 ## 9. PWA
 
 - [ ] `/manifest.webmanifest` loads and carries the club name and the green theme colour
@@ -1932,6 +2046,11 @@ axe covers a lot of this automatically; these are the parts it cannot judge.
 - [ ] `npx playwright test` — full matrix (see CLAUDE.md for the known environmental flakes)
 - [ ] This checklist, worked through on desktop **and** a real phone
 - [ ] Lighthouse ≥ 90 on Performance, Accessibility and SEO
+- [ ] ⚠️ **No test fixture is live** — after deploying, `npm run smoke:prod`
+      asserts `/pieges/fixture-video-facade/` 404s. A 200 means the production
+      build ran with `PUBLIC_FIXTURES=true`; unset it in the Cloudflare build
+      variables and redeploy. **No local check can catch this** — every
+      Playwright build has fixtures ON by design
 
 ---
 

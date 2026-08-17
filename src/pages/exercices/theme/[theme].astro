@@ -1,0 +1,27 @@
+---
+/**
+ * `/exercices/theme/<theme>/` — the exercise index, filtered.
+ *
+ * ⚠️ A REAL PAGE PER FILTER VALUE, not `?theme=`. This site is
+ * `output: 'static'` with no adapter, so there is no server to read a query
+ * string — and a browser-side filter would leave the controls dead with JS
+ * off. The full reasoning is in `src/lib/exercise-filters.ts`.
+ *
+ * ⚠️ THE VALUES ARE DERIVED FROM THE CONTENT, never listed here. That is what
+ * makes an empty filter page impossible: a route exists only where something
+ * matches, and everything else 404s like any unwritten URL.
+ */
+import { getCollection } from 'astro:content';
+import type { GetStaticPaths } from 'astro';
+import ExercicesPage from '@components/pages/ExercicesPage.astro';
+import { themesIn } from '@lib/exercise-filters';
+
+export const getStaticPaths = (async () => {
+  const entries = await getCollection('exercices', ({ data }) => !data.draft);
+  return themesIn(entries).map(({ value }) => ({ params: { theme: value } }));
+}) satisfies GetStaticPaths;
+
+const { theme } = Astro.params;
+---
+
+<ExercicesPage locale="fr" filter={{ kind: 'theme', value: theme! }} />

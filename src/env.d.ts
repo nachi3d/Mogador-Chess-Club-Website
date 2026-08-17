@@ -36,6 +36,12 @@ interface ImportMetaEnv {
    * `TRUE` — disables them. See `src/config/auth.ts` for what "disabled" means.
    */
   readonly PUBLIC_AUTH_ENABLED?: string;
+  /**
+   * `'true'` emits the test-fixture routes. Anything else omits them, which is
+   * what production ships. Set by `playwright.config.ts` for the build it
+   * tests, and by nothing else. See `src/config/fixtures.ts`.
+   */
+  readonly PUBLIC_FIXTURES?: string;
   /** Public by design; RLS is the security boundary. See CLAUDE.md → v2. */
   readonly PUBLIC_SUPABASE_URL?: string;
   readonly PUBLIC_SUPABASE_ANON_KEY?: string;

@@ -47,11 +47,60 @@ async function findE2EUsers(): Promise<Array<{ id: string; email: string }>> {
  * which is also a live check that the erasure chain in migration 0001 works:
  * if the cascade were broken, the residue check below would catch it.
  */
+/**
+ * ⚠️ SESSIONS LEAK, AND THEY LEAK INTO THE PUBLIC AGENDA (v0.16.0).
+ *
+ * `sessions` rows are club sessions, not user-owned, so deleting the e2e users
+ * cascades nothing to them. Specs that create one delete it on the way out —
+ * and a spec that is interrupted does not. They accumulate forever.
+ *
+ * ⚠️ WHAT THAT ACTUALLY COSTS: `fetch-agenda.mjs` bakes every future session
+ * into `/agenda/` at build time, so a test build renders one card per leak.
+ * **318 had accumulated by the v0.16.0 gate, 312 of them leaked**, and axe
+ * scanning 277 rendered cards in Firefox blew the 30-second test timeout.
+ * `agenda.spec.ts` failed, and it looked exactly like a browser problem — two
+ * sessions were spent on the wrong diagnosis before anyone counted the cards.
+ *
+ * ⚠️ "UNTITLED" IS NOT ENOUGH, AND THAT WAS PROVED THE HARD WAY. Deleting
+ * every `title_fr IS NULL` row also removed the session migration 0006 inserts
+ * — it carries NOTES but no title — and two agenda specs went red immediately
+ * ('the session migrated out of the git collection is still published', 'the
+ * English agenda carries the English note'). It had to be restored by hand.
+ *
+ * So a leak is a row with NO title AND NO notes in either language: the specs
+ * create bare rows, and everything seeded or migrated says something in at
+ * least one field. The migrated uuid is excluded explicitly as well — belt and
+ * braces on the one row whose loss breaks the suite.
+ *
+ * ⚠️ A SPEC THAT STARTS CREATING SESSIONS WITH NOTES MUST DELETE THEM ITSELF.
+ * Widening this predicate again is how a seeded row gets eaten a second time.
+ *
+ * Runs in BOTH phases, like the user purge: before, because a crashed run left
+ * residue; after, because this one might crash too.
+ */
+/** Migration 0006's row — untitled, note-bearing, and load-bearing for the suite. */
+const MIGRATED_SESSION_ID = '5e5e0912-0000-4000-8000-000000000912';
+
+async function purgeLeakedSessions(phase: 'before' | 'after'): Promise<void> {
+  const sb = adminClient();
+  const { error } = await sb
+    .from('sessions')
+    .delete()
+    .is('title_fr', null)
+    .is('note_fr', null)
+    .is('note_en', null)
+    .neq('id', MIGRATED_SESSION_ID);
+  if (error) {
+    throw new Error(`purge(${phase}): could not delete leaked sessions — ${error.message}`);
+  }
+}
+
 export async function purgeE2EData(phase: 'before' | 'after'): Promise<void> {
   const env = loadE2EEnv();
   if (!env || !env.serviceRoleKey) return; // unconfigured ⇒ auth specs skip anyway
 
   const sb = adminClient();
+  await purgeLeakedSessions(phase);
   const users = await findE2EUsers();
   const deletedIds: string[] = [];
 

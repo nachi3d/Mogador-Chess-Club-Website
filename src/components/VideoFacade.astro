@@ -1,0 +1,221 @@
+---
+/**
+ * A YouTube video that has not contacted YouTube yet.
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️ CRITICAL FEATURE 9 IS THE WHOLE DESIGN: no third-party request without
+ * an explicit reader click. A plain `<iframe src="https://www.youtube.com/…">`
+ * breaks it three times over — it opens connections to google.com,
+ * youtube.com, googlevideo.com and doubleclick.net on PAGE LOAD, it sets
+ * cookies, and it does all of that for every reader including the ones who
+ * never press play. On a site for children that is not a performance question,
+ * it is a data-protection one.
+ *
+ * So this renders a FACADE: a still, a play button, a title. Nothing leaves
+ * the reader's device until they press it. Then, and only then, an iframe is
+ * built pointing at **youtube-nocookie.com**.
+ *
+ * ⚠️ AND THE STILL IS SELF-HOSTED. `<img src="https://i.ytimg.com/vi/…">`
+ * would be the same violation wearing a different hostname: i.ytimg.com is a
+ * Google origin and the request carries the reader's IP and Referer on page
+ * load. Posters are files in `public/video/`, generated once by
+ * `scripts/fetch-video-posters.mjs` and committed. `scripts/check-content.mjs`
+ * fails the build if an id has no poster, so this component can never render
+ * a broken image.
+ *
+ * ⚠️ NO `<link rel="preconnect">` OR `dns-prefetch` FOR YOUTUBE, EVER. It
+ * looks like a harmless performance win and it is precisely the thing this
+ * component exists not to do: a preconnect resolves DNS and completes a TLS
+ * handshake with Google before the reader has decided anything.
+ * ═════════════════════════════════════════════════════════════════════════
+ *
+ * ── ABSENT FIELD ⇒ ABSENT COMPONENT ──────────────────────────────────────
+ * `videoId` is optional and a missing one renders NOTHING — not an empty
+ * box, not a heading with nothing under it. Most traps and every course will
+ * have no video for a long time, and a page that reserves room for one is a
+ * page with a hole in it.
+ *
+ * ── THE LABEL ────────────────────────────────────────────────────────────
+ * The button is named "<Play the video>: <title>", where the title is the
+ * thing the video is ABOUT — the trap's or the course's own name. The schema
+ * stores an id and nothing else, deliberately: a `youtube_title` field would
+ * be a second name for one thing, in two languages, that nobody would keep in
+ * step with YouTube. The page's title is the honest label and it is already
+ * translated.
+ */
+import type { Locale } from '@config/site';
+import { useTranslations } from '@i18n/ui';
+import { localizePath } from '@i18n/paths';
+
+/**
+ * ⚠️ `src/styles/video.css` IS IMPORTED BY `global.css`, NOT HERE, AND THAT IS
+ * DELIBERATE — measured, and for the same reason as `score.css`.
+ *
+ * This component is imported by every trap page and every course page (twenty
+ * documents), and Astro collects a component's CSS from the module GRAPH
+ * rather than from what renders. Imported here it inlined 1.4 KB into all
+ * twenty, including the eighteen with no video. In `global.css` it is 1.4 KB
+ * once, in a file every page already caches.
+ */
+
+interface Props {
+  /** The 11-character id from the content collection. Absent ⇒ nothing renders. */
+  videoId?: string | undefined;
+  /** What the video is about — the trap's or course's own title, translated. */
+  title: string;
+  locale: Locale;
+}
+
+const { videoId, title, locale } = Astro.props;
+const t = useTranslations(locale);
+
+/**
+ * ⚠️ MIRRORED IN `scripts/fetch-video-posters.mjs` (which writes them) AND IN
+ * `scripts/check-content.mjs` (which fails the build when one is missing).
+ * Three files, one naming convention; each names the other two.
+ */
+const poster = videoId ? `/video/${videoId}.webp` : '';
+const poster2x = videoId ? `/video/${videoId}@2x.webp` : '';
+
+/* The block is capped at the board's 34rem; below that it is the column
+   minus the page gutter on each side. */
+const sizes = '(min-width: 36.5rem) 544px, calc(100vw - 2.5rem)';
+
+/** The legal notice's own section on what pressing play sends to Google. */
+const noticeHref = `${localizePath('/mentions-legales/', locale)}#video`;
+---
+
+{
+  videoId && (
+    <section class="mcc-video" data-video-facade>
+      <h2 class="mcc-video-heading">{t('video.heading')}</h2>
+
+      <div class="mcc-video-frame" data-video-frame>
+        {/*
+          ⚠️ A REAL <button>. Not a div, not an anchor. It is in the tab order
+          by construction, it answers Enter AND Space without a keydown
+          handler, and it is announced as a button rather than as a picture.
+          The id travels in a data attribute — present in the HTML, requested
+          by nothing.
+        */}
+        <button
+          type="button"
+          class="mcc-video-play"
+          data-video-play
+          data-video-id={videoId}
+          data-video-title={title}
+        >
+          {/*
+            `alt=""` because the button already carries the name. A described
+            image inside a labelled button is announced twice, which reads as
+            a stutter rather than as extra help.
+
+            `width`/`height` are the intrinsic 16:9 of what the poster script
+            writes, so the box is correct before the file arrives — the frame
+            reserves the ratio anyway, and both together mean no layout shift
+            on any connection.
+          */}
+          <img
+            class="mcc-video-poster"
+            src={poster}
+            srcset={`${poster} 640w, ${poster2x} 1280w`}
+            sizes={sizes}
+            width="640"
+            height="360"
+            alt=""
+            loading="lazy"
+            decoding="async"
+          />
+          <span class="mcc-video-badge" aria-hidden="true">
+            <svg viewBox="0 0 24 24" role="presentation" focusable="false">
+              <path d="M8 5v14l11-7z" />
+            </svg>
+          </span>
+          <span class="sr-only">
+            {t('video.play')} : {title}
+          </span>
+        </button>
+      </div>
+
+      <p class="mcc-video-title">{title}</p>
+
+      {/*
+        ⚠️ SAID BEFORE THE CLICK, NOT ONLY IN THE LEGAL NOTICE. The privacy
+        posture is a selling point of this site; a video that quietly changed
+        it would be worse than no video. One sentence here, the full account a
+        link away.
+      */}
+      <p class="mcc-video-note">
+        {t('video.note')} <a href={noticeHref}>{t('video.noteLink')}</a>
+      </p>
+    </section>
+  )
+}
+
+<script>
+  /**
+   * The click, and nothing before it.
+   *
+   * ⚠️ THE URL IS BUILT HERE, AT CLICK TIME. It is not in the HTML, not in a
+   * data attribute and not in a preload — the only thing the document carries
+   * is an eleven-character id. Until this handler runs, no code on the page
+   * knows a YouTube hostname.
+   *
+   * ⚠️ `youtube-nocookie.com`, NEVER `youtube.com`. The no-cookie domain does
+   * not set the advertising/profiling cookies the main domain does; it is not
+   * "no data at all" — see `/mentions-legales/#video`, which says so plainly
+   * rather than letting the domain name imply more than it delivers.
+   */
+  const NOCOOKIE = 'https://www.youtube-nocookie.com/embed/';
+
+  /**
+   * ⚠️ `autoplay=1` IS NOT A FLOURISH — IT IS WHAT MAKES THE CLICK ONE CLICK.
+   * Without it the reader presses our play button and is handed YouTube's,
+   * which they must press again. The gesture that loaded the frame is the
+   * gesture that satisfies the browser's autoplay policy, so this only ever
+   * plays because a reader asked it to.
+   *
+   * `rel=0` keeps the end-card suggestions inside the same channel;
+   * `modestbranding=1` drops the watermark. Neither changes what is sent.
+   */
+  const PARAMS = 'autoplay=1&rel=0&modestbranding=1';
+
+  function activate(button: HTMLButtonElement) {
+    const id = button.dataset['videoId'];
+    const frame = button.closest('[data-video-frame]');
+    if (!id || !frame) return;
+
+    const iframe = document.createElement('iframe');
+    iframe.src = `${NOCOOKIE}${encodeURIComponent(id)}?${PARAMS}`;
+    /* The frame's own accessible name. An unnamed iframe is announced as
+       "frame" and nothing else, which is useless in a list of landmarks. */
+    iframe.title = button.dataset['videoTitle'] ?? '';
+    iframe.allow =
+      'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
+    iframe.allowFullscreen = true;
+    /* Origin only, never the full path. YouTube learns which site sent the
+       reader, not which lesson they were reading. */
+    iframe.referrerPolicy = 'strict-origin-when-cross-origin';
+
+    /* ⚠️ REPLACE, NEVER STACK. Leaving the button in the DOM behind the
+       player leaves a control in the tab order that would load a second
+       iframe on top of the first. */
+    button.remove();
+    frame.appendChild(iframe);
+
+    /**
+     * ⚠️ FOCUS MOVES INTO THE PLAYER. The element the reader was on has just
+     * been removed, so focus would otherwise fall back to <body> and a
+     * keyboard reader would be silently returned to the top of the document —
+     * having successfully started a video they can no longer reach.
+     */
+    iframe.focus();
+  }
+
+  /* Delegated: one listener for however many facades a page carries, and it
+     keeps working if a facade is ever rendered after this script runs. */
+  document.addEventListener('click', (event) => {
+    const button = (event.target as Element | null)?.closest?.('[data-video-play]');
+    if (button instanceof HTMLButtonElement) activate(button);
+  });
+</script>

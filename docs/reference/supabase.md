@@ -1572,3 +1572,173 @@ by SQL — see Critical Feature 48 and
   boundary spec.** RLS permitted every one of these writes throughout the whole
   time the form was invisible, so an assertion about *reachability* belongs in
   the first and can never live in the second.
+
+---
+
+## ⚠️ THE CHECKLIST FOR A MIGRATION THAT ADDS A TABLE
+
+**Read when:** writing any migration — especially one that adds a table. Two of these five lines have each been forgotten in a shipped migration.
+
+> Moved verbatim out of CLAUDE.md at the v0.16.0 split. The binding
+> rule stayed there; this is the detail behind it.
+
+### ⚠️ THE CHECKLIST FOR A MIGRATION THAT ADDS A TABLE
+
+Five lines, and the last two have each been forgotten. Work down it before a
+migration ships:
+
+```sql
+revoke all on public.<t> from anon, authenticated;   -- ⚠️ 0. FIRST, see below
+create table public.<t> (...);                       -- 1. the table
+alter table public.<t> enable row level security;    -- 2. RLS ON
+create policy ... on public.<t> ...;                 -- 3. the policies
+grant select, insert, update, delete on public.<t> to authenticated;
+grant select, insert, update, delete on public.<t> to service_role;  -- ⚠️ 4
+```
+
+⚠️ **EVERY NEW TABLE MUST GRANT `service_role` DML EXPLICITLY.** Default
+privileges do **not** hand it over; migration 0002 exists solely to repair that
+across every existing table, and **0003 reproduced the bug anyway**.
+
+⚠️ **RLS BEING CORRECT DOES NOT MEAN THE TABLE IS REACHABLE.** `GRANT` decides
+whether a role may touch the table at all; RLS decides which rows. They fail
+independently. **The tell is a `42501` from a caller that bypasses RLS entirely**
+— `service_role` never hits a policy, so a permission error from it is *always* a
+missing grant and never a policy bug.
+
+⚠️⚠️ **STEP 0 IS NOT BELT-AND-BRACES: A `grant` IS NOT THE ONLY WAY A PRIVILEGE
+ARRIVES.** A Supabase project ships `alter default privileges … grant all on
+tables to anon, authenticated`, so **every `create table` hands `anon` the full
+set before any migration says a word**. Seven tables shipped that way. Migration
+0008 repaired it; `authenticated` **still inherits TRUNCATE**, which is why the
+revoke line is load-bearing for new tables.
+
+⚠️ **Audit by exercising the table with a real trusted client after pushing**,
+not by re-reading the migration — reading the file is what produced the bug both
+times. ⚠️ **And do not audit the default-privilege half by reading
+`pg_default_acl`**; create a throwaway table and read its grants.
+
+⚠️ **`anon` gets nothing** — deliberate: a guest writes to their own device only.
+The one exception is `select on public.sessions`, which `fetch-agenda.mjs`
+needs; removing it empties `/agenda/` on every future build.
+
+Migrations are numbered and **never edited after merge** — a fix is the next
+number. Also binding:
+
+- **Slugs are free text, deliberately not foreign keys.** Content lives in git.
+- **`is_staff()` must be `SECURITY DEFINER` with a pinned `search_path`**, or a
+  policy on `profiles` re-enters itself: *"infinite recursion detected in policy"*.
+- **Ordering matters**: tables → functions → policies.
+- **`role` is never client-updatable, and RLS alone does not achieve that** — the
+  mechanism is **column-level privileges**. Promotion is SQL only (`docs/ADMIN.md`).
+- ⚠️ **Dropping a column drops its primary key and its indexes, silently**, and a
+  policy naming the column blocks the drop entirely (`2BP01`) — so policies come
+  off **before** the column and are recreated after.
+- **Deletion cascades from `auth.users`** — delete the *auth user*, never just the
+  profile, or the erasure right is not honoured.
+- **`handle_new_user()` clamps the locale** (a Google claim arrives as `en-GB`).
+
+**➡️ The live catalog audit, the seven tables, and why the ledger is not evidence:
+[`docs/reference/supabase.md`](./docs/reference/supabase.md).**
+
+---
+
+## ⚠️ THE ACCOUNT SURFACES — `/bienvenue/`, `/compte/`, `/connexion/`
+
+**Read when:** touching `/bienvenue/`, `/compte/`, `/connexion/`, the family section, the child picker or the sign-up form.
+
+> Moved verbatim out of CLAUDE.md at the v0.16.0 split. The binding
+> rule stayed there; this is the detail behind it.
+
+### ⚠️ THE ACCOUNT SURFACES — `/bienvenue/`, `/compte/`, `/connexion/`
+
+The rules. **Everything below has a full counterpart in
+[`docs/reference/supabase.md`](./docs/reference/supabase.md)** — read it before
+touching any of these three pages.
+
+**First-run onboarding (`/bienvenue/`)**
+
+- ⚠️ **"ONCE" IS RECORDED ON THE ACCOUNT** (`profiles.onboarded_at`), **not on
+  the device** (Critical Feature 52) — in `localStorage` it would mean once per
+  browser, and the family tablet would re-ask a parent to name an already-named
+  child. Set by **both** outcomes, and it deliberately does not record which.
+- ⚠️ **GUIDANCE, NOT A GATE.** Everything on it is also on `/compte/`, and a
+  skipped onboarding must leave a fully working account.
+- ⚠️ **THE PLACEHOLDER IS NEVER PRE-FILLED** (Critical Feature 53). Detection is
+  an **exact match against the email local part**, never a guess about what names
+  look like — the guess is the version that insults someone called `Alex99`.
+- ⚠️ **THE EXTRA NAME FIELDS ARE SERVER-RENDERED AND HIDDEN**, not built by
+  script: Astro stamps its scoping attribute at build time.
+- ⚠️ **`onboarded_at` AND `account_shape` ARE ADDITIONS TO 0001's COLUMN GRANT
+  LIST**, which is what stops a client writing `role`. Never "tidy" them into
+  `grant update on public.profiles`.
+- ⚠️ **The callback defaults to `/compte/`.** A profile that could not be read
+  must not land on a one-time prompt.
+- ⚠️⚠️ **AN EXPLICIT SELECT IS A LIABILITY, AND `PROFILE_COLUMNS` IS WHY.**
+  `getProfile()` naming a column production lacks gets a `42703`, which becomes
+  `null`, which is indistinguishable from "not signed in" — **one unapplied
+  migration silently sends every first sign-in past the welcome screen.** The
+  ladder in `supabase.ts` degrades instead of failing. ⚠️ **Anything added to
+  that select gets a new rung in the same commit.**
+
+**The question, and the vocabulary it chooses (v0.14.0)**
+
+- ⚠️ **"LES DEUX" IS THE TYPICAL CASE** (Critical Feature 57) — a parent who
+  plays alongside their children gets their own profile and their own points.
+- ⚠️ **THE ANSWER IS NOT THE TRUTH** (Critical Feature 58). `effectiveShape()`
+  in `src/lib/account-shape.ts` is the only place they meet, and **the roster
+  wins wherever it can speak**.
+- ⚠️ **SKIPPING RECORDS NO SHAPE.** Writing a default would manufacture a claim
+  the reader never made; `null` falls back to the neutral, structure-naming copy
+  Critical Feature 54 exists for.
+- ⚠️ **« C'est moi » ON THE ROSTER IS THE ONLY WAY BACK**, because `/bienvenue/`
+  is shown once per account.
+
+**`/compte/` — three blocks (Critical Feature 59)**
+
+Profiles first and open, **Réglages du compte** collapsed, **Options avancées**
+(deletion only) collapsed at the bottom.
+
+- ⚠️ **NATIVE `<details>`, NOT A SCRIPTED ACCORDION.** Specs open it by clicking
+  the summary, never by setting `open` — "the control is reachable" is a bug this
+  site has already shipped (Critical Feature 48).
+- ⚠️ **SIGNING OUT AND THE STAFF LINK STAY OUTSIDE BOTH.**
+- ⚠️ **THE SETTINGS BLOCK OPENS ITSELF WHEN THE NAME IS STILL THE EMAIL
+  FRAGMENT** — the skipped-onboarding remedy, and for nobody else.
+- ⚠️ **THE CARDS' NUMBERS ARE DERIVED BY `computeLedger()`** (Critical Features
+  47 and 61) in three queries for the whole account, and a card whose rows have
+  not arrived **never prints a zero**.
+- ⚠️ **`FamilySection.astro` MUST NOT IMPORT `@lib/admin`.**
+- ⚠️ **"élève" IS STAFF VOCABULARY** (Critical Feature 60). Parent-facing copy
+  says **enfant** or **profil**; `/admin*` keeps **élève**.
+
+**The family section and the picker are TWO rules, not one**
+
+1. **The section renders for every signed-in account** — coupling these is what
+   made "Ajouter un élève" unreachable for every normal account for two releases.
+2. **Only the "Qui joue ?" picker is conditional**, hidden at one child or fewer.
+
+- ⚠️ **Removal is never offered for the last child**, and the button is **absent**
+  rather than disabled.
+- ⚠️ **A removal or a rename must update the device's remembered choice**, or
+  resolution keeps handing progress to a child id RLS now refuses.
+- ⚠️ **TWO LOADS ARE ROUTINELY IN FLIGHT AND CAN LAND OUT OF ORDER** — a
+  generation counter drops the older answer, and a repaint never touches a row
+  that is mid-edit. Both were measured failures. **Any surface that loads twice
+  copies the counter** (the admin register did not, and lost a prof's taps).
+- ⚠️ **`family.spec.ts` is the UI spec and `child-profiles.spec.ts` is the
+  boundary spec.** An assertion about *reachability* can only live in the first.
+
+**Sign-up hygiene — and what it is not**
+
+- ⚠️ **The honeypot is NOISE REDUCTION, NOT SECURITY** (Critical Feature 56). The
+  anon key ships to every browser, so the endpoint is reachable with `curl`.
+  **A CAPTCHA is not a drop-in** — it is a third-party script on a public page,
+  which Critical Feature 9 forbids.
+- ⚠️ **IT FAILS VISIBLY AND CLEARS ITSELF — never a fake success.**
+- ⚠️ **`admin_delete_account()` IS NOT A SECOND ROUTE TO `delete_own_account()`**
+  (Critical Feature 55): different name, admin only, reason required, and it
+  **refuses `auth.uid()`**.
+- ⚠️ **THE AUDIT RECORDS THE ACT, NOT THE PERSON.** A spec asserts the column
+  list, so a helpful `target_id` fails a test rather than quietly changing what
+  erasure means.

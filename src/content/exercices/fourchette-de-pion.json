@@ -1,0 +1,35 @@
+{
+  "title_fr": "La fourchette de pion",
+  "title_en": "The pawn fork",
+  "slug": "fourchette-de-pion",
+  "fen": "6k1/7p/3n1n2/8/4P3/8/6PP/6K1 w - - 0 1",
+  "solution": [
+    "e4e5",
+    "e5f6"
+  ],
+  "opponentReplies": [
+    "d6c4"
+  ],
+  "onlyMove": false,
+  "hint_fr": "Un pion prend en diagonale, à gauche et à droite. Les deux cavaliers noirs sont-ils vraiment hors de portée ?",
+  "hint_en": "A pawn captures diagonally, left and right. Are those two black knights really out of range?",
+  "level": "debutant",
+  "themes": [
+    "fourchette",
+    "pion",
+    "tactique"
+  ],
+  "claims": [
+    {
+      "kind": "fork",
+      "after": [
+        "e4e5"
+      ],
+      "from": "e5",
+      "targets": [
+        "d6",
+        "f6"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "title_fr": "La fourchette de dame",
+  "title_en": "The queen fork",
+  "slug": "fourchette-de-dame",
+  "fen": "6k1/5p2/b6n/8/8/8/6PP/3Q2K1 w - - 0 1",
+  "solution": [
+    "d1d6",
+    "d6a6"
+  ],
+  "opponentReplies": [
+    "h6f5"
+  ],
+  "onlyMove": false,
+  "hint_fr": "Deux pièces noires ne sont défendues par personne. Cherchez une case d'où votre dame les regarde toutes les deux — et où elle ne risque rien elle-même.",
+  "hint_en": "Two black pieces are defended by nobody. Find a square from which your queen looks at both of them — and where she is safe herself.",
+  "level": "debutant",
+  "themes": [
+    "fourchette",
+    "dame",
+    "tactique"
+  ],
+  "claims": [
+    {
+      "kind": "fork",
+      "after": [
+        "d1d6"
+      ],
+      "from": "d6",
+      "targets": [
+        "a6",
+        "h6"
+      ]
+    }
+  ]
+}

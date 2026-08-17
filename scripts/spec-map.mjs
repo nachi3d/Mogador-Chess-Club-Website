@@ -24,9 +24,17 @@ export const SPEC_MAP = [
   /* Content that an index draws a card for maps to `index-cards.spec.ts` as
      well as to its own spec: adding or removing an entry is exactly when a
      card can end up on a page with nowhere to go. */
-  [/^src\/content\/traps\//, ['replayer.spec.ts', 'index-cards.spec.ts']],
-  [/^src\/content\/exercices\//, ['exercise.spec.ts', 'index-cards.spec.ts']],
-  [/^src\/content\/(cours|lessons)\//, ['lessons.spec.ts', 'index-cards.spec.ts']],
+  [/^src\/content\/traps\//, ['replayer.spec.ts', 'index-cards.spec.ts', 'video.spec.ts']],
+  /* ⚠️ An exercise now feeds the FILTER routes as well as the index: its
+     level and its themes decide which static pages exist at all, so adding
+     or retagging one can emit or delete a route. `index-cards.spec.ts` is
+     what catches a card whose destination stopped being built. */
+  [/^src\/content\/exercices\//, ['exercise.spec.ts', 'index-cards.spec.ts', 'exercise-filters.spec.ts']],
+  [
+    /^(src\/lib\/exercise-filters\.|src\/components\/ExerciseFilters\.|src\/pages\/(en\/)?exercices\/)/,
+    ['exercise-filters.spec.ts', 'index-cards.spec.ts', 'smoke.spec.ts', 'themes.spec.ts'],
+  ],
+  [/^src\/content\/(cours|lessons)\//, ['lessons.spec.ts', 'index-cards.spec.ts', 'video.spec.ts']],
   [/^src\/content\/tutoriel\//, ['tutorial.spec.ts']],
   /* The public agenda. ⚠️ The git collection is GONE — sessions come from the
      database via `scripts/fetch-agenda.mjs`, so the things that can break it
@@ -207,10 +215,37 @@ export const SPEC_MAP = [
   [/^src\/components\/home\//, ['main-menu.spec.ts', 'mobile-app.spec.ts', 'progression.spec.ts']],
   [/^src\/components\/pages\/HomePage\./, ['main-menu.spec.ts', 'mobile-app.spec.ts', 'resume.spec.ts']],
   [/^src\/components\/pages\/(Trap|Exercice)Page\./, ['mobile-fit.spec.ts']],
+  /* Both mount the facade — the two placements the one rule produces. */
+  [/^src\/components\/pages\/(Trap|CourseDetail)Page\./, ['video.spec.ts']],
   [/^src\/components\/pages\/SettingsPage\./, ['theme.spec.ts', 'themes.spec.ts', 'sound.spec.ts']],
-  [/^src\/components\/pages\/LegalPage\./, ['legal.spec.ts']],
+  /* ⚠️ THE LEGAL NOTICE AND THE FACADE ARE ONE FEATURE. `#video` on
+     `/mentions-legales/` is what every facade links to and where the site
+     states what pressing play sends to Google; renaming the section would
+     break a link on every video page and nothing else would notice. */
+  [/^src\/components\/pages\/LegalPage\./, ['legal.spec.ts', 'video.spec.ts']],
+
+  /* The video facade — the component, its stylesheet and the poster pipeline.
+     ⚠️ `pwa.spec.ts` rides along on the poster script: posters are files in
+     `public/`, so they land in the precache manifest and their size is charged
+     to every first visit. */
+  [/^src\/components\/VideoFacade\./, ['video.spec.ts', 'mobile-fit.spec.ts', 'themes.spec.ts']],
+  [/^src\/styles\/video\./, ['video.spec.ts', 'themes.spec.ts', 'feel.spec.ts']],
+  [/^(scripts\/fetch-video-posters\.|public\/video\/)/, ['video.spec.ts', 'pwa.spec.ts']],
+  /* ⚠️ THE FIXTURE GATE. `isListed` keeps test content off every index and
+     every count, so a change here can put a fixture on `/pieges/` or make the
+     trap count on `/apprendre/` one too high — neither of which looks wrong on
+     the page. `index-cards.spec.ts` is the one that would catch a card with
+     nowhere to go; `video.spec.ts` owns the reachability assertions. */
+  [
+    /^(src\/config\/fixtures\.|src\/content\/traps\/fixture-)/,
+    ['video.spec.ts', 'index-cards.spec.ts', 'lessons.spec.ts', 'smoke.spec.ts'],
+  ],
   [/^src\/components\/pages\/ProgressPage\./, ['mobile-app.spec.ts', 'resume.spec.ts', 'progression.spec.ts']],
   [/^src\/components\/pages\/(Cours|Exercices|Pieges|TutorialIndex)Page\./, ['exercise.spec.ts', 'tutorial.spec.ts', 'lessons.spec.ts', 'resume.spec.ts', 'index-cards.spec.ts']],
+  [/^src\/components\/pages\/ExercicesPage\./, ['exercise-filters.spec.ts']],
+  /* Both consume the fixture predicates — the index draws the cards and the hub
+     prints the count, and a fixture must appear in neither. */
+  [/^src\/components\/pages\/(Pieges|LearnHub)Page\./, ['video.spec.ts']],
   [/^src\/components\/pages\/(Lesson|CourseDetail|TutorialStep)Page\./, ['lessons.spec.ts', 'tutorial.spec.ts', 'board-pointer.spec.ts']],
   [/^src\/components\//, ['smoke.spec.ts']],
 

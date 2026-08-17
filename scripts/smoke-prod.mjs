@@ -359,7 +359,55 @@ if (override) {
   );
 }
 
+/**
+ * ⚠️ NO TEST FIXTURE REACHED PRODUCTION — AND THIS IS THE ONLY PLACE THAT CAN
+ * SAY SO.
+ *
+ * `src/content/traps/fixture-video-facade.json` is content that exists purely
+ * so `video.spec.ts` has a real page to drive. It is emitted only when
+ * `PUBLIC_FIXTURES=true`, which `playwright.config.ts` sets for the build it
+ * tests — so **every local Playwright build HAS it**, and no local spec can
+ * prove the shape where it is absent. Asking the build under test would be
+ * asking the wrong build, exactly as `auth-disabled.spec.ts` can only speak
+ * about the OFF shape it was built in.
+ *
+ * The live site is the shape that matters, and here it is checked: a fixture
+ * route must 404. A 200 means a production build was made with the variable
+ * set — in the Cloudflare dashboard, where nothing in this repository can see
+ * it, which is precisely the class of drift the deployment invariants exist
+ * for.
+ *
+ * ⚠️ 404 IS THE PASS. `not_found_handling` is `"none"`, so an unemitted route
+ * genuinely 404s rather than falling through to an SPA shell — if that ever
+ * changes, this check needs to change with it in the same commit.
+ */
+const FIXTURE_ROUTES = ['/pieges/fixture-video-facade/', '/en/pieges/fixture-video-facade/'];
+
+async function checkNoFixtures() {
+  for (const path of FIXTURE_ROUTES) {
+    let result;
+    try {
+      result = await get(`${ORIGIN}${path}`);
+    } catch (error) {
+      /* Unreachable is not the same as absent, and quietly treating it as a
+         pass is how a check stops meaning anything. */
+      fail(path, `could not be checked — ${error.cause?.code ?? error.message}`);
+      continue;
+    }
+    if (result.response.status === 200) {
+      fail(
+        path,
+        'a TEST FIXTURE is live — this build was made with PUBLIC_FIXTURES=true. ' +
+          'Unset it in the Cloudflare build variables and redeploy.',
+      );
+    } else {
+      ok(path, `absent (HTTP ${result.response.status}) — no fixture in production`);
+    }
+  }
+}
+
 for (const route of ROUTES) await checkPage(route);
+await checkNoFixtures();
 await checkManifest();
 await checkServiceWorker();
 

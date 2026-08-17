@@ -478,6 +478,31 @@ function sweep(report = () => {}) {
   return killed;
 }
 
+/**
+ * ⚠️ `--sweep-only` — RUN THE SWEEP AND STOP. Added at v0.16.0.
+ *
+ * The sweep below was correct and was never invoked outside `npm run demo`.
+ * `npm run test:release` — the one place a stale server does the most damage,
+ * because `reuseExistingServer` makes Playwright test whatever is already
+ * listening instead of building — swept nothing at all.
+ *
+ * ⚠️ THAT IS EXACTLY HOW A ZOMBIE SURVIVED THE v0.16.0 GATE. A `node`
+ * process held 4321 while matching NEITHER hand-run probe: its command line
+ * did not mention this repo or `preview`, so a command-line grep missed it,
+ * and nobody asked the PORT who owned it. `listenersOn()` would have found it
+ * in one call. Firefox then “failed” 37 tests against a dead server and the
+ * diagnosis went to the browser instead of the socket.
+ *
+ * ⚠️ THE TWO PROBES CATCH DIFFERENT THINGS AND BOTH MUST RUN. A port walk
+ * misses a server on an unswept port; a repo-path match misses a process whose
+ * command line does not name the repo. This zombie slipped between them
+ * because only one of them was ever run.
+ *
+ * So the sweep is now callable on its own, and `test-release.mjs` calls it
+ * before every project. One implementation, two callers — never a second copy.
+ */
+const sweepOnly = process.argv.slice(2).includes('--sweep-only');
+
 step(1, 'Clearing stale preview servers and orphaned test browsers');
 const cleared = sweep((pid, why) => say(`      ${dim(`killed pid ${pid} ${why}`)}`));
 // Windows frees the socket a moment after taskkill returns; binding too soon
@@ -510,6 +535,22 @@ if (stillHeld.length > 0) {
 say();
 
 /* ── 3. Build ────────────────────────────────────────────────────────────── */
+
+/**
+ * ⚠️ `--sweep-only` STOPS HERE — after the sweep AND after the verification
+ * above, so a caller learns whether anything SURVIVED rather than only that
+ * the sweep ran. Exit 1 when a listener or a preview for this repo is still
+ * standing: a gate must not start against a port somebody else owns.
+ */
+if (sweepOnly) {
+  const dirty = stillHeld.length > 0 || stillPreviewing.size > 0;
+  say(
+    dirty
+      ? `      ${yellow('! sweep-only: the machine is NOT clean')}`
+      : `      ${dim('sweep-only: ports clear, no preview for this repo, no orphaned browsers')}`,
+  );
+  process.exit(dirty ? 1 : 0);
+}
 
 step(2, 'Building');
 say(dim('      astro check → astro build → service worker'));

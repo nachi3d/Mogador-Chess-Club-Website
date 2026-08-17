@@ -850,6 +850,37 @@ const fr = {
   'legal.thirdParty.heading': 'Requêtes vers des tiers',
   'legal.thirdParty.body':
     "Aucune ressource n'est chargée depuis un service tiers sans une action explicite de votre part. Les polices et les images sont servies par ce site. Une vidéo intégrée ne se charge qu'après un clic sur son aperçu.",
+
+  /* ── Les vidéos ────────────────────────────────────────────────────────
+     ⚠️ CES PHRASES SONT UN ENGAGEMENT, PAS UNE FORMULE. Elles décrivent ce
+     que `VideoFacade.astro` fait réellement ; si le composant change, elles
+     changent dans le même commit. Écrites au ras du concret — « votre
+     adresse IP », « la vidéo demandée » — parce qu'un parent doit pouvoir
+     décider sans traduire du jargon. */
+  'legal.video.heading': 'Les vidéos, et ce qu’un clic envoie',
+  'legal.video.before':
+    "Avant tout clic, une vidéo n'est qu'une image fixe hébergée par ce site, un bouton et un titre. Rien n'est demandé à YouTube, à Google ou à qui que ce soit d'autre : ni la vidéo, ni son aperçu, ni un cookie, ni une simple résolution de nom de domaine. Une page qui contient une vidéo se charge exactement comme une page qui n'en contient pas.",
+  'legal.video.after':
+    "Si vous appuyez sur le bouton de lecture, votre navigateur se connecte alors à YouTube (Google) pour lire la vidéo. Cette connexion transmet à Google : votre adresse IP, des informations sur votre appareil et votre navigateur, l'identifiant de la vidéo demandée, et l'adresse de ce site — mais pas la page précise que vous lisiez.",
+  'legal.video.nocookie':
+    "Nous utilisons le domaine youtube-nocookie.com, qui ne dépose pas les cookies publicitaires du domaine habituel. Ce n'est pas « aucune donnée » et nous ne le présenterons pas ainsi : Google enregistre la lecture et peut stocker des données techniques dans votre navigateur pour ce domaine. Si vous êtes connecté à un compte Google dans le même navigateur, la lecture peut lui être rattachée.",
+  'legal.video.choice':
+    "Le choix vous appartient et il est révocable : tant que vous n'appuyez pas, rien ne part. Nous ne recevons aucune information sur les vidéos que vous regardez.",
+
+  /* ── L'aperçu vidéo lui-même ───────────────────────────────────────── */
+  'video.heading': 'Vidéo',
+  'video.play': 'Lire la vidéo',
+  'video.note':
+    "L'aperçu est hébergé par ce site. Appuyer sur lecture connecte votre appareil à YouTube.",
+  'video.noteLink': 'Ce qu’un clic envoie',
+
+  /* ── Filtres des exercices (batch 5) ──────────────────────────
+     27 exercices, ce n'est plus une grille qu'on parcourt à l'œil. Chaque
+     puce est un lien vers une vraie page — rien n'est scripté ici. */
+  'exercises.filter.label': 'Filtrer les exercices',
+  'exercises.filter.byLevel': 'Par niveau',
+  'exercises.filter.byTheme': 'Par thème',
+  'exercises.filter.all': '← Tous les exercices',
 } as const;
 
 const en: Record<keyof typeof fr, string> = {
@@ -1516,6 +1547,26 @@ const en: Record<keyof typeof fr, string> = {
   'legal.thirdParty.heading': 'Third-party requests',
   'legal.thirdParty.body':
     'No resource is loaded from a third-party service without an explicit action from you. Fonts and images are served by this site. An embedded video loads only after you click its preview.',
+
+  'legal.video.heading': 'Videos, and what a click sends',
+  'legal.video.before':
+    'Before you click, a video is a still image hosted by this site, a button and a title. Nothing is asked of YouTube, of Google or of anyone else: not the video, not its thumbnail, not a cookie, not even a DNS lookup. A page with a video on it loads exactly like a page without one.',
+  'legal.video.after':
+    'If you press the play button, your browser then connects to YouTube (Google) to play the video. That connection tells Google: your IP address, information about your device and browser, which video was requested, and the address of this site — but not the particular page you were reading.',
+  'legal.video.nocookie':
+    'We use the youtube-nocookie.com domain, which does not set the advertising cookies the ordinary domain does. That is not "no data at all", and we will not present it as such: Google records the view and may store technical data in your browser for that domain. If you are signed in to a Google account in the same browser, the view may be attached to it.',
+  'legal.video.choice':
+    'The choice is yours and it stays yours: until you press play, nothing leaves your device. We receive no information about which videos you watch.',
+
+  'video.heading': 'Video',
+  'video.play': 'Play the video',
+  'video.note': 'The preview is hosted by this site. Pressing play connects your device to YouTube.',
+  'video.noteLink': 'What a click sends',
+
+  'exercises.filter.label': 'Filter the exercises',
+  'exercises.filter.byLevel': 'By level',
+  'exercises.filter.byTheme': 'By theme',
+  'exercises.filter.all': '← All exercises',
 };
 
 export type UIKey = keyof typeof fr;

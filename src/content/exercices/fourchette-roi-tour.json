@@ -1,0 +1,35 @@
+{
+  "title_fr": "La fourchette roi et tour",
+  "title_en": "The king-and-rook fork",
+  "slug": "fourchette-roi-tour",
+  "fen": "6k1/3r1p1p/8/8/4N3/8/6PP/6K1 w - - 0 1",
+  "solution": [
+    "e4f6",
+    "f6d7"
+  ],
+  "opponentReplies": [
+    "g8h8"
+  ],
+  "onlyMove": false,
+  "hint_fr": "Le même dessin que la fourchette royale, pour un butin plus modeste. Trouvez la case du cavalier qui touche les deux pièces noires à la fois.",
+  "hint_en": "The same shape as the royal fork, for a smaller prize. Find the knight square that touches both black pieces at once.",
+  "level": "debutant",
+  "themes": [
+    "fourchette",
+    "cavalier",
+    "tactique"
+  ],
+  "claims": [
+    {
+      "kind": "fork",
+      "after": [
+        "e4f6"
+      ],
+      "from": "f6",
+      "targets": [
+        "g8",
+        "d7"
+      ]
+    }
+  ]
+}

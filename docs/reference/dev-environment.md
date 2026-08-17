@@ -82,6 +82,22 @@ to quote correctly through two layers of shell.
 `npm run demo` doing this on startup is a safety net rather than a substitute:
 it protects the next session, not this one.
 
+#### ⚠️ AND THE CONVERSE: 4321 IS NOT THIS REPO'S PORT.
+
+The same match protects the neighbours. `N:\Nachi3D-Labs` holds several sites on
+the same Astro defaults — `Caracol-Adventures-Website` is the one most likely to
+be running at the same time as this one — so a listener on 4321 is *evidence of
+a server*, not evidence of ours. A blind `kill-port 4321` at the top of a test
+run then takes down whatever a session in the next window was mid-way through,
+and it fails silently in both directions: that session sees a dead preview, and
+this one sees a suite that looks like it started clean.
+
+So the probe above is a precondition, not only a cleanup: match the PID holding
+the port against this repo's path *before* killing it. When it belongs to a
+neighbour, the answer is not to negotiate for the port — run the suite on an
+alternate one (4331 is free) through a temporary Playwright config, and leave
+their server alone.
+
 #### ⚠️ AND THE BROWSERS. A KILLED MATRIX LEAVES ITS BROWSERS RUNNING.
 
 Neither probe above can see them: an orphaned Playwright browser holds no port

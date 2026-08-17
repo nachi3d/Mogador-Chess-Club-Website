@@ -36,6 +36,7 @@ import PageIntro from '@components/PageIntro.astro';
 import HubCard from '@components/nav/HubCard.astro';
 import ResumeResolver from '@components/progress/ResumeResolver.astro';
 import { exerciseJourney, lessonJourney, tutorialJourney } from '@lib/journey';
+import { isListed } from '@config/fixtures';
 
 interface Props {
   locale: Locale;
@@ -47,7 +48,9 @@ const t = useTranslations(locale);
 const basics = await tutorialJourney(locale);
 const lessons = await lessonJourney(locale);
 const exercises = await exerciseJourney(locale);
-const trapCount = (await getCollection('traps')).filter((entry) => !entry.data.draft).length;
+/* ⚠️ `isListed`: a fixture must not make this count one too high in a fixtures
+   build, which is every Playwright build. */
+const trapCount = (await getCollection('traps')).filter((entry) => isListed(entry.data)).length;
 ---
 
 <BaseLayout locale={locale} title={t('learn.title')} description={t('learn.intro')}>

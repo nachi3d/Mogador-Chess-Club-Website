@@ -11,6 +11,348 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+_Nothing yet._
+
+---
+
+## [0.16.0] — 2026-08-17
+
+**Twenty-four exercises whose chess is checked by the build, a video that
+contacts nobody until you ask it to, and a CLAUDE.md that fits in a session
+again.**
+
+### ⚠️ HOW THIS RELEASE'S GATE ACTUALLY WENT — read this before trusting it
+
+Recorded because a release that shipped on a partly-red gate should be
+auditable later, not reconstructed from memory.
+
+| Shape | Result |
+|---|---|
+| accounts **OFF** matrix | green — 3,138 passed, 65.9 min, no project short |
+| accounts **ON** matrix | 3,475 passed, **9 failed**, 4 flaky, 107.1 min |
+
+**All 9 failures were on firefox**; chromium, webkit, pixel-5 and iphone-13 were
+clean, and all nine bottomed out in a 30-second test timeout. They are **not one
+cause but three**, which is worth recording because "9 firefox failures" reads
+like a single event and is not:
+
+- **Six on the magic-link sign-in path** (`onboarding` ×4, `progress-sync` ×2) —
+  `page.waitForURL` and `page.goto` hanging against
+  `…supabase.co/auth/v1/verify`. ⚠️ **The rate-limit detector in
+  `helpers/auth.ts` never fired**, which is the tell: the verify request
+  *stalled*, it did not come back `over_request_rate_limit`. Four of these
+  present as an assertion naming a value (`welcome-question` / `sync-import`
+  Expected `visible`, Received `hidden`), but each names an element gated on the
+  sign-in that never landed, and the same test's other attempt died at the bare
+  network timeout — so the assertion is downstream, not an independent claim.
+- **One lost browser context** — `progress-sync.spec.ts:279` retried into
+  `browserContext.setOffline: Protocol error … browserContextForId(...) is
+  undefined`. The context itself was gone.
+- **⚠️ One already on the BACKLOG, and predicted there by name.**
+  `progression.spec.ts:428` is the "axe samples before the page has settled"
+  entry, which says in as many words that this spec "has the identical shape and
+  stayed flaky in the green run… it is the next one to bite." It bit. The two
+  flaky `wayfinding.spec.ts` axe checks are the same shape. **This one is a
+  known defect with a one-line fix (`await settleAnimations(page)`) and is not
+  an environmental stall** — it is the item that should be picked up first.
+
+The ninth (`auth.spec.ts:65`, a guest zero-Supabase check) timed out in
+`waitForLoadState('networkidle')` on both attempts, with no Supabase involvement
+at all.
+
+**All nine were cleared by a serial re-run**: `--project=firefox --workers=1`
+over the four affected spec files, **81 passed, 0 failed, 0 flaky, 0 skipped,
+12.0 min**. Per the standing rule, a genuine failure is deterministic and fails
+a serial re-run too. None of these did.
+
+⚠️ **What that does NOT establish**: a serial re-run does not reproduce the load
+condition, so it proves the failures are not deterministic — not that the next
+accounts-ON matrix will be green at three workers.
+
+The session-leak cause behind the v0.16.0 agenda failures was ruled out by
+counting rather than assuming: the test project holds **7 `sessions` rows, 0
+matching the leak predicate**, exactly the post-clean state, and `agenda.spec.ts`
+was not among the failures.
+
+### Free RAM is now measured per project, instead of being guessed at
+
+`scripts/test-release.mjs` has been telling readers to "check free RAM during
+the run" since v0.11.1, and nothing measured it — by the time the summary
+prints, the trough is gone. The whole memory diagnosis rested on **one**
+hand-sampling (`2.08 GB`) taken once and never repeated, and this release's gate
+spent a session on a memory hypothesis nobody could confirm or rule out.
+
+It now samples `os.freemem()` every two seconds for the length of each project,
+prints the trough beside that project's result, writes it to the log, and warns
+under 3 GB. The failure message says what to conclude from the number in both
+directions — under ~2 GB believe the browser was starved, comfortably above it
+the memory explanation is **ruled out**.
+
+⚠️ **The sampler is a separate process, and that is forced rather than stylistic.**
+`runPlaywright` uses `spawnSync`, which blocks the script's event loop for the
+entire project; a `setInterval` in the parent would not fire once in that window
+and would miss every value that matters.
+
+⚠️ **It measures the machine, not the browsers** — anything else running counts
+against the same figure. That is the right number for "could Firefox allocate"
+and the wrong one for "how much did Playwright use".
+
+### 4321 is a shared port, and the sweep now says so
+
+The process-hygiene rules covered our own orphans — kill what this session
+started, sweep by repo path so an out-of-range `--port` is still found. They
+said nothing about the opposite mistake: `N:\Nachi3D-Labs` holds several Astro
+sites on the same defaults, `Caracol-Adventures-Website` foremost, so a listener
+on 4321 is evidence of *a* server, not of ours. A blind `kill-port` takes down
+whatever the session in the next window was mid-way through.
+
+The same repo-path match already written for the sweep is now also a
+precondition for killing, and a collision is resolved by moving this suite to an
+alternate port (4331) through a temporary config rather than by claiming 4321.
+Rule in CLAUDE.md, reasoning in
+[`docs/reference/dev-environment.md`](./docs/reference/dev-environment.md).
+
+Three pieces of work, and the thread between them is the same one: **a claim
+this repository makes about itself should be checked by something, not
+remembered by someone.**
+
+- The exercises' chess is proved by `check-content.mjs` rather than by review.
+- The video's "no third-party request" promise is proved by a spec that was
+  watched to go red before it was trusted.
+- CLAUDE.md's "nothing was deleted" is proved by `check-split.mjs`.
+
+### CLAUDE.md — split, and proved lossless
+
+**127,968 → 115,276 characters (85% → 77% of the hard limit).** It had been
+over the guard's warn line for three sessions.
+
+Five detail blocks moved into the reference set **verbatim**, each under a
+**Read when** line: the environment-symptom table and the four board-driving
+gates to `testing.md`, the migration checklist and the account surfaces to
+`supabase.md`, the two configuration invariants to `deployment.md`. The binding
+rules stayed in CLAUDE.md with a pointer.
+
+⚠️ **`check-split.mjs` proves the move lost nothing: 222 lines moved, 1,251
+stayed, and NOTHING was newly declared obsolete.** That last part matters — the
+whole hazard of splitting is that a line dropped mid-move is indistinguishable
+from a line that was moved, which is the same silent failure the size guard
+exists for. Nothing was re-worded on the way out; the condensed summaries left
+behind are additions, not rewrites.
+
+---
+
+**24 exercises, and every position built against chess.js rather than by hand.**
+
+`/exercices/` had three entries for three courses. It has 27, and every course
+has a matching drill set.
+
+⚠️ **The brief supplied motifs, not FENs, and that was the point.** Batch 3
+shipped eight hand-written positions of which **four were legal and wrong** —
+the prose described a mechanism the board did not contain. So every position
+here was constructed and then interrogated by a workbench built for the job:
+legality, side to move, solution legality, mate/material actually achieved,
+mate uniqueness, and whether a claimed-forced reply really is Black's only move.
+
+⚠️ **It caught nine errors I would otherwise have shipped** — an illegal
+knight move, a bishop pair that did not cover the escape squares, **three
+positions where the side not to move was already in check** (chess.js loads
+those happily and only dies later), and **three "mate in 2" claims that were
+mate in 1**. None of them would have been visible on screen.
+
+### Added
+
+- **24 exercises** — 6 mates in 1, 4 mates in 2, 4 forks, 4 pins/skewers,
+  3 discoveries, 3 advanced motifs. FR and EN written natively; hints name the
+  idea and never the move.
+- **`claims[]` on the `exercices` collection**, the same union the lesson boards
+  use, so the build proves each position's mechanism. All 24 declare one, and
+  the three pre-existing exercises were retrofitted — the exercise review queue
+  is now empty.
+- **`forcedReplies`** — an exercise may claim its stored reply is Black's ONLY
+  legal move, and `check-content.mjs` proves it. Without it a mate-in-2 whose
+  first move is not forcing "works" against the reply we happened to store, and
+  nothing on screen ever looks wrong.
+- **Filtering on `/exercices/`** by level and by theme, plus reverse links from
+  the final lesson of courses 2 and 3 to the matching drill set.
+
+### Changed
+
+- `check-content.mjs` also fails on an empty `title_fr`/`title_en` (the same
+  half-a-page-for-half-the-readers gap the hint check already covered), and
+  rejects a `ply` on an exercise claim — an exercise carries its own FEN, so a
+  ply indexes nothing.
+
+### ⚠️ Deviation — the filters are ROUTES, not `?niveau=`
+
+The brief asked for **server-side** filtering on `?niveau=` and `?theme=`.
+**This site cannot do it**: `output: 'static'`, no adapter, no SSR — a hard
+rule in CLAUDE.md, not a setting. There is no server to read a query string.
+
+Reading the query string in the browser was rejected: the chips would be dead
+without JavaScript, and a control that visibly does nothing is worse than no
+control. So each filter is a real page — `/exercices/niveau/debutant/`,
+`/exercices/theme/fourchette/` — linkable, bookmarkable, crawlable, and
+**tested with JavaScript disabled**, which is the property the whole decision
+was made for.
+
+⚠️ **There is no empty state because an empty filter page cannot exist.** The
+values are derived from the content, so a route is emitted only where something
+matches; anything else 404s. A hand-written list of themes would have needed the
+empty state — and would have been the thing that rots.
+
+### Uniqueness — where `onlyMove` had to be false
+
+All six mates in 1 have a **unique** mating move, verified by brute force, so
+they are `onlyMove: true`. Three of the four mates in 2 are unique too. One is
+not: **`sacrifice-puis-mat` has two mates in 2** (`Qd8+` and `Rd8+`, both
+sacrifices, both mating), so it is `onlyMove: false` — the rule that a correct
+move must never be called wrong outranks the tidier flag.
+
+Every tactical (non-mating) exercise is `onlyMove: false` by default, per
+CLAUDE.md: where we cannot prove uniqueness, we implement the behaviour that
+cannot lie to a student.
+
+---
+
+**A video you have to ask for.**
+
+The `youtube` field has sat on `traps` and `cours` since Session 2, validating an
+eleven-character id and rendering nothing. Michael's workshop videos are coming,
+so it renders now — as a **facade**, because the obvious implementation is not
+available to this site.
+
+⚠️ **A plain `<iframe src="https://www.youtube.com/…">` contacts Google on page
+load.** Not on play — on load, for every reader, including the ones who never
+press anything: youtube.com, google.com, googlevideo.com and doubleclick.net,
+plus cookies. On a site for children that is a data-protection question rather
+than a performance one, and Critical Feature 9 already forbade it.
+
+### Added
+
+- **`src/components/VideoFacade.astro`** — a still, a play button and the title.
+  Nothing leaves the reader's device until they press it; then, and only then, an
+  iframe is built pointing at **`youtube-nocookie.com`**. Absent field ⇒ absent
+  component: no empty box, no reserved hole.
+- **`scripts/fetch-video-posters.mjs`** — the still is **self-hosted**, and that
+  is the half of this that is easy to get wrong. `<img src="https://i.ytimg.com/…">`
+  is the same third-party request wearing a different hostname: a Google origin,
+  the reader's IP and Referer, on page load, for everyone. So every poster is a
+  WebP in `public/video/`, at 640w and 1280w, produced by this script and
+  committed — the same "run it by hand, commit the output" shape as
+  `build-icons.mjs`, and deliberately **not** part of `npm run build` (a
+  Cloudflare build must need no image toolchain and no reach to Google).
+  Three sources in order: an author-supplied still under `src/assets/video/`,
+  then YouTube's own thumbnail fetched once here in Node, then a generated
+  **house plate** — the brand mark on the site's dark ground, drawn with its
+  centre clear because the facade's play badge lands there.
+  ⚠️ **The plate is deliberately not green-800**, which was the first choice and
+  is also exactly `--mcc-primary-hover`: the badge went one shade darker on
+  hover and vanished into its own background. A photographic still would never
+  collide like that, so the plate — the one still we control — is what moved.
+- **`/mentions-legales/#video`** — what a click sends, in plain language, in both
+  locales: IP address, device and browser, which video, and the site's address
+  (origin only, not the page). ⚠️ **It deliberately undersells
+  `youtube-nocookie.com`** — the domain name invites the reader to conclude "no
+  data", which is false, and saying so ourselves is worth the sentence it costs.
+  Every facade links to it, before the click, not only after.
+- **`tests/e2e/video.spec.ts`** — 29 tests. Zero third-party requests on a page
+  that HAS a video (`pwa.spec.ts` could only ever prove it on `/`, which has
+  none); the iframe appearing only after a click, on the nocookie domain, with
+  the id from the collection; Enter and Space; focus landing in the player; the
+  facade absent where the field is; the board keeping its size at 360px; and the
+  legal notice still naming the specifics.
+  ⚠️ **The guarantee was watched to FAIL before it was trusted** — pointing the
+  poster at `i.ytimg.com` turned three tests red, which is the only reason to
+  believe the green ones.
+- **A build-time guard.** `check-content.mjs` fails, naming the id and the
+  command, when a `youtube` id has no committed poster. The tempting repair for a
+  missing poster is to hot-link it, which reinstates exactly what the facade
+  exists to prevent and looks perfect on screen.
+
+### Changed
+
+- **`src/styles/video.css` is imported by `global.css`, not by the component** —
+  the same decision as `score.css`, and measured. `VideoFacade` is imported by
+  every trap and course page (twenty documents) and Astro collects a component's
+  CSS from the module *graph*, not from what renders: imported by the component
+  it inlined 1.4 KB into all twenty, eighteen of which carry no video. The
+  precache manifest fell 6363 → 6322 KiB when it moved.
+- ⚠️ **It is not a scoped `<style>` for a second, independent reason:** the player
+  iframe is created by script at click time and carries no `data-astro-cid`
+  attribute, so every scoped rule would silently miss it. Same trap as
+  `admin.css` and `family.css`.
+- ⚠️ **The exercised path is a FIXTURE, not live content.** The facade was first
+  wired to a placeholder id (`TODOvideo00`) on `/pieges/legal/` — a real trap, on
+  the real index, whose play button handed a reader YouTube's *"video
+  unavailable"*. That bought the specs a page to drive at the cost of a dead
+  video on published content, which is the wrong way round: **the test harness's
+  needs must not reach the reader.** Reverted before this ever shipped.
+  **No published trap or course carries a `youtube` id today.**
+
+### Added — test fixtures as a mechanism
+
+- **`src/config/fixtures.ts`** and a `fixture` flag on the `traps` schema.
+  `src/content/traps/fixture-video-facade.json` is a full trap page — board,
+  replayer, facade — that exists only so `video.spec.ts` has something real to
+  drive. It is a whole page rather than a bare component harness on purpose:
+  that is what keeps the *integration* in scope, the field travelling from the
+  collection through `TrapPage.astro` and landing below the board.
+- ⚠️ **TWO PREDICATES, AND THE SPLIT IS THE DESIGN.** `isRoutable()` decides
+  whether the page is emitted — fixtures only when `PUBLIC_FIXTURES=true`.
+  `isListed()` decides whether a reader can find it, and **does not consult the
+  flag at all**: a fixture is off every index and every count in *every* build.
+  Collapsing them would put it on `/pieges/` in each test build, where
+  `index-cards.spec.ts` draws a card for it and `/apprendre/`'s trap count goes
+  one too high — neither of which looks wrong on the page.
+- ⚠️ **`fixture` is a separate field from `draft`.** A draft is content being
+  written that will one day be published; a fixture must never be. Overloading
+  `draft` makes "unpublish this for a week" and "this is not real content" the
+  same edit, and only one of those should be easy to undo.
+- ⚠️ **The flag defaults OFF, because the default must be what production
+  ships** — the discipline `auth.ts` is written to, for the recorded reason that
+  production's flags live in a dashboard this repository cannot see.
+  `playwright.config.ts` sets `PUBLIC_FIXTURES: 'true'` for the build it tests,
+  **hardcoded and in both auth shapes**, so the facade gets full cross-browser
+  coverage and **no third matrix shape is added**.
+- ⚠️ **`smoke:prod` now fails if a fixture route answers anything but 404 on the
+  live site.** No local spec can prove the OFF shape — the build under test is by
+  construction the ON one, the same limitation `auth-disabled.spec.ts` has — so
+  the guarantee is checked where it is true. Added to the promotion checklist.
+- **Four more tests in `video.spec.ts`**: the fixture is on no index in either
+  locale, linked from nowhere reader-facing, absent from `/apprendre/`'s trap
+  count, and — the one that matters for next time — **real published content
+  carries no video**, so a placeholder cannot creep back unnoticed.
+
+### Placement, and why
+
+The video sits **below** the page's primary content and above the way onward —
+after the replayer on a trap, after the lesson list on a course. One rule, both
+pages.
+
+⚠️ **A 16:9 facade above the board costs ~200px on a phone before the reader
+reaches the position the page is named after** — the same defect M3 measured in
+the exercise control stack, arriving from the other direction. A course page is a
+chooser (Critical Feature 65), and a video above the list puts a video between a
+reader and the lesson they came to start. `video.spec.ts` asserts the ordering at
+390px and 360px rather than trusting it.
+
+### Measured
+
+Lighthouse, mobile, `/pieges/legal/`, three runs each, same page before and after:
+
+| | Perf | A11y | BP | SEO | weight | CLS |
+|---|---|---|---|---|---|---|
+| before | 99 | 100 | 100 | 100 | 161.0 KB | 0 |
+| after (placeholder plate) | 99 | 100 | 100 | 100 | 165.8 KB | 0 |
+| after (real photographic still) | 99 | 100 | 100 | 100 | 187.0 KB | 0 |
+
+⚠️ **The third row is the honest one.** The placeholder is a flat plate and
+compresses to 3 KB, which would understate the real cost; a genuine 1280×720
+thumbnail re-encoded at q78 measures 25.7 KB (640w: 12.0 KB), and that build was
+measured too. No score moves, CLS stays 0 — the frame holds 16:9 before and after
+the click, so pressing play shifts nothing — and the poster is `loading="lazy"`
+below the fold, so it is never the LCP element. Net: **+1 request, the poster.**
+
 ---
 
 ## [0.15.0] — 2026-08-16
@@ -4466,7 +4808,8 @@ Foundation only: no real content, no interactive board yet.
   `url()` references unresolved and the fonts silently 404 into a Georgia
   fallback. `scripts/build-fonts.mjs` self-hosts them instead. See CLAUDE.md.
 
-[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.15.0...HEAD
+[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.16.0...HEAD
+[0.16.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.12.0...v0.13.0

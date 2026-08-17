@@ -42,6 +42,19 @@
    renders it is on ~62 pages, and a scoped block is inlined into each one. */
 @import './score.css';
 
+/* The video facade. Here for EXACTLY the reason score.css is, and measured:
+   `VideoFacade.astro` is imported by every trap and every course page — 20
+   documents — and Astro collects a component's CSS from the module GRAPH, not
+   from what renders. Imported by the component it was 1.4 KB inlined into all
+   twenty, including the eighteen that carry no video at all. Imported here it
+   is 1.4 KB once, in the one stylesheet every page already has cached and the
+   service worker already precaches.
+
+   ⚠️ It is NOT a scoped <style> for a second, independent reason: the player
+   iframe is created by script at click time and carries no `data-astro-cid`
+   attribute, so a scoped rule could not reach it. See the file's own header. */
+@import './video.css';
+
 @layer base {
   html {
     background-color: var(--mcc-surface-page);

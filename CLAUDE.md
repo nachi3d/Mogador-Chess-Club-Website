@@ -31,6 +31,7 @@ before touching that area, not speculatively.
 | Stockfish, `/jouer/`, the level presets | [`docs/reference/engine.md`](./docs/reference/engine.md) |
 | Adding a dependency, piece set, font or any third-party asset | [`docs/reference/licence.md`](./docs/reference/licence.md) |
 | Any animation, duration, pacing delay or sound | [`docs/reference/motion-sound.md`](./docs/reference/motion-sound.md) |
+| The video facade, a poster, or ANY third-party embed | [`docs/reference/video.md`](./docs/reference/video.md) |
 | Points, ranks, achievements, streaks, index cards | [`docs/reference/progression.md`](./docs/reference/progression.md) |
 | Auth, migrations, RLS, sync, the child-profile model | [`docs/reference/supabase.md`](./docs/reference/supabase.md) |
 | Writing or debugging a spec; explaining a browser-specific failure | [`docs/reference/testing.md`](./docs/reference/testing.md) |
@@ -187,6 +188,12 @@ mentions this repo. `scripts/demo.mjs` does all three on startup **and** on
 Ctrl+C. ⚠️ **Stopping the npm wrapper does not stop the server**; verify the port
 is free and kill by PID.
 
+⚠️ **And the converse: what is on 4321 may not be ours.** Other local projects
+use that port too — `Caracol-Adventures-Website` among them. Confirm the
+listener's command line carries this repo's path before killing it, and on a
+collision run the suite on an alternate port (e.g. 4331) through a temporary
+config rather than taking down a neighbour's server.
+
 **➡️ The exact probes, the load-bearing details of each one, and the
 verification behind them: [`docs/reference/dev-environment.md`](./docs/reference/dev-environment.md).**
 Read it before writing or changing any sweep — matching on `chrome.exe` by name
@@ -306,6 +313,7 @@ it. Tags said one thing and the manifest said another.
 63. **The bar's active section is correct at every depth**, including a lesson inside a course inside Apprendre. A leaf that lights nothing is the defect the trail exists beside.
 64. **Going UP and going BACK IN A SEQUENCE are different controls and both survive.** Prev/next inside a course or the tutorial is not a way out of it.
 65. **A section landing is a chooser, not a menu.** Every card carries a name, one line of what is behind it, and the reader's own state where any exists — otherwise it is a second menu after the bar and does not earn the tap it costs.
+66. **A video is a FACADE, and its POSTER IS SELF-HOSTED.** No iframe before a click; the still is a committed file in `public/video/`, never `i.ytimg.com`. ⚠️ **The poster is the half that gets lost** — hot-linking it removes a build step, looks identical on screen, and breaks Critical Feature 9 by a hostname nobody thinks of as YouTube. See the section below.
 
 ---
 
@@ -565,6 +573,15 @@ Astro 7 deltas to remember: config lives at `src/content.config.ts`, each collec
 | `cours` | `title_fr/_en`, `slug`, `level`, `order`, `summary_fr/_en` |
 | `exercices` | `title_fr/_en`, `slug`, `fen`, `solution[]` (UCI), `opponentReplies[]` (UCI), `onlyMove`, `hint_fr/_en`, `level`, `themes[]` |
 
+⚠️ **An exercise's `claims[]` and `forcedReplies` are PROVED BY THE BUILD.**
+`claims[]` is the same union the lesson boards use — a `ply` is forbidden,
+because an exercise carries its own FEN. `forcedReplies: true` asserts each
+stored reply is Black's **only** legal move; without it a mate-in-2 whose first
+move is not forcing "works" against the reply we stored and nothing on screen
+ever looks wrong. ⚠️ **Build every position against chess.js, never by hand** —
+batch 5's workbench caught three positions where the side NOT to move was
+already in check and three "mate in 2"s that were mate in 1.
+
 `level` is `debutant | intermediaire | avance` everywhere. Every collection has `draft: boolean` (default false) so an entry can be parked without deleting it.
 
 ---
@@ -621,6 +638,7 @@ FR at the root, EN under `/en/...`. **Route segments are not translated** (`/en/
 | `/pieges/` | `/en/pieges/` | Trap index (cards, ECO + theme chips) — **no board mounted here** |
 | `/pieges/[slug]/` | `/en/pieges/[slug]/` | Trap detail — the replayer, commentary, outbound WhatsApp share |
 | `/exercices/` | `/en/exercices/` | Exercise index — **no board mounted here**; solved ticks from `localStorage` |
+| `/exercices/niveau/[niveau]/`<br>`/exercices/theme/[theme]/` | same, `/en/` prefixed | ⚠️ **The exercise filters are ROUTES, not `?niveau=`.** Static output leaves no server to read a query string, and a browser-side filter would leave the chips dead with JS off — a spec runs them with JavaScript disabled. ⚠️ **The values are DERIVED from the content**, so an empty filter page cannot exist and there is no empty state; an unknown value 404s. Segments are **not** translated. See `src/lib/exercise-filters.ts` |
 | `/exercices/[slug]/` | `/en/exercices/[slug]/` | Exercise detail — the interactive board, hint, attempts, outbound WhatsApp share |
 | `/jouer/` | `/en/jouer/` | Play the computer. Engine loaded on a click, never before. |
 | `/agenda/` | `/en/agenda/` | Sessions, **from the `sessions` table, baked at build**. Venue falls back to site config. See the agenda rule below |
@@ -1068,8 +1086,7 @@ remembering to run SQL.
 
 ### ⚠️ THE CHECKLIST FOR A MIGRATION THAT ADDS A TABLE
 
-Five lines, and the last two have each been forgotten. Work down it before a
-migration ships:
+Five lines, and the last two have each been forgotten:
 
 ```sql
 revoke all on public.<t> from anon, authenticated;   -- ⚠️ 0. FIRST, see below
@@ -1080,50 +1097,32 @@ grant select, insert, update, delete on public.<t> to authenticated;
 grant select, insert, update, delete on public.<t> to service_role;  -- ⚠️ 4
 ```
 
-⚠️ **EVERY NEW TABLE MUST GRANT `service_role` DML EXPLICITLY.** Default
-privileges do **not** hand it over; migration 0002 exists solely to repair that
-across every existing table, and **0003 reproduced the bug anyway**.
+⚠️ **EVERY NEW TABLE MUST GRANT `service_role` DML EXPLICITLY.** Migration 0002
+exists solely to repair that across every existing table, and **0003 reproduced
+the bug anyway**.
 
 ⚠️ **RLS BEING CORRECT DOES NOT MEAN THE TABLE IS REACHABLE.** `GRANT` decides
-whether a role may touch the table at all; RLS decides which rows. They fail
-independently. **The tell is a `42501` from a caller that bypasses RLS entirely**
-— `service_role` never hits a policy, so a permission error from it is *always* a
-missing grant and never a policy bug.
+whether a role may touch the table at all; RLS decides which rows. **The tell is
+a `42501` from a caller that bypasses RLS entirely** — always a missing grant,
+never a policy bug.
 
-⚠️⚠️ **STEP 0 IS NOT BELT-AND-BRACES: A `grant` IS NOT THE ONLY WAY A PRIVILEGE
-ARRIVES.** A Supabase project ships `alter default privileges … grant all on
-tables to anon, authenticated`, so **every `create table` hands `anon` the full
-set before any migration says a word**. Seven tables shipped that way. Migration
-0008 repaired it; `authenticated` **still inherits TRUNCATE**, which is why the
-revoke line is load-bearing for new tables.
+⚠️⚠️ **STEP 0 IS NOT BELT-AND-BRACES:** a Supabase project ships
+`alter default privileges … grant all on tables to anon, authenticated`, so
+**every `create table` hands `anon` the full set before any migration says a
+word**. Seven tables shipped that way.
 
 ⚠️ **Audit by exercising the table with a real trusted client after pushing**,
 not by re-reading the migration — reading the file is what produced the bug both
-times. ⚠️ **And do not audit the default-privilege half by reading
-`pg_default_acl`**; create a throwaway table and read its grants.
+times.
 
-⚠️ **`anon` gets nothing** — deliberate: a guest writes to their own device only.
-The one exception is `select on public.sessions`, which `fetch-agenda.mjs`
-needs; removing it empties `/agenda/` on every future build.
+Also binding: migrations are **never edited after merge**; **slugs are free text,
+not foreign keys**; **`is_staff()` must be `SECURITY DEFINER` with a pinned
+`search_path`**; ordering is **tables → functions → policies**; **`role` is never
+client-updatable** (column-level privileges, not RLS); **dropping a column drops
+its PK and indexes silently**; **deletion cascades from `auth.users`**.
 
-Migrations are numbered and **never edited after merge** — a fix is the next
-number. Also binding:
-
-- **Slugs are free text, deliberately not foreign keys.** Content lives in git.
-- **`is_staff()` must be `SECURITY DEFINER` with a pinned `search_path`**, or a
-  policy on `profiles` re-enters itself: *"infinite recursion detected in policy"*.
-- **Ordering matters**: tables → functions → policies.
-- **`role` is never client-updatable, and RLS alone does not achieve that** — the
-  mechanism is **column-level privileges**. Promotion is SQL only (`docs/ADMIN.md`).
-- ⚠️ **Dropping a column drops its primary key and its indexes, silently**, and a
-  policy naming the column blocks the drop entirely (`2BP01`) — so policies come
-  off **before** the column and are recreated after.
-- **Deletion cascades from `auth.users`** — delete the *auth user*, never just the
-  profile, or the erasure right is not honoured.
-- **`handle_new_user()` clamps the locale** (a Google claim arrives as `en-GB`).
-
-**➡️ The live catalog audit, the seven tables, and why the ledger is not evidence:
-[`docs/reference/supabase.md`](./docs/reference/supabase.md).**
+**➡️ The reasoning behind each line, the live catalog audit and the seven
+tables: [`docs/reference/supabase.md`](./docs/reference/supabase.md).**
 ### ⚠️ The test-environment interlock
 
 `assertNotProduction()` runs at **Playwright config load** and aborts the whole
@@ -1144,6 +1143,90 @@ decisions and their reasoning, the offline queue, the anti-cheat position and wh
 a real fix would need, the parent/child model in full, the RLS/GRANT audit, the
 env-var table and both `.env.test` traps. **Read it before any migration or auth
 work.**
+
+---
+
+## ⚠️ VIDEO — A FACADE, AND A SELF-HOSTED POSTER (Critical Feature 66)
+
+The `youtube` field on `traps` and `cours` renders `VideoFacade.astro`: a still,
+a play button and the title. Nothing is requested until the reader presses it;
+then an iframe is built pointing at **`youtube-nocookie.com`**.
+
+- ⚠️ **A PLAIN IFRAME CONTACTS GOOGLE ON PAGE LOAD, NOT ON PLAY** — youtube.com,
+  google.com, googlevideo.com, plus cookies, for every reader including the ones
+  who never press anything. That is Critical Feature 9, on a site for children,
+  against a privacy notice that says the site contacts nobody.
+- ⚠️⚠️ **AND SO DOES `<img src="https://i.ytimg.com/…">`.** It is a Google
+  origin carrying the reader's IP and Referer on page load — **the same
+  violation wearing a hostname nobody thinks of as YouTube**, and *more*
+  tempting than the iframe because it deletes a build step. Every poster is a
+  committed file in `public/video/`, written by
+  `scripts/fetch-video-posters.mjs`. ⚠️ **`check-content.mjs` FAILS THE BUILD**
+  when an id has no poster, because the obvious repair for a missing file is the
+  hot-link.
+- ⚠️ **The zero-request spec filters on `hostname !== localhost`, NEVER on
+  `includes('youtube')`.** A youtube-only filter passes a hot-linked poster
+  cleanly — which is the exact case it exists to catch.
+- ⚠️ **NO `preconnect` OR `dns-prefetch` FOR YOUTUBE, EVER.** It looks like a
+  free performance win and it resolves DNS and completes a TLS handshake with
+  Google before the reader has decided anything.
+- ⚠️ **THE POSTER SCRIPT IS RUN BY HAND, LIKE `build-icons.mjs`** — never part
+  of `npm run build`. A Cloudflare build must need no image toolchain and no
+  reach to Google. ⚠️ **A thumbnail is a frame of the video**, so fetching one
+  from YouTube is for the club's OWN videos; anybody else's takes an
+  author-supplied still under `src/assets/video/`.
+- ⚠️ **PLACEMENT IS ONE RULE, BOTH PAGES: BELOW the page's primary content,
+  above the way onward.** After the replayer on a trap, after the lesson list on
+  a course. A 16:9 facade above the board costs ~200px on a phone before the
+  reader reaches the position the page is named after — the same defect M3
+  measured in the control stack, from the other direction. Asserted at 390px and
+  360px, not trusted.
+- ⚠️ **`src/styles/video.css` IS IMPORTED BY `global.css`, AND IS NOT SCOPED.**
+  Two independent reasons: a scoped rule cannot reach the script-created iframe
+  (no `data-astro-cid`), and the component is on twenty pages so a scoped block
+  inlines into all of them. Same two lessons as `admin.css` and `score.css`.
+- ⚠️ **`/mentions-legales/#video` STATES WHAT A CLICK SENDS, and deliberately
+  UNDERSELLS `youtube-nocookie.com`** — the domain name invites "no data", which
+  is false. Every facade links to it **before** the click. If that section ever
+  reads like reassurance rather than disclosure, it is wrong.
+- ⚠️⚠️ **NO PUBLISHED CONTENT CARRIES A `youtube` ID TODAY.** The facade's
+  exercised path is a **FIXTURE**, not live content — see the rule below. The
+  first version shipped a placeholder id on `/pieges/legal/`, which handed a
+  reader "video unavailable" on a real trap; **do not put a placeholder back on
+  published content to give a spec something to drive.**
+
+### ⚠️ TEST FIXTURES — ROUTABLE, NEVER LISTED, NEVER IN PRODUCTION
+
+`src/config/fixtures.ts`. A fixture is content that exists **only** so a spec
+has something real to drive. Today that is
+`src/content/traps/fixture-video-facade.json`, and the mechanism generalises.
+
+- ⚠️ **TWO PREDICATES, AND THE SPLIT IS THE WHOLE DESIGN.** `isRoutable()`
+  decides whether a page is emitted (fixtures: only when `PUBLIC_FIXTURES=true`);
+  `isListed()` decides whether a reader can find it (fixtures: **never, in any
+  build** — the flag is not even consulted). Collapsing them puts the fixture on
+  `/pieges/` in every test build, where `index-cards.spec.ts` draws a card for it
+  and `/apprendre/`'s trap count goes one too high.
+- ⚠️ **`fixture` IS A SEPARATE FIELD FROM `draft`.** A draft is content being
+  written that will one day be published; a fixture must never be. Overloading
+  `draft` makes those two the same edit.
+- ⚠️ **THE DEFAULT IS OFF, BECAUSE THE DEFAULT MUST BE WHAT PRODUCTION SHIPS** —
+  the same discipline as `PUBLIC_AUTH_ENABLED`, for the same recorded reason.
+  **`playwright.config.ts` sets `PUBLIC_FIXTURES: 'true'` for the build it
+  tests**, hardcoded and in both auth shapes, so every run — branch and matrix —
+  covers the facade and **no third matrix shape is added**.
+- ⚠️ **NO LOCAL SPEC CAN PROVE THE OFF SHAPE**, because the build under test is
+  by construction the ON one. **`npm run smoke:prod` fails if a fixture route
+  answers anything but 404 on the live site**, and that is on the promotion
+  checklist. A 200 there means a production build ran with the variable set.
+- ⚠️ **`PUBLIC_FIXTURES` MUST NEVER GO IN `.env.local`** — same rule as
+  `PUBLIC_AUTH_ENABLED`. To see a fixture by hand:
+  `PUBLIC_FIXTURES=true npm run demo`.
+
+**➡️ [`docs/reference/video.md`](./docs/reference/video.md)** — the poster
+pipeline and its three sources, the measured Lighthouse before/after, the
+accessibility decisions, the house plate, and the fixture that was watched to
+fail. **Read it before touching the facade or adding any third-party embed.**
 
 ---
 
@@ -1205,177 +1288,102 @@ flag** — and its §7, which is what is *not* built.
 
 ### ⚠️ THE ACCOUNT SURFACES — `/bienvenue/`, `/compte/`, `/connexion/`
 
-The rules. **Everything below has a full counterpart in
+The rules that bind work elsewhere. **Everything below has a full counterpart in
 [`docs/reference/supabase.md`](./docs/reference/supabase.md)** — read it before
 touching any of these three pages.
 
-**First-run onboarding (`/bienvenue/`)**
-
 - ⚠️ **"ONCE" IS RECORDED ON THE ACCOUNT** (`profiles.onboarded_at`), **not on
-  the device** (Critical Feature 52) — in `localStorage` it would mean once per
-  browser, and the family tablet would re-ask a parent to name an already-named
-  child. Set by **both** outcomes, and it deliberately does not record which.
-- ⚠️ **GUIDANCE, NOT A GATE.** Everything on it is also on `/compte/`, and a
-  skipped onboarding must leave a fully working account.
-- ⚠️ **THE PLACEHOLDER IS NEVER PRE-FILLED** (Critical Feature 53). Detection is
-  an **exact match against the email local part**, never a guess about what names
-  look like — the guess is the version that insults someone called `Alex99`.
+  the device** (Critical Feature 52). Set by **both** outcomes.
+- ⚠️ **GUIDANCE, NOT A GATE** — a skipped onboarding must leave a fully working
+  account, and **THE PLACEHOLDER IS NEVER PRE-FILLED** (Critical Feature 53):
+  detection is an **exact match against the email local part**, never a guess.
 - ⚠️ **THE EXTRA NAME FIELDS ARE SERVER-RENDERED AND HIDDEN**, not built by
-  script: Astro stamps its scoping attribute at build time.
-- ⚠️ **`onboarded_at` AND `account_shape` ARE ADDITIONS TO 0001's COLUMN GRANT
-  LIST**, which is what stops a client writing `role`. Never "tidy" them into
-  `grant update on public.profiles`.
-- ⚠️ **The callback defaults to `/compte/`.** A profile that could not be read
-  must not land on a one-time prompt.
+  script — Astro stamps its scoping attribute at build time.
 - ⚠️⚠️ **AN EXPLICIT SELECT IS A LIABILITY, AND `PROFILE_COLUMNS` IS WHY.**
   `getProfile()` naming a column production lacks gets a `42703`, which becomes
   `null`, which is indistinguishable from "not signed in" — **one unapplied
-  migration silently sends every first sign-in past the welcome screen.** The
-  ladder in `supabase.ts` degrades instead of failing. ⚠️ **Anything added to
-  that select gets a new rung in the same commit.**
-
-**The question, and the vocabulary it chooses (v0.14.0)**
-
-- ⚠️ **"LES DEUX" IS THE TYPICAL CASE** (Critical Feature 57) — a parent who
-  plays alongside their children gets their own profile and their own points.
-- ⚠️ **THE ANSWER IS NOT THE TRUTH** (Critical Feature 58). `effectiveShape()`
-  in `src/lib/account-shape.ts` is the only place they meet, and **the roster
-  wins wherever it can speak**.
-- ⚠️ **SKIPPING RECORDS NO SHAPE.** Writing a default would manufacture a claim
-  the reader never made; `null` falls back to the neutral, structure-naming copy
-  Critical Feature 54 exists for.
-- ⚠️ **« C'est moi » ON THE ROSTER IS THE ONLY WAY BACK**, because `/bienvenue/`
-  is shown once per account.
-
-**`/compte/` — three blocks (Critical Feature 59)**
-
-Profiles first and open, **Réglages du compte** collapsed, **Options avancées**
-(deletion only) collapsed at the bottom.
-
-- ⚠️ **NATIVE `<details>`, NOT A SCRIPTED ACCORDION.** Specs open it by clicking
-  the summary, never by setting `open` — "the control is reachable" is a bug this
-  site has already shipped (Critical Feature 48).
-- ⚠️ **SIGNING OUT AND THE STAFF LINK STAY OUTSIDE BOTH.**
-- ⚠️ **THE SETTINGS BLOCK OPENS ITSELF WHEN THE NAME IS STILL THE EMAIL
-  FRAGMENT** — the skipped-onboarding remedy, and for nobody else.
-- ⚠️ **THE CARDS' NUMBERS ARE DERIVED BY `computeLedger()`** (Critical Features
-  47 and 61) in three queries for the whole account, and a card whose rows have
-  not arrived **never prints a zero**.
-- ⚠️ **`FamilySection.astro` MUST NOT IMPORT `@lib/admin`.**
-- ⚠️ **"élève" IS STAFF VOCABULARY** (Critical Feature 60). Parent-facing copy
-  says **enfant** or **profil**; `/admin*` keeps **élève**.
-
-**The family section and the picker are TWO rules, not one**
-
-1. **The section renders for every signed-in account** — coupling these is what
-   made "Ajouter un élève" unreachable for every normal account for two releases.
-2. **Only the "Qui joue ?" picker is conditional**, hidden at one child or fewer.
-
-- ⚠️ **Removal is never offered for the last child**, and the button is **absent**
-  rather than disabled.
-- ⚠️ **A removal or a rename must update the device's remembered choice**, or
-  resolution keeps handing progress to a child id RLS now refuses.
+  migration silently sends every first sign-in past the welcome screen.**
+  ⚠️ **Anything added to that select gets a new rung in the same commit.**
+- ⚠️ **"LES DEUX" IS THE TYPICAL CASE** (Critical Feature 57), **THE ANSWER IS
+  NOT THE TRUTH** (58) — `effectiveShape()` is the only place the stored answer
+  and the roster meet, and **the roster wins wherever it can speak** — and
+  **SKIPPING RECORDS NO SHAPE**.
+- ⚠️ **`/compte/` IS THREE BLOCKS** (Critical Feature 59), built on **NATIVE
+  `<details>`, NOT A SCRIPTED ACCORDION**; signing out and the staff link stay
+  outside both; the settings block **opens itself when the name is still the
+  email fragment**.
+- ⚠️ **THE CARDS' NUMBERS ARE DERIVED BY `computeLedger()`** (47, 61) and a card
+  whose rows have not arrived **never prints a zero**.
+- ⚠️ **`FamilySection.astro` MUST NOT IMPORT `@lib/admin`**, and **"élève" IS
+  STAFF VOCABULARY** (Critical Feature 60).
+- ⚠️ **THE FAMILY SECTION AND THE PICKER ARE TWO RULES, NOT ONE** — the section
+  renders for every signed-in account, only the picker is conditional. Coupling
+  them made "Ajouter un élève" unreachable for two releases.
 - ⚠️ **TWO LOADS ARE ROUTINELY IN FLIGHT AND CAN LAND OUT OF ORDER** — a
-  generation counter drops the older answer, and a repaint never touches a row
-  that is mid-edit. Both were measured failures. **Any surface that loads twice
+  generation counter drops the older answer. **Any surface that loads twice
   copies the counter** (the admin register did not, and lost a prof's taps).
-- ⚠️ **`family.spec.ts` is the UI spec and `child-profiles.spec.ts` is the
-  boundary spec.** An assertion about *reachability* can only live in the first.
-
-**Sign-up hygiene — and what it is not**
-
-- ⚠️ **The honeypot is NOISE REDUCTION, NOT SECURITY** (Critical Feature 56). The
-  anon key ships to every browser, so the endpoint is reachable with `curl`.
-  **A CAPTCHA is not a drop-in** — it is a third-party script on a public page,
-  which Critical Feature 9 forbids.
-- ⚠️ **IT FAILS VISIBLY AND CLEARS ITSELF — never a fake success.**
+- ⚠️ **The honeypot is NOISE REDUCTION, NOT SECURITY** (56); it **FAILS VISIBLY
+  AND CLEARS ITSELF**; **a CAPTCHA is not a drop-in** (Critical Feature 9).
 - ⚠️ **`admin_delete_account()` IS NOT A SECOND ROUTE TO `delete_own_account()`**
-  (Critical Feature 55): different name, admin only, reason required, and it
-  **refuses `auth.uid()`**.
-- ⚠️ **THE AUDIT RECORDS THE ACT, NOT THE PERSON.** A spec asserts the column
-  list, so a helpful `target_id` fails a test rather than quietly changing what
-  erasure means.
+  (55), and **THE AUDIT RECORDS THE ACT, NOT THE PERSON.**
+
+**➡️ Every one of these in full, with the incidents behind them:
+[`docs/reference/supabase.md`](./docs/reference/supabase.md).**
 ### ⚠️ Symptoms that are the ENVIRONMENT, not the application
 
 Each of these has cost real debugging time. **Recognise the signature before
-touching application code.**
+touching application code.** The full table — every symptom, what it actually
+is, and the debugging it cost — is in the reference file; these are the tells:
 
-| Symptom | Almost certainly |
-|---|---|
-| A fixed bug still "fails"; the fix is in the source but not in `dist/_astro/*.js` | **A stale preview server** — Playwright's `reuseExistingServer` skipped its own build. `astro preview` also moves quietly to 4322 |
-| **Every project fails identically**, chromium included, on a Critical Feature | **A stale `dist/`** from an experiment. Reverting source does not rebuild. `grep` the built HTML for the string you expect, then rebuild |
-| WebKit: *"Target page, context or browser has been closed"* | **The Windows WebKit build crashing under fan-out.** Re-check with `--workers=1` |
-| Firefox: `RenderCompositorSWGL failed`, then a `mouse.move`/`reload` **timeout**, on a **different test each run** | **The Windows Firefox compositor** under fan-out |
-| `auth.spec.ts`: `createConfirmedUser: fetch failed` — the error comes from **Node**, not from a page | **Network contention** minting users, not the browser. Not absorbed by the retry |
-| Several auth specs die of a bare `waitForURL` timeout on a **different set each run**, and pass when run file-by-file | **Supabase's auth burst limit.** The browser is parked on `{"code":429,"error_code":"over_request_rate_limit"}` — **measured at ~22 verifications in 7s**, clearing within minutes. `followMagicLink()` now retries and names it; if you see a raw timeout, check the page body before touching the callback |
-| `net::ERR_CONNECTION_REFUSED at https://<ref>.supabase.co/…` from the BROWSER, while `curl` from Node reaches the same project fine | ⚠️ **SUSTAINED rate-limit abuse, escalated.** After a couple of hours of back-to-back auth runs the project stops answering the browser altogether. **Read the host in the error** — this looks identical to a dead preview server until you notice the refusals are to supabase.co, not to `localhost:4321`. Nothing in the repo fixes it: **stop running, wait, then run ONCE.** Raising the TEST project's limit is in BACKLOG |
-| A run collapses part-way, and everything after a certain point fails `ERR_CONNECTION_REFUSED at http://localhost:4321/` | **The preview server went away mid-run.** ⚠️ **Often self-inflicted: piping a run into `head`/`grep -m1` SIGPIPEs it**, killing the runner while its `astro preview` teardown races the next run's server. CLAUDE.md already says never pipe a test run — this is the failure it produces. **Redirect to a file and read the file** |
-| A board spec fails on a tree that already shipped green | **A harness assumption**, not the app. **Drive the page by hand before believing it** |
+- a fixed bug still "fails" and the fix is missing from `dist/` → **a stale
+  preview server** (Playwright's `reuseExistingServer` skipped its own build);
+- **every project fails identically** on a Critical Feature → **a stale `dist/`**;
+- WebKit "target page… closed", or Firefox `RenderCompositorSWGL failed` on a
+  **different test each run** → **the Windows browser dying under fan-out**;
+- auth specs timing out on a **different set each run** → **Supabase's auth rate
+  limit**, measured at ~22 verifications in 7s;
+- `ERR_CONNECTION_REFUSED` → **read the HOST in the error**: `localhost:4321`
+  is a dead preview server, `*.supabase.co` is sustained rate-limit abuse.
 
 **A genuine failure is deterministic and fails A SERIAL RE-RUN too, and it fails
 with an assertion naming a value.** WebKit and Firefox carry one local retry;
 chromium has none. A run reporting `N passed, 1 flaky` on WebKit is green.
 
-⚠️ **THE TWO BROWSER-CRASH ROWS ARE NOW A FINDING WHEN THEY COME FROM
-`test:release`.** They belong to a raw `npx playwright test`, which still pools
-every project at the default fan-out. The matrix caps its workers and runs one
-project at a time precisely so it never reaches that state — so a compositor
-death *from the gate* means the cap has stopped being enough, and the next step
-is to check free RAM during the run, not to re-run and hope.
-
-⚠️ **THE LOCAL RETRY IS NOT THE ARBITER — `--workers=1` IS.** The v0.11.0 gate
-failed four Firefox specs that also failed their retries, in four unrelated
-files, and all 102 tests in those files then passed serially first time: when the
+⚠️ **THE LOCAL RETRY IS NOT THE ARBITER — `--workers=1` IS.** When the
 compositor has died the retry runs inside the same broken process, so it proves
-nothing. Read the errors rather than counting them — bare timeouts and
-`browserContext.close` protocol errors are a dead browser; an assertion naming a
-value is a defect. See [`docs/reference/testing.md`](./docs/reference/testing.md).
+nothing. Read the errors rather than counting them.
 
 ⚠️ **Never pipe the test run into `tail`** — it reports tail's exit code, so 14
 failures read as "196 passed, exit 0". Redirect to a file and check the status.
-`test:release` does both for you, and it also **compares the projects against
-each other** and fails if one ran zero tests — a hole the old "the total must be
-a multiple of 5" check could not see, since four projects of 100 and one of 0
-divides just as neatly as five of 80.
+
+⚠️ **A browser-crash row is a FINDING when it comes from `test:release`**,
+which caps its workers precisely so it never reaches that state.
+
+**➡️ The full symptom table and the diagnoses behind it:
+[`docs/reference/testing.md`](./docs/reference/testing.md).**
 
 ### ⚠️ Driving a board from a spec — the four gates
 
-1. **Scroll the board fully into view** — `scrollIntoView({ block: 'center' })`,
-   never `scrollIntoViewIfNeeded()`, which guarantees only *partly* visible. A tap
-   at an off-screen square is silently dropped and the board looks dead.
-2. **Wait on `<cg-board>`** — it is created inside a `useEffect`, so it is a
-   genuine hydration signal. `[data-testid="replayer"]` is **not**: Astro
-   server-renders it whether or not any JS ran.
-3. **Wait on `data-ready="true"` and `data-busy="false"`** before interacting.
-4. **Tap, and press for a DURATION.** `click()` with no `delay` sends mousedown
-   and mouseup in **one animation frame**, and Chessground does its drag
-   bookkeeping in a `requestAnimationFrame` loop — measured **1/8 solved at 0ms
-   against 8/8 at 60ms**. Use `movePiece()` from `tests/e2e/helpers/board.ts`:
-   element-relative positions, and `tap()` on touch projects.
+**Scroll it into view** (`block: 'center'`, never `scrollIntoViewIfNeeded`),
+**wait on `<cg-board>`** (not `[data-testid]`, which Astro server-renders),
+**wait on `data-ready="true"` and `data-busy="false"`**, and **press for a
+DURATION** — measured **1/8 solved at 0ms against 8/8 at 60ms**. Use
+`movePiece()` from `tests/e2e/helpers/board.ts`.
 
-⚠️ **Test the pointer path BY POINTER.** Every exercise spec that solved by typing
-into `MoveInput` bypassed Chessground entirely and would stay green if the board
-refused every tap.
+⚠️ **Test the pointer path BY POINTER.** Every exercise spec that solved by
+typing into `MoveInput` bypassed Chessground entirely and would stay green if
+the board refused every tap.
 
-⚠️ **Never assert a short-lived class with a MutationObserver alone** — callbacks
-are batched, and one that re-queries the **live DOM** can run after the window has
-closed. Sample from a `requestAnimationFrame` loop, and if you keep an observer,
-read its **records**. The tell that this is your bug rather than the browser's: a
-`length` of 0 on a collection that should be non-empty, moving between projects.
-
-⚠️ **Every axe check on a reveal-bearing page must call `settleReveals(page)`** —
-a `[data-reveal]` element sits at `opacity: 0` and is transparent text axe can
-still find. It presents as **flakiness, not breakage**, so a flaky `color-contrast`
-on an index page should be investigated rather than retried.
+⚠️ **Never assert a short-lived class with a MutationObserver alone**, and
+⚠️ **every axe check on a reveal-bearing page must call `settleReveals(page)`**
+— a `[data-reveal]` element is transparent text axe can still find, so it
+presents as flakiness rather than breakage.
 
 ⚠️ **`play.spec.ts` runs ONE AT A TIME** — every test boots a real engine with
-64 MiB of linear memory. Raising the timeouts was tried and made it **worse**.
+64 MiB of linear memory.
 
-**➡️ [`docs/reference/testing.md`](./docs/reference/testing.md)** — each of these
-in full, with the measurements and the false positives they produced, plus the
-focus-modality rule, the `disabled`-in-deps trap, and the board-driving helpers.
-
----
+**➡️ Each gate in full, with the measurements and the false positives it
+produced: [`docs/reference/testing.md`](./docs/reference/testing.md).**
 
 ## Quick change — a SHORTER GATE, NOT A SHORTER RULE
 
@@ -1573,6 +1581,9 @@ Run `npm run demo`, which prints its path, and work down it. The release gate is
 □ ⚠️ /agenda/ on the live site matches the `sessions` table. `smoke:prod` now
   fails on a blank agenda and prints the count, but it cannot know the count is
   RIGHT — compare it against the table.
+□ ⚠️ NO TEST FIXTURE IS LIVE — `smoke:prod` asserts the fixture routes 404. A
+  200 means the build ran with `PUBLIC_FIXTURES=true`. **No local spec can
+  check this**: the build under test always has fixtures ON, by design.
 □ ⚠️⚠️ AFTER DEPLOYING: `npm run verify:deploy` — green. This is the check that
   v0.13.0 did not have: it compares the live site's CONTENT-HASHED asset names
   against your `dist/`, so it answers "is the live site running the tree I just
@@ -1635,82 +1646,32 @@ It is a **living document**: keep it in step with the site, in the same commit a
 
 ### ⚠️ TWO CONFIGURATION INVARIANTS — VERIFY THEM AT EVERY PROMOTION
 
-Both of these were **once correct and silently stopped being so**, and neither
-lives in this repository, so nothing here can fail when one drifts. They are not
-settings that were configured and are therefore fine; they are **claims about
-the outside world that expire**, and the promotion gate is where they are
+Both were **once correct and silently stopped being so**, and neither lives in
+this repository, so nothing here can fail when one drifts. They are **claims
+about the outside world that expire**, and the promotion gate is where they are
 re-asked.
 
 1. ⚠️ **PRODUCTION'S SCHEMA IS NOT AHEAD OF ITSELF, AND `dev` DOES NOT MOVE IT.**
-   Production ran **three migrations behind** the repo (0005–0007 unapplied)
-   while `dev` and the test project advanced through all seven, and the only
-   symptom was a blank public agenda that every check called healthy. Migrations
-   reach production by a **deliberate human act against a ref typed by hand** —
-   `scripts/db-push.mjs` refuses production by design and must keep refusing —
-   so nothing automatic will ever close the gap. **Verify the schema, not the
-   push:** ask production what it holds, per migration, with the queries in
-   [`docs/reference/supabase.md`](./docs/reference/supabase.md).
-   ⚠️ **And `supabase_migrations.schema_migrations` is NOT the answer** — see
-   below.
+   Production ran **three migrations behind** the repo while every check went
+   green; the only symptom was a blank public agenda. Migrations reach production
+   by a **deliberate human act against a ref typed by hand** —
+   `scripts/db-push.mjs` refuses production by design and must keep refusing.
+   **Verify the schema, not the push:** ask production what it holds, per
+   migration. ⚠️ **`supabase_migrations.schema_migrations` IS NOT THE ANSWER** —
+   it listed 0001–0002 while the schema held everything through 0007, which is
+   the **wrong answer in the dangerous direction**. Ask the catalog.
 2. ⚠️ **THE BRANCH CLOUDFLARE DEPLOYS IS A DASHBOARD SETTING, AND IT HAS BEEN
-   WRONG.** Workers Builds was configured to **deploy every branch**, so a push
-   to `dev` built and took **100% of production traffic** — the exact deployment
-   currently serving the site came from a `dev` push, 108 seconds after it, not
-   from `main`. That is a change to the promotion policy wearing the clothes of
-   a build setting, and `dev` → `main` needing Seàn's approval means nothing
-   while it holds. The non-production branch command must be
-   **`npx wrangler versions upload`** (a version with no traffic), never
-   `deploy`. **Verify by output:** after a `dev` push, a new **version** appears
-   and `npx wrangler deployments status` is **unchanged**.
+   WRONG.** Workers Builds was configured to deploy **every** branch, so a push
+   to `dev` took **100% of production traffic** — that is a change to the
+   promotion policy wearing the clothes of a build setting. The non-production
+   branch command must be **`npx wrangler versions upload`**, never `deploy`.
+   **Verify by output:** after a `dev` push, `npx wrangler deployments status` is
+   **unchanged**.
 
-⚠️ **`supabase_migrations.schema_migrations` IS NOT A RECORD OF WHAT PRODUCTION
-HOLDS.** Production's ledger listed **0001 and 0002 only**, while the schema
-demonstrably contained everything through 0007 — 0003–0007 were applied by some
-path that did not write the ledger. Two consequences: reading the ledger to
-answer "is production current" gives the **wrong answer in the dangerous
-direction**, and a future `supabase db push` would try to **replay** five
-applied migrations, including 0005's unguarded `drop constraint`.
-⚠️ **The backfill SQL is in [`docs/ADMIN.md`](./docs/ADMIN.md) and is Seàn's to
-run** — it records history and executes nothing, because everything those five
-migrations contain is already in the database. Until it is run, the hazard
-stands. Ask the
-catalog what exists; never ask the ledger.
-
-**Service worker:** generated by Workbox **after** `astro build` (it fingerprints
-the real `dist/`). ⚠️ **Stockfish is never precached** — `globIgnores` excludes it
-and a runtime `CacheFirst` rule caches it instead. The spec parses the array out of
-`precacheAndRoute([...])` rather than grepping for the word "stockfish", which was
-only ever true while the engine did not exist.
-
-⚠️ **AND NEITHER IS ANYTHING NO EMITTED PAGE CAN REACH.** Astro collects a page's
-`<script>` blocks from the **module graph, not from what renders**, so the scripts
-behind a route `getStaticPaths()` declined to emit are still built and were still
-precached — 29.9 KB across 12 files with accounts off. `unreachableAssets()` in
-`build-sw.mjs` walks from every emitted HTML file through the asset graph and
-excludes what it never reaches.
-
-- ⚠️ **DERIVED, NEVER A LIST OF NAMES.** A `globIgnores` list naming "the auth
-  chunks" would have excluded `child.js` and `supabase.disabled.js`, which *look*
-  like auth chunks and are live on every board page via `progress.ts` →
-  `progress-sync.ts`. Ask the build, not a human.
-- It errs towards **including**: over-inclusion costs bytes, under-inclusion
-  costs a file offline. **Exclusion is not deletion** — the file is still served.
-- ⚠️ **A `globIgnores` entry that matches nothing is silent**, so the build
-  re-reads `sw.js` and **fails** if an exclusion did not take effect.
-- ⚠️ **The spec asserts the chunks EXIST before asserting they are absent.** "No
-  admin chunk in the manifest" passes perfectly on a build that has none. With
-  accounts ON it asserts the opposite — the rule is *unreachable*, not *auth*.
-
-**Generated assets** (icons, fonts, piece CSS, the vendored engine) are committed
-artefacts produced by scripts that are **run by hand when their input changes** —
-none of them run as part of `npm run build`. ⚠️ **`public/engine` must stay out of
-the TypeScript project**, or `astro check` dies of a V8 heap OOM naming no file.
-
-**➡️ [`docs/reference/deployment.md`](./docs/reference/deployment.md)** — the
-domain setup steps, what Seàn does in the dashboard, dry-run verification, the
-PWA manifest endpoint, and why the fonts are copied rather than imported.
-
----
+**➡️ The fourteen-hour blank agenda, the ledger backfill Seàn must run, and why
+the deploy card cannot tell the two paths apart:
+[`docs/reference/deployment.md`](./docs/reference/deployment.md) and
+[`docs/reference/supabase.md`](./docs/reference/supabase.md).**
 
 ## The size guard — this file has a hard limit
 

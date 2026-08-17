@@ -1,0 +1,25 @@
+{
+  "title_fr": "Le clouage absolu, et ce qu'il rapporte",
+  "title_en": "The absolute pin, and what it pays",
+  "slug": "clouage-absolu-puis-gain",
+  "fen": "4k2r/3n1ppp/1b6/8/B7/8/6PP/1R4K1 w - - 0 1",
+  "solution": [
+    "b1b6"
+  ],
+  "opponentReplies": [],
+  "onlyMove": false,
+  "hint_fr": "Le cavalier noir a l'air de défendre quelque chose. Regardez la diagonale derrière lui avant de le croire.",
+  "hint_en": "The black knight looks like it is defending something. Check the diagonal behind it before you believe that.",
+  "level": "intermediaire",
+  "themes": [
+    "clouage",
+    "tactique",
+    "fou"
+  ],
+  "claims": [
+    {
+      "kind": "pin",
+      "piece": "d7"
+    }
+  ]
+}

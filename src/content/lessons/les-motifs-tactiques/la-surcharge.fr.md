@@ -24,3 +24,5 @@ La menace qui rend la surcharge mordante, c'est le [mat du couloir](/cours/les-m
 ## Essaie toi-même
 
 <!--board-->
+
+C'était le dernier motif du cours. Ils ne servent à rien tant que tu ne les repères pas tout seul sur l'échiquier : va les chercher dans [les exercices tactiques](/exercices/theme/tactique/).

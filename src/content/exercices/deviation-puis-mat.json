@@ -1,0 +1,35 @@
+{
+  "title_fr": "Mat en 2 — écarter le gardien",
+  "title_en": "Mate in 2 — pull the guard away",
+  "slug": "deviation-puis-mat",
+  "fen": "3r2k1/5ppp/5b2/8/8/8/8/3QR1K1 w - - 0 1",
+  "solution": [
+    "d1d8",
+    "e1e8"
+  ],
+  "opponentReplies": [
+    "f6d8"
+  ],
+  "onlyMove": true,
+  "hint_fr": "La tour noire tient toute la dernière rangée. Le fou ne peut pas la remplacer : un fou ne surveille pas une rangée. Faites-leur échanger leurs rôles.",
+  "hint_en": "Black's rook holds the whole back rank. The bishop cannot replace it — a bishop does not watch a rank. Make them swap jobs.",
+  "level": "intermediaire",
+  "themes": [
+    "mat",
+    "deviation",
+    "couloir",
+    "sacrifice"
+  ],
+  "claims": [
+    {
+      "kind": "line",
+      "moves": [
+        "d1d8",
+        "f6d8",
+        "e1e8"
+      ],
+      "ends": "mate"
+    }
+  ],
+  "forcedReplies": true
+}

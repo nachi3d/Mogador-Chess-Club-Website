@@ -3,11 +3,26 @@
   "title_en": "The back-rank mate",
   "slug": "mat-du-couloir",
   "fen": "6k1/5ppp/8/8/8/8/6PP/R5K1 w - - 0 1",
-  "solution": ["a1a8"],
+  "solution": [
+    "a1a8"
+  ],
   "opponentReplies": [],
   "onlyMove": true,
   "hint_fr": "Le roi noir est enfermé par ses propres pions. Il ne lui reste que la première rangée — occupez-la.",
   "hint_en": "The black king is shut in by its own pawns. Only the back rank is left to it — take it.",
   "level": "debutant",
-  "themes": ["mat", "couloir", "tour"]
+  "themes": [
+    "mat",
+    "couloir",
+    "tour"
+  ],
+  "claims": [
+    {
+      "kind": "line",
+      "moves": [
+        "a1a8"
+      ],
+      "ends": "mate"
+    }
+  ]
 }
