@@ -73,6 +73,22 @@ living only in the production database.
 
 ### Changed
 
+- ⚠️ **Every matrix run keeps its own log** — `matrix-<shape>-<stamp>.log`,
+  `matrix-<shape>-<stamp>.json` and `freemem-<shape>-<stamp>-<project>.txt`,
+  with the `rmSync(LOG)` at startup removed. **Found by it biting at this
+  release's own gate.** `test-release.mjs` wrote to one `matrix.log` and cleared
+  it on startup, which is correct for one run and wrong for a gate that runs
+  TWICE, once per flag shape: the accounts-ON run deleted the accounts-OFF run's
+  log the moment it started. The OFF matrix had come back red with four failures
+  — three firefox, one webkit — and the log naming them was gone, along with
+  `test-results/`, which Playwright clears on its next run. Four failures that
+  could not be adjudicated, on a gate that blocks promotion, and the only remedy
+  was re-running the whole 90-minute shape.
+  ⚠️ **The memory traces had the identical bug** — `freemem-firefox.txt` is
+  keyed by project, so the second shape overwrote the first's troughs, which are
+  the numbers that decide whether a failure was a starved browser or a real
+  defect. ⚠️ **No pruning was added**: putting a deleter into the script that
+  just lost data is how the bug returns wearing a different hat.
 - ⚠️ **`createSession()` (singular) no longer exists.** `createSessions()` takes
   an array and sends one multi-row insert; `updateSessions()` takes ids and
   sends one `update … in (…)`. `updateSession()` and `cancelSession()` are

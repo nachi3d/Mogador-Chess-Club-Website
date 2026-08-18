@@ -939,12 +939,10 @@ answers `anon` `select`, which is 0008. **Never read
 `supabase_migrations.schema_migrations` for this** — it lists 0001–0002 only and
 is wrong in the dangerous direction.
 
-✅ **PRODUCTION'S SCHEMA IS CURRENT THROUGH 0012 — verified at the v0.17.0 gate,
-2026-08-18, against the catalog.** `profiles.account_shape` answers 200 (0010),
-`rebuild_requests` answers `42501` to `anon` rather than `PGRST205` (0011), and
-`sessions.series_id` answers 200 (0012). ⚠️ **Re-ask rather than trusting this
-line** — it is a claim about the outside world and it expires; that is the whole
-point of the two configuration invariants below.
+✅ **PRODUCTION'S SCHEMA IS CURRENT THROUGH 0012** — verified 2026-08-18 against
+the catalog: `account_shape` 200 (0010), `rebuild_requests` `42501` rather than
+`PGRST205` (0011), `series_id` 200 (0012). ⚠️ **Re-ask rather than trusting this
+line** — it is a claim about the outside world and it expires.
 
 ✅ **AND THE VAULT ENTRY IS LIVE** — production's `rebuild_requests` carries
 firings with `dispatched = true`. A schema query cannot show that half; a log
@@ -1514,6 +1512,10 @@ red gates were **memory exhaustion**, not browser bugs and not test bugs.
   memory. Raising it towards six reintroduces the entire problem.
 - ⚠️ **DO NOT "FIX" A RED MATRIX BY RAISING TIMEOUTS.** Tried; the failure count
   went **up**. A starved browser given longer to answer is still starved.
+- ⚠️ **EVERY RUN KEEPS ITS OWN LOG** — `matrix-<shape>-<stamp>.log`, never a
+  shared `matrix.log`. The gate runs TWICE, and the second run used to delete
+  the first's evidence on startup; four unadjudicable failures and a 90-minute
+  re-run is what that cost. The memory traces are namespaced the same way.
 - ⚠️ **A GATE THAT IS EXPECTED TO BE RED IS WORTH NOTHING.** v0.11.0 shipped on
   4 waved-through failures and v0.11.1 on 7. Both diagnoses were right, and that
   habit is exactly what lets a real regression through.

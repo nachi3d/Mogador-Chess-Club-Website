@@ -588,6 +588,77 @@ eroded.
 
 ---
 
+## ⚠️ Every matrix run keeps its own log — and the run that taught us why
+
+**Read when:** changing `scripts/test-release.mjs`, or trying to work out why a
+failed gate cannot be adjudicated.
+
+### What happened, at the v0.17.0 gate
+
+`test-release.mjs` wrote to one file, `node_modules/.cache/matrix.log`, and
+started with `rmSync(LOG, { force: true })`. Correct for a single run. The gate
+is **not** a single run — since v0.14.0 it runs **twice, once per flag shape**,
+because neither shape subsumes the other.
+
+So the sequence was:
+
+1. the accounts-**OFF** matrix ran for 90.7 minutes and came back **red**: 3
+   firefox failures, 1 webkit, `MATRIX FAILED — promotion is blocked`;
+2. the accounts-**ON** matrix started immediately afterwards, as designed;
+3. its first act was `rmSync(matrix.log)`.
+
+By the time anyone read the summary, **the log naming those four tests was
+gone.** `test-results/` was gone too — Playwright clears it at the start of its
+next run — so the screenshots, traces and error contexts went with it. What
+survived was the tally: *four failures, somewhere, in two browsers.*
+
+⚠️ **THAT IS UNADJUDICABLE, AND UNADJUDICABLE MEANS RE-RUN.** The documented
+arbiter for "is this failure real" is a serial re-run of *the failing tests*
+(CLAUDE.md → Testing). You cannot re-run tests you cannot name. The only
+remaining move was to re-run the entire 90-minute shape — the exact cost the
+logging was supposed to avoid.
+
+⚠️ **AND THE MEMORY TRACES HAD THE IDENTICAL BUG.** `freemem-<project>.txt` is
+keyed by PROJECT, not by run, so the ON run's `freemem-firefox.txt` overwrote
+the OFF run's. The trough is the number that decides whether a failure was a
+starved browser or a real defect — the single most important piece of evidence
+for a red matrix — and it was overwritten by the run that came next.
+
+### The fix
+
+Every run gets a unique name, and nothing is ever cleared:
+
+```
+node_modules/.cache/matrix-off-20260818-162210.log
+node_modules/.cache/matrix-off-20260818-162210.json
+node_modules/.cache/freemem-off-20260818-162210-firefox.txt
+```
+
+- **The shape is in the name, not just the timestamp.** "Which run was this?" is
+  asked months later, from a filename. `matrix-off-…` answers it; two timestamps
+  do not. `SHAPE` is derived from `PUBLIC_AUTH_ENABLED` — the same variable the
+  gate branches on — so the label cannot disagree with what actually ran.
+- **`rmSync(LOG)` is gone.** A unique name has nothing to clear, and clearing
+  anything is what caused this.
+- **The path is printed on the green path too**, not only on failure. A
+  promotion should record which two runs it rested on, and `matrix.log` could
+  never identify either.
+
+⚠️ **THERE IS DELIBERATELY NO PRUNING.** Adding a deleter immediately after
+fixing a deletion bug is how the bug comes back wearing a different hat. The
+files live in `node_modules/.cache`, which is gitignored and disposable; a run
+costs a few hundred KB. If the directory ever genuinely needs bounding, bound it
+by age in a separate, obvious step — never inside the script that writes them.
+
+### The general lesson
+
+⚠️ **A LOG THAT A LATER RUN CAN ERASE IS NOT EVIDENCE, IT IS A CONVENIENCE.**
+The failure mode is silent and perfectly timed: it destroys exactly the run you
+needed, at exactly the moment you needed it, because the thing that destroys it
+is the next step of the same procedure. Anything this repository writes to
+diagnose a failure — logs, traces, memory samples, JSON reports — is named per
+run, or it is not diagnostic.
+
 ## ⚠️ Symptoms that are the ENVIRONMENT, not the application
 
 **Read when:** a spec fails and you are not yet sure whether the application is wrong — read the signature BEFORE touching code.
