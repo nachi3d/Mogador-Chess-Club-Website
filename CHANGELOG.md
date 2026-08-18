@@ -11,7 +11,201 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
-_Nothing yet._
+**A term of sessions programmed in one action, and one Cloudflare build to show
+for it — plus the rebuild trigger finally written down as a migration instead of
+living only in the production database.**
+
+### Added
+
+- **Migration 0011 — the site rebuild trigger, captured from production.**
+  Publishing a session now asks Cloudflare to rebuild, so the staleness banner
+  goes green on its own instead of waiting for somebody to deploy.
+  - ⚠️ **It already existed on production, hand-applied, and that is the defect
+    this repairs.** A trigger that lives only in the live database is one the
+    test project does not have, nobody can review, and `db:push` does not carry.
+    Everything in 0011 is idempotent so it can be run **over** the hand-applied
+    objects; running it is what makes the two agree.
+  - ⚠️ **The Supabase Database Webhooks UI cannot be used on this project**, and
+    the hour spent proving it is now recorded rather than repeatable. It fails
+    with `schema supabase_functions does not exist`, then with
+    `function supabase_functions.http_request() does not exist` — enabling
+    `pg_net` does not fix it, because pg_net puts its functions in `net` and the
+    UI wants a `supabase_functions` shim this project does not have. The UI is a
+    convenience over exactly this trigger.
+  - **`public.rebuild_requests`** logs one row per firing, with the row count
+    taken from a transition table. It is the instrument that makes "thirteen
+    sessions, one build" **countable rather than asserted**. Staff-readable, no
+    insert policy, `service_role` granted explicitly (the 0002 lesson).
+  - ⚠️ **The trigger may never fail a write** (Critical Feature 70). Every
+    failure path — missing vault, unreachable `net.http_post`, Cloudflare down —
+    logs a `note` and returns. A trigger that can raise makes `/admin/seances`
+    unable to save, turning somebody else's outage into a database outage in
+    front of a room of children. At **migration** time the converse holds: a
+    missing `pg_net` raises and names the dashboard page that enables it.
+- **Migration 0012 — `sessions.series_id`**, a nullable, partially-indexed
+  label. See the recurrence entry below for what it is and is not.
+- **Recurring sessions in `/admin/seances`.** Create a session, choose *chaque
+  semaine* or *toutes les deux semaines*, give an end date, and get the whole
+  term in one action.
+  - **The preview lists every date before anything is created**, in full, and
+    the submit button says the number — "Créer" and "Créer les 13 séances" are
+    different promises. ⚠️ **The cap (52) REFUSES rather than truncating**:
+    creating the first 52 of 523 silently would leave a prof believing the rest
+    exist, in the public agenda, where nobody would check.
+  - **A *Séries* block** offers "publier les N brouillons" and "annuler les N
+    séances à venir" — never the past ones, because a session that happened
+    happened.
+- **`src/lib/recurrence.ts`** — pure, importable, no DOM and no Supabase, so its
+  arithmetic is checkable without a browser and its spec runs in both flag
+  shapes and with no credentials at all.
+- **`tests/e2e/recurring-sessions.spec.ts`** — six arithmetic tests plus two that
+  drive the real UI against the real database and **count the trigger firings**.
+
+### Changed
+
+- ⚠️ **`createSession()` (singular) no longer exists.** `createSessions()` takes
+  an array and sends one multi-row insert; `updateSessions()` takes ids and
+  sends one `update … in (…)`. `updateSession()` and `cancelSession()` are
+  one-id conveniences **over** those, not second call sites. This is Critical
+  Feature 67, and the reason is the statement-level trigger: a create-one
+  function's only misuse is a `for` loop, and the loop costs one Cloudflare
+  build per iteration.
+- `AdminSession` carries `seriesId`; `listSessions()` selects `series_id`.
+  ⚠️ **It is deliberately NOT in `sessionFingerprint()`** — the public agenda
+  card does not render it, so it cannot make the deployed site wrong.
+- **`SESSION_COLUMNS` — a second explicit-select ladder**, on the
+  `PROFILE_COLUMNS` precedent. `listSessions()` names `series_id`, and PostgREST
+  answers a missing column with `42703`, which this layer turns into an empty
+  array — indistinguishable from "no sessions". Without the ladder, one
+  unapplied migration would not degrade `/admin/seances`, it would silently
+  EMPTY it, taking the register and the staleness banner with it.
+  ⚠️ **Reads degrade; writes fail loudly.** `createSessions()` omits
+  `series_id` when there is none rather than sending null, so ordinary session
+  creation survives a pre-0012 database and only a *repeat* create fails — with
+  a message, rather than by quietly making thirteen rows nobody can act on as a
+  set.
+- `docs/MANUAL-TESTS.md` §7d-5 no longer says the agenda is "still the git
+  collection"; it has not been since v0.15.0, and since this release publishing
+  asks for a rebuild rather than waiting for one.
+
+### Decided
+
+- ⚠️ **NO RRULE ENGINE AND NO RECURRENCE TABLE** (Critical Feature 69). The
+  expansion happens once, in the browser, and what is stored is thirteen
+  ordinary rows. Same decision BabyClub took, for the same reason: **one
+  cancelled week must not require reasoning about a rule.** The cost is honest —
+  moving the whole term an hour later is not one edit — and it is the right way
+  round, because the rare bulk edit paying more is what keeps the common single
+  edit free.
+- ⚠️ **The generated rows DO carry a shared marker, and it is a LABEL.**
+  `series_id` may be read only to **select rows the prof is already looking at**,
+  never to decide what a session *is*. It earned its column twice over: bulk
+  publish and bulk cancel become **one statement** (which is what keeps the
+  rebuild trigger firing once per prof action), and the list can say
+  `série · 3/13` instead of showing thirteen indistinguishable cards.
+- ⚠️ **The deploy hook URL is supplied through Supabase Vault**
+  (`cloudflare_deploy_hook`), by a documented one-line manual step, and is in no
+  file in this repository (Critical Feature 68). It is the credential: anyone
+  holding it spends the club's build minutes, and this repo is public under the
+  GPL. A config table was rejected (readable by any service-role holder, lands
+  in `pg_dump`, and would be the eighth table here to ship with the `anon`
+  grants Supabase hands out by default); a GUC was rejected (nothing lists it,
+  nothing can audit it); `.env` cannot be read from inside Postgres at all.
+  ⚠️ **No secret means no dispatch, not an error** — which is what makes it safe
+  to count firings on a test project whose sibling is production.
+- **The suppression seam is documented, not used.** `set local mcc.rebuild =
+  'off'` silences every firing in a transaction, and
+  `select public.request_site_rebuild('manual: …')` re-fires once at the end. It
+  exists for hand-run SQL maintenance. ⚠️ **No application path uses it** —
+  every one of them is already a single statement, which is the better answer
+  wherever it is available.
+
+### Measured
+
+Firing counts against the test project, 2026-08-18 — the claim is about a
+trigger, so it was counted rather than reasoned about:
+
+```
+insert of 13 rows       -> 1 firing   (rows_changed 13)
+bulk update of 13 rows  -> 1 firing   (rows_changed 13)
+single update of 1 row  -> 1 firing   (rows_changed 1)
+bulk delete of 13 rows  -> 1 firing   (rows_changed 13)
+drafts-only insert of 3 -> 1 firing   (dispatched false — nothing public changed)
+```
+
+⚠️ **The spec's assertion is "exactly one firing says it touched 13 rows", not
+"one firing happened".** `fullyParallel` is on, so other spec files write
+sessions in other workers throughout. A loop of thirteen inserts cannot produce
+a `rows_changed = 13` row at all, so the assertion cannot be satisfied by the
+failure it exists to catch, and cannot be broken by an unrelated write.
+
+### Verification
+
+| Run | Result |
+|---|---|
+| `npm run test:branch`, accounts **OFF** | green — 159 passed, 53 skipped |
+| `npm run test:branch`, accounts **ON** (first) | 191 passed, **1 failed** — `attendance-timing` |
+| the identical set at `--workers=1`, accounts **ON** | **green — 192 passed, 0 failed** |
+| `attendance-timing.spec.ts` alone, accounts **ON** | green |
+| `npm run test:branch`, accounts **OFF** (final) | **green** |
+| `npm run test:branch`, accounts **ON** (final) | **green — 192 passed, 0 failed** |
+
+⚠️ **The single failure was the documented fan-out symptom, not a regression,
+and it was checked rather than assumed.** `attendance-timing.spec.ts` read
+`19 sur 28 marqués` after twenty successful taps whose rows were all durable in
+Postgres. Per CLAUDE.md → Testing, `--workers=1` is the arbiter, and the serial
+re-run of the identical thirteen spec files passed 192/192; the file also passes
+alone. It is logged in BACKLOG with the likely mechanism (a second, legitimately
+newer `loadRegister()` repainting from a read that predates some taps) rather
+than left as folklore.
+
+### Documentation
+
+- `docs/reference/deployment.md` — a new section: the webhook-UI dead end, the
+  vault decision with the rejected alternatives, why the trigger may never
+  raise, the `FOR EACH STATEMENT` rule as a constraint on the *client*, the
+  measured firing counts, the suppression seam, and the exact catalog query and
+  `schema_migrations` registration SQL for applying 0011 and 0012 to production.
+- `docs/reference/supabase.md` — the recurrence decision in full, the series
+  label, the cap, and the two timezone traps (local calendar days, and
+  `new Date()` reading a date-only string as UTC).
+- `docs/MANUAL-TESTS.md` — §7d-5b (thirteen rows, one rebuild, checked against
+  the Cloudflare build list *and* `rebuild_requests`) and §7d-5c (the Ramadan
+  DST check).
+
+### ⚠️ CLAUDE.md was split — and nothing was lost silently
+
+Four new Critical Features (67–70) pushed the file past the 120,000-character
+warning line, so the account-erasure detail moved **verbatim** to
+`docs/reference/supabase.md`, leaving behind the two rules that bind unrelated
+work (the function must never gain a parameter; anything exported from
+`supabase.ts` must also be exported by `supabase.disabled.ts`) and a pointer.
+119,746 characters, 80% of the hard limit.
+
+`node scripts/check-split.mjs` is green. **Two blocks are declared obsolete in
+`docs/reference/.split-obsolete.txt` rather than moved**, and per the rule they
+are reported here:
+
+1. **The "0010 is the one production is missing" paragraph** — rewritten in
+   place, because it became false in this release: production is now three
+   migrations behind, and 0011 is the special case that is already there,
+   hand-applied. Keeping the old sentences would leave CLAUDE.md asserting the
+   wrong count.
+2. **One line of a two-line pointer** — the sentence was re-flowed to name four
+   more subjects and a second reference file. Nothing it pointed at was removed.
+
+⚠️ **The headroom is now one session deep.** The next area-sized addition to
+CLAUDE.md must be preceded by a split, not followed by one.
+
+### ⚠️ Still outstanding for Seàn
+
+- **Migrations 0010, 0011 and 0012 on production, in that order**, then verify
+  **against the catalog** (never `schema_migrations`), then register them, then
+  deploy. 0011 runs over the hand-applied copy. The queries are in
+  `docs/reference/deployment.md`.
+- **The vault entry.** Until `cloudflare_deploy_hook` exists on production, the
+  trigger logs every firing and sends nothing — a working state, not a broken
+  one, but the feature does nothing. ⚠️ **Never create one on the test project.**
 
 ---
 

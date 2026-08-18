@@ -49,3 +49,6 @@ Thumbs.db
 # committed because a test run bakes the TEST project into it, and `git add -A`
 # would then ship test sessions as the production fallback.
 src/data/agenda.json
+
+# Supabase CLI scratch — written by `supabase db push`, never source.
+supabase/.temp/

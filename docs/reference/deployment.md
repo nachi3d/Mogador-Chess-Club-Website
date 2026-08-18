@@ -349,6 +349,208 @@ worth writing down here is the honest cost of the one that was chosen:
   there is invisible to `/admin/seances`, cannot be cancelled by a prof, and
   will be silently overridden by the next successful build.
 
+## ⚠️ The rebuild trigger — migration 0011, and where its secret lives
+
+**Read when:** touching the deploy hook, the `sessions` triggers, `pg_net`, or
+anything that writes to `sessions` in more than one statement.
+
+The section above closes the argument for a hook. This one is the machinery,
+and the two things about it that are easy to get wrong: **how the secret is
+supplied**, and **why every write path has to be a single statement**.
+
+### ⚠️ THE SUPABASE DATABASE WEBHOOKS UI CANNOT BE USED ON THIS PROJECT
+
+This is written down so nobody spends the hour again. The dashboard's
+**Database → Webhooks** page fails, in this order:
+
+1. `schema supabase_functions does not exist`
+2. once that is worked around: `function supabase_functions.http_request() does
+   not exist`
+
+**Enabling `pg_net` does not fix it.** pg_net installs into `extensions` and
+puts its own functions in the `net` schema; the Webhooks UI is a thin generator
+over a `supabase_functions.http_request()` shim that this project does not
+have. The UI is a convenience over exactly the trigger in migration 0011 —
+writing the trigger by hand is shorter, reviewable in git, and does not depend
+on a dashboard-managed schema.
+
+⚠️ **DO NOT TRY TO CREATE `supabase_functions` BY HAND TO SATISFY THE UI.** That
+puts a dashboard-owned schema under our management with none of the dashboard's
+lifecycle, and the result is a webhook that exists in the UI's list and in
+nobody's migrations.
+
+### ⚠️ THE HOOK URL IS THE CREDENTIAL, AND THIS REPOSITORY IS PUBLIC
+
+Anyone holding the Cloudflare deploy hook URL can spend the account's build
+minutes; there is no second factor on it. This repository is public under the
+GPL, so the URL is **not in a migration, not in `.env`, not in `wrangler.jsonc`
+and not in a table.**
+
+**It lives in Supabase Vault, under the name `cloudflare_deploy_hook`,** put
+there once per project by a manual step. `public.request_site_rebuild()` is the
+only reader; it is `security definer` with a pinned `search_path`, and it is
+granted to `service_role` and to nothing else.
+
+```sql
+-- once, in the Supabase SQL editor, per project that should deploy
+select vault.create_secret(
+  'https://…paste the real hook here…',
+  'cloudflare_deploy_hook',
+  'Cloudflare deploy hook — poked by public.request_site_rebuild()'
+);
+
+-- rotate
+select vault.update_secret(
+  (select id from vault.secrets where name = 'cloudflare_deploy_hook'),
+  'https://…new…'
+);
+
+-- confirm it is there WITHOUT printing it
+select name, created_at from vault.secrets where name = 'cloudflare_deploy_hook';
+```
+
+Why the vault and not the alternatives, recorded so this is not re-argued:
+
+| | why not |
+|---|---|
+| a config table | readable by anything with the service-role key, lands in `pg_dump`, and would be the **eighth** table on this project to ship with the `anon` grants Supabase hands out by default — see 0008 |
+| a GUC (`alter database … set`) | nothing lists it and nothing can audit it, and it does not survive the pooler predictably |
+| an `.env` variable | Postgres cannot read it; the trigger runs inside the database |
+| a Cloudflare Worker in front | there is no Worker — the site is static assets with no entry script, deliberately |
+
+⚠️ **NO SECRET MEANS NO DISPATCH, NOT AN ERROR.** A project with no vault entry
+logs the firing and sends nothing. That is the correct state for **every test
+project**, and it is what makes it safe for `recurring-sessions.spec.ts` to
+count firings against a database whose sibling is production. If a vault entry
+ever appears on the test project, every e2e run starts spending the club's build
+minutes — `recurring-sessions.spec.ts` asserts `dispatched === false` for
+exactly that reason.
+
+### ⚠️ THE TRIGGER MAY NEVER FAIL A WRITE
+
+`public.sessions_rebuild_hook()` swallows everything: a missing vault, an
+unreachable `net.http_post`, a Cloudflare outage. Every failure path writes a
+`rebuild_requests` row with a `note` and returns.
+
+That is not defensive habit — a trigger that can raise is a trigger that can
+make `/admin/seances` **unable to save**, turning somebody else's outage into a
+database outage on the screen a prof is standing in front of with a room full of
+children. The write has already happened by the time the trigger runs; the poke
+is the optional part, and it is the part allowed to fail.
+
+⚠️ **THE CONVERSE HOLDS AT MIGRATION TIME.** Applying 0011 with `pg_net` absent
+**raises**, naming the dashboard page that enables it. A migration is a
+deliberate act with somebody watching; failing loudly there is what stops the
+soft runtime failure being discovered six weeks later as "the site stopped
+rebuilding".
+
+### ⚠️ `FOR EACH STATEMENT` — and why that is a rule about the CLIENT
+
+The triggers are `after insert|update|delete … for each statement`. One
+statement, one firing, no matter how many rows it touched.
+
+That moves the requirement out of the database and into `src/lib/admin.ts`:
+
+- creating N sessions is **one** `insert([...N rows])` — which is why there is
+  no `createSession()` singular any more. A create-one function's only misuse is
+  a `for` loop, and the loop costs one Cloudflare build per iteration.
+- changing N sessions is **one** `update(patch).in('id', ids)`, never N `.eq()`
+  calls. `updateSession(id, …)` is a one-id convenience **over** the bulk
+  function, not a second call site.
+
+⚠️ **A DRAFT DISPATCHES NOTHING BUT STILL LOGS.** Nothing publicly visible
+changed, so there is nothing to rebuild — but the firing is recorded, which is
+what keeps the count honest. An `UPDATE` reads **both** transition tables,
+because pulling a published session back to draft is invisible in `new_rows` and
+is exactly the case the public agenda most needs rebuilt for.
+
+### Measured, not assumed — the firing counts
+
+`public.rebuild_requests` records one row per firing, with `rows_changed` taken
+from the transition table. Against the test project, 2026-08-18:
+
+```
+insert of 13 rows       -> firings: 1   (rows_changed 13)
+bulk update of 13 rows  -> firings: 1   (rows_changed 13)
+single update of 1 row  -> firings: 1   (rows_changed 1)
+bulk delete of 13 rows  -> firings: 1   (rows_changed 13)
+drafts-only insert of 3 -> firings: 1   (dispatched false, "nothing publicly visible changed")
+```
+
+⚠️ **THE ASSERTION IN THE SPEC IS "EXACTLY ONE FIRING SAYS IT TOUCHED 13 ROWS",
+NOT "ONE FIRING HAPPENED".** `fullyParallel` is on, so other spec files are
+writing sessions in other workers throughout. A loop of thirteen inserts cannot
+produce a `rows_changed = 13` row at all — it produces thirteen rows each saying
+one — so the assertion cannot be satisfied by the failure it exists to catch,
+and cannot be broken by an unrelated write.
+
+### The suppression seam — `mcc.rebuild = 'off'`
+
+For hand-run SQL maintenance, where a loop is sometimes genuinely the clearest
+thing to write:
+
+```sql
+begin;
+  set local mcc.rebuild = 'off';      -- every firing in this transaction is silent
+  -- … whatever loop or DO block is clearest …
+  select public.request_site_rebuild('manual: reshuffled the autumn term');
+commit;
+```
+
+⚠️ **NO APPLICATION CODE PATH USES IT, AND NONE SHOULD.** Every one of them is
+already a single statement, which is the better answer wherever it is available;
+reaching for the seam from `src/lib/` means the single statement was not tried
+hard enough.
+
+⚠️ **IT IS THE ONE PART OF 0011 NO SPEC COVERS, AND THAT IS STATED RATHER THAN
+HIDDEN.** The e2e suite reaches the database only through PostgREST, which gives
+a caller no way to express a transaction, so `set local` is unreachable from it.
+The re-fire half (`request_site_rebuild()`) **is** covered — it is called
+through the RPC, and asserted to be refused for `anon`. Verify the suppression
+half by hand, in the SQL editor, if it is ever changed.
+
+### ⚠️ Applying 0011 and 0012 to production
+
+Production already carries a **hand-applied** version of this trigger — that is
+the defect 0011 repairs. Everything in 0011 is idempotent (`create or replace`,
+`drop trigger if exists`, `create table if not exists`), so it is run **over**
+the hand-applied objects and the two then agree.
+
+Order, per the checklist in CLAUDE.md — **migrations first, credentials second,
+a build third**:
+
+1. `0010`, `0011`, `0012` in the SQL editor, in that order. ⚠️ 0010 is still
+   outstanding at the time of writing; `getProfile()` selects `account_shape`.
+2. Verify **against the catalog**, per migration, not against
+   `supabase_migrations.schema_migrations` — it listed 0001–0002 while the
+   schema held everything through 0007:
+
+   ```sql
+   select to_regclass('public.rebuild_requests') is not null   as has_0011_table,
+          to_regprocedure('public.request_site_rebuild(text,integer)') is not null
+                                                               as has_0011_fn,
+          (select count(*) from pg_trigger
+            where tgrelid = 'public.sessions'::regclass
+              and tgname like 'sessions_rebuild_%')            as trigger_count,
+          exists (select 1 from information_schema.columns
+                   where table_schema = 'public' and table_name = 'sessions'
+                     and column_name = 'series_id')            as has_0012;
+   -- expect: t, t, 3, t
+   ```
+3. Put the deploy hook in the vault, if it is not already there (see above).
+4. **Then** register them, so a later push does not try to re-apply them:
+
+   ```sql
+   insert into supabase_migrations.schema_migrations (version, name)
+   values ('0011', 'rebuild_trigger'), ('0012', 'session_series')
+   on conflict (version) do nothing;
+   ```
+
+⚠️ **REGISTERING IS BOOKKEEPING, NOT PROOF.** A row in `schema_migrations` says
+somebody ran the insert; step 2 is what says the schema actually holds the
+objects. The two have already disagreed on this project, in the dangerous
+direction. Never substitute one for the other.
+
 ## ⚠️ Which branch reaches production — the invariant, and how it broke
 
 **Read when:** promoting, or any time a deployment appears that nobody
