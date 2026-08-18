@@ -939,22 +939,21 @@ answers `anon` `select`, which is 0008. **Never read
 `supabase_migrations.schema_migrations` for this** — it lists 0001–0002 only and
 is wrong in the dangerous direction.
 
-⚠️⚠️ **0010, 0011 AND 0012 ARE THE ONES PRODUCTION IS MISSING, AND ALL THREE
-MUST BE APPLIED BEFORE THIS RELEASE DEPLOYS.** `getProfile()` selects
-`account_shape` (0010); without the column PostgREST rejects the select. The
-fallback ladder in `supabase.ts` (`PROFILE_COLUMNS`) means the account
-**degrades to the neutral copy rather than emptying**, which is deliberate —
-but it is a safety net, not a licence to skip the migration. 0012 adds
-`sessions.series_id`, which `listSessions()` now names in its select, so
-`/admin/seances` is empty without it.
+✅ **PRODUCTION'S SCHEMA IS CURRENT THROUGH 0012 — verified at the v0.17.0 gate,
+2026-08-18, against the catalog.** `profiles.account_shape` answers 200 (0010),
+`rebuild_requests` answers `42501` to `anon` rather than `PGRST205` (0011), and
+`sessions.series_id` answers 200 (0012). ⚠️ **Re-ask rather than trusting this
+line** — it is a claim about the outside world and it expires; that is the whole
+point of the two configuration invariants below.
 
-⚠️ **0011 IS A SPECIAL CASE: PRODUCTION ALREADY HAS IT, HAND-APPLIED.** The
-rebuild trigger was written straight into the live database before it was ever a
-migration — which is exactly the defect 0011 repairs. It is idempotent
-throughout, so it is run **over** the hand-applied objects; that is what makes
-production and the repository agree. Order: **0010 → 0011 → 0012 → verify
-against the catalog → register in `schema_migrations` → deploy.** The catalog
-query, the vault step and the registration SQL are in
+✅ **AND THE VAULT ENTRY IS LIVE** — production's `rebuild_requests` carries
+firings with `dispatched = true`. A schema query cannot show that half; a log
+row can.
+
+⚠️ **STILL OUTSTANDING, AND IT DOES NOT BLOCK A DEPLOY:** production's
+`schema_migrations` still lists `0001, 0002`, so a future `db push` would replay
+everything between — including 0005's unguarded `drop constraint`. **Registering
+is bookkeeping, not proof.** Backfill SQL in
 [`docs/reference/deployment.md`](./docs/reference/deployment.md). See BACKLOG.
 
 **OFF means NOT BUILT** (Critical Feature 18): the routes are not in `dist/`,

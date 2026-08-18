@@ -11,9 +11,19 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
-**A term of sessions programmed in one action, and one Cloudflare build to show
+_Nothing yet._
+
+---
+
+## [0.17.0] — 2026-08-18
+
+**Recurring sessions with `series_id`, single-statement bulk writes so a
+thirteen-session creation triggers ONE rebuild, and migrations 0011 (the rebuild
+trigger, with a vault-supplied hook) and 0012 (session series).**
+
+A term of sessions programmed in one action, and one Cloudflare build to show
 for it — plus the rebuild trigger finally written down as a migration instead of
-living only in the production database.**
+living only in the production database.
 
 ### Added
 
@@ -197,15 +207,32 @@ are reported here:
 ⚠️ **The headroom is now one session deep.** The next area-sized addition to
 CLAUDE.md must be preceded by a split, not followed by one.
 
-### ⚠️ Still outstanding for Seàn
+### ⚠️ Production's schema — asked of the catalog at the gate, not assumed
 
-- **Migrations 0010, 0011 and 0012 on production, in that order**, then verify
-  **against the catalog** (never `schema_migrations`), then register them, then
-  deploy. 0011 runs over the hand-applied copy. The queries are in
-  `docs/reference/deployment.md`.
-- **The vault entry.** Until `cloudflare_deploy_hook` exists on production, the
-  trigger logs every firing and sends nothing — a working state, not a broken
-  one, but the feature does nothing. ⚠️ **Never create one on the test project.**
+The promotion checklist demands this per migration, against the catalog rather
+than `supabase_migrations.schema_migrations`, which has already been wrong here
+in the dangerous direction. Probed read-only on 2026-08-18, before the deploy:
+
+| | evidence |
+|---|---|
+| **0010** applied | `profiles?select=account_shape` answers **200**, not `42703` |
+| **0011** applied | `rebuild_requests` answers **`42501`** to `anon` (permission denied — the table exists) where a missing table answers `PGRST205` |
+| **0012** applied | `sessions?select=series_id` answers **200**, not `42703` |
+
+⚠️ **AND THE VAULT ENTRY IS LIVE, WHICH IS THE HALF NO SCHEMA QUERY CAN SHOW.**
+`rebuild_requests` on production carries firings from 2026-08-18 with
+**`dispatched = true`** — so `cloudflare_deploy_hook` is in the vault, `pg_net`
+reached Cloudflare, and the trigger is doing its job end to end. That is the
+first evidence the feature works outside a test project, and it is a log row
+rather than a claim.
+
+⚠️ **Still outstanding, and it does NOT block a deploy:** registering 0010–0012
+in `supabase_migrations.schema_migrations`. Production's ledger has listed
+`0001, 0002` since long before this release while the schema demonstrably holds
+far more, so a future `supabase db push` would try to replay everything in
+between — including 0005's unguarded `drop constraint`. **Registering is
+bookkeeping, not proof**; the table above is the proof. The backfill SQL is in
+`docs/reference/deployment.md` and the item is in BACKLOG.
 
 ---
 
@@ -5002,7 +5029,8 @@ Foundation only: no real content, no interactive board yet.
   `url()` references unresolved and the fonts silently 404 into a Georgia
   fallback. `scripts/build-fonts.mjs` self-hosts them instead. See CLAUDE.md.
 
-[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.16.0...HEAD
+[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.17.0...HEAD
+[0.17.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.13.0...v0.14.0
