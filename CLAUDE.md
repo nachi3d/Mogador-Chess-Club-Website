@@ -314,6 +314,10 @@ it. Tags said one thing and the manifest said another.
 64. **Going UP and going BACK IN A SEQUENCE are different controls and both survive.** Prev/next inside a course or the tutorial is not a way out of it.
 65. **A section landing is a chooser, not a menu.** Every card carries a name, one line of what is behind it, and the reader's own state where any exists — otherwise it is a second menu after the bar and does not earn the tap it costs.
 66. **A video is a FACADE, and its POSTER IS SELF-HOSTED.** No iframe before a click; the still is a committed file in `public/video/`, never `i.ytimg.com`. ⚠️ **The poster is the half that gets lost** — hot-linking it removes a build step, looks identical on screen, and breaks Critical Feature 9 by a hostname nobody thinks of as YouTube. See the section below.
+67. **A write to `sessions` reaches Postgres as ONE STATEMENT.** 0011 hangs an `AFTER … FOR EACH STATEMENT` trigger on it that pokes the Cloudflare deploy hook, so a loop of thirteen inserts is thirteen production builds. ⚠️ **`createSession()` singular no longer exists** — its only misuse was a `for` loop. Bulk changes are `.in('id', ids)`, never N `.eq()`, and `rebuild_requests` makes the firings COUNTABLE.
+68. **The deploy hook URL is a VAULT SECRET, and this repository is public.** It is the credential. `vault.create_secret(…, 'cloudflare_deploy_hook')`, read only by `request_site_rebuild()` — never a table, never `.env`, never a migration. ⚠️ **No secret means NO DISPATCH, not an error**, which is what lets a test project count firings safely.
+69. **`sessions.series_id` is a LABEL, never a rule — NO RRULE engine, NO recurrence table.** The expansion happens once, in the browser; what is stored is thirteen ordinary rows. Nothing may read it to decide what a session IS, only to select rows the prof already sees. One cancelled week must not require reasoning about a rule.
+70. **The rebuild trigger may NEVER fail a write.** Every failure path logs and returns. A trigger that can raise makes `/admin/seances` unable to save — somebody else's outage becoming a database outage in front of a room of children.
 
 ---
 
@@ -935,13 +939,23 @@ answers `anon` `select`, which is 0008. **Never read
 `supabase_migrations.schema_migrations` for this** — it lists 0001–0002 only and
 is wrong in the dangerous direction.
 
-⚠️⚠️ **0010 IS THEREFORE THE ONE PRODUCTION IS MISSING, AND IT MUST BE APPLIED
-BEFORE THIS RELEASE DEPLOYS.** `getProfile()` selects `account_shape`; without
-the column PostgREST rejects the select. The fallback ladder in `supabase.ts`
-(`PROFILE_COLUMNS`) means the account **degrades to the neutral copy rather than
-emptying**, which is new and deliberate — but it is a safety net, not a licence
-to skip the migration. Order: **0010 → verify against the catalog → deploy.**
-See BACKLOG.
+⚠️⚠️ **0010, 0011 AND 0012 ARE THE ONES PRODUCTION IS MISSING, AND ALL THREE
+MUST BE APPLIED BEFORE THIS RELEASE DEPLOYS.** `getProfile()` selects
+`account_shape` (0010); without the column PostgREST rejects the select. The
+fallback ladder in `supabase.ts` (`PROFILE_COLUMNS`) means the account
+**degrades to the neutral copy rather than emptying**, which is deliberate —
+but it is a safety net, not a licence to skip the migration. 0012 adds
+`sessions.series_id`, which `listSessions()` now names in its select, so
+`/admin/seances` is empty without it.
+
+⚠️ **0011 IS A SPECIAL CASE: PRODUCTION ALREADY HAS IT, HAND-APPLIED.** The
+rebuild trigger was written straight into the live database before it was ever a
+migration — which is exactly the defect 0011 repairs. It is idempotent
+throughout, so it is run **over** the hand-applied objects; that is what makes
+production and the repository agree. Order: **0010 → 0011 → 0012 → verify
+against the catalog → register in `schema_migrations` → deploy.** The catalog
+query, the vault step and the registration SQL are in
+[`docs/reference/deployment.md`](./docs/reference/deployment.md). See BACKLOG.
 
 **OFF means NOT BUILT** (Critical Feature 18): the routes are not in `dist/`,
 there is **no Supabase ref, host or anon key anywhere in the bundle**,
@@ -1052,37 +1066,40 @@ ships no Supabase ref at all) each rule it out on their own.
   for Ramadan and back, and the build fails if the snapshot disagrees.
 - ⚠️ **A cancelled session stays PUBLICLY visible with its state** (Critical
   Feature 50). **A draft never leaks.** **The seed must not delete migrated rows.**
+- ⚠️⚠️ **SINCE 0011 A SESSION CHANGE ASKS CLOUDFLARE TO REBUILD** — a
+  statement-level trigger poking a deploy hook whose URL lives in **Supabase
+  Vault**, never in this repository (Critical Features 67, 68, 70). The
+  staleness banner is still the backstop; the trigger just makes the window
+  short. ⚠️ **The Database Webhooks UI CANNOT be used on this project** and the
+  hour spent proving it is recorded rather than repeatable — see the reference.
+- ⚠️ **A recurring set is thirteen ORDINARY ROWS, one statement, one rebuild**
+  (67, 69). `src/lib/recurrence.ts` expands once and the cap **refuses rather
+  than truncating**. ⚠️ **The step is in local calendar days, not
+  milliseconds** — same reason `site.timezone` is an IANA name.
 
 **➡️ The fourteen-hour blank agenda, why the card's text cannot tell the two
-deploy paths apart, and the full reasoning:
-[`docs/reference/supabase.md`](./docs/reference/supabase.md).**
+deploy paths apart, the recurring-session decision and the series label:
+[`docs/reference/supabase.md`](./docs/reference/supabase.md). The rebuild
+trigger, the vault secret, the webhook-UI dead end, the measured firing counts
+and the suppression seam:
+[`docs/reference/deployment.md`](./docs/reference/deployment.md).**
 ### ⚠️ AN ACCOUNT DELETES ITSELF, AND THE FUNCTION TAKES NO TARGET
 
-`delete_own_account()` (migration 0007), reached from `/compte/`. The privacy
-notice always promised erasure; until now that promise was a volunteer
-remembering to run SQL.
+`delete_own_account()` (migration 0007), reached from `/compte/`. Two rules here bind work that has nothing to do with deletion, so they stay:
 
 - ⚠️ **NO ARGUMENT, AND IT MUST NEVER GAIN ONE.** The id can only come from
   `auth.uid()`. A `delete_account(target uuid)` with an ownership check inside
   is one refactor away from deleting anybody — **the parameter list is the
   guarantee, not the body.** `authenticated` only; not `service_role`.
-- ⚠️ **Two steps, and the second is a TYPED WORD** (`SUPPRIMER` / `DELETE`,
-  case-exact). Two buttons in one place is one mis-tap on a family tablet, on
-  the only action here nobody can undo.
-- ⚠️ **The confirmation NAMES what goes** — children, progress, games, points,
-  attendance. "Are you sure?" tells a reader nothing.
-- ⚠️ **NOTHING IS RETAINED.** No statistics, no archive, no anonymised copy —
-  and a spec asserts that rather than the notice claiming it. Device-local
-  progress is deliberately untouched: it is the reader's own copy, it is what a
-  guest has, and erasing it is not what the request asks for.
-- ⚠️ **Local state is cleared only AFTER the server confirms** — the opposite of
-  `signOut()`, which clears first. Wiping a device for a delete that did not
-  happen destroys data the account still holds.
 - ⚠️ **Anything exported from `supabase.ts` and imported by a page script must
   also be exported by `supabase.disabled.ts`**, or the accounts-OFF build fails
   outright — the alias replaces the module for scripts that are still *built*
   behind unemitted routes. The stub returns `{ ok: false }`: a stubbed success
   would tell a reader their data was erased.
+
+**➡️ The typed-word confirmation, what the confirmation names, why nothing is
+retained and why local state is cleared only after the server confirms:
+[`docs/reference/supabase.md`](./docs/reference/supabase.md).**
 
 ### ⚠️ THE CHECKLIST FOR A MIGRATION THAT ADDS A TABLE
 
@@ -1304,6 +1321,10 @@ touching any of these three pages.
   `null`, which is indistinguishable from "not signed in" — **one unapplied
   migration silently sends every first sign-in past the welcome screen.**
   ⚠️ **Anything added to that select gets a new rung in the same commit.**
+  ⚠️ **`SESSION_COLUMNS` (`src/lib/admin.ts`) IS THE SECOND LADDER**, since
+  0012: without it one unapplied migration EMPTIES `/admin/seances` rather than
+  degrading it. ⚠️ **Reads degrade; WRITES fail loudly** — `createSessions()`
+  omits `series_id` when there is none rather than sending null.
 - ⚠️ **"LES DEUX" IS THE TYPICAL CASE** (Critical Feature 57), **THE ANSWER IS
   NOT THE TRUTH** (58) — `effectiveShape()` is the only place the stored answer
   and the roster meet, and **the roster wins wherever it can speak** — and

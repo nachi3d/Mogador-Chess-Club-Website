@@ -1883,14 +1883,62 @@ account promoted to `prof` with the SQL in `docs/ADMIN.md`.
 - [ ] Create a session as a **brouillon** — it appears in the list, marked so
 - [ ] It is **not** on the public `/agenda/`, and not offered in the marking picker
       until published
-- [ ] **Publier** it — now it is on `/agenda/` (after a rebuild — the agenda is
-      still the git collection; see BACKLOG) and in the picker
+- [ ] **Publier** it — now it is on `/agenda/` and in the picker.
+      ⚠️ **After a rebuild**: the agenda is baked at build time, and since
+      v0.17.0 publishing ASKS Cloudflare to rebuild rather than waiting for
+      somebody to deploy. The staleness banner is still the backstop
 - [ ] **Annuler la séance** — it stays in the list, visibly cancelled.
       ⚠️ There is **no delete button**, on purpose: deleting would take its
       register with it
 - [ ] A cancelled session's attendance rows still exist (check the student's own
       detail page)
 - [ ] As an **élève**, `/agenda/` shows neither the draft nor the cancelled one
+
+### 7d-5b. ⚠️ Recurring sessions — thirteen rows, ONE rebuild (v0.17.0)
+
+Do the whole of this on a **phone**, because that is where a prof programmes a
+term. ⚠️ **The claim under test is that thirteen sessions cost ONE Cloudflare
+build**, so the last two checks are the ones that matter.
+
+- [ ] Create a session, choose **"Chaque semaine"**, and set **"Jusqu'au"** twelve
+      weeks out. ⚠️ **Before pressing anything**, the preview lists **every one of
+      the thirteen dates** — not "et 8 autres" — and the button reads
+      **"Créer les 13 séances"**
+- [ ] Switch to **"Toutes les deux semaines"**: the count halves and the dates
+      redraw immediately
+- [ ] ⚠️ **Type the wrong year** in "Jusqu'au" (2039 instead of 2029). It is
+      **refused**, it says how many were asked for, and **nothing is created**.
+      It must never create the first 52 and stay silent about the rest
+- [ ] Press create and confirm. Thirteen cards appear, each badged
+      **"série · n/13"**, and a **Séries** block appears above the list
+- [ ] ⚠️ **Edit ONE of them** — cancel the seventh. It goes "annulée"; the other
+      twelve are untouched, and **nothing is deleted**
+- [ ] The Séries block now offers **"Annuler les 12 séances à venir"**. Press it:
+      all twelve go cancelled, the past ones (if any) are **not** touched
+- [ ] ⚠️ **Now the rebuild.** Open the Cloudflare dashboard's build list.
+      Creating thirteen sessions must have produced **ONE build**, not thirteen.
+      The bulk cancel must have produced **one more**. If you see thirteen, a
+      write path has been turned back into a loop — see Critical Feature 67
+- [ ] ⚠️ **And check the log agrees**, in the Supabase SQL editor:
+
+      select source, rows_changed, dispatched, note
+        from public.rebuild_requests order by id desc limit 5;
+
+      One row saying `sessions.insert` / `13`, one saying `sessions.update` / `12`.
+      Thirteen rows each saying `1` is the failure this exists to catch
+- [ ] ⚠️ **On the TEST project only**, `dispatched` must be **false** and the note
+      must say there is no hook in the vault. A test project that dispatches is
+      one vault entry away from spending the club's build minutes on every e2e run
+
+### 7d-5c. ⚠️ The DST check — once, by hand, and worth it
+
+Morocco drops to UTC+0 for Ramadan and back. The expansion steps in **local
+calendar days** for exactly that reason, and this is the only way to see it.
+
+- [ ] Create a weekly series that **spans a Ramadan transition** (the dates move
+      each year; check before doing it). Every generated session must show the
+      **same clock time** — 16:00 stays 16:00 on both sides of the change
+- [ ] The same times appear on the public `/agenda/` after a rebuild
 
 ### 7d-6. Chrome, themes and motion
 

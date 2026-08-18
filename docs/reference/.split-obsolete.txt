@@ -22,3 +22,27 @@
 #    menu above it, which is the divergence M1/M2 exists to protect. The row now
 #    names both halves.
 | `/` | `/en/` | Home — the **main menu** (E5); descriptive content below the fold |
+
+# ── v0.17.0 split ──────────────────────────────────────────────────────────
+#
+# 3. The "0010 is the one production is missing" paragraph. NOT lost — REWRITTEN
+#    in place, because it became false in this release: 0011 (the rebuild
+#    trigger) and 0012 (`sessions.series_id`) landed, and 0011 is a special case
+#    because production already carries a hand-applied copy of it. The
+#    replacement paragraph a few lines above names all three, states the
+#    hand-applied case, and gives the order. Keeping the old sentences would
+#    leave CLAUDE.md asserting that production is one migration behind when it
+#    is three.
+⚠️⚠️ **0010 IS THEREFORE THE ONE PRODUCTION IS MISSING, AND IT MUST BE APPLIED
+BEFORE THIS RELEASE DEPLOYS.** `getProfile()` selects `account_shape`; without
+the column PostgREST rejects the select. The fallback ladder in `supabase.ts`
+(`PROFILE_COLUMNS`) means the account **degrades to the neutral copy rather than
+emptying**, which is new and deliberate — but it is a safety net, not a licence
+to skip the migration. Order: **0010 → verify against the catalog → deploy.**
+See BACKLOG.
+#
+# 4. One line of a two-line pointer. The pointer now names four more subjects
+#    (the recurring-session decision, the series label, the rebuild trigger and
+#    the vault secret) and points at a second reference file as well, so the
+#    sentence was re-flowed. Nothing it referred to was removed.
+deploy paths apart, and the full reasoning:

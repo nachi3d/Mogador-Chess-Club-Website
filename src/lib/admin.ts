@@ -50,6 +50,19 @@ export interface AdminSession {
       staleness check tells a prof their edit shipped when it did not. */
   readonly noteFr: string | null;
   readonly noteEn: string | null;
+  /**
+   * ⚠️ A LABEL ON ROWS CREATED TOGETHER, NEVER A RULE ABOUT THEM (0012).
+   *
+   * It may be used to SELECT rows the prof is already looking at — publish
+   * these twelve, cancel the rest of the term — and for nothing else. Null is
+   * the common case and is not a lesser state.
+   *
+   * ⚠️ IT IS NOT IN `sessionFingerprint()`, and that is correct: the public
+   * agenda card does not render it, so a change to it cannot make the deployed
+   * site wrong. Anything the card DOES render goes in the fingerprint in the
+   * same commit — see `@lib/agenda`.
+   */
+  readonly seriesId: string | null;
 }
 
 export interface AdminAward {
@@ -272,14 +285,81 @@ export async function listAwards(childId?: string): Promise<AdminAward[]> {
   }));
 }
 
-/* ── sessions ──────────────────────────────────────────────────────────── */
+/* ── sessions ──────────────────────────────────────────────────────────────
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️⚠️ EVERY WRITE IN THIS SECTION REACHES POSTGRES AS **ONE STATEMENT**, AND
+ * THAT IS A CORRECTNESS RULE, NOT A PERFORMANCE ONE.
+ *
+ * Migration 0011 hangs an `AFTER … FOR EACH STATEMENT` trigger on `sessions`
+ * that pokes the Cloudflare deploy hook. Statement-level means it fires ONCE
+ * per statement — so a loop of thirteen inserts is thirteen production builds
+ * for one prof action, and a "cancel the rest of the term" that iterates is
+ * twelve more.
+ *
+ * Therefore:
+ *
+ *   • creating N sessions is `insert([...N rows])`, never N calls to a
+ *     create-one function. That is why `createSession()` (singular) NO LONGER
+ *     EXISTS — a one-row create is `createSessions([one])`, and there is no
+ *     function available to put in a `for` loop.
+ *   • changing N sessions is `update(patch).in('id', ids)`, never N `.eq()`
+ *     calls.
+ *
+ * ⚠️ IF A FUTURE PATH GENUINELY CANNOT BE ONE STATEMENT, the seam is in 0011:
+ * `set local mcc.rebuild = 'off'` for the transaction, then one
+ * `select public.request_site_rebuild('manual: …')` at the end. It is a
+ * hand-run-SQL escape hatch. Nothing here needs it, and reaching for it from
+ * application code means the single statement was not tried hard enough.
+ *
+ * ⚠️ AND IT IS MEASURED, NOT ASSERTED. `rebuild_requests` logs one row per
+ * firing and `recurring-sessions.spec.ts` counts them: thirteen sessions, one
+ * row. A claim about a trigger that nobody counts is a claim that quietly stops
+ * being true.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+
+/**
+ * ⚠️ A LADDER, FOR THE SAME REASON `PROFILE_COLUMNS` IS ONE.
+ *
+ * PostgREST answers a select naming a column the database does not have with a
+ * `42703`, and this function turns an error into an empty array — which is
+ * indistinguishable from "no sessions" to every caller. So one unapplied
+ * migration would not degrade `/admin/seances`; it would silently EMPTY it,
+ * taking the register, the session list and the staleness banner with it, on
+ * the one screen a prof uses weekly.
+ *
+ * That hazard is written down for `getProfile()` after it bit once, and 0012
+ * adds a column to a second explicit select. The line stops being fragile
+ * instead.
+ *
+ * ⚠️ IT DEGRADES, IT DOES NOT REPAIR. A database without 0012 comes back with
+ * `seriesId: null` on every row, which is exactly what a one-off session
+ * carries — so the series block simply does not appear, and everything else
+ * works. ⚠️ **ANYTHING ADDED TO THIS SELECT GETS A NEW RUNG IN THE SAME
+ * COMMIT.**
+ *
+ * The cost is one extra round trip on a misconfigured deployment only.
+ */
+const SESSION_COLUMNS: readonly string[] = [
+  'id,starts_at,duration_minutes,title_fr,venue,level,status,note_fr,note_en,series_id',
+  /* Pre-0012 — before a repeat action could label the rows it created. */
+  'id,starts_at,duration_minutes,title_fr,venue,level,status,note_fr,note_en',
+] as const;
 
 export async function listSessions(): Promise<AdminSession[]> {
   const supabase = await getSupabase();
-  const { data } = await supabase
-    .from('sessions')
-    .select('id,starts_at,duration_minutes,title_fr,venue,level,status,note_fr,note_en')
-    .order('starts_at', { ascending: false });
+  let data: Record<string, unknown>[] | null = null;
+  for (const columns of SESSION_COLUMNS) {
+    const result = await supabase
+      .from('sessions')
+      .select(columns)
+      .order('starts_at', { ascending: false });
+    if (!result.error) {
+      data = (result.data ?? []) as unknown as Record<string, unknown>[];
+      break;
+    }
+  }
   return (data ?? []).map((row) => ({
     id: String(row['id']),
     /* ⚠️ Canonicalised, not passed through: PostgREST answers `+00:00` and the
@@ -293,6 +373,7 @@ export async function listSessions(): Promise<AdminSession[]> {
     status: String(row['status'] ?? 'draft') as SessionStatus,
     noteFr: row['note_fr'] ? String(row['note_fr']) : null,
     noteEn: row['note_en'] ? String(row['note_en']) : null,
+    seriesId: row['series_id'] ? String(row['series_id']) : null,
   }));
 }
 
@@ -303,28 +384,65 @@ export interface SessionInput {
   readonly venue: string | null;
   readonly level: string | null;
   readonly status: SessionStatus;
+  /** Null for a one-off. See `AdminSession.seriesId` — a label, never a rule. */
+  readonly seriesId?: string | null;
 }
 
-export async function createSession(input: SessionInput): Promise<{ ok: boolean; error?: string }> {
+/**
+ * A fresh series label.
+ *
+ * ⚠️ MINTED ON THE CLIENT, DELIBERATELY. A database default would need the rows
+ * to be inserted before the id existed, or a round trip to fetch one — and the
+ * whole point is that the thirteen rows go out in ONE statement, which means
+ * the client has to know the label before it sends them.
+ *
+ * `crypto.randomUUID` is available in every browser this site supports and in
+ * Node ≥ 19; there is no polyfill and there should not be one, because a
+ * fallback that is not a uuid would collide silently.
+ */
+export function newSeriesId(): string {
+  return crypto.randomUUID();
+}
+
+/**
+ * Create one session or thirteen — in ONE statement, always.
+ *
+ * ⚠️ THERE IS NO SINGULAR VERSION OF THIS FUNCTION, AND THAT IS THE POINT. See
+ * the section header: a `createSession(one)` is a function whose only misuse is
+ * putting it in a loop, and the loop costs a Cloudflare build per iteration.
+ * PostgREST turns a multi-row insert into a single `INSERT … SELECT`, so the
+ * statement-level trigger fires once no matter how long the array is.
+ */
+export async function createSessions(
+  inputs: readonly SessionInput[],
+): Promise<{ ok: boolean; error?: string; created: number }> {
+  if (inputs.length === 0) return { ok: true, created: 0 };
   const supabase = await getSupabase();
-  const { error } = await supabase.from('sessions').insert([
-    {
+  const { error } = await supabase.from('sessions').insert(
+    inputs.map((input) => ({
       starts_at: input.startsAt,
       duration_minutes: input.durationMinutes,
       title_fr: input.titleFr,
       venue: input.venue,
       level: input.level,
       status: input.status,
-    },
-  ]);
-  return error ? { ok: false, error: error.message } : { ok: true };
+      /* ⚠️ OMITTED WHEN THERE IS NO SERIES, NOT SENT AS NULL — the write-side
+         half of the `SESSION_COLUMNS` ladder. A database without 0012 answers
+         `42703` for any payload naming the column, so sending `series_id: null`
+         on a ONE-OFF create would take ordinary session creation down with a
+         migration that only the repeat feature needs.
+
+         ⚠️ AND A REPEAT CREATE STILL FAILS LOUDLY THERE, deliberately. Reads
+         degrade because an empty admin page explains nothing; a WRITE that
+         quietly dropped the label would create thirteen rows the prof could
+         never act on as a set, with nothing on screen saying so. */
+      ...(input.seriesId ? { series_id: input.seriesId } : {}),
+    })),
+  );
+  return error ? { ok: false, error: error.message, created: 0 } : { ok: true, created: inputs.length };
 }
 
-export async function updateSession(
-  id: string,
-  patch: Partial<SessionInput>,
-): Promise<{ ok: boolean; error?: string }> {
-  const supabase = await getSupabase();
+function sessionPatchRow(patch: Partial<SessionInput>): Record<string, unknown> {
   const row: Record<string, unknown> = {};
   if (patch.startsAt !== undefined) row['starts_at'] = patch.startsAt;
   if (patch.durationMinutes !== undefined) row['duration_minutes'] = patch.durationMinutes;
@@ -332,8 +450,37 @@ export async function updateSession(
   if (patch.venue !== undefined) row['venue'] = patch.venue;
   if (patch.level !== undefined) row['level'] = patch.level;
   if (patch.status !== undefined) row['status'] = patch.status;
-  const { error } = await supabase.from('sessions').update(row).eq('id', id);
-  return error ? { ok: false, error: error.message } : { ok: true };
+  if (patch.seriesId !== undefined) row['series_id'] = patch.seriesId;
+  return row;
+}
+
+/**
+ * Change one session or twelve — in ONE statement, always.
+ *
+ * ⚠️ `.in('id', ids)` AND NEVER A LOOP OF `.eq()`. Same rule, same reason as
+ * `createSessions()`. `updateSession()` below is a one-id convenience over this
+ * and must stay that way: if it ever grows its own `.eq()` call, a future bulk
+ * path will be written as a loop over it.
+ */
+export async function updateSessions(
+  ids: readonly string[],
+  patch: Partial<SessionInput>,
+): Promise<{ ok: boolean; error?: string; changed: number }> {
+  if (ids.length === 0) return { ok: true, changed: 0 };
+  const supabase = await getSupabase();
+  const { error } = await supabase
+    .from('sessions')
+    .update(sessionPatchRow(patch))
+    .in('id', [...ids]);
+  return error ? { ok: false, error: error.message, changed: 0 } : { ok: true, changed: ids.length };
+}
+
+export async function updateSession(
+  id: string,
+  patch: Partial<SessionInput>,
+): Promise<{ ok: boolean; error?: string }> {
+  const { ok, error } = await updateSessions([id], patch);
+  return ok ? { ok } : { ok, error };
 }
 
 /**
@@ -344,9 +491,27 @@ export async function updateSession(
  * it (`on delete cascade`) — so a register marked before a cancellation would
  * be destroyed by tidying up. Deletion is deliberately not offered anywhere in
  * this UI.
+ *
+ * ⚠️ THAT IS EQUALLY TRUE OF A WHOLE SERIES. `cancelSessions()` sets the state
+ * on every row it names; there is no "delete the rest of the term".
  */
 export async function cancelSession(id: string): Promise<{ ok: boolean; error?: string }> {
   return updateSession(id, { status: 'cancelled' });
+}
+
+/**
+ * Every session in a series, from a list already in hand.
+ *
+ * ⚠️ FILTERED IN MEMORY RATHER THAN RE-QUERIED, because the caller is acting on
+ * the cards on screen. Re-reading would open the door to acting on a row the
+ * prof cannot see — and `series_id` may only ever be used to select rows they
+ * are already looking at (migration 0012).
+ */
+export function sessionsInSeries(
+  sessions: readonly AdminSession[],
+  seriesId: string,
+): AdminSession[] {
+  return sessions.filter((s) => s.seriesId === seriesId);
 }
 
 /* ── attendance ────────────────────────────────────────────────────────── */
