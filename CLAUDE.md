@@ -382,18 +382,14 @@ device test gets this backwards in both directions; see
 ### ⚠️ AN UNKNOWN CUSTOM PROPERTY FAILS SILENTLY — and it has bitten three times
 
 `var(--does-not-exist)` invalidates the **whole declaration** at computed-value
-time. No error, no warning, no visible red — just a border that computes to
-`0px` or a font that falls back to Inter.
-
-| Written | Real token | Damage |
-|---|---|---|
-| `--mcc-border` | `--mcc-border-subtle` / `--mcc-border-strong` | 12 borderless elements across 7 files |
-| `--font-mono` | `--font-notation` | every inline notation in every lesson set in Inter |
-| `--font-display` | `--mcc-font-display` | a heading that never follows the theme |
-| `--mcc-text`, `--mcc-text-muted` | `--mcc-text-primary` / `--mcc-text-secondary` | the child picker's buttons and intro drew no colour at all |
+time — no error, no warning, just a border that computes to `0px` or a font
+that falls back to Inter. It has bitten four times.
 
 **The rule: assert the RESOLVED value, never that a rule exists.** A spec
 asserting the rule would have passed throughout all four bugs.
+
+**➡️ The four, with the token each one meant and the damage it did:
+[`docs/reference/theming.md`](./docs/reference/theming.md).**
 
 ### ⚠️ A SCOPED `<style>` DOES NOT REACH AN ELEMENT THE SCRIPT CREATED
 
@@ -408,6 +404,17 @@ it belongs to a different website.
 `controls.css`. ⚠️ Prefix those rules with the section class (`.family .child-…`)
 so the cascade is settled by **specificity, not by stylesheet order**, which is
 not guaranteed for a component-imported sheet.
+
+### ⚠️ AN UNCONDITIONAL DOM WRITE FROM A `change` HANDLER KILLS THE BUTTON ON WEBKIT
+
+Third member of the family above, equally silent. Pressing a button while the
+caret is still in a field blurs it → `change` fires → the handler runs **between
+`mousedown` and `mouseup`** → if it rewrites anything under the pointer, **WebKit
+does not synthesise the `click`.** No click, no `submit`, no error.
+
+⚠️ **A PAINT FUNCTION IS IDEMPOTENT** — write only when the value differs.
+⚠️ **A DESKTOP CHECK CANNOT FIND IT.** Diagnosis:
+[`docs/reference/testing.md`](./docs/reference/testing.md).
 
 ### The rest of the board
 

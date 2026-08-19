@@ -693,43 +693,86 @@ const STATUSES = [
     });
   }
 
+  /**
+   * ═════════════════════════════════════════════════════════════════════════
+   * ⚠️⚠️ WRITE TO THE DOM ONLY WHEN THE VALUE ACTUALLY CHANGES. THIS IS NOT A
+   * MICRO-OPTIMISATION — AN UNCONDITIONAL WRITE HERE BREAKS THE BUTTON ON
+   * EVERY WEBKIT BROWSER.
+   *
+   * `paintPreview()` runs on the form's `change` event. Pressing "Créer" while
+   * the caret is still in "Jusqu'au" BLURS that field, which fires `change`,
+   * which lands here — BETWEEN the `mousedown` and the `mouseup` of the press.
+   * Rewriting `submitButton.textContent` at that moment mutates the very
+   * element being pressed, and WebKit then declines to synthesise the `click`.
+   * No click, no `submit`, no error: the button silently does nothing.
+   *
+   * ⚠️ WHAT THAT LOOKED LIKE TO A USER: a prof on Safari or an iPhone fills in
+   * the end date, taps "Créer les 13 séances", and NOTHING HAPPENS. No message,
+   * no spinner, nothing to retry against. Tapping a second time works, because
+   * by then the field has already been blurred — which is precisely the kind of
+   * "it's just being slow" behaviour nobody reports as a bug.
+   *
+   * ⚠️ CHROMIUM AND FIREFOX DO NOT SUPPRESS THE CLICK, so this was invisible to
+   * `test:branch` and to every manual check on a desktop. Both WebKit projects
+   * in the release matrix caught it — which is the entire reason the matrix runs
+   * five projects and the reason it must never be waved through.
+   *
+   * ⚠️ IF YOU ADD A DOM WRITE TO THIS FUNCTION, GUARD IT THE SAME WAY. The rule
+   * is: paint is IDEMPOTENT — running it twice with the same inputs touches
+   * nothing the second time.
+   * ═════════════════════════════════════════════════════════════════════════
+   */
+  function setText(el: HTMLElement, text: string) {
+    if (el.textContent !== text) el.textContent = text;
+  }
+  function setHtml(el: HTMLElement, html: string) {
+    if (el.innerHTML !== html) el.innerHTML = html;
+  }
+  function setHidden(el: HTMLElement, hidden: boolean) {
+    if (el.hidden !== hidden) el.hidden = hidden;
+  }
+
   function paintPreview() {
     if (!preview || !submitButton) return;
     const repeating = field('cadence') !== 'none';
-    if (untilField) untilField.hidden = !repeating;
+    if (untilField) setHidden(untilField, !repeating);
 
     if (!repeating) {
-      preview.hidden = true;
-      preview.innerHTML = '';
-      submitButton.textContent = 'Créer';
+      setHidden(preview, true);
+      setHtml(preview, '');
+      setText(submitButton, 'Créer');
       return;
     }
 
     const result = currentExpansion();
-    preview.hidden = false;
+    setHidden(preview, false);
 
     if (!result.ok) {
       /* ⚠️ REFUSED, NEVER TRUNCATED. Creating the first 52 of 520 and saying
          nothing would leave a prof believing the rest exist. */
-      preview.dataset.state = 'problem';
-      preview.innerHTML =
+      if (preview.dataset.state !== 'problem') preview.dataset.state = 'problem';
+      setHtml(
+        preview,
         result.problem === 'too-many'
           ? `<p class="repeat-count">${result.wanted} séances — c’est trop.</p>
              <p class="repeat-note">Maximum ${SERIES_MAX} d’un coup. Vérifiez l’année de la date
              de fin, puis recommencez en deux fois si c’est bien ce que vous vouliez.</p>`
-          : `<p class="repeat-note">${PROBLEMS[result.problem] ?? 'Répétition impossible.'}</p>`;
-      submitButton.textContent = 'Créer';
+          : `<p class="repeat-note">${PROBLEMS[result.problem] ?? 'Répétition impossible.'}</p>`,
+      );
+      setText(submitButton, 'Créer');
       return;
     }
 
-    preview.dataset.state = 'ok';
+    if (preview.dataset.state !== 'ok') preview.dataset.state = 'ok';
     const n = result.dates.length;
-    preview.innerHTML =
+    setHtml(
+      preview,
       `<p class="repeat-count">${n} séance${n > 1 ? 's' : ''} ${n > 1 ? 'seront créées' : 'sera créée'} :</p>` +
-      '<ol class="repeat-dates">' +
-      result.dates.map((d) => `<li>${esc(dayFmt.format(d))}</li>`).join('') +
-      '</ol>';
-    submitButton.textContent = n > 1 ? `Créer les ${n} séances` : 'Créer';
+        '<ol class="repeat-dates">' +
+        result.dates.map((d) => `<li>${esc(dayFmt.format(d))}</li>`).join('') +
+        '</ol>',
+    );
+    setText(submitButton, n > 1 ? `Créer les ${n} séances` : 'Créer');
   }
 
   form?.addEventListener('input', paintPreview);

@@ -588,6 +588,114 @@ eroded.
 
 ---
 
+## ⚠️ The WebKit click that never happened — v0.17.0, and how it was found
+
+**Read when:** a control "does nothing" on Safari or an iPhone and works
+everywhere else; or before writing any handler that mutates the DOM on `change`.
+
+### The symptom
+
+`recurring-sessions.spec.ts:256` failed on **webkit and iphone-13 only**, in the
+accounts-ON matrix, and survived a serial `--workers=1` re-run of the whole file
+on both. Memory was ruled out — troughs 5.76 GB and 5.80 GB, far above the ~2 GB
+starvation line. The assertion named values (`.series-card` expected 1, received
+0) and the locator resolved to zero elements 30-odd times across a full 15 s, so
+it was not a race a longer timeout would have papered over.
+
+### The diagnosis, and the three wrong answers it went through
+
+Written down because each was plausible, each was cheap to test, and each was
+wrong — which is the useful part.
+
+1. **`crypto.randomUUID()` unavailable in WebKit** (it is used by
+   `newSeriesId()`, and it requires a secure context). **Wrong**: WebKit at
+   `http://localhost` reports `isSecureContext: true` and returns real UUIDs.
+2. **The `window.confirm` dialog racing Playwright's handler.** **Wrong**:
+   `page.once('dialog', accept)` fires correctly in WebKit and `confirm` returns
+   `true`, identically to Chromium.
+3. **A native form submission navigating the page.** **Wrong**: no
+   `framenavigated`, URL unchanged.
+
+What actually settled it was instrumenting the page rather than reasoning about
+it:
+
+| measured | value |
+|---|---|
+| form validity | `true`, every field |
+| button | in form, `type=submit`, not disabled |
+| a dispatched `submit` | **was** `preventDefault`'d ⇒ the listener exists |
+| `pointerdown` / `mousedown` / `mouseup` | **all on `button.btn-primary`** |
+| `click` events on the button | **0** |
+| `submit` events on the form | **0** |
+| page errors | none |
+
+Pointer events reach the button and no `click` is synthesised. That is the
+signature of the DOM under the pointer being mutated mid-press.
+
+### The cause
+
+`paintPreview()` was wired to the form's `change` event and rewrote
+`submitButton.textContent` unconditionally.
+
+Pressing "Créer" while the caret is still in "Jusqu'au" **blurs** that field.
+Blur fires `change`. `change` bubbles to the form. The handler rewrites the
+button's text — **between the `mousedown` and the `mouseup` of the press**.
+WebKit then declines to synthesise the `click`.
+
+⚠️ **THE A/B THAT PROVED IT**, and it proved itself through an error message:
+attempt A pressed the button directly and produced **no dialog**; attempt B
+blurred first and pressed again, and Playwright threw `dialog.accept: Cannot
+accept dialog which is already handled!` — because attempt A's handler was still
+armed and unconsumed, and B's dialog fired both. Absence in A, presence in B, in
+one run.
+
+### What it cost a user
+
+A prof on Safari or any iPhone fills in the end date, taps "Créer les 13
+séances", and **nothing happens**. No message, no spinner, nothing to retry
+against. Tapping a second time works, because the field is blurred by then.
+
+That is the worst shape a bug can take on this surface: it looks like the site
+being slow, so it does not get reported, and the workaround is invisible.
+
+### The fix
+
+`paintPreview()` is **idempotent**: `setText`/`setHtml`/`setHidden` write only
+when the value actually differs. The blur-time repaint computes identical
+content, touches nothing, and the press survives. It also removes a per-keystroke
+DOM write that was never wanted.
+
+⚠️ **THE GENERAL RULE, WHICH OUTLIVES THIS FORM: a paint function is
+idempotent.** Running it twice with the same inputs must touch nothing the
+second time. Any unconditional DOM write reachable from a `change` handler can
+kill a button on WebKit.
+
+### Why the release matrix earned its cost here
+
+⚠️ **CHROMIUM AND FIREFOX SYNTHESISE THE CLICK REGARDLESS.** This shipped
+through `test:branch` (chromium only) and would have shipped through any amount
+of manual desktop checking. **Both WebKit projects caught it**, which is
+precisely why the matrix runs five projects and precisely why a red matrix is a
+finding to chase rather than a flake to wave through. v0.11.0 and v0.11.1 shipped
+on waved-through failures; this is what that habit costs when the failure is
+real.
+
+### ⚠️ And the regression test had the same failure mode as the bug
+
+The first version of the guard asserted the rows existed by reading the table
+**once**, immediately after the confirm dialog fired. The dialog only means the
+handler *started* — the insert is a round trip behind it. So the test failed
+against a correctly fixed build, with `Expected: 3, Received: 0`, which is
+indistinguishable at a glance from the bug it was written to catch.
+
+⚠️ **A GUARD WHOSE FAILURE LOOKS LIKE THE DEFECT IS WORSE THAN NO GUARD**, because
+the next session reads the red and goes hunting for a second cause that does not
+exist. It now polls, like every other database assertion in that file.
+
+⚠️ **AND THE TEST IS THE ABSENCE OF A BLUR.** Do not "tidy" it by clicking
+elsewhere, pressing Tab or calling `.blur()` before the press — any of those
+makes it pass against the broken build.
+
 ## ⚠️ Every matrix run keeps its own log — and the run that taught us why
 
 **Read when:** changing `scripts/test-release.mjs`, or trying to work out why a

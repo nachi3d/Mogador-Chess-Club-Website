@@ -375,4 +375,79 @@ test.describe('a recurring set is ONE statement and thirteen ordinary rows', () 
     ).toBe(true);
     expect(finished.length, 'the series cancel deleted rows').toBe(EXPECTED);
   });
+  /**
+   * ⚠️ THE PRESS MUST WORK WITH THE CARET STILL IN THE LAST FIELD — WEBKIT.
+   *
+   * v0.17.0 shipped a `paintPreview()` that rewrote `submitButton.textContent`
+   * unconditionally on the form's `change` event. Pressing "Créer" straight
+   * after typing the end date BLURS that field, which fires `change`, which
+   * repainted the button BETWEEN the mousedown and the mouseup of the press —
+   * and WebKit then declines to synthesise the `click`. The button silently did
+   * nothing: no dialog, no write, no error, on Safari and on every iPhone.
+   *
+   * Measured at the v0.17.0 gate: pressing directly produced NO dialog;
+   * blurring first and pressing again worked. Chromium and Firefox synthesise
+   * the click regardless, so this is invisible outside the WebKit projects —
+   * which is exactly why it must be asserted rather than assumed.
+   *
+   * ⚠️ THE TEST IS THE *ABSENCE OF A BLUR*. Do not "tidy" this by clicking
+   * elsewhere, pressing Tab, or calling `.blur()` before the press — any of
+   * those makes it pass against the broken build and the regression walks
+   * straight back in.
+   */
+  test('the submit button works with the caret still in the end-date field', async ({ page }) => {
+    await signInAsProf(page);
+
+    await page.fill('#session-when', '2029-06-06T18:00');
+    await page.fill('#session-duration', String(MARKER_DURATION));
+    await page.selectOption('#session-status', 'draft');
+    await page.selectOption('#session-cadence', 'fortnightly');
+    /* ⚠️ LAST, AND NOTHING AFTER IT. Focus stays here, which is the whole point. */
+    await page.fill('#session-until', '2029-07-04');
+
+    await expect(page.locator('[data-repeat-preview]')).toContainText('3 séances');
+    await expect(page.locator('[data-session-submit]')).toHaveText('Créer les 3 séances');
+
+    let dialogSeen = false;
+    page.once('dialog', (dialog) => {
+      dialogSeen = true;
+      void dialog.accept();
+    });
+
+    await page.locator('[data-session-submit]').click();
+
+    /* The confirm is the first thing the handler does that is observable from
+       here, so its absence is the failure this test exists to catch. */
+    await expect
+      .poll(() => dialogSeen, {
+        timeout: 10_000,
+        message: 'pressing Créer did nothing — the click was suppressed (see the header)',
+      })
+      .toBe(true);
+
+    /* ⚠️ POLLED, NOT READ ONCE. The dialog firing means the handler STARTED;
+       the insert is a round trip behind it. Reading the table immediately is a
+       race that fails against a perfectly working build — it did, first time. */
+    await expect
+      .poll(
+        async () => {
+          const { data } = await adminClient()
+            .from('sessions')
+            .select('id')
+            .eq('duration_minutes', MARKER_DURATION)
+            .gte('starts_at', '2029-06-01T00:00:00Z')
+            .lte('starts_at', '2029-08-01T00:00:00Z');
+          return data?.length ?? 0;
+        },
+        { timeout: 15_000, message: 'the press produced no sessions' },
+      )
+      .toBe(3);
+
+    await adminClient()
+      .from('sessions')
+      .delete()
+      .eq('duration_minutes', MARKER_DURATION)
+      .gte('starts_at', '2029-06-01T00:00:00Z')
+      .lte('starts_at', '2029-08-01T00:00:00Z');
+  });
 });

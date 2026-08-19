@@ -114,6 +114,30 @@ living only in the production database.
   collection"; it has not been since v0.15.0, and since this release publishing
   asks for a rebuild rather than waiting for one.
 
+### Fixed
+
+- ⚠️⚠️ **The "Créer" button did nothing on Safari and every iPhone** — found by
+  this release's own gate, on the two WebKit projects, and it would have shipped
+  otherwise.
+  `paintPreview()` rewrote `submitButton.textContent` unconditionally on the
+  form's `change` event. Pressing the button while the caret was still in
+  "Jusqu'au" **blurs** that field → `change` fires → the handler rewrites the
+  button **between the `mousedown` and the `mouseup` of the press** → WebKit
+  declines to synthesise the `click`. No click, no `submit`, no write, **no
+  error**. A second tap worked, because the field was already blurred.
+  ⚠️ **Chromium and Firefox synthesise the click regardless**, so this passed
+  `test:branch` and would have passed any amount of manual desktop checking.
+  **The fix: `paintPreview()` is idempotent** — `setText`/`setHtml`/`setHidden`
+  write only when the value differs, so the blur-time repaint touches nothing.
+  The general rule (*a paint function is idempotent*) is in CLAUDE.md; the full
+  diagnosis, including the three hypotheses that were wrong, is in
+  `docs/reference/testing.md`.
+  ⚠️ **The regression test's first version had the same failure mode as the
+  bug** — it read the table once, immediately after the confirm, and failed
+  against a correctly fixed build with `Expected: 3, Received: 0`. A guard whose
+  failure looks like the defect sends the next reader hunting for a cause that
+  does not exist. It polls now.
+
 ### Decided
 
 - ⚠️ **NO RRULE ENGINE AND NO RECURRENCE TABLE** (Critical Feature 69). The
