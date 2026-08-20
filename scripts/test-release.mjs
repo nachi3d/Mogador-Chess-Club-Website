@@ -98,7 +98,31 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const LOG_DIR = join(ROOT, 'node_modules', '.cache');
+
+/**
+ * ⚠️ THE GATE'S EVIDENCE DOES NOT LIVE UNDER `node_modules/`. IT USED TO, AND
+ * THAT IS EXACTLY HOW A SET OF MATRIX LOGS WAS LOST.
+ *
+ * This was `node_modules/.cache`, which is not a cache in any sense that
+ * matters here: it is the only record of which tests failed on a gate that
+ * blocks promotion, and it sits inside the one directory every setup routine
+ * deletes and rebuilds. `npm ci` removes `node_modules/` outright before
+ * installing, so a dependency bump, a corrupted install, or moving the project
+ * to another machine silently takes every matrix log and memory trace with it.
+ *
+ * ⚠️ WHAT THAT COST: the three unadjudicated failures carried over from the
+ * previous machine — one webkit in the OFF shape, one webkit and one iphone-13
+ * in the ON shape — could not be re-read, because the logs naming them went
+ * with that machine's `node_modules/`. They had to be re-run from scratch on
+ * the new machine, both shapes, ~4.8 hours, to establish that none of the
+ * three reproduced.
+ *
+ * `gate-logs/` is gitignored but REAL: nothing in the toolchain deletes it, and
+ * it survives `npm ci`, a reinstall and a checkout. It is not committed —
+ * evidence is per machine and per run, and a log in git is a merge conflict
+ * waiting to happen.
+ */
+const LOG_DIR = join(ROOT, 'gate-logs');
 
 /**
  * ═════════════════════════════════════════════════════════════════════════

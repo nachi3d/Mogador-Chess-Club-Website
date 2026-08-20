@@ -1499,6 +1499,15 @@ gates were **memory exhaustion**, not browser bugs and not test bugs.
 - ⚠️ **EVERY RUN KEEPS ITS OWN LOG** — `matrix-<shape>-<stamp>.log`, never a shared
   `matrix.log`, and the memory traces are namespaced the same way. The gate runs
   TWICE and the second run must not erase the first's evidence.
+  ⚠️ **AND THEY LIVE IN `gate-logs/`, NEVER UNDER `node_modules/`** — gitignored
+  but real. They were in `node_modules/.cache`, which `npm ci` deletes outright:
+  three failures awaiting adjudication went with the old machine's
+  `node_modules/` and cost a ~4.8-hour re-run of both shapes to replace.
+- ⚠️ **A TROUGH UNDER ~2 GB MEANS THE BROWSER WAS STARVED, AND THE FAILURES WILL
+  BE BARE TIMEOUTS NAMING NO VALUE.** On a machine with a heavy background
+  baseline this manufactures failures that cost an arbiter pass each. Quiet the
+  machine first — **[`docs/SETUP-NEW-MACHINE.md`](./docs/SETUP-NEW-MACHINE.md)
+  §9a** measures what to close. `--workers=3` is not the knob.
 - ⚠️ **A GATE THAT IS EXPECTED TO BE RED IS WORTH NOTHING.** A red matrix is a
   finding to chase, never a known flake to wave through.
 - **It proves every project actually ran**, comparing counts project against

@@ -335,6 +335,85 @@ npm run test:branch -- --all       # chromium, every spec
 merge to `dev`. The full matrix (`npm run test:release`, ~65–70 min **per flag
 shape**) is **promotion only** — do not run it on a feature branch to be safe.
 
+## 9a. ⚠️ Before a matrix run — quiet the machine first
+
+**Read when:** about to run `npm run test:release` on this Dell laptop.
+
+`test-release.mjs` runs each project at `--workers=3` and samples free RAM
+throughout, printing the trough per project. Its own threshold is explicit:
+**under ~2 GB, believe the browser was starved**; comfortably above it, a
+failure needs a real diagnosis. That threshold is only useful if the machine
+starts quiet — and this one does not.
+
+### What it cost, measured (2026-08-20, both shapes, 10 project-runs)
+
+| | Previous machine | This machine |
+|---|---|---|
+| Total RAM | 15.85 GB | 15.69 GB |
+| Trough range across projects | **3.85 – 6.43 GB free** | **0.39 – 2.14 GB free** |
+| Projects tripping the under-3 GB warning | none | **all ten** |
+| firefox, accounts OFF | — | 23.2 min |
+| firefox, accounts ON | — | **2.1 hours** |
+| Matrix wall-clock | ~65–70 min/shape | **115.6 min OFF, 172.1 min ON** |
+
+⚠️ **Total RAM is comparable; AVAILABLE RAM is not.** At the trough, **15.05 of
+15.69 GB was committed**. Free RAM never exceeded ~4.5 GB in any sample of any
+project, so the machine began each run roughly 11 GB down.
+
+⚠️ **THE TELL THAT IT IS THRASHING RATHER THAN MERELY BUSY:** the memory sampler
+is a 2-second `setInterval` doing one `os.freemem()` and one `appendFileSync`.
+During the accounts-ON firefox project it produced ~288 samples in 110 minutes —
+**one every ~23 seconds**. When a timer that trivial misses its deadline by 10×,
+the scheduler is not keeping up, and every Playwright timeout in the run is
+being measured against a clock the browser cannot meet.
+
+⚠️ **WHAT STARVATION LOOKS LIKE IN THE RESULTS, AND WHY IT IS EXPENSIVE:** it
+does not fail with an assertion. It fails with `Test timeout of 30000ms
+exceeded`, `Tearing down "context" exceeded…`, or a `browserContext.close`
+protocol error — **bare timeouts naming no value**. Each one has to be cleared
+by a serial `--workers=1` re-run before promotion, because a genuine failure and
+a starved one are indistinguishable from the summary alone. On 2026-08-20 that
+cost two extra arbiter runs in the OFF shape to establish that one webkit
+failure and four flakes were all the machine, not the site.
+
+### The list — what to close, and what each returns
+
+Working-set figures are a single sample taken **during** the accounts-ON matrix,
+via `Get-CimInstance Win32_Process`. Treat each as **approximately** what
+closing it returns: some pages are shared, and Windows reclaims lazily.
+
+| Close / pause | Processes | Working set | Notes |
+|---|---|---|---|
+| **OneDrive — pause syncing** | `OneDrive.exe`, `OneDrive.Sync.Service.exe` | **723 MB** | ⚠️ **The repo lives under `OneDrive\Documents`**, so a build writing thousands of files into `dist/` and `test-results/` is also a sync workload. Pause for the duration; do not sign out |
+| **Dell TechHub** | 6 processes (`Instrumentation.SubAgent`, `Diagnostics`, `Analytics`, `DataManager`, `Instrumentation.UserProcess`, `TechHub`) | **1044 MB** | The largest single family, and none of it is needed to run a test suite |
+| **Dell SupportAssist** | `SupportAssistAgent.exe`, `DellSupportAssistRemedationService.exe` | **513 MB** | Scheduled scans can start mid-run, which is worse than the resident cost |
+| **Waves audio** | `WavesSysSvc64.exe`, `WavesSvc64.exe`, `WavesAudioService.exe` | **433 MB** | Audio enhancement. ⚠️ Headless WebKit has no Web Audio anyway — see `docs/reference/motion-sound.md` |
+| **Defender** — exclude the repo + `%LOCALAPPDATA%\ms-playwright` | `MsMpEng.exe` | 412 MB | ⚠️ **Add a path exclusion; do not disable Defender.** The cost is mostly scanning every file a build writes, not the resident size |
+| **`ServiceShell.exe`** | 1 process | **973 MB** | ⚠️ **UNIDENTIFIED — the largest single consumer, and its path was unreadable without elevation.** Identify it (`Get-CimInstance Win32_Process` from an elevated shell) **before** deciding anything. Do not kill a 973 MB process you cannot name |
+
+**Together the identified entries are ~3.1 GB**, and ~4.1 GB including
+`ServiceShell`. That is the difference between troughs of 0.39 GB and troughs in
+the range the previous machine sustained.
+
+⚠️ **THIS IS A LIST FOR THIS LAPTOP, NOT A PROJECT REQUIREMENT.** Nothing here
+is needed on a machine that already has headroom. The reason it is written down
+with numbers is so a future session can *argue* with it — re-measure, and if the
+troughs are healthy, skip the whole section.
+
+⚠️ **`--workers=3` IS NOT THE KNOB TO TURN.** See MEASUREMENTS in
+`scripts/test-release.mjs`: the alternatives were measured, and lowering it
+trades one slow run for a slower one without fixing the baseline. Quiet the
+machine instead.
+
+**Verify, before starting the gate:**
+
+```powershell
+# free RAM right now — want comfortably more than 3 GB
+[math]::Round((Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory/1MB,2)
+
+# and after the run, read the trough the gate printed for each project
+```
+
 ## 10. Accounts-ON local testing
 
 ```sh

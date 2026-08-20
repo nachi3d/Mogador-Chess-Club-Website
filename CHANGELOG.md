@@ -11,80 +11,11 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
-### Added
-
-- **`docs/SETUP-NEW-MACHINE.md` — bringing the project up on a fresh Windows
-  machine, in order, with a verification after each step.** Written because the
-  project is moving to another PC and four things live on this machine and not
-  in the repository: the toolchain, `node_modules/`, the Playwright browsers,
-  and the two gitignored env files — of which **only the env files cannot be
-  regenerated**.
-  - It records **which secrets come from where**: the `PUBLIC_*` pair from the
-    Supabase dashboards, the Cloudflare **build variables** from the Cloudflare
-    dashboard (where `PUBLIC_AUTH_ENABLED=true` lives, and nothing in this
-    repository says so), and the **deploy hook URL from Supabase Vault only** —
-    never a table, never `.env`, never a migration, because this repository is
-    public (Critical Feature 68).
-  - ⚠️ **It names three variables in the old `.env.local` that MUST NOT be
-    copied**: `SUPABASE_SERVICE_ROLE`, `SUPABASE_PASSWORD` and `WEBHOOK_URL`.
-    **Nothing in the repository reads any of them** — the suite and `db:push`
-    take the `TEST_`-prefixed pair out of `.env.test`, and the deploy hook lives
-    in the vault. Two of the three are production credentials and the first
-    **bypasses RLS entirely**; `.env.example` says in its own header that the
-    service role key "is NOT here and must never be", so the file on this
-    machine contradicts its own template. They are fetched from the dashboard
-    when a hand-run task needs them and deleted after.
-  - ⚠️ **A credential nothing depends on is the hard one to notice**, because
-    nothing ever fails to remind you it is there.
-  - Also records what is **per-machine rather than copied** (SSH key, browsers,
-    `node_modules/`, `wrangler` login, the non-default
-    `PLAYWRIGHT_BROWSERS_PATH` — which is a preference, not a requirement, since
-    `scripts/demo.mjs` already reads it first and falls back), and that the
-    committed generated assets (icons, fonts, `fonts.css`, piece sets, the
-    vendored engine, `agenda.fallback.json`) are **checked, never regenerated**.
-
-### Changed
-
-- **CLAUDE.md split — 120,226 → 112,903 characters (75% of the limit, down from
-  80%).** It had crossed the size guard's warning threshold. Per the rule, the
-  remedy is to **split, not to trim**: fourteen blocks of reasoning, measurement
-  and incident narrative moved **verbatim** into the reference file for their
-  area, each leaving the rule and a pointer behind.
-  - Moved: the `progress.ts` migration-point detail → `progression.md`; the
-    `onlyMove` implementation and policing → `content.md`; the test-fixture
-    mechanism → `video.md`; the matrix worker-cap, feature-branch and
-    "critical path" policies, the environment-symptom table and
-    `quick.mjs`'s refusal → `testing.md`; the release gate and the two
-    configuration invariants → `deployment.md`; the long-lived-process sweep →
-    `dev-environment.md`; the v2 locked decisions and the superseded
-    2026-08-15 schema reading → `supabase.md`; the EN legal-notice segment
-    rationale → `ui-navigation.md`.
-  - ⚠️ **`node scripts/check-split.mjs` is green: 1,209 lines stayed, 171 moved,
-    nothing lost, and NO new obsolete declarations were needed.**
-    `docs/reference/.split-obsolete.txt` is unchanged — the ten entries in it
-    are from the previous split.
-  - ⚠️ **Two contradictory claims about production's schema were standing three
-    lines apart** — "current through 0009" (2026-08-15) and "current through
-    0012" (2026-08-18). The superseded one is **moved, not deleted**, because
-    the *technique* in it is still the answer: the error code PostgREST returns
-    tells a missing table (`PGRST205`) from a forbidden one (`42501`).
-  - ⚠️ **A verbatim move keeps the block's original relative links**, which were
-    written from the repository root, so inside a reference file a
-    `./docs/reference/…` path and the occasional pointer back to the file you
-    are already reading are the seam showing. Each moved block now carries a
-    preamble saying so — the preamble is new text, so it may be worded freely;
-    the block may not.
-  - **Declined deliberately**, because a session could break each without going
-    looking: the Critical Features list, the board file-role table, the
-    add-a-table migration checklist, the admin-surface rules, and the PLY 0
-    warning.
-- **CLAUDE.md's reference index gains a row for `docs/SETUP-NEW-MACHINE.md`** —
-  added *after* the split, on the principle the split exists to serve: a
-  document nobody is pointed at is not read.
+Nothing yet.
 
 ---
 
-## [0.17.0] — 2026-08-18
+## [0.17.0] — 2026-08-20
 
 **Recurring sessions with `series_id`, single-statement bulk writes so a
 thirteen-session creation triggers ONE rebuild, and migrations 0011 (the rebuild
@@ -139,6 +70,49 @@ living only in the production database.
   shapes and with no credentials at all.
 - **`tests/e2e/recurring-sessions.spec.ts`** — six arithmetic tests plus two that
   drive the real UI against the real database and **count the trigger firings**.
+- **`docs/SETUP-NEW-MACHINE.md` — bringing the project up on a fresh Windows
+  machine, in order, with a verification after each step.** Written because the
+  project is moving to another PC and four things live on this machine and not
+  in the repository: the toolchain, `node_modules/`, the Playwright browsers,
+  and the two gitignored env files — of which **only the env files cannot be
+  regenerated**.
+  - It records **which secrets come from where**: the `PUBLIC_*` pair from the
+    Supabase dashboards, the Cloudflare **build variables** from the Cloudflare
+    dashboard (where `PUBLIC_AUTH_ENABLED=true` lives, and nothing in this
+    repository says so), and the **deploy hook URL from Supabase Vault only** —
+    never a table, never `.env`, never a migration, because this repository is
+    public (Critical Feature 68).
+  - ⚠️ **It names three variables in the old `.env.local` that MUST NOT be
+    copied**: `SUPABASE_SERVICE_ROLE`, `SUPABASE_PASSWORD` and `WEBHOOK_URL`.
+    **Nothing in the repository reads any of them** — the suite and `db:push`
+    take the `TEST_`-prefixed pair out of `.env.test`, and the deploy hook lives
+    in the vault. Two of the three are production credentials and the first
+    **bypasses RLS entirely**; `.env.example` says in its own header that the
+    service role key "is NOT here and must never be", so the file on this
+    machine contradicts its own template. They are fetched from the dashboard
+    when a hand-run task needs them and deleted after.
+  - ⚠️ **A credential nothing depends on is the hard one to notice**, because
+    nothing ever fails to remind you it is there.
+  - Also records what is **per-machine rather than copied** (SSH key, browsers,
+    `node_modules/`, `wrangler` login, the non-default
+    `PLAYWRIGHT_BROWSERS_PATH` — which is a preference, not a requirement, since
+    `scripts/demo.mjs` already reads it first and falls back), and that the
+    committed generated assets (icons, fonts, `fonts.css`, piece sets, the
+    vendored engine, `agenda.fallback.json`) are **checked, never regenerated**.
+- **`docs/SETUP-NEW-MACHINE.md` §9a — "Before a matrix run: quiet the machine
+  first", with the cost of each background process MEASURED rather than
+  asserted.** Added after the gate was re-run on the new laptop and **all ten
+  project-runs tripped the under-3 GB warning**. The list names what to close
+  (OneDrive pause, Dell TechHub, SupportAssist, Waves, a Defender path
+  exclusion) with the working set each was holding, so it can be **argued with
+  and re-measured** rather than followed as superstition.
+  - ⚠️ **`ServiceShell.exe` (973 MB) is listed as UNIDENTIFIED**, deliberately:
+    it is the largest single consumer and its path was unreadable without
+    elevation. The instruction is to identify it before acting, because
+    "close the biggest thing" is how a machine gets broken.
+  - ⚠️ **`--workers=3` is explicitly NOT the knob to turn** — the alternatives
+    are already measured in `scripts/test-release.mjs`, and lowering it trades
+    one slow run for a slower one without fixing the baseline.
 
 ### Changed
 
@@ -182,6 +156,57 @@ living only in the production database.
 - `docs/MANUAL-TESTS.md` §7d-5 no longer says the agenda is "still the git
   collection"; it has not been since v0.15.0, and since this release publishing
   asks for a rebuild rather than waiting for one.
+- ⚠️⚠️ **The release gate's evidence moved OUT of `node_modules/.cache` into
+  `gate-logs/`** — gitignored, but real. Per-run naming (added earlier in this
+  release) stopped a second *run* erasing the first's log; it did nothing about
+  the directory the logs lived in, and that is the half that actually bit.
+  **`npm ci` deletes `node_modules/` outright**, so a dependency bump, a broken
+  install or a move to another machine takes every matrix log and memory trace
+  with it.
+  - ⚠️ **What it cost:** the three unadjudicated failures carried over from the
+    previous machine — one webkit in the OFF shape, one webkit and one
+    iphone-13 in the ON shape — **could not be re-read**, because the logs
+    naming them went with that machine's `node_modules/`. Establishing that
+    none of the three reproduced meant re-running both shapes from scratch,
+    ~4.8 hours.
+  - `gate-logs/` is ignored rather than committed: evidence is per machine and
+    per run, and a log in git is a merge conflict waiting to happen.
+- **CLAUDE.md split — 120,226 → 112,903 characters (75% of the limit, down from
+  80%).** It had crossed the size guard's warning threshold. Per the rule, the
+  remedy is to **split, not to trim**: fourteen blocks of reasoning, measurement
+  and incident narrative moved **verbatim** into the reference file for their
+  area, each leaving the rule and a pointer behind.
+  - Moved: the `progress.ts` migration-point detail → `progression.md`; the
+    `onlyMove` implementation and policing → `content.md`; the test-fixture
+    mechanism → `video.md`; the matrix worker-cap, feature-branch and
+    "critical path" policies, the environment-symptom table and
+    `quick.mjs`'s refusal → `testing.md`; the release gate and the two
+    configuration invariants → `deployment.md`; the long-lived-process sweep →
+    `dev-environment.md`; the v2 locked decisions and the superseded
+    2026-08-15 schema reading → `supabase.md`; the EN legal-notice segment
+    rationale → `ui-navigation.md`.
+  - ⚠️ **`node scripts/check-split.mjs` is green: 1,209 lines stayed, 171 moved,
+    nothing lost, and NO new obsolete declarations were needed.**
+    `docs/reference/.split-obsolete.txt` is unchanged — the ten entries in it
+    are from the previous split.
+  - ⚠️ **Two contradictory claims about production's schema were standing three
+    lines apart** — "current through 0009" (2026-08-15) and "current through
+    0012" (2026-08-18). The superseded one is **moved, not deleted**, because
+    the *technique* in it is still the answer: the error code PostgREST returns
+    tells a missing table (`PGRST205`) from a forbidden one (`42501`).
+  - ⚠️ **A verbatim move keeps the block's original relative links**, which were
+    written from the repository root, so inside a reference file a
+    `./docs/reference/…` path and the occasional pointer back to the file you
+    are already reading are the seam showing. Each moved block now carries a
+    preamble saying so — the preamble is new text, so it may be worded freely;
+    the block may not.
+  - **Declined deliberately**, because a session could break each without going
+    looking: the Critical Features list, the board file-role table, the
+    add-a-table migration checklist, the admin-surface rules, and the PLY 0
+    warning.
+- **CLAUDE.md's reference index gains a row for `docs/SETUP-NEW-MACHINE.md`** —
+  added *after* the split, on the principle the split exists to serve: a
+  document nobody is pointed at is not read.
 
 ### Fixed
 
@@ -277,6 +302,50 @@ re-run of the identical thirteen spec files passed 192/192; the file also passes
 alone. It is logged in BACKLOG with the likely mechanism (a second, legitimately
 newer `loadRegister()` repainting from a read that predates some taps) rather
 than left as folklore.
+
+#### ⚠️ THE FULL MATRIX WAS RE-RUN ON A SECOND MACHINE, BOTH SHAPES, AT THE GATE
+
+The promotion gate for this release ran on a **different laptop** from the one
+the release was developed on, from a clean `npm ci` and a fresh Playwright
+install. Both flag shapes, as the verification policy requires:
+
+| Shape | Result | Duration |
+|---|---|---|
+| `npm run test:release` (accounts **OFF**) | 3163 passed, **1 failed**, 4 flaky | 115.6 min |
+| the failing spec at `--workers=1`, **OFF** | **green — 31 passed** | 2.3 min |
+| the four flaky specs at `--workers=1`, **OFF** | **green — 85 passed, 0 flaky** | 2.6 min |
+| `PUBLIC_AUTH_ENABLED=true npm run test:release` (accounts **ON**) | **green — 3525 passed**, 8 flaky, 0 failed | 172.1 min |
+
+⚠️ **THE THREE FAILURES CARRIED OVER FROM THE FIRST MACHINE DID NOT REPRODUCE.**
+Those were one webkit failure in the OFF shape (3166 passed) and one webkit plus
+one iphone-13 in the ON shape (3523 passed). On the second machine the ON shape
+came back **green on all five projects**, and 3525 passed is exactly the earlier
+3523 plus those two. The OFF shape reproduced the *shape* — 3163 passed, one
+webkit failure — and the arbiter cleared it: the failing test
+(`exercise.spec.ts` → "exercise EN has no axe violations once solved") ran in
+**4.6 s** against its 30 s timeout when re-run serially.
+
+⚠️ **MEMORY STARVATION IS DOCUMENTED AS THIS MACHINE'S BASELINE, NOT A DEFECT.**
+All ten project-runs tripped the under-3 GB warning — troughs of **0.39–2.14 GB**
+against the first machine's **3.85–6.43 GB**, on comparable total RAM (15.69 vs
+15.85 GB). Every failure and flake in both shapes was a **bare timeout** or a
+`browserContext.close` protocol error; **not one named a value**, which is the
+signature `scripts/test-release.mjs` already calls a starved browser. The tell
+that the box was thrashing rather than merely loaded: the memory sampler, a
+2-second `setInterval`, was firing **once every ~23 seconds** during the ON
+firefox project — which itself took **2.1 hours** against 23.2 minutes in the OFF
+shape. The remedy is `docs/SETUP-NEW-MACHINE.md` §9a, not a code change.
+
+⚠️ **`ENGINE_TIMEOUT` (60 s) WAS CHECKED AND IS NOT MARGINAL ON THIS CPU.** Two
+`play.spec.ts` tests flaked under `test:branch --all`, which raised the question.
+The distribution answers it: the failing attempts took **exactly 60.0 s** (the
+ceiling) and their retries **2.2 s and 4.1 s**, with every other play test in the
+same run at 0.7–3.1 s and iphone-13 across both matrices at **max 9.9 s, mean
+4.3 s, zero over 60 s**. A marginal timeout produces creep — 45 s, 55 s, 62 s.
+This is bimodal, so it is a **stall in engine boot, not slow boot**, and raising
+the number would not fix it. It never occurred in either matrix (ten
+project-runs, zero play.spec failures or flakes); it is specific to the
+`test:branch` path, and it is logged rather than absorbed.
 
 ### Documentation
 
