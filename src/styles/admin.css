@@ -794,3 +794,26 @@
 .admin-shell .mark-row-booked {
   border-left: 3px solid var(--mcc-primary);
 }
+
+/* The occupancy line on a session card (0013) — "9 / 14 places".
+   ⚠️ The denominator is capacity + margin, which is the number that actually
+   refuses. Printing the capacity alone would make the margin invisible again. */
+.admin-shell .session-places {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.1rem 0.45rem;
+  background-color: var(--mcc-surface-sunken);
+  border: 1px solid var(--mcc-border-subtle);
+  border-radius: var(--radius-control);
+  color: var(--mcc-text-secondary);
+  font-family: var(--font-notation);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ⚠️ A full session changes its ink and its border, never its opacity. */
+.admin-shell .session-places-full {
+  color: var(--mcc-text-primary);
+  border-color: var(--mcc-primary);
+  font-weight: 600;
+}

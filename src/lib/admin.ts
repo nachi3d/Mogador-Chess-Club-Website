@@ -615,6 +615,32 @@ export async function listBookings(sessionId: string): Promise<AdminBooking[]> {
   });
 }
 
+/**
+ * How many places are taken, per session — for the list, in ONE request.
+ *
+ * ⚠️ THE SAME `session_availability()` THE MEMBER SURFACE CALLS, deliberately.
+ * A prof and a parent must never read different occupancy for one session, and
+ * the way that happens is two summations — the lesson `computeLedger()` already
+ * carries (Critical Feature 47).
+ *
+ * ⚠️ IT RETURNS ONLY `published` AND `cancelled` SESSIONS, so a draft is absent
+ * from this map. That is correct rather than a gap: `create_booking()` refuses
+ * a draft, so a draft's count is not "unknown", it is zero by construction —
+ * and the card prints nothing rather than a number for it.
+ *
+ * Returns an empty map on a pre-0013 database, which the caller renders as "—".
+ */
+export async function listSessionAvailability(): Promise<Map<string, number>> {
+  const supabase = await getSupabase();
+  const { data, error } = await supabase.rpc('session_availability');
+  if (error) return new Map();
+  const out = new Map<string, number>();
+  for (const row of (data ?? []) as Record<string, unknown>[]) {
+    out.set(String(row['session_id']), Number(row['booked'] ?? 0));
+  }
+  return out;
+}
+
 /* ── attendance ────────────────────────────────────────────────────────── */
 
 export interface AttendanceRow {

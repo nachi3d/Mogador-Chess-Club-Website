@@ -85,6 +85,56 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
   - ⚠️ **BOTH READS RUN UNDER THE SAME GENERATION COUNTER**, so a stale roster
     cannot sit above a fresh register.
 
+### Fixed
+
+- ⚠️⚠️ **`npm run db:push -- --dry-run` APPLIED THE MIGRATION AND REPORTED THAT
+  IT HAD NOT.** `scripts/db-push.mjs` read `process.argv` **not at all**: it ran
+  a `--dry-run` probe to find the pooler host, printed the pending list, then
+  applied unconditionally with `--include-all`. The flag was accepted, ignored,
+  and contradicted by the script's own output (`"dryRun":false` beside
+  *"Applying migration…"*).
+  - ⚠️ **A DRY-RUN FLAG THAT LIES IS WORSE THAN NO FLAG.** The whole purpose of
+    this wrapper is that it refuses production; a flag someone learns to trust
+    for "just checking" is the one they reach for when they are least sure what
+    they are pointed at. Found at the 0013 gate, where the migration was wanted
+    anyway — which is exactly the luck that lets a defect like this survive.
+  - **`--dry-run` now stops after the probe**, having changed nothing, and says
+    so. ⚠️ **And an unrecognised argument now FAILS CLOSED** — `--dryrun`, a
+    typo or anything else refuses with exit 1, because silently discarding an
+    argument is what caused this in the first place.
+  - **Verified by watching it not happen:** a throwaway pending migration stayed
+    pending across a `--dry-run`, and `--dryrun` was refused.
+
+### Added
+
+- **A session EDIT form on `/admin/seances`, which is the missing half of
+  "capacity is set by the prof".** The fields were on the write path but no form
+  reached them, so a prof could set capacity at creation and never change it.
+  - ⚠️ **ONE FORM, TWO MODES — not a second form.** A separate edit form is a
+    second place for the field list to be wrong, and capacity reaching the
+    create form alone is precisely how this gap appeared.
+  - ⚠️ **EDIT MODE SHORT-CIRCUITS THE REPEAT PREVIEW.** Repetition creates rows;
+    editing changes one. Leaving the cadence live would offer "modify this
+    session, thirteen times" — and 0012's rule is that a series is a LABEL, so
+    editing a member edits that member only.
+  - ⚠️ **`datetime-local` WANTS LOCAL WALL-CLOCK, NOT AN ISO INSTANT.** Assigning
+    the stored `…Z` string leaves the field silently empty in every browser, so
+    the value is rebuilt from local parts.
+  - ⚠️ **A cancelled session is not offered as a form state.** Un-cancelling has
+    consequences for everyone who was told it was off; it is not a dropdown.
+  - The status is sent as-is, so editing a draft never accidentally announces it.
+- **Occupancy on each admin session card — "9 / 14 places".**
+  - ⚠️ **THE DENOMINATOR IS `capacity + margin`, THE NUMBER THAT ACTUALLY
+    REFUSES.** Printing "9 / 12" beside a session that accepts fourteen would
+    make the margin invisible again, and a prof counting fourteen children
+    against a card reading 12 is the confusion the form's hint exists to prevent.
+  - ⚠️ **AN ABSENT COUNT PRINTS "—", NEVER 0** (the same rule as Critical
+    Feature 30): `capacity` is null on a pre-0013 database and availability is
+    empty until it loads, and neither of those is zero.
+  - It reads **the same `session_availability()` the member surface calls**, so a
+    prof and a parent can never see different occupancy for one session — the
+    lesson `computeLedger()` already carries.
+
 ### Changed
 
 - ⚠️⚠️ **`scripts/fetch-agenda.mjs` GAINED A COLUMN LADDER, AND IT IS THE

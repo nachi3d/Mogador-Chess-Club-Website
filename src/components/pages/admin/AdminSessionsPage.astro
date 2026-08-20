@@ -104,6 +104,15 @@ const STATUSES = [
   {/* ── Sessions ─────────────────────────────────────────────────────── */}
   <section class="admin-block">
     <h2 class="admin-block-title">Programmer une séance</h2>
+    {/* ⚠️ ONE FORM, TWO MODES. A separate edit form would be a second place
+        for the field list to be wrong — and capacity reached the create form
+        alone once already, which is what left a prof unable to change it
+        after creating a session. The banner is server-rendered and hidden,
+        never built by script (a scoped rule cannot reach a script-made node). */}
+    <p class="admin-status" data-edit-hint hidden>
+      Modification d’une séance existante.
+      <button type="button" class="btn-ghost" data-edit-cancel>Annuler la modification</button>
+    </p>
     <form class="admin-form" data-session-form>
       <div class="admin-field">
         <label for="session-when">Date et heure</label>
@@ -267,6 +276,7 @@ const STATUSES = [
     listAttendance,
     listBookings,
     listChildren,
+    listSessionAvailability,
     listSessions,
     markAttendance,
     newSeriesId,
@@ -297,6 +307,8 @@ const STATUSES = [
   const seriesTitle = document.querySelector('[data-series-title]') as HTMLElement | null;
   const seriesList = document.querySelector('[data-series-list]') as HTMLElement | null;
 
+  const editHint = document.querySelector('[data-edit-hint]') as HTMLElement | null;
+  const editCancel = document.querySelector('[data-edit-cancel]') as HTMLButtonElement | null;
   const bookedBlock = document.querySelector('[data-booked-block]') as HTMLElement | null;
   const bookedList = document.querySelector('[data-booked-list]') as HTMLElement | null;
   const bookedTitle = document.querySelector('[data-booked-title]') as HTMLElement | null;
@@ -305,6 +317,17 @@ const STATUSES = [
   let sessions: AdminSession[] = [];
   /** Who is booked into the session currently selected in the register. */
   let bookedForSession: readonly AdminBooking[] = [];
+  /** sessionId → confirmed bookings, for the occupancy line on each card. */
+  let availability = new Map<string, number>();
+  /**
+   * The session being edited, or null when the form is creating.
+   *
+   * ⚠️ ONE FORM, TWO MODES, RATHER THAN A SECOND FORM. A separate edit form
+   * would be a second place for the field list to be wrong — and capacity was
+   * added to the create form alone once already, which is what left a prof
+   * unable to change it after creating a session.
+   */
+  let editingId: string | null = null;
   let me: string | null = null;
   /** The marks on screen, so the summary does not need a re-read per tap. */
   const marks = new Map<string, AttendanceStatus>();
@@ -687,6 +710,10 @@ const STATUSES = [
     } else return;
 
     sessions = await listSessions();
+    /* ⚠️ Refreshed alongside the sessions, never independently: a card showing
+       a fresh capacity against a stale booked count reads as a wrong number,
+       not as a loading state. */
+    availability = await listSessionAvailability();
     paintSessions();
     fillSessionSelect();
   });
@@ -708,6 +735,29 @@ const STATUSES = [
       published: 'publiée',
       cancelled: 'annulée',
     };
+
+    /**
+     * "9 / 14" — booked against the real ceiling, on the card.
+     *
+     * ⚠️ THE DENOMINATOR IS `capacity + margin`, WHICH IS THE NUMBER THAT
+     * ACTUALLY REFUSES. Printing "9 / 12" beside a session that will accept
+     * fourteen would make the margin invisible again, and a prof counting
+     * fourteen children against a card reading 12 is the confusion the hint on
+     * the form exists to prevent.
+     *
+     * ⚠️ ABSENT IS A REAL STATE AND PRINTS "—", NEVER 0. `capacity` is null on
+     * a pre-0013 database and `availability` is empty until it loads; neither
+     * is zero, and a card must never print a number nothing computed (the same
+     * rule as Critical Feature 30).
+     */
+    function occupancy(s: AdminSession): string {
+      if (s.capacity === null) return '';
+      const total = s.capacity + (s.overbookMargin ?? 0);
+      const booked = availability.get(s.id);
+      const text = booked === undefined ? `— / ${total} places` : `${booked} / ${total} places`;
+      const full = booked !== undefined && booked >= total;
+      return `<span class="session-places${full ? ' session-places-full' : ''}">${text}</span>`;
+    }
     sessionList.innerHTML = sessions
       .map(
         (s) => `
@@ -722,7 +772,9 @@ const STATUSES = [
             s.seriesId ? `<span class="session-series">série · ${seriesRank(s)}</span>` : ''
           }
           <span class="session-status" data-status="${s.status}">${labels[s.status]}</span>
+          ${occupancy(s)}
           <p class="admin-actions">
+            <button type="button" class="btn-ghost" data-edit>Modifier</button>
             ${
               s.status === 'draft'
                 ? '<button type="button" class="btn-ghost" data-publish>Publier</button>'
@@ -739,11 +791,76 @@ const STATUSES = [
       .join('');
   }
 
+  /** Set a form control by its `data-field`, without caring what kind it is. */
+  function setField(name: string, value: string) {
+    const el = form?.querySelector(`[data-field="${name}"]`) as
+      | HTMLInputElement
+      | HTMLSelectElement
+      | null;
+    if (el && el.value !== value) el.value = value;
+  }
+
+  /**
+   * Load one session into the form.
+   *
+   * ⚠️ `datetime-local` WANTS LOCAL WALL-CLOCK, NOT AN ISO INSTANT. Assigning
+   * the stored `…Z` string leaves the field empty in every browser, silently —
+   * so the value is rebuilt from the local parts. The prof entered that time in
+   * the room they will be standing in, and this puts the same reading back.
+   */
+  function startEdit(id: string) {
+    const s = sessions.find((x) => x.id === id);
+    if (!s || !form) return;
+    editingId = id;
+
+    const d = new Date(s.startsAt);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    setField(
+      'startsAt',
+      `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`,
+    );
+    setField('titleFr', s.titleFr ?? '');
+    setField('venue', s.venue ?? '');
+    setField('level', s.level ?? '');
+    setField('duration', String(s.durationMinutes));
+    /* ⚠️ Blank rather than 0 when the database predates 0013 — an empty field
+       means "leave the default alone", and 0 is an illegal capacity. */
+    setField('capacity', s.capacity === null ? '' : String(s.capacity));
+    setField('margin', s.overbookMargin === null ? '' : String(s.overbookMargin));
+    /* ⚠️ A cancelled session is not offered as a form state: un-cancelling is a
+       decision with consequences for everyone who was told it was off, and it
+       is not a dropdown. Publish/draft only. */
+    setField('status', s.status === 'cancelled' ? 'draft' : s.status);
+    setField('cadence', 'none');
+
+    paintPreview();
+    if (editHint) setHidden(editHint, false);
+    form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  /** Back to creating. Also the "Annuler la modification" control. */
+  function stopEdit() {
+    editingId = null;
+    if (form) form.reset();
+    if (editHint) setHidden(editHint, true);
+    paintPreview();
+  }
+
+  editCancel?.addEventListener('click', stopEdit);
+
   sessionList?.addEventListener('click', async (event) => {
     const target = event.target as HTMLElement;
     const card = target.closest('[data-session]') as HTMLElement | null;
     const id = card?.dataset.session;
     if (!id) return;
+
+    if (target.hasAttribute('data-edit')) {
+      /* ⚠️ NO WRITE, NO RELOAD — this only fills the form. Falling through to
+         the refresh below would re-render the list and scroll the prof away
+         from the form they are about to type into. */
+      startEdit(id);
+      return;
+    }
 
     if (target.hasAttribute('data-publish')) {
       await updateSession(id, { status: 'published' });
@@ -755,6 +872,10 @@ const STATUSES = [
     } else return;
 
     sessions = await listSessions();
+    /* ⚠️ Refreshed alongside the sessions, never independently: a card showing
+       a fresh capacity against a stale booked count reads as a wrong number,
+       not as a loading state. */
+    availability = await listSessionAvailability();
     paintSessions();
     fillSessionSelect();
   });
@@ -855,6 +976,30 @@ const STATUSES = [
 
   function paintPreview() {
     if (!preview || !submitButton) return;
+
+    /**
+     * ⚠️ EDIT MODE SHORT-CIRCUITS THE WHOLE PREVIEW, AND IT MUST.
+     *
+     * Repetition creates rows; editing changes ONE. Leaving the cadence
+     * controls live while editing would offer "modify this session, thirteen
+     * times", which is not a thing — and 0012's rule is that a series is a
+     * LABEL, never a rule, so editing a member of one edits that member only.
+     *
+     * Every write here is still idempotent, for the WebKit reason above.
+     */
+    if (editingId) {
+      if (untilField) setHidden(untilField, true);
+      setHidden(preview, false);
+      if (preview.dataset.state !== 'ok') preview.dataset.state = 'ok';
+      setHtml(
+        preview,
+        '<p class="repeat-note">Modification d’une seule séance. La répétition ne ' +
+          's’applique qu’à la création.</p>',
+      );
+      setText(submitButton, 'Enregistrer');
+      return;
+    }
+
     const repeating = field('cadence') !== 'none';
     if (untilField) setHidden(untilField, !repeating);
 
@@ -909,6 +1054,39 @@ const STATUSES = [
 
     if (!field('startsAt')) {
       formError.textContent = 'Une date est nécessaire.';
+      return;
+    }
+
+    /**
+     * ⚠️ EDITING IS ONE ROW AND ONE STATEMENT, AND IT EXITS BEFORE THE
+     * EXPANSION IS EVEN CONSULTED.
+     *
+     * `updateSession()` is the one-id convenience over `updateSessions()`, so
+     * this is still a single `update … in (…)` and still one rebuild firing.
+     * ⚠️ The status is sent as-is: a session already published stays published,
+     * and a prof who edits a draft does not accidentally announce it.
+     */
+    if (editingId) {
+      const id = editingId;
+      const result = await updateSession(id, {
+        startsAt: new Date(field('startsAt')).toISOString(),
+        durationMinutes: Number(field('duration')) || 90,
+        titleFr: field('titleFr').trim() || null,
+        venue: field('venue').trim() || null,
+        level: field('level') || null,
+        status: (field('status') || 'draft') as 'draft' | 'published',
+        ...capacityFields(),
+      });
+      if (!result.ok) {
+        formError.textContent = result.error ?? 'Modification impossible.';
+        return;
+      }
+      stopEdit();
+      sessions = await listSessions();
+      availability = await listSessionAvailability();
+      paintSessions();
+      fillSessionSelect();
+      paintAgendaSync();
       return;
     }
 
@@ -986,6 +1164,10 @@ const STATUSES = [
     form.reset();
     paintPreview();
     sessions = await listSessions();
+    /* ⚠️ Refreshed alongside the sessions, never independently: a card showing
+       a fresh capacity against a stale booked count reads as a wrong number,
+       not as a loading state. */
+    availability = await listSessionAvailability();
     paintSessions();
     fillSessionSelect();
   });

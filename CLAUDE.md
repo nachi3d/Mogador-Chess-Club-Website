@@ -1145,6 +1145,23 @@ The rules that bind work elsewhere — the rest is reference:
   second ladder is the higher-stakes one: an explicit select naming `capacity`
   against a pre-0013 production database would **fail the whole build**, and
   the agenda incident is what that costs.
+- ⚠️ **THE SESSION FORM IS ONE FORM WITH TWO MODES, NEVER TWO FORMS.** A second
+  form is a second place for the field list to be wrong — capacity reached the
+  create form alone once, and a prof could not change it afterwards. Edit mode
+  **short-circuits the repeat preview** (a series is a label, so editing a
+  member edits that member only), and `datetime-local` is refilled from **local
+  wall-clock parts**, never the stored ISO instant, which lands silently empty.
+- ⚠️ **THE CARD PRINTS `booked / (capacity + margin)`** — the number that
+  actually refuses. Printing the capacity alone makes the margin invisible
+  again. An absent count prints "—", never 0 (Critical Feature 30's rule).
+
+### ⚠️ `db:push --dry-run` ONCE APPLIED AND SAID IT HAD NOT
+
+`scripts/db-push.mjs` read `process.argv` **not at all** — it probed with
+`--dry-run`, then applied unconditionally. ⚠️ **A dry-run flag that lies is
+worse than no flag**, on the one script whose entire job is refusing
+production. It now stops after the probe, and ⚠️ **an unrecognised argument
+FAILS CLOSED**, because silently discarding one is what caused it.
 
 **➡️ [`docs/reference/supabase.md`](./docs/reference/supabase.md)** — the live
 RLS audit, the concurrency measurement and the staleness answer in full.
