@@ -11,7 +11,406 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
-_Nothing yet._
+Nothing yet.
+
+---
+
+## [0.17.0] — 2026-08-20
+
+**Recurring sessions with `series_id`, single-statement bulk writes so a
+thirteen-session creation triggers ONE rebuild, and migrations 0011 (the rebuild
+trigger, with a vault-supplied hook) and 0012 (session series).**
+
+A term of sessions programmed in one action, and one Cloudflare build to show
+for it — plus the rebuild trigger finally written down as a migration instead of
+living only in the production database.
+
+### Added
+
+- **Migration 0011 — the site rebuild trigger, captured from production.**
+  Publishing a session now asks Cloudflare to rebuild, so the staleness banner
+  goes green on its own instead of waiting for somebody to deploy.
+  - ⚠️ **It already existed on production, hand-applied, and that is the defect
+    this repairs.** A trigger that lives only in the live database is one the
+    test project does not have, nobody can review, and `db:push` does not carry.
+    Everything in 0011 is idempotent so it can be run **over** the hand-applied
+    objects; running it is what makes the two agree.
+  - ⚠️ **The Supabase Database Webhooks UI cannot be used on this project**, and
+    the hour spent proving it is now recorded rather than repeatable. It fails
+    with `schema supabase_functions does not exist`, then with
+    `function supabase_functions.http_request() does not exist` — enabling
+    `pg_net` does not fix it, because pg_net puts its functions in `net` and the
+    UI wants a `supabase_functions` shim this project does not have. The UI is a
+    convenience over exactly this trigger.
+  - **`public.rebuild_requests`** logs one row per firing, with the row count
+    taken from a transition table. It is the instrument that makes "thirteen
+    sessions, one build" **countable rather than asserted**. Staff-readable, no
+    insert policy, `service_role` granted explicitly (the 0002 lesson).
+  - ⚠️ **The trigger may never fail a write** (Critical Feature 70). Every
+    failure path — missing vault, unreachable `net.http_post`, Cloudflare down —
+    logs a `note` and returns. A trigger that can raise makes `/admin/seances`
+    unable to save, turning somebody else's outage into a database outage in
+    front of a room of children. At **migration** time the converse holds: a
+    missing `pg_net` raises and names the dashboard page that enables it.
+- **Migration 0012 — `sessions.series_id`**, a nullable, partially-indexed
+  label. See the recurrence entry below for what it is and is not.
+- **Recurring sessions in `/admin/seances`.** Create a session, choose *chaque
+  semaine* or *toutes les deux semaines*, give an end date, and get the whole
+  term in one action.
+  - **The preview lists every date before anything is created**, in full, and
+    the submit button says the number — "Créer" and "Créer les 13 séances" are
+    different promises. ⚠️ **The cap (52) REFUSES rather than truncating**:
+    creating the first 52 of 523 silently would leave a prof believing the rest
+    exist, in the public agenda, where nobody would check.
+  - **A *Séries* block** offers "publier les N brouillons" and "annuler les N
+    séances à venir" — never the past ones, because a session that happened
+    happened.
+- **`src/lib/recurrence.ts`** — pure, importable, no DOM and no Supabase, so its
+  arithmetic is checkable without a browser and its spec runs in both flag
+  shapes and with no credentials at all.
+- **`tests/e2e/recurring-sessions.spec.ts`** — six arithmetic tests plus two that
+  drive the real UI against the real database and **count the trigger firings**.
+- **`docs/SETUP-NEW-MACHINE.md` — bringing the project up on a fresh Windows
+  machine, in order, with a verification after each step.** Written because the
+  project is moving to another PC and four things live on this machine and not
+  in the repository: the toolchain, `node_modules/`, the Playwright browsers,
+  and the two gitignored env files — of which **only the env files cannot be
+  regenerated**.
+  - It records **which secrets come from where**: the `PUBLIC_*` pair from the
+    Supabase dashboards, the Cloudflare **build variables** from the Cloudflare
+    dashboard (where `PUBLIC_AUTH_ENABLED=true` lives, and nothing in this
+    repository says so), and the **deploy hook URL from Supabase Vault only** —
+    never a table, never `.env`, never a migration, because this repository is
+    public (Critical Feature 68).
+  - ⚠️ **It names three variables in the old `.env.local` that MUST NOT be
+    copied**: `SUPABASE_SERVICE_ROLE`, `SUPABASE_PASSWORD` and `WEBHOOK_URL`.
+    **Nothing in the repository reads any of them** — the suite and `db:push`
+    take the `TEST_`-prefixed pair out of `.env.test`, and the deploy hook lives
+    in the vault. Two of the three are production credentials and the first
+    **bypasses RLS entirely**; `.env.example` says in its own header that the
+    service role key "is NOT here and must never be", so the file on this
+    machine contradicts its own template. They are fetched from the dashboard
+    when a hand-run task needs them and deleted after.
+  - ⚠️ **A credential nothing depends on is the hard one to notice**, because
+    nothing ever fails to remind you it is there.
+  - Also records what is **per-machine rather than copied** (SSH key, browsers,
+    `node_modules/`, `wrangler` login, the non-default
+    `PLAYWRIGHT_BROWSERS_PATH` — which is a preference, not a requirement, since
+    `scripts/demo.mjs` already reads it first and falls back), and that the
+    committed generated assets (icons, fonts, `fonts.css`, piece sets, the
+    vendored engine, `agenda.fallback.json`) are **checked, never regenerated**.
+- **`docs/SETUP-NEW-MACHINE.md` §9a — "Before a matrix run: quiet the machine
+  first", with the cost of each background process MEASURED rather than
+  asserted.** Added after the gate was re-run on the new laptop and **all ten
+  project-runs tripped the under-3 GB warning**. The list names what to close
+  (OneDrive pause, Dell TechHub, SupportAssist, Waves, a Defender path
+  exclusion) with the working set each was holding, so it can be **argued with
+  and re-measured** rather than followed as superstition.
+  - ⚠️ **`ServiceShell.exe` (973 MB) is listed as UNIDENTIFIED**, deliberately:
+    it is the largest single consumer and its path was unreadable without
+    elevation. The instruction is to identify it before acting, because
+    "close the biggest thing" is how a machine gets broken.
+  - ⚠️ **`--workers=3` is explicitly NOT the knob to turn** — the alternatives
+    are already measured in `scripts/test-release.mjs`, and lowering it trades
+    one slow run for a slower one without fixing the baseline.
+
+### Changed
+
+- ⚠️ **Every matrix run keeps its own log** — `matrix-<shape>-<stamp>.log`,
+  `matrix-<shape>-<stamp>.json` and `freemem-<shape>-<stamp>-<project>.txt`,
+  with the `rmSync(LOG)` at startup removed. **Found by it biting at this
+  release's own gate.** `test-release.mjs` wrote to one `matrix.log` and cleared
+  it on startup, which is correct for one run and wrong for a gate that runs
+  TWICE, once per flag shape: the accounts-ON run deleted the accounts-OFF run's
+  log the moment it started. The OFF matrix had come back red with four failures
+  — three firefox, one webkit — and the log naming them was gone, along with
+  `test-results/`, which Playwright clears on its next run. Four failures that
+  could not be adjudicated, on a gate that blocks promotion, and the only remedy
+  was re-running the whole 90-minute shape.
+  ⚠️ **The memory traces had the identical bug** — `freemem-firefox.txt` is
+  keyed by project, so the second shape overwrote the first's troughs, which are
+  the numbers that decide whether a failure was a starved browser or a real
+  defect. ⚠️ **No pruning was added**: putting a deleter into the script that
+  just lost data is how the bug returns wearing a different hat.
+- ⚠️ **`createSession()` (singular) no longer exists.** `createSessions()` takes
+  an array and sends one multi-row insert; `updateSessions()` takes ids and
+  sends one `update … in (…)`. `updateSession()` and `cancelSession()` are
+  one-id conveniences **over** those, not second call sites. This is Critical
+  Feature 67, and the reason is the statement-level trigger: a create-one
+  function's only misuse is a `for` loop, and the loop costs one Cloudflare
+  build per iteration.
+- `AdminSession` carries `seriesId`; `listSessions()` selects `series_id`.
+  ⚠️ **It is deliberately NOT in `sessionFingerprint()`** — the public agenda
+  card does not render it, so it cannot make the deployed site wrong.
+- **`SESSION_COLUMNS` — a second explicit-select ladder**, on the
+  `PROFILE_COLUMNS` precedent. `listSessions()` names `series_id`, and PostgREST
+  answers a missing column with `42703`, which this layer turns into an empty
+  array — indistinguishable from "no sessions". Without the ladder, one
+  unapplied migration would not degrade `/admin/seances`, it would silently
+  EMPTY it, taking the register and the staleness banner with it.
+  ⚠️ **Reads degrade; writes fail loudly.** `createSessions()` omits
+  `series_id` when there is none rather than sending null, so ordinary session
+  creation survives a pre-0012 database and only a *repeat* create fails — with
+  a message, rather than by quietly making thirteen rows nobody can act on as a
+  set.
+- `docs/MANUAL-TESTS.md` §7d-5 no longer says the agenda is "still the git
+  collection"; it has not been since v0.15.0, and since this release publishing
+  asks for a rebuild rather than waiting for one.
+- ⚠️⚠️ **The release gate's evidence moved OUT of `node_modules/.cache` into
+  `gate-logs/`** — gitignored, but real. Per-run naming (added earlier in this
+  release) stopped a second *run* erasing the first's log; it did nothing about
+  the directory the logs lived in, and that is the half that actually bit.
+  **`npm ci` deletes `node_modules/` outright**, so a dependency bump, a broken
+  install or a move to another machine takes every matrix log and memory trace
+  with it.
+  - ⚠️ **What it cost:** the three unadjudicated failures carried over from the
+    previous machine — one webkit in the OFF shape, one webkit and one
+    iphone-13 in the ON shape — **could not be re-read**, because the logs
+    naming them went with that machine's `node_modules/`. Establishing that
+    none of the three reproduced meant re-running both shapes from scratch,
+    ~4.8 hours.
+  - `gate-logs/` is ignored rather than committed: evidence is per machine and
+    per run, and a log in git is a merge conflict waiting to happen.
+- **CLAUDE.md split — 120,226 → 112,903 characters (75% of the limit, down from
+  80%).** It had crossed the size guard's warning threshold. Per the rule, the
+  remedy is to **split, not to trim**: fourteen blocks of reasoning, measurement
+  and incident narrative moved **verbatim** into the reference file for their
+  area, each leaving the rule and a pointer behind.
+  - Moved: the `progress.ts` migration-point detail → `progression.md`; the
+    `onlyMove` implementation and policing → `content.md`; the test-fixture
+    mechanism → `video.md`; the matrix worker-cap, feature-branch and
+    "critical path" policies, the environment-symptom table and
+    `quick.mjs`'s refusal → `testing.md`; the release gate and the two
+    configuration invariants → `deployment.md`; the long-lived-process sweep →
+    `dev-environment.md`; the v2 locked decisions and the superseded
+    2026-08-15 schema reading → `supabase.md`; the EN legal-notice segment
+    rationale → `ui-navigation.md`.
+  - ⚠️ **`node scripts/check-split.mjs` is green: 1,209 lines stayed, 171 moved,
+    nothing lost, and NO new obsolete declarations were needed.**
+    `docs/reference/.split-obsolete.txt` is unchanged — the ten entries in it
+    are from the previous split.
+  - ⚠️ **Two contradictory claims about production's schema were standing three
+    lines apart** — "current through 0009" (2026-08-15) and "current through
+    0012" (2026-08-18). The superseded one is **moved, not deleted**, because
+    the *technique* in it is still the answer: the error code PostgREST returns
+    tells a missing table (`PGRST205`) from a forbidden one (`42501`).
+  - ⚠️ **A verbatim move keeps the block's original relative links**, which were
+    written from the repository root, so inside a reference file a
+    `./docs/reference/…` path and the occasional pointer back to the file you
+    are already reading are the seam showing. Each moved block now carries a
+    preamble saying so — the preamble is new text, so it may be worded freely;
+    the block may not.
+  - **Declined deliberately**, because a session could break each without going
+    looking: the Critical Features list, the board file-role table, the
+    add-a-table migration checklist, the admin-surface rules, and the PLY 0
+    warning.
+- **CLAUDE.md's reference index gains a row for `docs/SETUP-NEW-MACHINE.md`** —
+  added *after* the split, on the principle the split exists to serve: a
+  document nobody is pointed at is not read.
+
+### Fixed
+
+- ⚠️⚠️ **The "Créer" button did nothing on Safari and every iPhone** — found by
+  this release's own gate, on the two WebKit projects, and it would have shipped
+  otherwise.
+  `paintPreview()` rewrote `submitButton.textContent` unconditionally on the
+  form's `change` event. Pressing the button while the caret was still in
+  "Jusqu'au" **blurs** that field → `change` fires → the handler rewrites the
+  button **between the `mousedown` and the `mouseup` of the press** → WebKit
+  declines to synthesise the `click`. No click, no `submit`, no write, **no
+  error**. A second tap worked, because the field was already blurred.
+  ⚠️ **Chromium and Firefox synthesise the click regardless**, so this passed
+  `test:branch` and would have passed any amount of manual desktop checking.
+  **The fix: `paintPreview()` is idempotent** — `setText`/`setHtml`/`setHidden`
+  write only when the value differs, so the blur-time repaint touches nothing.
+  The general rule (*a paint function is idempotent*) is in CLAUDE.md; the full
+  diagnosis, including the three hypotheses that were wrong, is in
+  `docs/reference/testing.md`.
+  ⚠️ **The regression test's first version had the same failure mode as the
+  bug** — it read the table once, immediately after the confirm, and failed
+  against a correctly fixed build with `Expected: 3, Received: 0`. A guard whose
+  failure looks like the defect sends the next reader hunting for a cause that
+  does not exist. It polls now.
+
+### Decided
+
+- ⚠️ **NO RRULE ENGINE AND NO RECURRENCE TABLE** (Critical Feature 69). The
+  expansion happens once, in the browser, and what is stored is thirteen
+  ordinary rows. Same decision BabyClub took, for the same reason: **one
+  cancelled week must not require reasoning about a rule.** The cost is honest —
+  moving the whole term an hour later is not one edit — and it is the right way
+  round, because the rare bulk edit paying more is what keeps the common single
+  edit free.
+- ⚠️ **The generated rows DO carry a shared marker, and it is a LABEL.**
+  `series_id` may be read only to **select rows the prof is already looking at**,
+  never to decide what a session *is*. It earned its column twice over: bulk
+  publish and bulk cancel become **one statement** (which is what keeps the
+  rebuild trigger firing once per prof action), and the list can say
+  `série · 3/13` instead of showing thirteen indistinguishable cards.
+- ⚠️ **The deploy hook URL is supplied through Supabase Vault**
+  (`cloudflare_deploy_hook`), by a documented one-line manual step, and is in no
+  file in this repository (Critical Feature 68). It is the credential: anyone
+  holding it spends the club's build minutes, and this repo is public under the
+  GPL. A config table was rejected (readable by any service-role holder, lands
+  in `pg_dump`, and would be the eighth table here to ship with the `anon`
+  grants Supabase hands out by default); a GUC was rejected (nothing lists it,
+  nothing can audit it); `.env` cannot be read from inside Postgres at all.
+  ⚠️ **No secret means no dispatch, not an error** — which is what makes it safe
+  to count firings on a test project whose sibling is production.
+- **The suppression seam is documented, not used.** `set local mcc.rebuild =
+  'off'` silences every firing in a transaction, and
+  `select public.request_site_rebuild('manual: …')` re-fires once at the end. It
+  exists for hand-run SQL maintenance. ⚠️ **No application path uses it** —
+  every one of them is already a single statement, which is the better answer
+  wherever it is available.
+
+### Measured
+
+Firing counts against the test project, 2026-08-18 — the claim is about a
+trigger, so it was counted rather than reasoned about:
+
+```
+insert of 13 rows       -> 1 firing   (rows_changed 13)
+bulk update of 13 rows  -> 1 firing   (rows_changed 13)
+single update of 1 row  -> 1 firing   (rows_changed 1)
+bulk delete of 13 rows  -> 1 firing   (rows_changed 13)
+drafts-only insert of 3 -> 1 firing   (dispatched false — nothing public changed)
+```
+
+⚠️ **The spec's assertion is "exactly one firing says it touched 13 rows", not
+"one firing happened".** `fullyParallel` is on, so other spec files write
+sessions in other workers throughout. A loop of thirteen inserts cannot produce
+a `rows_changed = 13` row at all, so the assertion cannot be satisfied by the
+failure it exists to catch, and cannot be broken by an unrelated write.
+
+### Verification
+
+| Run | Result |
+|---|---|
+| `npm run test:branch`, accounts **OFF** | green — 159 passed, 53 skipped |
+| `npm run test:branch`, accounts **ON** (first) | 191 passed, **1 failed** — `attendance-timing` |
+| the identical set at `--workers=1`, accounts **ON** | **green — 192 passed, 0 failed** |
+| `attendance-timing.spec.ts` alone, accounts **ON** | green |
+| `npm run test:branch`, accounts **OFF** (final) | **green** |
+| `npm run test:branch`, accounts **ON** (final) | **green — 192 passed, 0 failed** |
+
+⚠️ **The single failure was the documented fan-out symptom, not a regression,
+and it was checked rather than assumed.** `attendance-timing.spec.ts` read
+`19 sur 28 marqués` after twenty successful taps whose rows were all durable in
+Postgres. Per CLAUDE.md → Testing, `--workers=1` is the arbiter, and the serial
+re-run of the identical thirteen spec files passed 192/192; the file also passes
+alone. It is logged in BACKLOG with the likely mechanism (a second, legitimately
+newer `loadRegister()` repainting from a read that predates some taps) rather
+than left as folklore.
+
+#### ⚠️ THE FULL MATRIX WAS RE-RUN ON A SECOND MACHINE, BOTH SHAPES, AT THE GATE
+
+The promotion gate for this release ran on a **different laptop** from the one
+the release was developed on, from a clean `npm ci` and a fresh Playwright
+install. Both flag shapes, as the verification policy requires:
+
+| Shape | Result | Duration |
+|---|---|---|
+| `npm run test:release` (accounts **OFF**) | 3163 passed, **1 failed**, 4 flaky | 115.6 min |
+| the failing spec at `--workers=1`, **OFF** | **green — 31 passed** | 2.3 min |
+| the four flaky specs at `--workers=1`, **OFF** | **green — 85 passed, 0 flaky** | 2.6 min |
+| `PUBLIC_AUTH_ENABLED=true npm run test:release` (accounts **ON**) | **green — 3525 passed**, 8 flaky, 0 failed | 172.1 min |
+
+⚠️ **THE THREE FAILURES CARRIED OVER FROM THE FIRST MACHINE DID NOT REPRODUCE.**
+Those were one webkit failure in the OFF shape (3166 passed) and one webkit plus
+one iphone-13 in the ON shape (3523 passed). On the second machine the ON shape
+came back **green on all five projects**, and 3525 passed is exactly the earlier
+3523 plus those two. The OFF shape reproduced the *shape* — 3163 passed, one
+webkit failure — and the arbiter cleared it: the failing test
+(`exercise.spec.ts` → "exercise EN has no axe violations once solved") ran in
+**4.6 s** against its 30 s timeout when re-run serially.
+
+⚠️ **MEMORY STARVATION IS DOCUMENTED AS THIS MACHINE'S BASELINE, NOT A DEFECT.**
+All ten project-runs tripped the under-3 GB warning — troughs of **0.39–2.14 GB**
+against the first machine's **3.85–6.43 GB**, on comparable total RAM (15.69 vs
+15.85 GB). Every failure and flake in both shapes was a **bare timeout** or a
+`browserContext.close` protocol error; **not one named a value**, which is the
+signature `scripts/test-release.mjs` already calls a starved browser. The tell
+that the box was thrashing rather than merely loaded: the memory sampler, a
+2-second `setInterval`, was firing **once every ~23 seconds** during the ON
+firefox project — which itself took **2.1 hours** against 23.2 minutes in the OFF
+shape. The remedy is `docs/SETUP-NEW-MACHINE.md` §9a, not a code change.
+
+⚠️ **`ENGINE_TIMEOUT` (60 s) WAS CHECKED AND IS NOT MARGINAL ON THIS CPU.** Two
+`play.spec.ts` tests flaked under `test:branch --all`, which raised the question.
+The distribution answers it: the failing attempts took **exactly 60.0 s** (the
+ceiling) and their retries **2.2 s and 4.1 s**, with every other play test in the
+same run at 0.7–3.1 s and iphone-13 across both matrices at **max 9.9 s, mean
+4.3 s, zero over 60 s**. A marginal timeout produces creep — 45 s, 55 s, 62 s.
+This is bimodal, so it is a **stall in engine boot, not slow boot**, and raising
+the number would not fix it. It never occurred in either matrix (ten
+project-runs, zero play.spec failures or flakes); it is specific to the
+`test:branch` path, and it is logged rather than absorbed.
+
+### Documentation
+
+- `docs/reference/deployment.md` — a new section: the webhook-UI dead end, the
+  vault decision with the rejected alternatives, why the trigger may never
+  raise, the `FOR EACH STATEMENT` rule as a constraint on the *client*, the
+  measured firing counts, the suppression seam, and the exact catalog query and
+  `schema_migrations` registration SQL for applying 0011 and 0012 to production.
+- `docs/reference/supabase.md` — the recurrence decision in full, the series
+  label, the cap, and the two timezone traps (local calendar days, and
+  `new Date()` reading a date-only string as UTC).
+- `docs/MANUAL-TESTS.md` — §7d-5b (thirteen rows, one rebuild, checked against
+  the Cloudflare build list *and* `rebuild_requests`) and §7d-5c (the Ramadan
+  DST check).
+
+### ⚠️ CLAUDE.md was split — and nothing was lost silently
+
+Four new Critical Features (67–70) pushed the file past the 120,000-character
+warning line, so the account-erasure detail moved **verbatim** to
+`docs/reference/supabase.md`, leaving behind the two rules that bind unrelated
+work (the function must never gain a parameter; anything exported from
+`supabase.ts` must also be exported by `supabase.disabled.ts`) and a pointer.
+119,746 characters, 80% of the hard limit.
+
+`node scripts/check-split.mjs` is green. **Two blocks are declared obsolete in
+`docs/reference/.split-obsolete.txt` rather than moved**, and per the rule they
+are reported here:
+
+1. **The "0010 is the one production is missing" paragraph** — rewritten in
+   place, because it became false in this release: production is now three
+   migrations behind, and 0011 is the special case that is already there,
+   hand-applied. Keeping the old sentences would leave CLAUDE.md asserting the
+   wrong count.
+2. **One line of a two-line pointer** — the sentence was re-flowed to name four
+   more subjects and a second reference file. Nothing it pointed at was removed.
+
+⚠️ **The headroom is now one session deep.** The next area-sized addition to
+CLAUDE.md must be preceded by a split, not followed by one.
+
+### ⚠️ Production's schema — asked of the catalog at the gate, not assumed
+
+The promotion checklist demands this per migration, against the catalog rather
+than `supabase_migrations.schema_migrations`, which has already been wrong here
+in the dangerous direction. Probed read-only on 2026-08-18, before the deploy:
+
+| | evidence |
+|---|---|
+| **0010** applied | `profiles?select=account_shape` answers **200**, not `42703` |
+| **0011** applied | `rebuild_requests` answers **`42501`** to `anon` (permission denied — the table exists) where a missing table answers `PGRST205` |
+| **0012** applied | `sessions?select=series_id` answers **200**, not `42703` |
+
+⚠️ **AND THE VAULT ENTRY IS LIVE, WHICH IS THE HALF NO SCHEMA QUERY CAN SHOW.**
+`rebuild_requests` on production carries firings from 2026-08-18 with
+**`dispatched = true`** — so `cloudflare_deploy_hook` is in the vault, `pg_net`
+reached Cloudflare, and the trigger is doing its job end to end. That is the
+first evidence the feature works outside a test project, and it is a log row
+rather than a claim.
+
+⚠️ **Still outstanding, and it does NOT block a deploy:** registering 0010–0012
+in `supabase_migrations.schema_migrations`. Production's ledger has listed
+`0001, 0002` since long before this release while the schema demonstrably holds
+far more, so a future `supabase db push` would try to replay everything in
+between — including 0005's unguarded `drop constraint`. **Registering is
+bookkeeping, not proof**; the table above is the proof. The backfill SQL is in
+`docs/reference/deployment.md` and the item is in BACKLOG.
 
 ---
 
@@ -4808,7 +5207,8 @@ Foundation only: no real content, no interactive board yet.
   `url()` references unresolved and the fonts silently 404 into a Georgia
   fallback. `scripts/build-fonts.mjs` self-hosts them instead. See CLAUDE.md.
 
-[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.16.0...HEAD
+[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.17.0...HEAD
+[0.17.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.13.0...v0.14.0

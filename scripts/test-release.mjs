@@ -98,9 +98,69 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const LOG_DIR = join(ROOT, 'node_modules', '.cache');
-const LOG = join(LOG_DIR, 'matrix.log');
-const JSON_OUT = join(LOG_DIR, 'matrix.json');
+
+/**
+ * ⚠️ THE GATE'S EVIDENCE DOES NOT LIVE UNDER `node_modules/`. IT USED TO, AND
+ * THAT IS EXACTLY HOW A SET OF MATRIX LOGS WAS LOST.
+ *
+ * This was `node_modules/.cache`, which is not a cache in any sense that
+ * matters here: it is the only record of which tests failed on a gate that
+ * blocks promotion, and it sits inside the one directory every setup routine
+ * deletes and rebuilds. `npm ci` removes `node_modules/` outright before
+ * installing, so a dependency bump, a corrupted install, or moving the project
+ * to another machine silently takes every matrix log and memory trace with it.
+ *
+ * ⚠️ WHAT THAT COST: the three unadjudicated failures carried over from the
+ * previous machine — one webkit in the OFF shape, one webkit and one iphone-13
+ * in the ON shape — could not be re-read, because the logs naming them went
+ * with that machine's `node_modules/`. They had to be re-run from scratch on
+ * the new machine, both shapes, ~4.8 hours, to establish that none of the
+ * three reproduced.
+ *
+ * `gate-logs/` is gitignored but REAL: nothing in the toolchain deletes it, and
+ * it survives `npm ci`, a reinstall and a checkout. It is not committed —
+ * evidence is per machine and per run, and a log in git is a merge conflict
+ * waiting to happen.
+ */
+const LOG_DIR = join(ROOT, 'gate-logs');
+
+/**
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️ EVERY RUN GETS ITS OWN LOG. A SECOND RUN MUST NEVER ERASE THE FIRST'S
+ * EVIDENCE — AND IT USED TO.
+ *
+ * This wrote to a single `matrix.log` and began with `rmSync(LOG)`. That is
+ * fine for one run and catastrophic for the gate, which runs TWICE, once per
+ * flag shape (see the verification policy in CLAUDE.md): the accounts-ON run
+ * deleted the accounts-OFF run's log the moment it started.
+ *
+ * ⚠️ WHAT THAT COST, ONCE, AT THE v0.17.0 GATE: the OFF matrix came back with
+ * FOUR failures — three firefox, one webkit — and by the time anyone looked,
+ * the log naming them was gone, along with `test-results/`, which Playwright
+ * clears on its next run. Four failures that could not be adjudicated, on a
+ * gate that blocks promotion, and the only remedy was to re-run the whole 90
+ * minute shape. The summary survived; the evidence did not.
+ *
+ * ⚠️ THE SHAPE IS IN THE NAME, NOT JUST THE TIMESTAMP. "Which run was this?"
+ * is asked months later, from a filename, and `matrix-off-…` answers it where
+ * two timestamps do not. The shape is read from the same variable the gate
+ * itself branches on, so it cannot disagree with what actually ran.
+ *
+ * ⚠️ AND THE MEMORY TRACES ARE NAMESPACED THE SAME WAY. They had the identical
+ * bug for the identical reason: `freemem-firefox.txt` is per PROJECT, so the
+ * second shape's firefox overwrote the first's, and the troughs that decide
+ * whether a failure was starvation or real were lost with everything else.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+const SHAPE = process.env['PUBLIC_AUTH_ENABLED'] === 'true' ? 'on' : 'off';
+const STAMP = new Date()
+  .toISOString()
+  .replace(/[-:]/g, '')
+  .replace('T', '-')
+  .slice(0, 15);
+const RUN_ID = `${SHAPE}-${STAMP}`;
+const LOG = join(LOG_DIR, `matrix-${RUN_ID}.log`);
+const JSON_OUT = join(LOG_DIR, `matrix-${RUN_ID}.json`);
 
 /** ⚠️ Must match `projects` in playwright.config.ts. Verified below. */
 /**
@@ -197,7 +257,10 @@ const SAMPLER = `
 const GB = (bytes) => (bytes / 1024 ** 3).toFixed(2);
 
 function startMemorySampler(label) {
-  const file = join(LOG_DIR, `freemem-${label}.txt`);
+  /* ⚠️ NAMESPACED BY RUN, not just by project — see the RUN_ID block at the
+     top. `freemem-firefox.txt` was overwritten by the second flag shape, which
+     is exactly how the troughs that decide "starved or real" went missing. */
+  const file = join(LOG_DIR, `freemem-${RUN_ID}-${label}.txt`);
   rmSync(file, { force: true });
   const child = spawn(process.execPath, ['-e', SAMPLER, file], { cwd: ROOT, stdio: 'ignore' });
   child.on('error', () => {}); // a sampler that cannot start must never fail the gate
@@ -241,11 +304,24 @@ const green = (s) => `\x1b[32m${s}\x1b[0m`;
 const yellow = (s) => `\x1b[33m${s}\x1b[0m`;
 
 mkdirSync(LOG_DIR, { recursive: true });
-rmSync(LOG, { force: true });
+
+/* ⚠️ NO `rmSync(LOG)` HERE, AND THAT IS THE FIX. The name is unique per run, so
+   there is nothing to clear — and clearing anything is precisely what destroyed
+   the other shape's evidence. If this line ever comes back, read the RUN_ID
+   block above first. */
 
 const started = Date.now();
 
-console.log(`\n${bold('▸ test:release')}  ${dim(`— the full matrix, ${PROJECTS.length} projects, ${MODE}, ${WORKERS} workers.`)}`);
+console.log(
+  `\n${bold('▸ test:release')}  ${dim(
+    `— the full matrix, ${PROJECTS.length} projects, ${MODE}, ${WORKERS} workers.`,
+  )}`,
+);
+/* The shape is stated rather than implied: the gate runs twice and a log that
+   does not say which shape it is cannot be read six weeks later. */
+console.log(
+  dim(`  Shape: accounts ${SHAPE.toUpperCase()}  ${SHAPE === 'on' ? '(PUBLIC_AUTH_ENABLED=true)' : '(repo default)'}`),
+);
 console.log(dim(`  Log: ${LOG}\n`));
 
 /** Append a chunk to the human log, so the whole run is in one file. */
@@ -468,3 +544,6 @@ if (worstStatus !== 0 || failed > 0) {
 }
 
 console.log(green(`\n  ✓ Matrix green — ${passed} passed${flaky ? `, ${flaky} flaky` : ''}, ${minutes} min.\n`));
+/* ⚠️ NAMED ON THE GREEN PATH TOO. A promotion records which two runs it rested
+   on, and "matrix.log" was never enough to identify either of them. */
+console.log(dim(`  accounts ${SHAPE.toUpperCase()} — evidence kept at ${LOG}\n`));

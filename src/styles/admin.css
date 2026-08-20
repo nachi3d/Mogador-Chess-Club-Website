@@ -349,6 +349,97 @@
   gap: 0.5rem;
 }
 
+/* ── repeating a session ────────────────────────────────────────────────────
+   ⚠️ NOT A SCOPED <style> BLOCK, for the reason recorded in CLAUDE.md: the
+   preview and the series cards are built with `innerHTML` at runtime, and Astro
+   stamps `data-astro-cid-*` at BUILD time onto the elements a component
+   declares. A scoped rule compiles to `.repeat-dates[data-astro-cid-…]` and
+   silently misses every element the script created. */
+.admin-repeat {
+  margin: 0;
+  padding: 0.75rem 0.9rem 0.9rem;
+  border: 1px solid var(--mcc-border-subtle);
+  border-radius: var(--radius-card);
+  background-color: var(--mcc-surface-sunken);
+  display: grid;
+  gap: 0.75rem;
+}
+
+.admin-repeat legend {
+  padding-inline: 0.35rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.repeat-preview {
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--mcc-border-subtle);
+  border-radius: var(--radius-card);
+  background-color: var(--mcc-surface-card);
+}
+
+.repeat-preview[data-state='problem'] {
+  border-color: var(--mcc-danger-text);
+}
+
+.repeat-count {
+  margin: 0;
+  font-weight: 600;
+}
+
+.repeat-note {
+  margin: 0;
+  color: var(--mcc-text-secondary);
+  font-size: 0.875rem;
+}
+
+/* ⚠️ EVERY date is listed, and the list scrolls rather than being truncated.
+   A prof is about to put these in the public agenda; "and 8 more" is exactly
+   where a wrong end date hides. */
+.repeat-dates {
+  margin: 0.5rem 0 0;
+  padding-inline-start: 1.4rem;
+  max-block-size: 12rem;
+  overflow-y: auto;
+  color: var(--mcc-text-secondary);
+  font-size: 0.875rem;
+}
+
+.repeat-dates li {
+  margin-block-end: 0.15rem;
+}
+
+/* ── series ─────────────────────────────────────────────────────────────── */
+.series-card {
+  margin-block-end: 0.75rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--mcc-border-subtle);
+  border-inline-start-width: 4px;
+  border-radius: var(--radius-card);
+  background-color: var(--mcc-surface-card);
+}
+
+.series-when {
+  margin: 0;
+  font-weight: 600;
+}
+
+.series-meta {
+  margin-block: 0.2rem 0.6rem;
+  color: var(--mcc-text-secondary);
+  font-size: 0.875rem;
+}
+
+.session-series {
+  display: inline-block;
+  margin-inline-start: 0.4rem;
+  padding: 0.1rem 0.5rem;
+  border: 1px solid var(--mcc-border-subtle);
+  border-radius: 999px;
+  color: var(--mcc-text-secondary);
+  font-size: 0.75rem;
+}
+
 /* ── session cards ──────────────────────────────────────────────────────── */
 .session-card {
   margin-block-end: 0.75rem;

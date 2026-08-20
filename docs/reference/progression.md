@@ -237,3 +237,29 @@ The tutorial keeps its own entry points — the prerequisite line here, the home
 CTA and the dashboard tile — and gains nothing from a course card.
 
 ---
+
+---
+
+## `src/lib/progress.ts` — the single migration point
+
+**Read when:** touching stored progress, the exercise ticks, or anything that
+reads or writes `localStorage`. Moved out of CLAUDE.md at v0.17.1; the rule and
+the pointer stay there.
+
+⚠️ **The block below is a VERBATIM move** — `check-split.mjs` compares normalised
+lines, so nothing inside it may be reworded, including its relative links. Paths
+like `./docs/reference/…` are written from the repository root (CLAUDE.md's
+position), and a `➡️` pointer back to this same file is the move showing its
+seam, not a mistake.
+
+#### `src/lib/progress.ts` — the single migration point
+
+All of it lives behind that one module. **Nothing else in the codebase may touch `localStorage` or know the key.** If accounts ever arrive, swapping the backing store is a rewrite of that file and nothing else — the same containment trick as `BoardSurface.tsx`.
+
+- Key: `mcc:progress:v1`. The **version is in the key**. A future shape change writes `v2` and may migrate `v1` across; it never reinterprets `v1` bytes under new rules, because a half-migrated record is worse than a lost one.
+- Shape: `{ exercises: { [slug]: { solved, attempts, hintUsed, solvedAt } } }`.
+- **Every access is guarded and fails silent.** Safari private mode throws on `setItem`, a full quota throws, an embedded context can throw on `localStorage` itself, and a hand-edited value can be any garbage at all. A reader whose storage is unavailable still gets a fully working exercise — just no tick on the index. There is nothing they could do about it, so we do not tell them. A bad stored value is **not deleted**: destroying a reader's data to tidy up is the wrong trade.
+- Records are normalised **field by field** on read, never cast. The value came off disk and may have been written by an older build or a person with devtools open.
+- `resetAttempts()` ("Recommencer") clears the counter and **never the solve**. Having solved something once is a fact about the reader; a retry button that silently takes back a tick would punish curiosity.
+
+The solved ticks on `/exercices/` are drawn by a plain `<script>`, **not an island** — ~1 KB of vanilla JS that reads the module and removes a `hidden` attribute. The one-board-island rule is about hydrated framework components, and this must stay on the right side of that line. The card reserves the marker's height (`.card-status`), so revealing it cannot reflow the grid.

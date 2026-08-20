@@ -620,3 +620,18 @@ Both new bar destinations need a desktop home:
 
 The CF36 spec reads the destinations **off the bar** and demands each of the
 header, so a sixth entry fails until it has a desktop home.
+
+---
+
+## Why the EN legal notice is `/en/mentions-legales/` and not `/en/legal-notice/`
+
+**Read when:** asked to translate a route segment, or picking up the open
+question for Seàn. Moved out of CLAUDE.md at v0.17.1, which keeps the rule.
+
+⚠️ **The block below is a VERBATIM move** — `check-split.mjs` compares normalised
+lines, so nothing inside it may be reworded, including its relative links. Paths
+like `./docs/reference/…` are written from the repository root (CLAUDE.md's
+position), and a `➡️` pointer back to this same file is the move showing its
+seam, not a mistake.
+
+⚠️ **The EN legal notice is `/en/mentions-legales/`, not `/en/legal-notice/`.** The Session 3 brief asked for the translated segment; it is deliberately not implemented that way, because the no-translated-segments rule above is what makes the switcher a pure prefix swap that *cannot* fail to find its counterpart. A translated segment needs a lookup map, and a missing entry 404s a reader mid-visit — on the one page whose whole job is to be findable. The visible link label **is** translated ("Mentions légales" / "Legal notice"); the URL is structural. Flagged for Seàn: it is a one-line change in `paths.ts` plus a map if he wants the English URL, and the site is unlaunched so it is still cheap to reverse.

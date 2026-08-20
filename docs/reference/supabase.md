@@ -1152,6 +1152,139 @@ cost this session two gate runs on top of the rate limit.
 
 ---
 
+## Erasing an account — the full record (moved from CLAUDE.md, v0.17.0)
+
+**Read when:** touching `delete_own_account()`, `/compte/`'s danger block, or
+anything exported from `src/lib/supabase.ts`.
+
+### ⚠️ AN ACCOUNT DELETES ITSELF, AND THE FUNCTION TAKES NO TARGET
+
+`delete_own_account()` (migration 0007), reached from `/compte/`. The privacy
+notice always promised erasure; until now that promise was a volunteer
+remembering to run SQL.
+
+- ⚠️ **NO ARGUMENT, AND IT MUST NEVER GAIN ONE.** The id can only come from
+  `auth.uid()`. A `delete_account(target uuid)` with an ownership check inside
+  is one refactor away from deleting anybody — **the parameter list is the
+  guarantee, not the body.** `authenticated` only; not `service_role`.
+- ⚠️ **Two steps, and the second is a TYPED WORD** (`SUPPRIMER` / `DELETE`,
+  case-exact). Two buttons in one place is one mis-tap on a family tablet, on
+  the only action here nobody can undo.
+- ⚠️ **The confirmation NAMES what goes** — children, progress, games, points,
+  attendance. "Are you sure?" tells a reader nothing.
+- ⚠️ **NOTHING IS RETAINED.** No statistics, no archive, no anonymised copy —
+  and a spec asserts that rather than the notice claiming it. Device-local
+  progress is deliberately untouched: it is the reader's own copy, it is what a
+  guest has, and erasing it is not what the request asks for.
+- ⚠️ **Local state is cleared only AFTER the server confirms** — the opposite of
+  `signOut()`, which clears first. Wiping a device for a delete that did not
+  happen destroys data the account still holds.
+- ⚠️ **Anything exported from `supabase.ts` and imported by a page script must
+  also be exported by `supabase.disabled.ts`**, or the accounts-OFF build fails
+  outright — the alias replaces the module for scripts that are still *built*
+  behind unemitted routes. The stub returns `{ ok: false }`: a stubbed success
+  would tell a reader their data was erased.
+
+## Recurring sessions — migration 0012, and the decision NOT to build an engine
+
+**Read when:** touching `/admin/seances`, `sessions.series_id`, or anything that
+looks like it wants to know "what does the schedule say about next week".
+
+A teacher running a weekly workshop should not create thirteen sessions by
+hand. Since v0.17.0 they do not: the create form on `/admin/seances` takes a
+cadence and an end date, shows every date it is about to create, and writes
+them in one action.
+
+### ⚠️ NO RRULE ENGINE, NO RECURRENCE TABLE — AND THAT IS THE FEATURE
+
+The expansion happens **once**, in the browser, at the moment the button is
+pressed (`src/lib/recurrence.ts`). What comes out of it is thrown away; what is
+stored is thirteen ordinary rows, each independently editable, publishable and
+cancellable.
+
+This is the same decision BabyClub took, for the same reason: **one cancelled
+week must not require reasoning about a rule.** The moment a rule owns the set,
+cancelling the 6th of November means an exception list, and the exception list
+means every reader of a session has to ask the rule what this week is supposed
+to be before it can say what it is. A prof calling off one session becomes a
+data-modelling problem.
+
+The cost is honest and small: changing "every Wednesday at 16:00" to 17:00 for
+the rest of the term is not one edit. That is the trade, and it is the right way
+round — the rare bulk edit costs more so that the common single edit costs
+nothing.
+
+### The shared marker — `series_id`, and why it exists at all
+
+⚠️ **DECISION: THE GENERATED ROWS DO CARRY A SHARED MARKER, AND IT IS A LABEL,
+NEVER A RULE.**
+
+`sessions.series_id uuid` (nullable, partially indexed, minted client-side).
+Nothing may read it to decide **what a session is** — only to **select rows the
+prof is already looking at**.
+
+Two things bought it its column:
+
+1. **Bulk publish and bulk cancel become ONE statement.** `update … in (…)` —
+   which is what keeps the statement-level rebuild trigger from migration 0011
+   firing once per prof action rather than once per session. Without the label,
+   "cancel the rest of the term" is twelve taps and twelve Cloudflare builds; a
+   multi-select checkbox UI would have been a bigger surface for the same
+   result.
+2. **The list can say `série · 3/13`.** Thirteen near-identical cards with
+   nothing tying them together is a wall, not a set.
+
+The argument against — that a marker invites an engine later — is answered by
+writing the rule down rather than by refusing the column: it is in the migration
+header, in `AdminSession.seriesId`, and in `sessionsInSeries()`, which
+deliberately filters a list **already in hand** rather than re-querying.
+
+⚠️ **NULL IS THE COMMON CASE.** A one-off session carries no series and nothing
+may treat that as an error or a lesser state.
+
+⚠️ **`series_id` IS NOT IN `sessionFingerprint()`, AND THAT IS CORRECT.** The
+public agenda card does not render it, so a change to it cannot make the
+deployed site wrong. The rule ("anything the card renders goes in the
+fingerprint, in the same commit") is about what a reader can see.
+
+### What the form does, and what it refuses
+
+- **Two cadences: weekly and fortnightly.** Monthly ("the third Wednesday") is
+  where a date list stops being obvious and a rule starts being tempting, and it
+  has never been asked for. Adding it is a new entry in `STEP_DAYS` plus a
+  label; adding it now would be inventing a requirement.
+- **The cap is 52, and it REFUSES rather than truncating.** 52 is a year of
+  weekly sessions — more than the club's September-to-June year, so no
+  legitimate use meets it. What it catches is `2039` typed where `2029` was
+  meant. Creating the first 52 of 523 and saying nothing would leave a prof
+  believing the rest exist, in the public agenda, where nobody would check.
+- **Every date is listed before anything is created**, in a scrolling list, not
+  summarised as "and 8 more". A prof is about to put these in the public agenda,
+  and "and 8 more" is exactly where a wrong end date hides. The submit button
+  says the number too — "Créer" and "Créer les 13 séances" are different
+  promises.
+- **The series block offers "annuler les N séances à venir", never the past
+  ones.** A session that already happened happened; marking it cancelled
+  afterwards would tell a student who attended that it did not take place.
+
+### ⚠️ THE STEP IS IN LOCAL CALENDAR DAYS, AND MOROCCO IS WHY
+
+`setDate(getDate() + 7)`, never `+ 7 × 86 400 000`. The country drops from UTC+1
+to UTC+0 for Ramadan and back again, so millisecond arithmetic moves a 16:00
+session to 15:00 for part of the spring and back afterwards — with nothing on
+any screen looking wrong, and a parent arriving an hour late.
+
+Same reasoning as `site.timezone` being an IANA name and never `+01:00`.
+`recurring-sessions.spec.ts` asserts the local clock time and the weekday are
+identical across a full year of occurrences, which is the assertion millisecond
+arithmetic fails in any zone that has a transition.
+
+⚠️ **AND THE END DATE IS PARSED BY HAND.** ECMAScript reads a date-TIME string
+with no offset as **local** and a date-ONLY string as **UTC**. Passing both to
+`new Date()` puts the end of the range an hour into the previous day in Morocco,
+silently dropping the last occurrence of a term — the one a prof would notice
+last.
+
 ## The admin surfaces — the full record (moved from CLAUDE.md, v0.15.0)
 
 **Read when:** building, changing or debugging anything under `/admin*`.
@@ -1742,3 +1875,68 @@ Profiles first and open, **Réglages du compte** collapsed, **Options avancées*
 - ⚠️ **THE AUDIT RECORDS THE ACT, NOT THE PERSON.** A spec asserts the column
   list, so a helpful `target_id` fails a test rather than quietly changing what
   erasure means.
+
+---
+
+## v2 — the locked decisions, in full
+
+**Read when:** any auth, sync or child-profile work. Moved out of CLAUDE.md at
+v0.17.1; the locked decisions themselves and the guest zero-request rule stay
+there.
+
+⚠️ **The block below is a VERBATIM move** — `check-split.mjs` compares normalised
+lines, so nothing inside it may be reworded, including its relative links. Paths
+like `./docs/reference/…` are written from the repository root (CLAUDE.md's
+position), and a `➡️` pointer back to this same file is the move showing its
+seam, not a mistake.
+
+### v2 — the locked decisions
+
+**Still static** (no adapter, no SSR, non-negotiable). Supabase is **client-side
+only**; **all** security is RLS. **Guests are first-class forever** — accounts add
+sync and teacher oversight, and **gate nothing**. Content **stays in git**. Auth is
+magic-link + Google, **no passwords**; **SMS is rejected**, do not reintroduce it.
+
+- ⚠️ **The guest zero-request rule wins every conflict.** A visitor reading a
+  lesson causes **zero** requests to any Supabase origin and does not download the
+  client at all. `supabase.ts` is the only file importing it, every caller uses
+  `await import()`, and **`auth-flag.ts`, `progress-sync.ts` and `child.ts` must
+  never statically import it** — one static import puts 207 KB into every page
+  with a board. Asserted against the network log on six content routes.
+- **The magic-link flow is IMPLICIT**, deliberately: PKCE keeps a verifier in the
+  browser that *requested* the link, and email is routinely opened elsewhere.
+- ⚠️ **`progress.ts` is still the single reader** and its public API did not
+  change shape. Signed out is `localStorage` only; signed in, **reads never touch
+  the network** and writes go local first, then queue.
+- ⚠️ **Canonicalise timestamps through `Date.parse` → `toISOString` before
+  comparing.** Postgres returns `+00:00` and JS writes `Z`; `+` sorts before `.`,
+  so a lexicographic compare is *wrong*, not merely untidy.
+- ⚠️ **The learner is a child profile, never the account** (Critical Feature 40).
+  An autonomous teenager is an account holding exactly **one** child — one code
+  path, not two. **Graduation is one FK update** (41); if it ever requires copying
+  rows between tables, the shape is wrong. **"Qui joue ?" is a choice, not a
+  password** (42) — the account is the security boundary.
+
+---
+
+## Superseded: the 2026-08-15 reading of production's schema (through 0009)
+
+**Read when:** you need the technique rather than the number. ⚠️ **The status
+claim here is SUPERSEDED** — production was verified through 0012 on 2026-08-18.
+What survives is *how* it was asked: the error code PostgREST returns tells a
+missing table from a forbidden one. Moved out of CLAUDE.md at v0.17.1, where two
+contradictory schema claims were standing three lines apart.
+
+⚠️ **The block below is a VERBATIM move** — `check-split.mjs` compares normalised
+lines, so nothing inside it may be reworded, including its relative links. Paths
+like `./docs/reference/…` are written from the repository root (CLAUDE.md's
+position), and a `➡️` pointer back to this same file is the move showing its
+seam, not a mistake.
+
+⚠️ **PRODUCTION'S SCHEMA IS CURRENT THROUGH 0009**, contrary to what this file
+said for two releases. Verified 2026-08-15 against the catalog, by the error code
+PostgREST returns: `account_deletions` answers **`42501`** (permission denied —
+the table exists) where a missing table answers **`PGRST205`**. `sessions` also
+answers `anon` `select`, which is 0008. **Never read
+`supabase_migrations.schema_migrations` for this** — it lists 0001–0002 only and
+is wrong in the dangerous direction.

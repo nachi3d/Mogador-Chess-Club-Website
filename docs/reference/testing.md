@@ -588,6 +588,185 @@ eroded.
 
 ---
 
+## ⚠️ The WebKit click that never happened — v0.17.0, and how it was found
+
+**Read when:** a control "does nothing" on Safari or an iPhone and works
+everywhere else; or before writing any handler that mutates the DOM on `change`.
+
+### The symptom
+
+`recurring-sessions.spec.ts:256` failed on **webkit and iphone-13 only**, in the
+accounts-ON matrix, and survived a serial `--workers=1` re-run of the whole file
+on both. Memory was ruled out — troughs 5.76 GB and 5.80 GB, far above the ~2 GB
+starvation line. The assertion named values (`.series-card` expected 1, received
+0) and the locator resolved to zero elements 30-odd times across a full 15 s, so
+it was not a race a longer timeout would have papered over.
+
+### The diagnosis, and the three wrong answers it went through
+
+Written down because each was plausible, each was cheap to test, and each was
+wrong — which is the useful part.
+
+1. **`crypto.randomUUID()` unavailable in WebKit** (it is used by
+   `newSeriesId()`, and it requires a secure context). **Wrong**: WebKit at
+   `http://localhost` reports `isSecureContext: true` and returns real UUIDs.
+2. **The `window.confirm` dialog racing Playwright's handler.** **Wrong**:
+   `page.once('dialog', accept)` fires correctly in WebKit and `confirm` returns
+   `true`, identically to Chromium.
+3. **A native form submission navigating the page.** **Wrong**: no
+   `framenavigated`, URL unchanged.
+
+What actually settled it was instrumenting the page rather than reasoning about
+it:
+
+| measured | value |
+|---|---|
+| form validity | `true`, every field |
+| button | in form, `type=submit`, not disabled |
+| a dispatched `submit` | **was** `preventDefault`'d ⇒ the listener exists |
+| `pointerdown` / `mousedown` / `mouseup` | **all on `button.btn-primary`** |
+| `click` events on the button | **0** |
+| `submit` events on the form | **0** |
+| page errors | none |
+
+Pointer events reach the button and no `click` is synthesised. That is the
+signature of the DOM under the pointer being mutated mid-press.
+
+### The cause
+
+`paintPreview()` was wired to the form's `change` event and rewrote
+`submitButton.textContent` unconditionally.
+
+Pressing "Créer" while the caret is still in "Jusqu'au" **blurs** that field.
+Blur fires `change`. `change` bubbles to the form. The handler rewrites the
+button's text — **between the `mousedown` and the `mouseup` of the press**.
+WebKit then declines to synthesise the `click`.
+
+⚠️ **THE A/B THAT PROVED IT**, and it proved itself through an error message:
+attempt A pressed the button directly and produced **no dialog**; attempt B
+blurred first and pressed again, and Playwright threw `dialog.accept: Cannot
+accept dialog which is already handled!` — because attempt A's handler was still
+armed and unconsumed, and B's dialog fired both. Absence in A, presence in B, in
+one run.
+
+### What it cost a user
+
+A prof on Safari or any iPhone fills in the end date, taps "Créer les 13
+séances", and **nothing happens**. No message, no spinner, nothing to retry
+against. Tapping a second time works, because the field is blurred by then.
+
+That is the worst shape a bug can take on this surface: it looks like the site
+being slow, so it does not get reported, and the workaround is invisible.
+
+### The fix
+
+`paintPreview()` is **idempotent**: `setText`/`setHtml`/`setHidden` write only
+when the value actually differs. The blur-time repaint computes identical
+content, touches nothing, and the press survives. It also removes a per-keystroke
+DOM write that was never wanted.
+
+⚠️ **THE GENERAL RULE, WHICH OUTLIVES THIS FORM: a paint function is
+idempotent.** Running it twice with the same inputs must touch nothing the
+second time. Any unconditional DOM write reachable from a `change` handler can
+kill a button on WebKit.
+
+### Why the release matrix earned its cost here
+
+⚠️ **CHROMIUM AND FIREFOX SYNTHESISE THE CLICK REGARDLESS.** This shipped
+through `test:branch` (chromium only) and would have shipped through any amount
+of manual desktop checking. **Both WebKit projects caught it**, which is
+precisely why the matrix runs five projects and precisely why a red matrix is a
+finding to chase rather than a flake to wave through. v0.11.0 and v0.11.1 shipped
+on waved-through failures; this is what that habit costs when the failure is
+real.
+
+### ⚠️ And the regression test had the same failure mode as the bug
+
+The first version of the guard asserted the rows existed by reading the table
+**once**, immediately after the confirm dialog fired. The dialog only means the
+handler *started* — the insert is a round trip behind it. So the test failed
+against a correctly fixed build, with `Expected: 3, Received: 0`, which is
+indistinguishable at a glance from the bug it was written to catch.
+
+⚠️ **A GUARD WHOSE FAILURE LOOKS LIKE THE DEFECT IS WORSE THAN NO GUARD**, because
+the next session reads the red and goes hunting for a second cause that does not
+exist. It now polls, like every other database assertion in that file.
+
+⚠️ **AND THE TEST IS THE ABSENCE OF A BLUR.** Do not "tidy" it by clicking
+elsewhere, pressing Tab or calling `.blur()` before the press — any of those
+makes it pass against the broken build.
+
+## ⚠️ Every matrix run keeps its own log — and the run that taught us why
+
+**Read when:** changing `scripts/test-release.mjs`, or trying to work out why a
+failed gate cannot be adjudicated.
+
+### What happened, at the v0.17.0 gate
+
+`test-release.mjs` wrote to one file, `node_modules/.cache/matrix.log`, and
+started with `rmSync(LOG, { force: true })`. Correct for a single run. The gate
+is **not** a single run — since v0.14.0 it runs **twice, once per flag shape**,
+because neither shape subsumes the other.
+
+So the sequence was:
+
+1. the accounts-**OFF** matrix ran for 90.7 minutes and came back **red**: 3
+   firefox failures, 1 webkit, `MATRIX FAILED — promotion is blocked`;
+2. the accounts-**ON** matrix started immediately afterwards, as designed;
+3. its first act was `rmSync(matrix.log)`.
+
+By the time anyone read the summary, **the log naming those four tests was
+gone.** `test-results/` was gone too — Playwright clears it at the start of its
+next run — so the screenshots, traces and error contexts went with it. What
+survived was the tally: *four failures, somewhere, in two browsers.*
+
+⚠️ **THAT IS UNADJUDICABLE, AND UNADJUDICABLE MEANS RE-RUN.** The documented
+arbiter for "is this failure real" is a serial re-run of *the failing tests*
+(CLAUDE.md → Testing). You cannot re-run tests you cannot name. The only
+remaining move was to re-run the entire 90-minute shape — the exact cost the
+logging was supposed to avoid.
+
+⚠️ **AND THE MEMORY TRACES HAD THE IDENTICAL BUG.** `freemem-<project>.txt` is
+keyed by PROJECT, not by run, so the ON run's `freemem-firefox.txt` overwrote
+the OFF run's. The trough is the number that decides whether a failure was a
+starved browser or a real defect — the single most important piece of evidence
+for a red matrix — and it was overwritten by the run that came next.
+
+### The fix
+
+Every run gets a unique name, and nothing is ever cleared:
+
+```
+node_modules/.cache/matrix-off-20260818-162210.log
+node_modules/.cache/matrix-off-20260818-162210.json
+node_modules/.cache/freemem-off-20260818-162210-firefox.txt
+```
+
+- **The shape is in the name, not just the timestamp.** "Which run was this?" is
+  asked months later, from a filename. `matrix-off-…` answers it; two timestamps
+  do not. `SHAPE` is derived from `PUBLIC_AUTH_ENABLED` — the same variable the
+  gate branches on — so the label cannot disagree with what actually ran.
+- **`rmSync(LOG)` is gone.** A unique name has nothing to clear, and clearing
+  anything is what caused this.
+- **The path is printed on the green path too**, not only on failure. A
+  promotion should record which two runs it rested on, and `matrix.log` could
+  never identify either.
+
+⚠️ **THERE IS DELIBERATELY NO PRUNING.** Adding a deleter immediately after
+fixing a deletion bug is how the bug comes back wearing a different hat. The
+files live in `node_modules/.cache`, which is gitignored and disposable; a run
+costs a few hundred KB. If the directory ever genuinely needs bounding, bound it
+by age in a separate, obvious step — never inside the script that writes them.
+
+### The general lesson
+
+⚠️ **A LOG THAT A LATER RUN CAN ERASE IS NOT EVIDENCE, IT IS A CONVENIENCE.**
+The failure mode is silent and perfectly timed: it destroys exactly the run you
+needed, at exactly the moment you needed it, because the thing that destroys it
+is the next step of the same procedure. Anything this repository writes to
+diagnose a failure — logs, traces, memory samples, JSON reports — is named per
+run, or it is not diagnostic.
+
 ## ⚠️ Symptoms that are the ENVIRONMENT, not the application
 
 **Read when:** a spec fails and you are not yet sure whether the application is wrong — read the signature BEFORE touching code.
@@ -685,3 +864,166 @@ in full, with the measurements and the false positives they produced, plus the
 focus-modality rule, the `disabled`-in-deps trap, and the board-driving helpers.
 
 ---
+
+---
+
+## ⚠️ The matrix runs one project at a time, under a worker cap
+
+**Read when:** a red `test:release`, or before changing `scripts/test-release.mjs`
+or its worker count. Moved out of CLAUDE.md at v0.17.1; the caps and the
+"expected to be green" rule stay there.
+
+⚠️ **The block below is a VERBATIM move** — `check-split.mjs` compares normalised
+lines, so nothing inside it may be reworded, including its relative links. Paths
+like `./docs/reference/…` are written from the repository root (CLAUDE.md's
+position), and a `➡️` pointer back to this same file is the move showing its
+seam, not a mistake.
+
+#### ⚠️ THE MATRIX RUNS ONE PROJECT AT A TIME, UNDER A WORKER CAP
+
+`test:release` runs each project on its own, sequentially, at **three** workers.
+That is slower than one pooled run and it is the reason the gate is green: the
+red gates were **memory exhaustion**, not browser bugs and not test bugs.
+
+- ⚠️ **`--workers=3` IS NOT A TUNING KNOB.** Three is roughly half the peak
+  memory. Raising it towards six reintroduces the entire problem.
+- ⚠️ **DO NOT "FIX" A RED MATRIX BY RAISING TIMEOUTS.** Tried; the failure count
+  went **up**. A starved browser given longer to answer is still starved.
+- ⚠️ **EVERY RUN KEEPS ITS OWN LOG** — `matrix-<shape>-<stamp>.log`, never a
+  shared `matrix.log`. The gate runs TWICE, and the second run used to delete
+  the first's evidence on startup; four unadjudicable failures and a 90-minute
+  re-run is what that cost. The memory traces are namespaced the same way.
+- ⚠️ **A GATE THAT IS EXPECTED TO BE RED IS WORTH NOTHING.** v0.11.0 shipped on
+  4 waved-through failures and v0.11.1 on 7. Both diagnoses were right, and that
+  habit is exactly what lets a real regression through.
+- **It proves every project actually ran**, comparing counts project against
+  project — "is the total a multiple of five" passes on four projects of 100 and
+  one of 0.
+- ⚠️ **The alternatives were MEASURED** and the numbers are in
+  `scripts/test-release.mjs` → MEASUREMENTS. Re-measure before re-arguing.
+
+---
+
+## ⚠️ Why the matrix does not run on a feature branch
+
+**Read when:** tempted to run `test:release` outside a promotion, or wondering
+what the old "critical path" trigger was. Moved out of CLAUDE.md at v0.17.1; the
+rule and the amendment clause stay there.
+
+⚠️ **The block below is a VERBATIM move** — `check-split.mjs` compares normalised
+lines, so nothing inside it may be reworded, including its relative links. Paths
+like `./docs/reference/…` are written from the repository root (CLAUDE.md's
+position), and a `➡️` pointer back to this same file is the move showing its
+seam, not a mistake.
+
+#### ⚠️ DO NOT RUN THE MATRIX ON A FEATURE BRANCH. EVER. NOT "TO BE SAFE".
+
+The reasoning is already done, so it is not re-litigated:
+
+- **The matrix answers exactly one question** — does this work in Firefox and
+  WebKit. Asking it every session does not make the answer truer; it moves the
+  cost from one run per release to one run per session.
+- **It was costing 30-45 minutes per session** because it *felt* prudent. That
+  is a tax that discourages small fixes, and unfixed small things are what a
+  visitor actually sees. ⚠️ **The tax is now ~65-70 minutes per shape.**
+- **A chromium failure is a failure.** If `test:branch` fails, fix it.
+- **A chromium pass is enough to merge to `dev`.** Nothing reaches a reader
+  without passing `test:release` first.
+
+---
+
+## ⚠️ The "critical path" trigger is gone, and its removal is the point
+
+**Read when:** proposing any rule that forces the matrix on a subsystem. Moved out
+of CLAUDE.md at v0.17.1; the amendment clause stays there.
+
+⚠️ **The block below is a VERBATIM move** — `check-split.mjs` compares normalised
+lines, so nothing inside it may be reworded, including its relative links. Paths
+like `./docs/reference/…` are written from the repository root (CLAUDE.md's
+position), and a `➡️` pointer back to this same file is the move showing its
+seam, not a mistake.
+
+#### ⚠️ THE "CRITICAL PATH" TRIGGER IS GONE, AND ITS REMOVAL IS THE POINT
+
+The old policy forced the matrix on any branch touching the board island, the
+exercise validator, i18n routing or the service worker. It read as prudence and
+functioned as a loophole: almost everything here touches one of those four, so
+the exception quietly became the default. Those paths gained precision instead —
+`scripts/spec-map.mjs` runs **seven** spec files for a `BoardSurface.tsx` change.
+
+**If you believe you have found the exception:** change this policy in CLAUDE.md
+in the same commit, with the reason. Do not make a one-off exception no future
+session will know about — that is precisely how the last policy eroded.
+
+**➡️ The measured memory numbers, the four-red-gate diagnosis and the rejected
+alternatives: [`docs/reference/testing.md`](./docs/reference/testing.md).**
+
+---
+
+## ⚠️ `scripts/quick.mjs` refuses, it does not advise
+
+**Read when:** changing the quick path's exclusion list or its spec mapping. Moved
+out of CLAUDE.md at v0.17.1; the qualification lists stay there.
+
+⚠️ **The block below is a VERBATIM move** — `check-split.mjs` compares normalised
+lines, so nothing inside it may be reworded, including its relative links. Paths
+like `./docs/reference/…` are written from the repository root (CLAUDE.md's
+position), and a `➡️` pointer back to this same file is the move showing its
+seam, not a mistake.
+
+### ⚠️ The script REFUSES, it does not advise
+
+`scripts/quick.mjs` diffs the branch against `dev` and **exits non-zero naming
+any file that is out of bounds**, with the reason. The exclusion list is
+enforced in code rather than written in a document nobody re-reads under time
+pressure — which is the only version of this that survives a Friday afternoon.
+
+It also picks the specs from what changed (a trap → `replayer.spec.ts`, a UI
+string → smoke + nav + main menu, and `smoke.spec.ts` always). `QUICK_BASE`
+overrides the comparison branch; it exists for testing the script itself.
+
+---
+
+## ⚠️ Symptoms that are the environment, not the application
+
+**Read when:** a spec fails and you are about to change application code. Moved
+out of CLAUDE.md at v0.17.1, which keeps the five tells and the arbiter rule.
+
+⚠️ **The block below is a VERBATIM move** — `check-split.mjs` compares normalised
+lines, so nothing inside it may be reworded, including its relative links. Paths
+like `./docs/reference/…` are written from the repository root (CLAUDE.md's
+position), and a `➡️` pointer back to this same file is the move showing its
+seam, not a mistake.
+
+### ⚠️ Symptoms that are the ENVIRONMENT, not the application
+
+Each of these has cost real debugging time. **Recognise the signature before
+touching application code.** The full table — every symptom, what it actually
+is, and the debugging it cost — is in the reference file; these are the tells:
+
+- a fixed bug still "fails" and the fix is missing from `dist/` → **a stale
+  preview server** (Playwright's `reuseExistingServer` skipped its own build);
+- **every project fails identically** on a Critical Feature → **a stale `dist/`**;
+- WebKit "target page… closed", or Firefox `RenderCompositorSWGL failed` on a
+  **different test each run** → **the Windows browser dying under fan-out**;
+- auth specs timing out on a **different set each run** → **Supabase's auth rate
+  limit**, measured at ~22 verifications in 7s;
+- `ERR_CONNECTION_REFUSED` → **read the HOST in the error**: `localhost:4321`
+  is a dead preview server, `*.supabase.co` is sustained rate-limit abuse.
+
+**A genuine failure is deterministic and fails A SERIAL RE-RUN too, and it fails
+with an assertion naming a value.** WebKit and Firefox carry one local retry;
+chromium has none. A run reporting `N passed, 1 flaky` on WebKit is green.
+
+⚠️ **THE LOCAL RETRY IS NOT THE ARBITER — `--workers=1` IS.** When the
+compositor has died the retry runs inside the same broken process, so it proves
+nothing. Read the errors rather than counting them.
+
+⚠️ **Never pipe the test run into `tail`** — it reports tail's exit code, so 14
+failures read as "196 passed, exit 0". Redirect to a file and check the status.
+
+⚠️ **A browser-crash row is a FINDING when it comes from `test:release`**,
+which caps its workers precisely so it never reaches that state.
+
+**➡️ The full symptom table and the diagnoses behind it:
+[`docs/reference/testing.md`](./docs/reference/testing.md).**

@@ -436,3 +436,27 @@ Two things it does that are worth keeping:
 Its first run in this shape found a **real pre-existing bug**: the `ink-950` label on an "avancé" level badge sat at 4.39:1, under AA, because the old script checked the brass fills but never the level fills. `--color-wood-400` was lightened to fix it.
 
 ---
+
+---
+
+## The four custom-property bugs — the table (moved from CLAUDE.md, v0.17.0)
+
+**Read when:** a border, colour or font is silently not applying, or you are
+about to write a spec that asserts a CSS rule exists.
+
+### ⚠️ AN UNKNOWN CUSTOM PROPERTY FAILS SILENTLY — and it has bitten three times
+
+`var(--does-not-exist)` invalidates the **whole declaration** at computed-value
+time. No error, no warning, no visible red — just a border that computes to
+`0px` or a font that falls back to Inter.
+
+| Written | Real token | Damage |
+|---|---|---|
+| `--mcc-border` | `--mcc-border-subtle` / `--mcc-border-strong` | 12 borderless elements across 7 files |
+| `--font-mono` | `--font-notation` | every inline notation in every lesson set in Inter |
+| `--font-display` | `--mcc-font-display` | a heading that never follows the theme |
+| `--mcc-text`, `--mcc-text-muted` | `--mcc-text-primary` / `--mcc-text-secondary` | the child picker's buttons and intro drew no colour at all |
+
+**The rule: assert the RESOLVED value, never that a rule exists.** A spec
+asserting the rule would have passed throughout all four bugs.
+

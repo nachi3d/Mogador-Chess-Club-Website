@@ -129,8 +129,39 @@ const STATUSES = [
         </select>
         <p class="admin-field-hint">Seules les séances publiées sont visibles par les élèves.</p>
       </div>
+      {/* ── Repeat ──────────────────────────────────────────────────────────
+          ⚠️ THE PREVIEW IS NOT A COURTESY. A prof presses one button and
+          thirteen rows land in the public agenda; if the only way to find out
+          what was created is to read the list afterwards, a wrong end date
+          costs thirteen deletions that the UI deliberately does not offer
+          (Critical Feature 46 — a session is cancelled, never deleted). So the
+          exact dates are on screen, in full, BEFORE the button is pressed.
+
+          ⚠️ AND THE BUTTON SAYS THE NUMBER. "Créer" and "Créer les 13 séances"
+          are different promises; a submit button that does not change when the
+          form means thirteen times as much is the half a prof reads. */}
+      <fieldset class="admin-repeat">
+        <legend>Répéter</legend>
+        <div class="admin-field">
+          <label for="session-cadence">Répétition</label>
+          <select id="session-cadence" data-field="cadence">
+            <option value="none">Aucune — une seule séance</option>
+            <option value="weekly">Chaque semaine</option>
+            <option value="fortnightly">Toutes les deux semaines</option>
+          </select>
+        </div>
+        <div class="admin-field" data-until-field hidden>
+          <label for="session-until">Jusqu’au</label>
+          <input id="session-until" type="date" data-field="until" />
+          <p class="admin-field-hint">
+            La dernière séance possible avant cette date incluse. 52 au maximum.
+          </p>
+        </div>
+        <div class="repeat-preview" data-repeat-preview role="status" hidden></div>
+      </fieldset>
+
       <div class="admin-actions">
-        <button type="submit" class="btn-primary">Créer</button>
+        <button type="submit" class="btn-primary" data-session-submit>Créer</button>
       </div>
       <p class="admin-error" data-session-error role="status"></p>
     </form>
@@ -146,6 +177,18 @@ const STATUSES = [
       hidden
     >
     </div>
+
+    {/* ── Series ──────────────────────────────────────────────────────────
+        ⚠️ ONE ROW PER SERIES, NOT TWO MORE BUTTONS ON EVERY CARD. Thirteen
+        cards each carrying "publier la série" is thirteen chances to press the
+        one that acts on twelve others, and no way to see the set as a set.
+
+        ⚠️ AND BOTH ACTIONS ARE ONE STATEMENT. `update … in (…)` — see the
+        rule at the top of `src/lib/admin.ts`. Iterating here would cost one
+        Cloudflare build per session, which is precisely the defect the
+        statement-level trigger in migration 0011 exists to avoid. */}
+    <h2 class="admin-block-title" data-series-title hidden>Séries</h2>
+    <div data-series-list hidden></div>
 
     <h2 class="admin-block-title">Toutes les séances</h2>
     {/* ⚠️ CANCELLED SESSIONS STAY IN THIS LIST, with their state. They are
@@ -181,18 +224,23 @@ const STATUSES = [
 <script>
   import {
     cancelSession,
-    createSession,
+    createSessions,
     listAttendance,
     listChildren,
     listSessions,
     markAttendance,
+    newSeriesId,
+    sessionsInSeries,
     updateSession,
+    updateSessions,
     type AdminChild,
     type AdminSession,
     type AttendanceStatus,
+    type SessionInput,
   } from '@lib/admin';
   import { getUser } from '@lib/supabase';
   import { sessionFingerprint } from '@lib/agenda';
+  import { expandSeries, SERIES_MAX, type Cadence } from '@lib/recurrence';
 
   const select = document.querySelector('[data-mark-session]') as HTMLSelectElement | null;
   const list = document.querySelector('[data-mark-list]') as HTMLElement | null;
@@ -202,6 +250,11 @@ const STATUSES = [
   const form = document.querySelector('[data-session-form]') as HTMLFormElement | null;
   const formError = document.querySelector('[data-session-error]') as HTMLElement | null;
   const sessionList = document.querySelector('[data-session-list]') as HTMLElement | null;
+  const submitButton = document.querySelector('[data-session-submit]') as HTMLButtonElement | null;
+  const untilField = document.querySelector('[data-until-field]') as HTMLElement | null;
+  const preview = document.querySelector('[data-repeat-preview]') as HTMLElement | null;
+  const seriesTitle = document.querySelector('[data-series-title]') as HTMLElement | null;
+  const seriesList = document.querySelector('[data-series-list]') as HTMLElement | null;
 
   let children: AdminChild[] = [];
   let sessions: AdminSession[] = [];
@@ -405,12 +458,125 @@ const STATUSES = [
            <p class="agenda-sync-when">Dernière construction : ${builtOn}</p>`;
   }
 
+  /* ── Series ───────────────────────────────────────────────────────────────
+     ⚠️ EVERYTHING BELOW READS `series_id` ONLY TO SELECT ROWS THE PROF IS
+     ALREADY LOOKING AT. Nothing asks the series what a session should be —
+     there is no rule stored, only rows, and migration 0012 carries the whole
+     argument. A cancelled week is a cancelled row and nothing else. */
+
+  const spanFmt = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short' });
+
+  function seriesMembers(seriesId: string): AdminSession[] {
+    return sessionsInSeries(sessions, seriesId).sort(
+      (a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt),
+    );
+  }
+
+  /** "3/13" — where this row sits in the set, counting from the first date. */
+  function seriesRank(session: AdminSession): string {
+    if (!session.seriesId) return '';
+    const members = seriesMembers(session.seriesId);
+    const index = members.findIndex((s) => s.id === session.id);
+    return `${index + 1}/${members.length}`;
+  }
+
+  function paintSeries() {
+    if (!seriesList || !seriesTitle) return;
+    const ids = [...new Set(sessions.map((s) => s.seriesId).filter(Boolean))] as string[];
+    /* A single leftover row is not a series — cancelling twelve of thirteen
+       must not leave a "série" block offering to act on one card. */
+    const groups = ids.map(seriesMembers).filter((m) => m.length > 1);
+
+    seriesTitle.hidden = groups.length === 0;
+    seriesList.hidden = groups.length === 0;
+    if (groups.length === 0) {
+      seriesList.innerHTML = '';
+      return;
+    }
+
+    const now = Date.now();
+    seriesList.innerHTML = groups
+      .map((members) => {
+        const id = members[0]!.seriesId!;
+        const first = new Date(members[0]!.startsAt);
+        const last = new Date(members[members.length - 1]!.startsAt);
+        const drafts = members.filter((s) => s.status === 'draft');
+        /* ⚠️ ONLY THE FUTURE CAN BE CANCELLED. A session that already happened
+           happened; marking it "annulée" afterwards would tell a student who
+           attended that it did not take place. */
+        const upcoming = members.filter(
+          (s) => s.status !== 'cancelled' && Date.parse(s.startsAt) >= now,
+        );
+        const title = members[0]!.titleFr ?? 'Séance';
+        return `
+        <div class="series-card" data-series-card="${esc(id)}">
+          <p class="series-when">${esc(title)} — du ${esc(spanFmt.format(first))} au ${esc(spanFmt.format(last))}</p>
+          <p class="series-meta">${members.length} séances · ${drafts.length} brouillon${
+            drafts.length > 1 ? 's' : ''
+          } · ${upcoming.length} à venir</p>
+          <p class="admin-actions">
+            ${
+              drafts.length > 0
+                ? `<button type="button" class="btn-ghost" data-series-publish>Publier les ${drafts.length} brouillons</button>`
+                : ''
+            }
+            ${
+              upcoming.length > 0
+                ? `<button type="button" class="btn-ghost" data-series-cancel>Annuler les ${upcoming.length} séances à venir</button>`
+                : ''
+            }
+          </p>
+        </div>`;
+      })
+      .join('');
+  }
+
+  seriesList?.addEventListener('click', async (event) => {
+    const target = event.target as HTMLElement;
+    const card = target.closest('[data-series-card]') as HTMLElement | null;
+    const id = card?.dataset.seriesCard;
+    if (!id) return;
+
+    const members = seriesMembers(id);
+    const now = Date.now();
+
+    /* ⚠️ ONE STATEMENT EACH — `update … in (…)`. A loop here would cost one
+       Cloudflare build per session, which is the exact defect the
+       statement-level trigger in 0011 exists to avoid. Measured by
+       `recurring-sessions.spec.ts`, not assumed. */
+    if (target.hasAttribute('data-series-publish')) {
+      const ids = members.filter((s) => s.status === 'draft').map((s) => s.id);
+      if (ids.length === 0) return;
+      if (!window.confirm(`Publier ${ids.length} séances ? Les élèves les verront toutes.`)) return;
+      await updateSessions(ids, { status: 'published' });
+    } else if (target.hasAttribute('data-series-cancel')) {
+      const ids = members
+        .filter((s) => s.status !== 'cancelled' && Date.parse(s.startsAt) >= now)
+        .map((s) => s.id);
+      if (ids.length === 0) return;
+      if (
+        !window.confirm(
+          `Annuler ${ids.length} séances à venir ? Les élèves les verront comme annulées. ` +
+            'Les séances passées ne sont pas touchées.',
+        )
+      ) {
+        return;
+      }
+      await updateSessions(ids, { status: 'cancelled' });
+    } else return;
+
+    sessions = await listSessions();
+    paintSessions();
+    fillSessionSelect();
+  });
+
   function paintSessions() {
     /* ⚠️ FIRST, AND BEFORE THE EMPTY-LIST RETURN BELOW. Every path that
        refreshes the list — create, publish, cancel, first load — comes through
        here, so this is the one call site; and an account with no sessions at
        all can still have a stale entry baked into the deployed agenda. */
     paintAgendaSync();
+    paintSeries();
     if (!sessionList) return;
     if (sessions.length === 0) {
       sessionList.innerHTML = '<p class="admin-empty">Aucune séance.</p>';
@@ -424,9 +590,16 @@ const STATUSES = [
     sessionList.innerHTML = sessions
       .map(
         (s) => `
-        <div class="session-card" data-status="${s.status}" data-session="${s.id}">
+        <div class="session-card" data-status="${s.status}" data-session="${s.id}"${
+          s.seriesId ? ` data-series="${esc(s.seriesId)}"` : ''
+        }>
           <div class="session-when">${esc(whenFmt.format(new Date(s.startsAt)))}</div>
           <p class="session-meta">${esc(s.titleFr ?? 'Séance')}${s.venue ? ' — ' + esc(s.venue) : ''} · ${s.durationMinutes} min</p>
+          ${
+            /* ⚠️ THE BADGE SAYS THE ROW BELONGS TO A SET AND NOTHING MORE. It
+               is not a control: every action on this card acts on this card. */
+            s.seriesId ? `<span class="session-series">série · ${seriesRank(s)}</span>` : ''
+          }
           <span class="session-status" data-status="${s.status}">${labels[s.status]}</span>
           <p class="admin-actions">
             ${
@@ -485,37 +658,186 @@ const STATUSES = [
     if (keep && options.some((s) => s.id === keep)) select.value = keep;
   }
 
+  /* ── Repeat: the preview, and the one expansion both halves share ─────────
+     ⚠️ THE PREVIEW AND THE WRITE CALL `expandSeries()` WITH THE SAME INPUT,
+     and the write recomputes rather than reusing what was drawn. A preview
+     that is a separate calculation from the thing it previews is a preview
+     that can be wrong; a preview that is a cached result is a preview that can
+     be stale. Recomputing from the live fields at submit is neither. */
+
+  const field = (name: string) =>
+    (form?.querySelector(`[data-field="${name}"]`) as HTMLInputElement | HTMLSelectElement | null)
+      ?.value ?? '';
+
+  const dayFmt = new Intl.DateTimeFormat('fr-FR', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  const PROBLEMS: Record<string, string> = {
+    'no-start': 'Choisissez d’abord une date et une heure.',
+    'bad-start': 'La date de départ n’est pas lisible.',
+    'no-until': 'Jusqu’à quelle date ?',
+    'bad-until': 'La date de fin n’est pas lisible.',
+    'until-before-start': 'La date de fin est avant la première séance.',
+  };
+
+  function currentExpansion() {
+    return expandSeries({
+      startLocal: field('startsAt'),
+      cadence: (field('cadence') || 'none') as Cadence,
+      untilLocal: field('until'),
+    });
+  }
+
+  /**
+   * ═════════════════════════════════════════════════════════════════════════
+   * ⚠️⚠️ WRITE TO THE DOM ONLY WHEN THE VALUE ACTUALLY CHANGES. THIS IS NOT A
+   * MICRO-OPTIMISATION — AN UNCONDITIONAL WRITE HERE BREAKS THE BUTTON ON
+   * EVERY WEBKIT BROWSER.
+   *
+   * `paintPreview()` runs on the form's `change` event. Pressing "Créer" while
+   * the caret is still in "Jusqu'au" BLURS that field, which fires `change`,
+   * which lands here — BETWEEN the `mousedown` and the `mouseup` of the press.
+   * Rewriting `submitButton.textContent` at that moment mutates the very
+   * element being pressed, and WebKit then declines to synthesise the `click`.
+   * No click, no `submit`, no error: the button silently does nothing.
+   *
+   * ⚠️ WHAT THAT LOOKED LIKE TO A USER: a prof on Safari or an iPhone fills in
+   * the end date, taps "Créer les 13 séances", and NOTHING HAPPENS. No message,
+   * no spinner, nothing to retry against. Tapping a second time works, because
+   * by then the field has already been blurred — which is precisely the kind of
+   * "it's just being slow" behaviour nobody reports as a bug.
+   *
+   * ⚠️ CHROMIUM AND FIREFOX DO NOT SUPPRESS THE CLICK, so this was invisible to
+   * `test:branch` and to every manual check on a desktop. Both WebKit projects
+   * in the release matrix caught it — which is the entire reason the matrix runs
+   * five projects and the reason it must never be waved through.
+   *
+   * ⚠️ IF YOU ADD A DOM WRITE TO THIS FUNCTION, GUARD IT THE SAME WAY. The rule
+   * is: paint is IDEMPOTENT — running it twice with the same inputs touches
+   * nothing the second time.
+   * ═════════════════════════════════════════════════════════════════════════
+   */
+  function setText(el: HTMLElement, text: string) {
+    if (el.textContent !== text) el.textContent = text;
+  }
+  function setHtml(el: HTMLElement, html: string) {
+    if (el.innerHTML !== html) el.innerHTML = html;
+  }
+  function setHidden(el: HTMLElement, hidden: boolean) {
+    if (el.hidden !== hidden) el.hidden = hidden;
+  }
+
+  function paintPreview() {
+    if (!preview || !submitButton) return;
+    const repeating = field('cadence') !== 'none';
+    if (untilField) setHidden(untilField, !repeating);
+
+    if (!repeating) {
+      setHidden(preview, true);
+      setHtml(preview, '');
+      setText(submitButton, 'Créer');
+      return;
+    }
+
+    const result = currentExpansion();
+    setHidden(preview, false);
+
+    if (!result.ok) {
+      /* ⚠️ REFUSED, NEVER TRUNCATED. Creating the first 52 of 520 and saying
+         nothing would leave a prof believing the rest exist. */
+      if (preview.dataset.state !== 'problem') preview.dataset.state = 'problem';
+      setHtml(
+        preview,
+        result.problem === 'too-many'
+          ? `<p class="repeat-count">${result.wanted} séances — c’est trop.</p>
+             <p class="repeat-note">Maximum ${SERIES_MAX} d’un coup. Vérifiez l’année de la date
+             de fin, puis recommencez en deux fois si c’est bien ce que vous vouliez.</p>`
+          : `<p class="repeat-note">${PROBLEMS[result.problem] ?? 'Répétition impossible.'}</p>`,
+      );
+      setText(submitButton, 'Créer');
+      return;
+    }
+
+    if (preview.dataset.state !== 'ok') preview.dataset.state = 'ok';
+    const n = result.dates.length;
+    setHtml(
+      preview,
+      `<p class="repeat-count">${n} séance${n > 1 ? 's' : ''} ${n > 1 ? 'seront créées' : 'sera créée'} :</p>` +
+        '<ol class="repeat-dates">' +
+        result.dates.map((d) => `<li>${esc(dayFmt.format(d))}</li>`).join('') +
+        '</ol>',
+    );
+    setText(submitButton, n > 1 ? `Créer les ${n} séances` : 'Créer');
+  }
+
+  form?.addEventListener('input', paintPreview);
+  form?.addEventListener('change', paintPreview);
+  /* Once at load, so the "Jusqu’au" field's visibility matches the select even
+     if a browser restored a previous value on a back-navigation. */
+  paintPreview();
+
   form?.addEventListener('submit', async (event) => {
     event.preventDefault();
     if (!formError) return;
     formError.textContent = '';
 
-    const field = (name: string) =>
-      (form.querySelector(`[data-field="${name}"]`) as HTMLInputElement | HTMLSelectElement | null)
-        ?.value ?? '';
-
-    const local = field('startsAt');
-    if (!local) {
+    if (!field('startsAt')) {
       formError.textContent = 'Une date est nécessaire.';
       return;
     }
 
-    const result = await createSession({
-      /* `datetime-local` has no zone; the browser's own is the right one — the
-         prof is entering the time in the room they will be standing in. */
-      startsAt: new Date(local).toISOString(),
+    const expansion = currentExpansion();
+    if (!expansion.ok) {
+      formError.textContent =
+        expansion.problem === 'too-many'
+          ? `${expansion.wanted} séances — maximum ${SERIES_MAX} d’un coup.`
+          : (PROBLEMS[expansion.problem] ?? 'Répétition impossible.');
+      return;
+    }
+
+    const repeating = expansion.dates.length > 1;
+    /* ⚠️ Confirmed only when it is a SET. One session is one row and one
+       undo-by-cancelling; thirteen is a term in the public agenda. */
+    if (
+      repeating &&
+      !window.confirm(`Créer ${expansion.dates.length} séances ? Elles seront modifiables une par une.`)
+    ) {
+      return;
+    }
+
+    const common = {
       durationMinutes: Number(field('duration')) || 90,
       titleFr: field('titleFr').trim() || null,
       venue: field('venue').trim() || null,
       level: field('level') || null,
       status: (field('status') || 'draft') as 'draft' | 'published',
-    });
+      /* ⚠️ A LABEL ON ROWS CREATED TOGETHER, and only when there ARE rows
+         created together. A one-off carries none — see migration 0012. */
+      seriesId: repeating ? newSeriesId() : null,
+    };
+
+    /* ⚠️ ONE CALL, ONE STATEMENT, ONE REBUILD. Never a loop — see the section
+       header in `src/lib/admin.ts`. `datetime-local` has no zone; the browser's
+       own is the right one, because the prof is entering the time in the room
+       they will be standing in. */
+    const rows: SessionInput[] = expansion.dates.map((date) => ({
+      ...common,
+      startsAt: date.toISOString(),
+    }));
+
+    const result = await createSessions(rows);
 
     if (!result.ok) {
       formError.textContent = result.error ?? 'La séance n’a pas pu être créée.';
       return;
     }
     form.reset();
+    paintPreview();
     sessions = await listSessions();
     paintSessions();
     fillSessionSelect();

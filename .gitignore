@@ -27,6 +27,14 @@ playwright-report/
 blob-report/
 playwright/.cache/
 
+# The release gate's evidence — matrix logs, JSON reports and memory traces,
+# written by scripts/test-release.mjs.
+# ⚠️ Gitignored but NOT disposable, and deliberately NOT under node_modules/.
+# It is the only record of which tests failed on a gate that blocks promotion;
+# it used to live in node_modules/.cache, where `npm ci` deleted it along with
+# three failures that then had to be re-run from scratch on another machine.
+gate-logs/
+
 # editor-local preferences
 .vscode/
 
@@ -49,3 +57,6 @@ Thumbs.db
 # committed because a test run bakes the TEST project into it, and `git add -A`
 # would then ship test sessions as the production fallback.
 src/data/agenda.json
+
+# Supabase CLI scratch — written by `supabase db push`, never source.
+supabase/.temp/
