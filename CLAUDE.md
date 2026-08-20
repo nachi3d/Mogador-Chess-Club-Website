@@ -235,6 +235,39 @@ it. Tags said one thing and the manifest said another.
 - All prompts in a single copyable block
 - No confirmation questions for standard commands
 
+#### ⚠️⚠️ NEVER ROUND-TRIP A SOURCE FILE THROUGH `Get-Content` / `Set-Content`
+
+Windows PowerShell 5.1 reads a BOM-less file as the system **ANSI** codepage and
+writes with `-Encoding utf8`. A read-modify-write therefore **double-encodes
+every non-ASCII character**: `séances` becomes `sÃ©ances`, `d’une` becomes
+`dâ€™une`. ⚠️ **THIS REPOSITORY IS FULL OF ACCENTED FRENCH** — the UI strings,
+every `/admin*` surface, the content, this file — so the damage is both silent
+and widespread. One three-line edit corrupted **141 sequences** and turned a
+tiny change into a 536-line diff.
+
+**Use the editing tool.** It preserves encoding. If a scripted edit is genuinely
+unavoidable, do it in Node (`readFileSync(p, 'utf8')` → `writeFileSync(p, s,
+'utf8')`), which is byte-honest on every platform.
+
+- ✅ **APPENDING IS SAFE.** `Add-Content -Encoding utf8` only writes new UTF-8
+  bytes at the end and never re-encodes what is already there. The corruption
+  comes from the READ, not the write.
+- ⚠️ **THE GATE CAUGHT IT, AND ONLY BECAUSE AN ASSERTION READ THE TEXT.**
+  `recurring-sessions.spec.ts` expects `toContainText('13 séances')` and got
+  `13 sÃƒÂ©ances`. A spec that had checked structure — an element exists, a
+  count is right — would have passed while every accent on the page was
+  mangled. Content assertions on real French are what make this visible.
+- ⚠️⚠️ **REVERSING THE DOUBLE-ENCODING IS NOT THE REPAIR WHEN THE FILE IS
+  MIXED**, and it will be mixed whenever any edit landed after the bad write:
+  those parts are already correct and a blanket reversal destroys them.
+  Measured on the real case — **357 characters would have been lost**, because
+  cp1252 cannot represent `⚠`, `’` or `—` and they degrade to `?`.
+  **RESTORE FROM GIT AND RE-APPLY THE CHANGES.** It is slower and it is the
+  only version that cannot lose bytes.
+- **Check before trusting a file you scripted:** a scan for `Ã` or `Â` finds it
+  instantly, and `git diff --stat` shows a whole-file rewrite where a small
+  change was intended.
+
 ### Code
 - TypeScript strict mode, no `as any` to bypass types
 - All public user-facing strings through the i18n layer — no hardcoded FR/EN in components. The layer lives in `src/i18n/`: `ui.ts` (string tables — **FR is the reference table and EN is typed against it, so a missing translation is a compile error**) and `paths.ts` (locale-aware path building + the switcher's path-preserving counterpart lookup). Paths are emitted with a trailing slash to match `build.format: 'directory'`.

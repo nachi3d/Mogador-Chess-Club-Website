@@ -162,6 +162,26 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ### Documentation
 
+- ⚠️⚠️ **CLAUDE.md → Conventions → Shell: NEVER ROUND-TRIP A SOURCE FILE THROUGH
+  `Get-Content` / `Set-Content`.** Windows PowerShell 5.1 reads a BOM-less file
+  as the system ANSI codepage and writes UTF-8, so a read-modify-write
+  **double-encodes every non-ASCII character** — `séances` → `sÃ©ances`. This
+  repository is full of accented French, so the damage is silent and
+  widespread: one three-line edit corrupted **141 sequences** in
+  `AdminSessionsPage.astro` and turned a small change into a 536-line diff.
+  - ✅ **Appends are safe.** The corruption comes from the READ, not the write.
+  - ⚠️ **The gate caught it, and only because an assertion read the TEXT.**
+    `recurring-sessions.spec.ts` expects `toContainText('13 séances')`. A spec
+    checking structure rather than content would have passed while every accent
+    on the page was mangled.
+  - ⚠️⚠️ **Reversing the double-encoding is NOT the repair when the file is
+    mixed** — and it is mixed whenever an edit landed after the bad write.
+    Measured on the real case: **357 characters would have been lost**, because
+    cp1252 cannot represent `⚠`, `’` or `—`. **Restore from git and re-apply.**
+- ⚠️ **The CLAUDE.md size guard is WARNING again — 120,306 characters (80%).**
+  Recorded in BACKLOG rather than fixed by trimming, per the rule: the remedy
+  is a split, and a split is a verified move (`check-split.mjs`) rather than
+  something to squeeze into the end of another session.
 - ⚠️⚠️ **`verify:deploy`'s residual gap FIRED FOR REAL at the v0.17.0 deploy, and
   the incident is now recorded** in `docs/reference/deployment.md`. The gap had
   been written down narrowly — "a release that changes only island JavaScript" —
