@@ -192,3 +192,31 @@ and neither language of any prose field is empty.
 flagged for Seàn's review — see BACKLOG.md.
 
 ---
+
+---
+
+## `onlyMove` — how it is implemented, and how it is policed
+
+**Read when:** touching the exercise validator, either verdict's copy, or
+`opponentReplies`. Moved out of CLAUDE.md at v0.17.1; the `onlyMove` rule itself
+stays there.
+
+⚠️ **The block below is a VERBATIM move** — `check-split.mjs` compares normalised
+lines, so nothing inside it may be reworded, including its relative links. Paths
+like `./docs/reference/…` are written from the repository root (CLAUDE.md's
+position), and a `➡️` pointer back to this same file is the move showing its
+seam, not a mistake.
+
+#### How this is implemented, and how it is policed
+
+**Both verdicts count an attempt, both shake, both reset the board, and both look identical on the board.** The *only* difference is which sentence renders — `exercise.wrong` vs `exercise.offLine` — plus the caveat line that only the permissive verdict carries. `.mcc-message-wrong` and `.mcc-message-off-line` share a colour on purpose: under `onlyMove: false` we do not know that the reader was wrong, so we must not paint them as wrong either.
+
+**Winning-alternative acceptance is DEFERRED, not faked.** v1 validates against the stored `solution[]` and nothing else. There is no heuristic, no "close enough", no material count pretending to be judgement. When Stockfish lands (Phase 2) it can adjudicate an alternative properly, and that is the only thing that will change this. Do not ship a fake in the meantime — a validator that is wrong 5% of the time is worse than one that admits it does not know.
+
+**`scripts/check-content.mjs` polices `onlyMove: true`.** For a mating line of ≤ 2 player moves it brute-forces every first move that also forces mate in the same number, and **fails the build** if there is more than one. `onlyMove: true` makes the site tell a student that any other move is wrong; that claim has to be true.
+
+This is not hypothetical — it fired during Session 3 on `opposition-et-mat`, where `1. Kf7` mates as surely as `1. Kg6` does. That exercise is `onlyMove: false` for exactly that reason, and `tests/e2e/exercise.spec.ts` asserts it never says "wrong" in either language. **If that test ever fails because the copy changed, it is not a test to update. It is a regression.**
+
+`opponentReplies` is aligned index-for-index with `solution`: `opponentReplies[i]` is played after `solution[i]`. It is normally `solution.length - 1` long, because the last player move ends the exercise. The schema enforces `opponentReplies.length <= solution.length`.
+
+Moves are stored as **UCI** (`e2e4`, `e7e8q`), not SAN: UCI is unambiguous without a board, and it maps 1:1 onto what Chessground emits and chess.js accepts.

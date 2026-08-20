@@ -373,3 +373,50 @@ path, not a bug to route around.
   image most readers never scroll to. Same argument as the piece sets and the
   engine. A poster therefore does not appear on a cold offline load; the facade
   still renders its frame, its button and its title.
+
+---
+
+## ⚠️ Test fixtures — routable, never listed, never in production
+
+**Read when:** adding a fixture, changing `src/config/fixtures.ts`, or wondering
+why a spec has real content to drive. Moved out of CLAUDE.md at v0.17.1; the two
+predicates and the `.env.local` ban stay there.
+
+⚠️ **The block below is a VERBATIM move** — `check-split.mjs` compares normalised
+lines, so nothing inside it may be reworded, including its relative links. Paths
+like `./docs/reference/…` are written from the repository root (CLAUDE.md's
+position), and a `➡️` pointer back to this same file is the move showing its
+seam, not a mistake.
+
+### ⚠️ TEST FIXTURES — ROUTABLE, NEVER LISTED, NEVER IN PRODUCTION
+
+`src/config/fixtures.ts`. A fixture is content that exists **only** so a spec
+has something real to drive. Today that is
+`src/content/traps/fixture-video-facade.json`, and the mechanism generalises.
+
+- ⚠️ **TWO PREDICATES, AND THE SPLIT IS THE WHOLE DESIGN.** `isRoutable()`
+  decides whether a page is emitted (fixtures: only when `PUBLIC_FIXTURES=true`);
+  `isListed()` decides whether a reader can find it (fixtures: **never, in any
+  build** — the flag is not even consulted). Collapsing them puts the fixture on
+  `/pieges/` in every test build, where `index-cards.spec.ts` draws a card for it
+  and `/apprendre/`'s trap count goes one too high.
+- ⚠️ **`fixture` IS A SEPARATE FIELD FROM `draft`.** A draft is content being
+  written that will one day be published; a fixture must never be. Overloading
+  `draft` makes those two the same edit.
+- ⚠️ **THE DEFAULT IS OFF, BECAUSE THE DEFAULT MUST BE WHAT PRODUCTION SHIPS** —
+  the same discipline as `PUBLIC_AUTH_ENABLED`, for the same recorded reason.
+  **`playwright.config.ts` sets `PUBLIC_FIXTURES: 'true'` for the build it
+  tests**, hardcoded and in both auth shapes, so every run — branch and matrix —
+  covers the facade and **no third matrix shape is added**.
+- ⚠️ **NO LOCAL SPEC CAN PROVE THE OFF SHAPE**, because the build under test is
+  by construction the ON one. **`npm run smoke:prod` fails if a fixture route
+  answers anything but 404 on the live site**, and that is on the promotion
+  checklist. A 200 there means a production build ran with the variable set.
+- ⚠️ **`PUBLIC_FIXTURES` MUST NEVER GO IN `.env.local`** — same rule as
+  `PUBLIC_AUTH_ENABLED`. To see a fixture by hand:
+  `PUBLIC_FIXTURES=true npm run demo`.
+
+**➡️ [`docs/reference/video.md`](./docs/reference/video.md)** — the poster
+pipeline and its three sources, the measured Lighthouse before/after, the
+accessibility decisions, the house plate, and the fixture that was watched to
+fail. **Read it before touching the facade or adding any third-party embed.**

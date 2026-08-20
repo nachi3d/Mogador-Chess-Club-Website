@@ -865,3 +865,108 @@ domain setup steps, what Seàn does in the dashboard, dry-run verification, the
 PWA manifest endpoint, and why the fonts are copied rather than imported.
 
 ---
+
+---
+
+## The release gate — the manual checklist before a PR to `main`
+
+**Read when:** promoting `dev` → `main`. ⚠️ **This is the gate itself, not
+background** — work down it line by line. Moved out of CLAUDE.md at v0.17.1,
+which keeps the promotion routine and a pointer here.
+
+⚠️ **The block below is a VERBATIM move** — `check-split.mjs` compares normalised
+lines, so nothing inside it may be reworded, including its relative links. Paths
+like `./docs/reference/…` are written from the repository root (CLAUDE.md's
+position), and a `➡️` pointer back to this same file is the move showing its
+seam, not a mistake.
+
+### Manual checklist before PR to `main`
+
+**The checklist lives in [`docs/MANUAL-TESTS.md`](./docs/MANUAL-TESTS.md)** — grouped by feature, with expected results, including the regressions that have bitten before (the `1..` move number, the rapid-arrow mash, the `onlyMove: false` wording, the engine's no-fetch-before-click rule).
+
+Run `npm run demo`, which prints its path, and work down it. The release gate is:
+
+```
+□ npm run demo — builds clean, no new warnings
+□ node scripts/check-claude-md.mjs — green (CLAUDE.md under the size limit)
+□ node scripts/check-contrast.mjs — green
+□ node scripts/check-content.mjs — green
+□ npm run test:release — green, meaning ZERO failures. ⚠️ It runs its projects
+  one at a time and it is EXPECTED TO BE GREEN now; a red matrix is a finding
+  to chase, not a known flake to wave through. This is the ONE place it runs.
+□ ⚠️ PUBLIC_AUTH_ENABLED=true npm run test:release — green too, for as long as
+  production runs with accounts ON. The default matrix skips every auth spec,
+  so this is the ONLY cross-browser coverage the account stack gets. See the
+  verification policy above for why neither shape subsumes the other.
+□ ⚠️ PRODUCTION'S SCHEMA HOLDS THE MIGRATIONS THIS RELEASE NEEDS, applied
+  BEFORE the deploy — migrations first, build second, per the agenda incident.
+  Asked of the catalog, per migration. `db-push.mjs` refuses production by
+  design, so this is a human act against a ref typed by hand.
+□ docs/MANUAL-TESTS.md — worked through on desktop AND a real phone
+□ Lighthouse ≥ 90 (Performance, Accessibility, SEO)
+□ package.json "version" matches the tag about to be cut
+□ CHANGELOG.md stamped, [Unreleased] emptied, compare-links updated
+□ ⚠️ Production's SCHEMA holds every migration in supabase/migrations/ — asked
+  of the catalog, per migration, NOT of schema_migrations and NOT of a push
+  that exited 0. See Deployment → the two configuration invariants.
+□ ⚠️ Cloudflare Workers Builds deploys `main` ONLY; every other branch runs
+  `npx wrangler versions upload`. Prove it by output: after the last `dev`
+  push, `npx wrangler deployments status` did not move.
+□ ⚠️ /agenda/ on the live site matches the `sessions` table. `smoke:prod` now
+  fails on a blank agenda and prints the count, but it cannot know the count is
+  RIGHT — compare it against the table.
+□ ⚠️ NO TEST FIXTURE IS LIVE — `smoke:prod` asserts the fixture routes 404. A
+  200 means the build ran with `PUBLIC_FIXTURES=true`. **No local spec can
+  check this**: the build under test always has fixtures ON, by design.
+□ ⚠️⚠️ AFTER DEPLOYING: `npm run verify:deploy` — green. This is the check that
+  v0.13.0 did not have: it compares the live site's CONTENT-HASHED asset names
+  against your `dist/`, so it answers "is the live site running the tree I just
+  cut?" — which `smoke:prod` and `wrangler deployments list` structurally
+  cannot. ⚠️ Then `npm run smoke:prod`. Both: one says it is THE build, the
+  other says the build is good.
+```
+
+It is a **living document**: keep it in step with the site, in the same commit as the feature. See the session finish routine under Conventions.
+
+---
+
+## ⚠️ The two configuration invariants, and the incidents behind them
+
+**Read when:** promoting `dev` → `main`. These sit beside the release gate above
+because that is where they are re-asked. Moved out of CLAUDE.md at v0.17.1, which
+keeps both invariants and how to verify each.
+
+⚠️ **The block below is a VERBATIM move** — `check-split.mjs` compares normalised
+lines, so nothing inside it may be reworded, including its relative links. Paths
+like `./docs/reference/…` are written from the repository root (CLAUDE.md's
+position), and a `➡️` pointer back to this same file is the move showing its
+seam, not a mistake.
+
+### ⚠️ TWO CONFIGURATION INVARIANTS — VERIFY THEM AT EVERY PROMOTION
+
+Both were **once correct and silently stopped being so**, and neither lives in
+this repository, so nothing here can fail when one drifts. They are **claims
+about the outside world that expire**, and the promotion gate is where they are
+re-asked.
+
+1. ⚠️ **PRODUCTION'S SCHEMA IS NOT AHEAD OF ITSELF, AND `dev` DOES NOT MOVE IT.**
+   Production ran **three migrations behind** the repo while every check went
+   green; the only symptom was a blank public agenda. Migrations reach production
+   by a **deliberate human act against a ref typed by hand** —
+   `scripts/db-push.mjs` refuses production by design and must keep refusing.
+   **Verify the schema, not the push:** ask production what it holds, per
+   migration. ⚠️ **`supabase_migrations.schema_migrations` IS NOT THE ANSWER** —
+   it listed 0001–0002 while the schema held everything through 0007, which is
+   the **wrong answer in the dangerous direction**. Ask the catalog.
+2. ⚠️ **THE BRANCH CLOUDFLARE DEPLOYS IS A DASHBOARD SETTING, AND IT HAS BEEN
+   WRONG.** Workers Builds was configured to deploy **every** branch, so a push
+   to `dev` took **100% of production traffic** — that is a change to the
+   promotion policy wearing the clothes of a build setting. The non-production
+   branch command must be **`npx wrangler versions upload`**, never `deploy`.
+   **Verify by output:** after a `dev` push, `npx wrangler deployments status` is
+   **unchanged**.
+
+**➡️ The fourteen-hour blank agenda, the ledger backfill Seàn must run, and why
+the deploy card cannot tell the two paths apart:
+[`docs/reference/deployment.md`](./docs/reference/deployment.md) and
+[`docs/reference/supabase.md`](./docs/reference/supabase.md).**

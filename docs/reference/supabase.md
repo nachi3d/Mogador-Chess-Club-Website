@@ -1875,3 +1875,68 @@ Profiles first and open, **Réglages du compte** collapsed, **Options avancées*
 - ⚠️ **THE AUDIT RECORDS THE ACT, NOT THE PERSON.** A spec asserts the column
   list, so a helpful `target_id` fails a test rather than quietly changing what
   erasure means.
+
+---
+
+## v2 — the locked decisions, in full
+
+**Read when:** any auth, sync or child-profile work. Moved out of CLAUDE.md at
+v0.17.1; the locked decisions themselves and the guest zero-request rule stay
+there.
+
+⚠️ **The block below is a VERBATIM move** — `check-split.mjs` compares normalised
+lines, so nothing inside it may be reworded, including its relative links. Paths
+like `./docs/reference/…` are written from the repository root (CLAUDE.md's
+position), and a `➡️` pointer back to this same file is the move showing its
+seam, not a mistake.
+
+### v2 — the locked decisions
+
+**Still static** (no adapter, no SSR, non-negotiable). Supabase is **client-side
+only**; **all** security is RLS. **Guests are first-class forever** — accounts add
+sync and teacher oversight, and **gate nothing**. Content **stays in git**. Auth is
+magic-link + Google, **no passwords**; **SMS is rejected**, do not reintroduce it.
+
+- ⚠️ **The guest zero-request rule wins every conflict.** A visitor reading a
+  lesson causes **zero** requests to any Supabase origin and does not download the
+  client at all. `supabase.ts` is the only file importing it, every caller uses
+  `await import()`, and **`auth-flag.ts`, `progress-sync.ts` and `child.ts` must
+  never statically import it** — one static import puts 207 KB into every page
+  with a board. Asserted against the network log on six content routes.
+- **The magic-link flow is IMPLICIT**, deliberately: PKCE keeps a verifier in the
+  browser that *requested* the link, and email is routinely opened elsewhere.
+- ⚠️ **`progress.ts` is still the single reader** and its public API did not
+  change shape. Signed out is `localStorage` only; signed in, **reads never touch
+  the network** and writes go local first, then queue.
+- ⚠️ **Canonicalise timestamps through `Date.parse` → `toISOString` before
+  comparing.** Postgres returns `+00:00` and JS writes `Z`; `+` sorts before `.`,
+  so a lexicographic compare is *wrong*, not merely untidy.
+- ⚠️ **The learner is a child profile, never the account** (Critical Feature 40).
+  An autonomous teenager is an account holding exactly **one** child — one code
+  path, not two. **Graduation is one FK update** (41); if it ever requires copying
+  rows between tables, the shape is wrong. **"Qui joue ?" is a choice, not a
+  password** (42) — the account is the security boundary.
+
+---
+
+## Superseded: the 2026-08-15 reading of production's schema (through 0009)
+
+**Read when:** you need the technique rather than the number. ⚠️ **The status
+claim here is SUPERSEDED** — production was verified through 0012 on 2026-08-18.
+What survives is *how* it was asked: the error code PostgREST returns tells a
+missing table from a forbidden one. Moved out of CLAUDE.md at v0.17.1, where two
+contradictory schema claims were standing three lines apart.
+
+⚠️ **The block below is a VERBATIM move** — `check-split.mjs` compares normalised
+lines, so nothing inside it may be reworded, including its relative links. Paths
+like `./docs/reference/…` are written from the repository root (CLAUDE.md's
+position), and a `➡️` pointer back to this same file is the move showing its
+seam, not a mistake.
+
+⚠️ **PRODUCTION'S SCHEMA IS CURRENT THROUGH 0009**, contrary to what this file
+said for two releases. Verified 2026-08-15 against the catalog, by the error code
+PostgREST returns: `account_deletions` answers **`42501`** (permission denied —
+the table exists) where a missing table answers **`PGRST205`**. `sessions` also
+answers `anon` `select`, which is 0008. **Never read
+`supabase_migrations.schema_migrations` for this** — it lists 0001–0002 only and
+is wrong in the dangerous direction.

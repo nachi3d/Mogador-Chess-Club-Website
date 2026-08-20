@@ -167,3 +167,45 @@ by repo path, per the probes above.
 nothing is LISTENING on 4321-4325. A surviving `astro preview` is worse than a
 surviving browser, because Playwright will happily reuse it and test whatever is
 on disk from before.
+
+---
+
+## ⚠️ Kill every long-lived process the session started — the incidents
+
+**Read when:** writing or changing a sweep, or wondering why a fixed bug still
+fails. Moved out of CLAUDE.md at v0.17.1, which keeps the rule, the sweep-by-path
+requirement and the neighbouring-project warning.
+
+⚠️ **The block below is a VERBATIM move** — `check-split.mjs` compares normalised
+lines, so nothing inside it may be reworded, including its relative links. Paths
+like `./docs/reference/…` are written from the repository root (CLAUDE.md's
+position), and a `➡️` pointer back to this same file is the move showing its
+seam, not a mistake.
+
+#### ⚠️ KILL EVERY LONG-LIVED PROCESS THE SESSION STARTED
+
+A session that starts a server **terminates it when the task that needed it
+ends** — `astro preview`, `npm run demo`, a watch, anything holding a port.
+
+This is not tidiness. A stale listener makes Playwright's `reuseExistingServer`
+skip its own build and test **whatever is on disk from before**, so a fixed bug
+keeps "failing". One preview ran for 4h28m before anyone noticed; 26 orphaned
+previews on an out-of-range port and ~60 orphaned Playwright browsers have each
+been found on this machine, and the browsers cost three red gates in a row.
+
+⚠️ **A port list is not the sweep — sweep by repo path**, and sweep the browsers
+too, because an orphaned browser holds no port and its command line never
+mentions this repo. `scripts/demo.mjs` does all three on startup **and** on
+Ctrl+C. ⚠️ **Stopping the npm wrapper does not stop the server**; verify the port
+is free and kill by PID.
+
+⚠️ **And the converse: what is on 4321 may not be ours.** Other local projects
+use that port too — `Caracol-Adventures-Website` among them. Confirm the
+listener's command line carries this repo's path before killing it, and on a
+collision run the suite on an alternate port (e.g. 4331) through a temporary
+config rather than taking down a neighbour's server.
+
+**➡️ The exact probes, the load-bearing details of each one, and the
+verification behind them: [`docs/reference/dev-environment.md`](./docs/reference/dev-environment.md).**
+Read it before writing or changing any sweep — matching on `chrome.exe` by name
+rather than by executable path would kill Seàn's own browser.

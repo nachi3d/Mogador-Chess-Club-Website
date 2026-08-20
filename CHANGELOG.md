@@ -11,7 +11,76 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+
+- **`docs/SETUP-NEW-MACHINE.md` — bringing the project up on a fresh Windows
+  machine, in order, with a verification after each step.** Written because the
+  project is moving to another PC and four things live on this machine and not
+  in the repository: the toolchain, `node_modules/`, the Playwright browsers,
+  and the two gitignored env files — of which **only the env files cannot be
+  regenerated**.
+  - It records **which secrets come from where**: the `PUBLIC_*` pair from the
+    Supabase dashboards, the Cloudflare **build variables** from the Cloudflare
+    dashboard (where `PUBLIC_AUTH_ENABLED=true` lives, and nothing in this
+    repository says so), and the **deploy hook URL from Supabase Vault only** —
+    never a table, never `.env`, never a migration, because this repository is
+    public (Critical Feature 68).
+  - ⚠️ **It names three variables in the old `.env.local` that MUST NOT be
+    copied**: `SUPABASE_SERVICE_ROLE`, `SUPABASE_PASSWORD` and `WEBHOOK_URL`.
+    **Nothing in the repository reads any of them** — the suite and `db:push`
+    take the `TEST_`-prefixed pair out of `.env.test`, and the deploy hook lives
+    in the vault. Two of the three are production credentials and the first
+    **bypasses RLS entirely**; `.env.example` says in its own header that the
+    service role key "is NOT here and must never be", so the file on this
+    machine contradicts its own template. They are fetched from the dashboard
+    when a hand-run task needs them and deleted after.
+  - ⚠️ **A credential nothing depends on is the hard one to notice**, because
+    nothing ever fails to remind you it is there.
+  - Also records what is **per-machine rather than copied** (SSH key, browsers,
+    `node_modules/`, `wrangler` login, the non-default
+    `PLAYWRIGHT_BROWSERS_PATH` — which is a preference, not a requirement, since
+    `scripts/demo.mjs` already reads it first and falls back), and that the
+    committed generated assets (icons, fonts, `fonts.css`, piece sets, the
+    vendored engine, `agenda.fallback.json`) are **checked, never regenerated**.
+
+### Changed
+
+- **CLAUDE.md split — 120,226 → 112,903 characters (75% of the limit, down from
+  80%).** It had crossed the size guard's warning threshold. Per the rule, the
+  remedy is to **split, not to trim**: fourteen blocks of reasoning, measurement
+  and incident narrative moved **verbatim** into the reference file for their
+  area, each leaving the rule and a pointer behind.
+  - Moved: the `progress.ts` migration-point detail → `progression.md`; the
+    `onlyMove` implementation and policing → `content.md`; the test-fixture
+    mechanism → `video.md`; the matrix worker-cap, feature-branch and
+    "critical path" policies, the environment-symptom table and
+    `quick.mjs`'s refusal → `testing.md`; the release gate and the two
+    configuration invariants → `deployment.md`; the long-lived-process sweep →
+    `dev-environment.md`; the v2 locked decisions and the superseded
+    2026-08-15 schema reading → `supabase.md`; the EN legal-notice segment
+    rationale → `ui-navigation.md`.
+  - ⚠️ **`node scripts/check-split.mjs` is green: 1,209 lines stayed, 171 moved,
+    nothing lost, and NO new obsolete declarations were needed.**
+    `docs/reference/.split-obsolete.txt` is unchanged — the ten entries in it
+    are from the previous split.
+  - ⚠️ **Two contradictory claims about production's schema were standing three
+    lines apart** — "current through 0009" (2026-08-15) and "current through
+    0012" (2026-08-18). The superseded one is **moved, not deleted**, because
+    the *technique* in it is still the answer: the error code PostgREST returns
+    tells a missing table (`PGRST205`) from a forbidden one (`42501`).
+  - ⚠️ **A verbatim move keeps the block's original relative links**, which were
+    written from the repository root, so inside a reference file a
+    `./docs/reference/…` path and the occasional pointer back to the file you
+    are already reading are the seam showing. Each moved block now carries a
+    preamble saying so — the preamble is new text, so it may be worded freely;
+    the block may not.
+  - **Declined deliberately**, because a session could break each without going
+    looking: the Critical Features list, the board file-role table, the
+    add-a-table migration checklist, the admin-surface rules, and the PLY 0
+    warning.
+- **CLAUDE.md's reference index gains a row for `docs/SETUP-NEW-MACHINE.md`** —
+  added *after* the split, on the principle the split exists to serve: a
+  document nobody is pointed at is not read.
 
 ---
 

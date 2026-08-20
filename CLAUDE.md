@@ -39,6 +39,7 @@ before touching that area, not speculatively.
 | The header, the mobile bottom bar, the home page, the resume resolver | [`docs/reference/ui-navigation.md`](./docs/reference/ui-navigation.md) |
 | Planning a phase, or checking whether something is built | [`docs/reference/roadmap.md`](./docs/reference/roadmap.md) |
 | Why a rule exists — the incident behind it | [`docs/reference/incidents.md`](./docs/reference/incidents.md) |
+| Bringing the project up on a new machine — toolchain, secrets, what is per-machine | [`docs/SETUP-NEW-MACHINE.md`](./docs/SETUP-NEW-MACHINE.md) |
 
 ⚠️ **A rule that belongs here must not be "tidied" into a reference file.** The
 test is whether a session could break it *without going looking* — if yes, it
@@ -130,13 +131,18 @@ Consequence to respect: **progress is device-local and can be cleared by the bro
 
 All of it lives behind that one module. **Nothing else in the codebase may touch `localStorage` or know the key.** If accounts ever arrive, swapping the backing store is a rewrite of that file and nothing else — the same containment trick as `BoardSurface.tsx`.
 
-- Key: `mcc:progress:v1`. The **version is in the key**. A future shape change writes `v2` and may migrate `v1` across; it never reinterprets `v1` bytes under new rules, because a half-migrated record is worse than a lost one.
-- Shape: `{ exercises: { [slug]: { solved, attempts, hintUsed, solvedAt } } }`.
-- **Every access is guarded and fails silent.** Safari private mode throws on `setItem`, a full quota throws, an embedded context can throw on `localStorage` itself, and a hand-edited value can be any garbage at all. A reader whose storage is unavailable still gets a fully working exercise — just no tick on the index. There is nothing they could do about it, so we do not tell them. A bad stored value is **not deleted**: destroying a reader's data to tidy up is the wrong trade.
-- Records are normalised **field by field** on read, never cast. The value came off disk and may have been written by an older build or a person with devtools open.
-- `resetAttempts()` ("Recommencer") clears the counter and **never the solve**. Having solved something once is a fact about the reader; a retry button that silently takes back a tick would punish curiosity.
+⚠️ Five properties hold it up, and each was chosen against a specific failure:
+the **version is in the key** (`mcc:progress:v1`); **every access is guarded and
+fails silent**; records are **normalised field by field on read, never cast**; a
+bad stored value is **never deleted**; and `resetAttempts()` clears the counter
+and **never the solve**.
 
-The solved ticks on `/exercices/` are drawn by a plain `<script>`, **not an island** — ~1 KB of vanilla JS that reads the module and removes a `hidden` attribute. The one-board-island rule is about hydrated framework components, and this must stay on the right side of that line. The card reserves the marker's height (`.card-status`), so revealing it cannot reflow the grid.
+⚠️ **The solved ticks on `/exercices/` are a plain `<script>`, not an island.**
+The one-board-island rule is about hydrated framework components, and this must
+stay on the right side of that line.
+
+**➡️ The key, the shape, and the reason behind each of those five:
+[`docs/reference/progression.md`](./docs/reference/progression.md).**
 
 ### Online play (v2) — keep game logic transport-agnostic
 
@@ -178,9 +184,7 @@ ends** — `astro preview`, `npm run demo`, a watch, anything holding a port.
 
 This is not tidiness. A stale listener makes Playwright's `reuseExistingServer`
 skip its own build and test **whatever is on disk from before**, so a fixed bug
-keeps "failing". One preview ran for 4h28m before anyone noticed; 26 orphaned
-previews on an out-of-range port and ~60 orphaned Playwright browsers have each
-been found on this machine, and the browsers cost three red gates in a row.
+keeps "failing". Orphaned browsers have cost three red gates in a row.
 
 ⚠️ **A port list is not the sweep — sweep by repo path**, and sweep the browsers
 too, because an orphaned browser holds no port and its command line never
@@ -189,13 +193,11 @@ Ctrl+C. ⚠️ **Stopping the npm wrapper does not stop the server**; verify the
 is free and kill by PID.
 
 ⚠️ **And the converse: what is on 4321 may not be ours.** Other local projects
-use that port too — `Caracol-Adventures-Website` among them. Confirm the
-listener's command line carries this repo's path before killing it, and on a
-collision run the suite on an alternate port (e.g. 4331) through a temporary
-config rather than taking down a neighbour's server.
+use that port too. Confirm the listener's command line carries this repo's path
+before killing it, and on a collision run the suite on an alternate port.
 
-**➡️ The exact probes, the load-bearing details of each one, and the
-verification behind them: [`docs/reference/dev-environment.md`](./docs/reference/dev-environment.md).**
+**➡️ The exact probes, the counts each incident produced, and the verification
+behind them: [`docs/reference/dev-environment.md`](./docs/reference/dev-environment.md).**
 Read it before writing or changing any sweep — matching on `chrome.exe` by name
 rather than by executable path would kill Seàn's own browser.
 
@@ -510,17 +512,24 @@ This is not pedantry. A beginner who plays a different winning move and is told 
 
 #### How this is implemented, and how it is policed
 
-**Both verdicts count an attempt, both shake, both reset the board, and both look identical on the board.** The *only* difference is which sentence renders — `exercise.wrong` vs `exercise.offLine` — plus the caveat line that only the permissive verdict carries. `.mcc-message-wrong` and `.mcc-message-off-line` share a colour on purpose: under `onlyMove: false` we do not know that the reader was wrong, so we must not paint them as wrong either.
+⚠️ **Both verdicts count an attempt, both shake, both reset the board, and both
+look identical on the board.** The only difference is which sentence renders, and
+the two message classes **share a colour on purpose** — under `onlyMove: false` we
+do not know the reader was wrong, so we must not paint them as wrong either.
 
-**Winning-alternative acceptance is DEFERRED, not faked.** v1 validates against the stored `solution[]` and nothing else. There is no heuristic, no "close enough", no material count pretending to be judgement. When Stockfish lands (Phase 2) it can adjudicate an alternative properly, and that is the only thing that will change this. Do not ship a fake in the meantime — a validator that is wrong 5% of the time is worse than one that admits it does not know.
+⚠️ **Winning-alternative acceptance is DEFERRED, not faked.** No heuristic, no
+"close enough", no material count pretending to be judgement — a validator that is
+wrong 5% of the time is worse than one that admits it does not know. Only
+Stockfish will change this.
 
-**`scripts/check-content.mjs` polices `onlyMove: true`.** For a mating line of ≤ 2 player moves it brute-forces every first move that also forces mate in the same number, and **fails the build** if there is more than one. `onlyMove: true` makes the site tell a student that any other move is wrong; that claim has to be true.
+⚠️ **`scripts/check-content.mjs` polices `onlyMove: true`** by brute force, and
+**fails the build** when a second first move mates just as fast.
 
-This is not hypothetical — it fired during Session 3 on `opposition-et-mat`, where `1. Kf7` mates as surely as `1. Kg6` does. That exercise is `onlyMove: false` for exactly that reason, and `tests/e2e/exercise.spec.ts` asserts it never says "wrong" in either language. **If that test ever fails because the copy changed, it is not a test to update. It is a regression.**
+⚠️ **`opponentReplies` is aligned index-for-index with `solution`**, and moves are
+stored as **UCI**, never SAN.
 
-`opponentReplies` is aligned index-for-index with `solution`: `opponentReplies[i]` is played after `solution[i]`. It is normally `solution.length - 1` long, because the last player move ends the exercise. The schema enforces `opponentReplies.length <= solution.length`.
-
-Moves are stored as **UCI** (`e2e4`, `e7e8q`), not SAN: UCI is unambiguous without a board, and it maps 1:1 onto what Chessground emits and chess.js accepts.
+**➡️ The `opposition-et-mat` incident that fired this, the spec that pins it, and
+the schema rule: [`docs/reference/content.md`](./docs/reference/content.md).**
 
 ---
 
@@ -677,7 +686,7 @@ Each route file is a two-line shell that renders a shared component from `src/co
 
 Detail routes take their URL from the content's **`slug` field, not the filename**, so renaming a file can never silently move a published URL. `/cours/[slug]/` is still to come.
 
-⚠️ **The EN legal notice is `/en/mentions-legales/`, not `/en/legal-notice/`.** The Session 3 brief asked for the translated segment; it is deliberately not implemented that way, because the no-translated-segments rule above is what makes the switcher a pure prefix swap that *cannot* fail to find its counterpart. A translated segment needs a lookup map, and a missing entry 404s a reader mid-visit — on the one page whose whole job is to be findable. The visible link label **is** translated ("Mentions légales" / "Legal notice"); the URL is structural. Flagged for Seàn: it is a one-line change in `paths.ts` plus a map if he wants the English URL, and the site is unlaunched so it is still cheap to reverse.
+⚠️ **The EN legal notice is `/en/mentions-legales/`, not `/en/legal-notice/`** — the Session 3 brief asked for the translated segment and it is deliberately not built that way. A translated segment needs a lookup map, and a missing entry 404s a reader mid-visit. The visible link label **is** translated; the URL is structural. **➡️ The full reasoning, and the open question for Seàn: [`docs/reference/ui-navigation.md`](./docs/reference/ui-navigation.md).**
 
 ---
 
@@ -938,14 +947,6 @@ and always will be. Verified 2026-08-15 by probing the live site: `/connexion/`,
 switched off in production" and reasons from it will get every conclusion about
 the live site wrong — **ask the deployment, not the default.**
 
-⚠️ **PRODUCTION'S SCHEMA IS CURRENT THROUGH 0009**, contrary to what this file
-said for two releases. Verified 2026-08-15 against the catalog, by the error code
-PostgREST returns: `account_deletions` answers **`42501`** (permission denied —
-the table exists) where a missing table answers **`PGRST205`**. `sessions` also
-answers `anon` `select`, which is 0008. **Never read
-`supabase_migrations.schema_migrations` for this** — it lists 0001–0002 only and
-is wrong in the dangerous direction.
-
 ✅ **PRODUCTION'S SCHEMA IS CURRENT THROUGH 0012** — verified 2026-08-18 against
 the catalog: `account_shape` 200 (0010), `rebuild_requests` `42501` rather than
 `PGRST205` (0011), `series_id` 200 (0012). ⚠️ **Re-ask rather than trusting this
@@ -990,19 +991,15 @@ magic-link + Google, **no passwords**; **SMS is rejected**, do not reintroduce i
   `await import()`, and **`auth-flag.ts`, `progress-sync.ts` and `child.ts` must
   never statically import it** — one static import puts 207 KB into every page
   with a board. Asserted against the network log on six content routes.
-- **The magic-link flow is IMPLICIT**, deliberately: PKCE keeps a verifier in the
-  browser that *requested* the link, and email is routinely opened elsewhere.
-- ⚠️ **`progress.ts` is still the single reader** and its public API did not
-  change shape. Signed out is `localStorage` only; signed in, **reads never touch
-  the network** and writes go local first, then queue.
-- ⚠️ **Canonicalise timestamps through `Date.parse` → `toISOString` before
-  comparing.** Postgres returns `+00:00` and JS writes `Z`; `+` sorts before `.`,
-  so a lexicographic compare is *wrong*, not merely untidy.
-- ⚠️ **The learner is a child profile, never the account** (Critical Feature 40).
-  An autonomous teenager is an account holding exactly **one** child — one code
-  path, not two. **Graduation is one FK update** (41); if it ever requires copying
-  rows between tables, the shape is wrong. **"Qui joue ?" is a choice, not a
-  password** (42) — the account is the security boundary.
+- ⚠️ **The learner is a child profile, never the account** (Critical Feature 40),
+  **graduation is one FK update** (41), and **"Qui joue ?" is a choice, not a
+  password** (42).
+- ⚠️ **`progress.ts` is still the single reader**, and ⚠️ **canonicalise
+  timestamps through `Date.parse` → `toISOString` before comparing** — a
+  lexicographic compare of `+00:00` against `Z` is *wrong*, not merely untidy.
+
+**➡️ The implicit-vs-PKCE decision, the offline queue and the reasoning behind
+each: [`docs/reference/supabase.md`](./docs/reference/supabase.md).**
 ### The admin surfaces (v2-S4 part 2) — BUILT, and behind the flag
 
 `/admin/`, `/admin/eleves/`, `/admin/eleve/?id=…`, `/admin/seances/`,
@@ -1218,31 +1215,21 @@ then an iframe is built pointing at **`youtube-nocookie.com`**.
 
 ### ⚠️ TEST FIXTURES — ROUTABLE, NEVER LISTED, NEVER IN PRODUCTION
 
-`src/config/fixtures.ts`. A fixture is content that exists **only** so a spec
-has something real to drive. Today that is
-`src/content/traps/fixture-video-facade.json`, and the mechanism generalises.
+`src/config/fixtures.ts`. A fixture is content that exists **only** so a spec has
+something real to drive.
 
-- ⚠️ **TWO PREDICATES, AND THE SPLIT IS THE WHOLE DESIGN.** `isRoutable()`
-  decides whether a page is emitted (fixtures: only when `PUBLIC_FIXTURES=true`);
+- ⚠️ **TWO PREDICATES, AND THE SPLIT IS THE WHOLE DESIGN.** `isRoutable()` decides
+  whether a page is emitted (fixtures: only when `PUBLIC_FIXTURES=true`);
   `isListed()` decides whether a reader can find it (fixtures: **never, in any
-  build** — the flag is not even consulted). Collapsing them puts the fixture on
-  `/pieges/` in every test build, where `index-cards.spec.ts` draws a card for it
-  and `/apprendre/`'s trap count goes one too high.
-- ⚠️ **`fixture` IS A SEPARATE FIELD FROM `draft`.** A draft is content being
-  written that will one day be published; a fixture must never be. Overloading
-  `draft` makes those two the same edit.
-- ⚠️ **THE DEFAULT IS OFF, BECAUSE THE DEFAULT MUST BE WHAT PRODUCTION SHIPS** —
-  the same discipline as `PUBLIC_AUTH_ENABLED`, for the same recorded reason.
-  **`playwright.config.ts` sets `PUBLIC_FIXTURES: 'true'` for the build it
-  tests**, hardcoded and in both auth shapes, so every run — branch and matrix —
-  covers the facade and **no third matrix shape is added**.
-- ⚠️ **NO LOCAL SPEC CAN PROVE THE OFF SHAPE**, because the build under test is
-  by construction the ON one. **`npm run smoke:prod` fails if a fixture route
-  answers anything but 404 on the live site**, and that is on the promotion
-  checklist. A 200 there means a production build ran with the variable set.
-- ⚠️ **`PUBLIC_FIXTURES` MUST NEVER GO IN `.env.local`** — same rule as
-  `PUBLIC_AUTH_ENABLED`. To see a fixture by hand:
-  `PUBLIC_FIXTURES=true npm run demo`.
+  build**). Collapsing them puts the fixture on `/pieges/` in every test build.
+- ⚠️ **`fixture` IS A SEPARATE FIELD FROM `draft`.** A draft will one day be
+  published; a fixture must never be.
+- ⚠️ **THE DEFAULT IS OFF, BECAUSE THE DEFAULT MUST BE WHAT PRODUCTION SHIPS**, and
+  ⚠️ **`PUBLIC_FIXTURES` MUST NEVER GO IN `.env.local`** — same rule as
+  `PUBLIC_AUTH_ENABLED`. By hand: `PUBLIC_FIXTURES=true npm run demo`.
+- ⚠️ **NO LOCAL SPEC CAN PROVE THE OFF SHAPE**, because the build under test is by
+  construction the ON one. `npm run smoke:prod` fails if a fixture route answers
+  anything but 404 on the live site, and that is on the promotion checklist.
 
 **➡️ [`docs/reference/video.md`](./docs/reference/video.md)** — the poster
 pipeline and its three sources, the measured Lighthouse before/after, the
@@ -1357,8 +1344,7 @@ touching any of these three pages.
 ### ⚠️ Symptoms that are the ENVIRONMENT, not the application
 
 Each of these has cost real debugging time. **Recognise the signature before
-touching application code.** The full table — every symptom, what it actually
-is, and the debugging it cost — is in the reference file; these are the tells:
+touching application code.** These are the tells:
 
 - a fixed bug still "fails" and the fix is missing from `dist/` → **a stale
   preview server** (Playwright's `reuseExistingServer` skipped its own build);
@@ -1371,18 +1357,11 @@ is, and the debugging it cost — is in the reference file; these are the tells:
   is a dead preview server, `*.supabase.co` is sustained rate-limit abuse.
 
 **A genuine failure is deterministic and fails A SERIAL RE-RUN too, and it fails
-with an assertion naming a value.** WebKit and Firefox carry one local retry;
-chromium has none. A run reporting `N passed, 1 flaky` on WebKit is green.
-
-⚠️ **THE LOCAL RETRY IS NOT THE ARBITER — `--workers=1` IS.** When the
-compositor has died the retry runs inside the same broken process, so it proves
-nothing. Read the errors rather than counting them.
-
-⚠️ **Never pipe the test run into `tail`** — it reports tail's exit code, so 14
-failures read as "196 passed, exit 0". Redirect to a file and check the status.
-
-⚠️ **A browser-crash row is a FINDING when it comes from `test:release`**,
-which caps its workers precisely so it never reaches that state.
+with an assertion naming a value.** ⚠️ **THE LOCAL RETRY IS NOT THE ARBITER —
+`--workers=1` IS**; when the compositor has died the retry runs inside the same
+broken process. ⚠️ **Never pipe the test run into `tail`** — it reports tail's
+exit code, so 14 failures read as "196 passed, exit 0". ⚠️ **A browser-crash row
+is a FINDING when it comes from `test:release`.**
 
 **➡️ The full symptom table and the diagnoses behind it:
 [`docs/reference/testing.md`](./docs/reference/testing.md).**
@@ -1466,14 +1445,14 @@ breakage.
 
 ### ⚠️ The script REFUSES, it does not advise
 
-`scripts/quick.mjs` diffs the branch against `dev` and **exits non-zero naming
-any file that is out of bounds**, with the reason. The exclusion list is
-enforced in code rather than written in a document nobody re-reads under time
-pressure — which is the only version of this that survives a Friday afternoon.
+`scripts/quick.mjs` diffs the branch against `dev` and **exits non-zero naming any
+file that is out of bounds**, with the reason. The exclusion list is enforced in
+code rather than in a document nobody re-reads under time pressure — which is the
+only version of this that survives a Friday afternoon. It also picks the specs
+from what changed.
 
-It also picks the specs from what changed (a trap → `replayer.spec.ts`, a UI
-string → smoke + nav + main menu, and `smoke.spec.ts` always). `QUICK_BASE`
-overrides the comparison branch; it exists for testing the script itself.
+**➡️ The mapping and the `QUICK_BASE` override:
+[`docs/reference/testing.md`](./docs/reference/testing.md).**
 
 ---
 
@@ -1512,54 +1491,44 @@ cost whose reason nobody remembers.
 #### ⚠️ THE MATRIX RUNS ONE PROJECT AT A TIME, UNDER A WORKER CAP
 
 `test:release` runs each project on its own, sequentially, at **three** workers.
-That is slower than one pooled run and it is the reason the gate is green: the
-red gates were **memory exhaustion**, not browser bugs and not test bugs.
+That is slower than one pooled run and it is the reason the gate is green: the red
+gates were **memory exhaustion**, not browser bugs and not test bugs.
 
-- ⚠️ **`--workers=3` IS NOT A TUNING KNOB.** Three is roughly half the peak
-  memory. Raising it towards six reintroduces the entire problem.
-- ⚠️ **DO NOT "FIX" A RED MATRIX BY RAISING TIMEOUTS.** Tried; the failure count
-  went **up**. A starved browser given longer to answer is still starved.
-- ⚠️ **EVERY RUN KEEPS ITS OWN LOG** — `matrix-<shape>-<stamp>.log`, never a
-  shared `matrix.log`. The gate runs TWICE, and the second run used to delete
-  the first's evidence on startup; four unadjudicable failures and a 90-minute
-  re-run is what that cost. The memory traces are namespaced the same way.
-- ⚠️ **A GATE THAT IS EXPECTED TO BE RED IS WORTH NOTHING.** v0.11.0 shipped on
-  4 waved-through failures and v0.11.1 on 7. Both diagnoses were right, and that
-  habit is exactly what lets a real regression through.
+- ⚠️ **`--workers=3` IS NOT A TUNING KNOB**, and ⚠️ **DO NOT "FIX" A RED MATRIX BY
+  RAISING TIMEOUTS** — tried, and the failure count went **up**.
+- ⚠️ **EVERY RUN KEEPS ITS OWN LOG** — `matrix-<shape>-<stamp>.log`, never a shared
+  `matrix.log`, and the memory traces are namespaced the same way. The gate runs
+  TWICE and the second run must not erase the first's evidence.
+- ⚠️ **A GATE THAT IS EXPECTED TO BE RED IS WORTH NOTHING.** A red matrix is a
+  finding to chase, never a known flake to wave through.
 - **It proves every project actually ran**, comparing counts project against
-  project — "is the total a multiple of five" passes on four projects of 100 and
-  one of 0.
-- ⚠️ **The alternatives were MEASURED** and the numbers are in
-  `scripts/test-release.mjs` → MEASUREMENTS. Re-measure before re-arguing.
+  project.
+- ⚠️ **The alternatives were MEASURED** — `scripts/test-release.mjs` →
+  MEASUREMENTS. Re-measure before re-arguing.
 
 #### ⚠️ DO NOT RUN THE MATRIX ON A FEATURE BRANCH. EVER. NOT "TO BE SAFE".
 
-The reasoning is already done, so it is not re-litigated:
+The reasoning is already done, so it is not re-litigated. The matrix answers
+exactly one question — does this work in Firefox and WebKit — and asking it every
+session does not make the answer truer, it just moves the cost from one run per
+release to one per session. **A chromium failure is a failure; a chromium pass is
+enough to merge to `dev`**, and nothing reaches a reader without passing
+`test:release` first.
 
-- **The matrix answers exactly one question** — does this work in Firefox and
-  WebKit. Asking it every session does not make the answer truer; it moves the
-  cost from one run per release to one run per session.
-- **It was costing 30-45 minutes per session** because it *felt* prudent. That
-  is a tax that discourages small fixes, and unfixed small things are what a
-  visitor actually sees. ⚠️ **The tax is now ~65-70 minutes per shape.**
-- **A chromium failure is a failure.** If `test:branch` fails, fix it.
-- **A chromium pass is enough to merge to `dev`.** Nothing reaches a reader
-  without passing `test:release` first.
-
-#### ⚠️ THE "CRITICAL PATH" TRIGGER IS GONE, AND ITS REMOVAL IS THE POINT
+#### ⚠️ THE "CRITICAL PATH" TRIGGER IS GONE
 
 The old policy forced the matrix on any branch touching the board island, the
 exercise validator, i18n routing or the service worker. It read as prudence and
-functioned as a loophole: almost everything here touches one of those four, so
-the exception quietly became the default. Those paths gained precision instead —
-`scripts/spec-map.mjs` runs **seven** spec files for a `BoardSurface.tsx` change.
+**functioned as a loophole** — almost everything here touches one of those four.
+`scripts/spec-map.mjs` gained precision instead.
 
 **If you believe you have found the exception:** change this policy in CLAUDE.md
 in the same commit, with the reason. Do not make a one-off exception no future
 session will know about — that is precisely how the last policy eroded.
 
-**➡️ The measured memory numbers, the four-red-gate diagnosis and the rejected
-alternatives: [`docs/reference/testing.md`](./docs/reference/testing.md).**
+**➡️ The measured memory numbers, the four-red-gate diagnosis, the per-session
+cost the removal bought back and the rejected alternatives:
+[`docs/reference/testing.md`](./docs/reference/testing.md).**
 ### Critical-path tests (never skip)
 
 ⚠️ **A FAILURE IN ANY OF THESE IS A REGRESSION, NOT A TEST TO UPDATE.** They are
@@ -1579,47 +1548,22 @@ commit.
 
 **The checklist lives in [`docs/MANUAL-TESTS.md`](./docs/MANUAL-TESTS.md)** — grouped by feature, with expected results, including the regressions that have bitten before (the `1..` move number, the rapid-arrow mash, the `onlyMove: false` wording, the engine's no-fetch-before-click rule).
 
-Run `npm run demo`, which prints its path, and work down it. The release gate is:
+Run `npm run demo`, which prints its path, and work down it.
 
-```
-□ npm run demo — builds clean, no new warnings
-□ node scripts/check-claude-md.mjs — green (CLAUDE.md under the size limit)
-□ node scripts/check-contrast.mjs — green
-□ node scripts/check-content.mjs — green
-□ npm run test:release — green, meaning ZERO failures. ⚠️ It runs its projects
-  one at a time and it is EXPECTED TO BE GREEN now; a red matrix is a finding
-  to chase, not a known flake to wave through. This is the ONE place it runs.
-□ ⚠️ PUBLIC_AUTH_ENABLED=true npm run test:release — green too, for as long as
-  production runs with accounts ON. The default matrix skips every auth spec,
-  so this is the ONLY cross-browser coverage the account stack gets. See the
-  verification policy above for why neither shape subsumes the other.
-□ ⚠️ PRODUCTION'S SCHEMA HOLDS THE MIGRATIONS THIS RELEASE NEEDS, applied
-  BEFORE the deploy — migrations first, build second, per the agenda incident.
-  Asked of the catalog, per migration. `db-push.mjs` refuses production by
-  design, so this is a human act against a ref typed by hand.
-□ docs/MANUAL-TESTS.md — worked through on desktop AND a real phone
-□ Lighthouse ≥ 90 (Performance, Accessibility, SEO)
-□ package.json "version" matches the tag about to be cut
-□ CHANGELOG.md stamped, [Unreleased] emptied, compare-links updated
-□ ⚠️ Production's SCHEMA holds every migration in supabase/migrations/ — asked
-  of the catalog, per migration, NOT of schema_migrations and NOT of a push
-  that exited 0. See Deployment → the two configuration invariants.
-□ ⚠️ Cloudflare Workers Builds deploys `main` ONLY; every other branch runs
-  `npx wrangler versions upload`. Prove it by output: after the last `dev`
-  push, `npx wrangler deployments status` did not move.
-□ ⚠️ /agenda/ on the live site matches the `sessions` table. `smoke:prod` now
-  fails on a blank agenda and prints the count, but it cannot know the count is
-  RIGHT — compare it against the table.
-□ ⚠️ NO TEST FIXTURE IS LIVE — `smoke:prod` asserts the fixture routes 404. A
-  200 means the build ran with `PUBLIC_FIXTURES=true`. **No local spec can
-  check this**: the build under test always has fixtures ON, by design.
-□ ⚠️⚠️ AFTER DEPLOYING: `npm run verify:deploy` — green. This is the check that
-  v0.13.0 did not have: it compares the live site's CONTENT-HASHED asset names
-  against your `dist/`, so it answers "is the live site running the tree I just
-  cut?" — which `smoke:prod` and `wrangler deployments list` structurally
-  cannot. ⚠️ Then `npm run smoke:prod`. Both: one says it is THE build, the
-  other says the build is good.
-```
+⚠️ **THE RELEASE GATE ITSELF — fourteen lines — LIVES IN
+[`docs/reference/deployment.md`](./docs/reference/deployment.md).** It is the one
+checklist in this repository that must be executed rather than remembered, and it
+is not optional reading at a promotion. Its four most-skipped items, named here so
+that skipping one is a decision rather than an oversight:
+
+- ⚠️ **the gate runs TWICE** — `npm run test:release` and
+  `PUBLIC_AUTH_ENABLED=true npm run test:release`, both green, for as long as
+  production runs with accounts ON;
+- ⚠️ **migrations reach production BEFORE the deploy**, asked of the catalog per
+  migration, never of `schema_migrations`;
+- ⚠️ **`npm run verify:deploy` AFTER deploying**, then `npm run smoke:prod` — one
+  says it is THE build, the other says the build is good;
+- ⚠️ **`package.json` `version` matches the tag**, in the release commit.
 
 It is a **living document**: keep it in step with the site, in the same commit as the feature. See the session finish routine under Conventions.
 
@@ -1681,25 +1625,19 @@ about the outside world that expire**, and the promotion gate is where they are
 re-asked.
 
 1. ⚠️ **PRODUCTION'S SCHEMA IS NOT AHEAD OF ITSELF, AND `dev` DOES NOT MOVE IT.**
-   Production ran **three migrations behind** the repo while every check went
-   green; the only symptom was a blank public agenda. Migrations reach production
-   by a **deliberate human act against a ref typed by hand** —
-   `scripts/db-push.mjs` refuses production by design and must keep refusing.
-   **Verify the schema, not the push:** ask production what it holds, per
-   migration. ⚠️ **`supabase_migrations.schema_migrations` IS NOT THE ANSWER** —
-   it listed 0001–0002 while the schema held everything through 0007, which is
-   the **wrong answer in the dangerous direction**. Ask the catalog.
+   **Verify the schema, not the push:** ask the catalog what production holds,
+   per migration. ⚠️ **`supabase_migrations.schema_migrations` IS NOT THE
+   ANSWER** — it listed 0001–0002 while the schema held everything through 0007,
+   the **wrong answer in the dangerous direction**. `scripts/db-push.mjs` refuses
+   production by design and must keep refusing.
 2. ⚠️ **THE BRANCH CLOUDFLARE DEPLOYS IS A DASHBOARD SETTING, AND IT HAS BEEN
-   WRONG.** Workers Builds was configured to deploy **every** branch, so a push
-   to `dev` took **100% of production traffic** — that is a change to the
-   promotion policy wearing the clothes of a build setting. The non-production
-   branch command must be **`npx wrangler versions upload`**, never `deploy`.
-   **Verify by output:** after a `dev` push, `npx wrangler deployments status` is
-   **unchanged**.
+   WRONG.** The non-production branch command must be **`npx wrangler versions
+   upload`**, never `deploy`. **Verify by output:** after a `dev` push,
+   `npx wrangler deployments status` is **unchanged**.
 
-**➡️ The fourteen-hour blank agenda, the ledger backfill Seàn must run, and why
-the deploy card cannot tell the two paths apart:
-[`docs/reference/deployment.md`](./docs/reference/deployment.md) and
+**➡️ The three-migrations-behind incident, the `dev` push that took 100% of
+production traffic, the fourteen-hour blank agenda and the ledger backfill Seàn
+must run: [`docs/reference/deployment.md`](./docs/reference/deployment.md) and
 [`docs/reference/supabase.md`](./docs/reference/supabase.md).**
 
 ## The size guard — this file has a hard limit
