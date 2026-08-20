@@ -11,6 +11,105 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### Added
+
+- **Session booking — a member reserves a place for a child, and capacity is a
+  property of POSTGRES rather than of the page.** Migration **0013**:
+  `sessions.capacity` (default 12) and `sessions.overbook_margin` (default 2),
+  a `bookings` table, and `create_booking()` / `cancel_booking()` /
+  `session_availability()`.
+  - ⚠️ **THERE IS NO INSERT POLICY FOR A PARENT, AND THAT IS THE ENFORCEMENT.**
+    Rows arrive only from `create_booking()`, which is SECURITY DEFINER and
+    checks ownership itself. A parent who bypasses the UI gets `42501`, not an
+    overbooked session — asserted with a real token.
+  - ⚠️ **THE LOCK IS TAKEN BEFORE THE COUNT, AND ON THE SESSION ROW.**
+    `select … for update` serialises two parents going for the last place;
+    counting first and locking after would let both read 13 of 14 and both
+    insert. **Measured: six concurrent bookings for three places produce
+    exactly three `ok` and three `full`**, and the row count is then asked of
+    the database rather than inferred from the replies.
+  - ⚠️⚠️ **A BOOKING WRITES NOTHING TO `sessions`, AND A SPEC COUNTS IT.** 0011
+    hangs statement-level rebuild triggers on that table, so a denormalised
+    `bookings_count` column — the obvious optimisation — would turn every
+    reservation into a Cloudflare build. A lock is not a write; the count is
+    derived by counting. `booking.spec.ts` compares `rebuild_requests` across a
+    booking and a cancellation and expects **no change**.
+  - ⚠️ **CANCELLATION FREES THE PLACE VIA A PARTIAL UNIQUE INDEX** —
+    `unique (session_id, child_id) where status <> 'cancelled'`. A plain unique
+    constraint would let a child cancel once and never re-book.
+  - ⚠️ **THE OVERBOOKING MARGIN IS A FEATURE AND WILL LOOK LIKE A BUG.**
+    Capacity 12 + margin 2 accepts **fourteen**. Cancellations are frequent and
+    the venue absorbs the overflow, so nobody is turned away. The reason is on
+    the admin form, not only in the migration.
+  - ⚠️ **THE TWO-HOUR CUTOFF LIVES IN THE DATABASE**; `cancellable()` only greys
+    the button. **Staff are exempt** — "after that the prof handles it" means
+    the prof can. The boundary is closed against the member so the button and
+    the rule cannot disagree.
+  - **A cancelled session cancels its bookings** with `cancel_reason =
+    'session_cancelled'`, via a row trigger that **swallows every failure**: it
+    may never block a prof from cancelling (Critical Feature 70).
+  - ⚠️ **`session_availability()` EXISTS BECAUSE A PARENT CANNOT COUNT.**
+    `bookings_select_own` shows them their own rows, so `count(*)` would return
+    their own bookings. Numbers only, never a name, and **not granted to
+    `anon`** — which is what stops a page calling it on load and breaking the
+    guest zero-request rule.
+  - **Live RLS/GRANT audit against the TEST project: 28 assertions, all
+    passing**, exercised with real tokens rather than by re-reading the
+    migration. ⚠️ **The two failures it did find were in the AUDIT**: setting
+    `profiles.role` with a direct `UPDATE` as `service_role` silently does
+    nothing, because a guard trigger refuses a role write when `auth.uid()` is
+    null. The sanctioned path is `admin_set_role()`. The column being genuinely
+    un-writable is the feature.
+- **The member surface, FR/EN** — places restantes and a book button per child
+  on `/agenda/`, "Réservé" with cancel until the cutoff, and «Complet» on a full
+  session.
+  - ⚠️ **A SIGNED-OUT READER STILL CAUSES ZERO REQUESTS.** `hasStoredSession()`
+    reads `localStorage` for supabase-js's own token key and **imports nothing**
+    — asking Supabase whether we are signed in is already the violation, because
+    constructing the client can refresh a token. No token, no import, no
+    request; the server-rendered invitation to sign in is what stays on screen.
+  - ⚠️ **THE DATABASE RETURNS A CODE, NEVER A SENTENCE** (Critical Feature 74).
+    A French string from Postgres could not be rendered for an English reader,
+    so `create_booking()` returns `full` / `already` / `past` / … and
+    `src/i18n/ui.ts` owns both wordings. **An unknown code renders the generic
+    refusal — never a silent no-op.**
+  - ⚠️ **`src/styles/booking.css` IS NOT SCOPED**, because the per-child buttons
+    are built by script and carry no `data-astro-cid` attribute. Same lesson as
+    `admin.css`, `family.css` and `video.css`.
+- **The prof surface** — capacity and margin on the session form, an **attendee
+  list carrying the parent's phone as a `tel:` link**, and booked children
+  leading the register.
+  - ⚠️ **THE REGISTER STILL LISTS THE WHOLE CLASS.** Only the ORDER changes. A
+    child who turns up without booking must be markable without anyone retyping
+    them — attendance is the record of who came, not of who said they would.
+  - ⚠️ **BOTH READS RUN UNDER THE SAME GENERATION COUNTER**, so a stale roster
+    cannot sit above a fresh register.
+
+### Changed
+
+- ⚠️⚠️ **`scripts/fetch-agenda.mjs` GAINED A COLUMN LADDER, AND IT IS THE
+  HIGHEST-STAKES ONE IN THE REPOSITORY.** It now names `capacity` and
+  `overbook_margin`; an explicit select naming a column the database lacks
+  returns `42703`, which that script treats as a fatal read and **exits 1** —
+  so a Cloudflare build against a production database without 0013 would fail
+  the whole build. The ladder degrades to the pre-0013 columns instead. ⚠️ **Only
+  a missing column earns the retry**: a network error, a bad key or an RLS
+  refusal stays fatal, because degrading those would hide the failures the
+  script exists to surface.
+- **`SESSION_COLUMNS` gained a rung** for the same reason, and `SessionInput`
+  omits capacity rather than sending null — reads degrade, writes fail loudly.
+- ⚠️ **`sessionFingerprint()` NOW COVERS `capacity` AND `overbookMargin`, AND
+  DELIBERATELY NOT THE BOOKING COUNT.** Both halves follow the same rule.
+  Capacity is a field a prof edits and a reader sees, so editing it must raise
+  the staleness banner. The live count is not a session field at all — it
+  changes on every booking, which fires no rebuild, so baking it would mark the
+  deployed agenda **permanently** stale and train a prof to ignore the warning.
+  The baked page therefore never claims a remaining count: a signed-in member
+  reads the live number, a signed-out one sees the capacity.
+  - The type system enforced this on its own — adding the fields to
+    `FingerprintableSession` broke the build until `AdminSession` carried them,
+    which is the guard working as designed.
+
 ### Documentation
 
 - ⚠️⚠️ **`verify:deploy`'s residual gap FIRED FOR REAL at the v0.17.0 deploy, and

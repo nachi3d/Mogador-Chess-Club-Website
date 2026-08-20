@@ -2124,3 +2124,41 @@ minute and it is the whole safety margin the fast path trades away.
 
 If any of these is wrong, revert the commit rather than fixing forward — the
 same rule as the fast path itself.
+
+### 7e. Réservation d’une séance (0013)
+
+⚠️ **À faire sur un vrai téléphone.** C’est le format que la fonctionnalité
+vise : un parent réserve debout, d’une main, souvent en retard.
+
+Pré-requis : `npm run demo:accounts`, un compte avec **deux** profils enfants,
+et une séance publiée dans plus de 2 heures.
+
+| # | Étape | Résultat attendu |
+|---|---|---|
+| 1 | `/agenda/` **déconnecté** | La carte montre « 12 places » (la capacité) et « Connectez-vous pour réserver ». ⚠️ **Aucune requête réseau vers Supabase** — vérifier dans l’onglet Réseau, filtre `supabase`. Zéro. |
+| 2 | Se connecter, revenir sur `/agenda/` | Le nombre devient le **compte réel** (« 14 places restantes »), et un bouton **Réserver** apparaît par enfant |
+| 3 | Réserver le premier enfant | Le bouton devient **Annuler**, l’étiquette « Réservé » s’affiche, le compte baisse de 1, et le message dit « C’est réservé. » |
+| 4 | Réserver le second enfant | Idem. ⚠️ **Deux réservations distinctes** — une par profil, jamais une pour le compte |
+| 5 | Annuler le premier | Le bouton redevient **Réserver**, le compte remonte de 1 |
+| 6 | Re-réserver le même enfant | Accepté. ⚠️ C’est l’index unique partiel : une annulation libère vraiment la place |
+| 7 | Recharger la page | L’état survit — il vient de la base, pas du navigateur |
+| 8 | Passer la séance à moins de 2 h (via `/admin/seances`, changer la date) puis recharger | Le bouton **Annuler** est **désactivé** et son infobulle dit pourquoi. ⚠️ Jamais un bouton qui ne fait rien |
+| 9 | Sur `/en/agenda/` | Tout est en anglais, y compris les messages de refus |
+
+#### 7e-bis. La page périmée — le cas qui compte
+
+| # | Étape | Résultat attendu |
+|---|---|---|
+| 1 | Ouvrir `/agenda/` sur le téléphone, ne pas recharger | La carte affiche des places libres |
+| 2 | Sur un autre appareil, remplir la séance (réserver jusqu’à `capacité + marge`) | — |
+| 3 | Sur le téléphone **sans recharger**, appuyer sur **Réserver** | ⚠️ **« Cette séance est complète. »** puis la carte se met à jour toute seule. **Jamais** un bouton qui ne réagit pas, jamais une erreur technique |
+
+#### 7e-ter. Côté prof — `/admin/seances`
+
+| # | Étape | Résultat attendu |
+|---|---|---|
+| 1 | Le formulaire « Programmer une séance » | Champs **Places** (12) et **Marge de surréservation** (2), avec l’explication : 12 + 2 = 14 réservations acceptées |
+| 2 | Choisir une séance dans **Présences** | Le bloc **Inscrits — N** liste les enfants réservés avec le **téléphone du parent**, cliquable |
+| 3 | Le registre en dessous | Les enfants **inscrits sont en tête**, marqués par un liseré. ⚠️ Toute la classe reste listée — un enfant qui vient sans avoir réservé se marque sans rien retaper |
+| 4 | Annuler la séance | Les réservations passent à **annulée**, avec « séance annulée » comme motif. ⚠️ Jamais orphelines |
+| 5 | Vérifier le nombre de rebuilds | ⚠️ Une réservation ne déclenche **aucun** rebuild ; annuler la séance en déclenche **un** |

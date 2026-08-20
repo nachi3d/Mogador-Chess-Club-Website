@@ -1940,3 +1940,103 @@ the table exists) where a missing table answers **`PGRST205`**. `sessions` also
 answers `anon` `select`, which is 0008. **Never read
 `supabase_migrations.schema_migrations` for this** — it lists 0001–0002 only and
 is wrong in the dangerous direction.
+
+---
+
+## Session booking — capacity as a property of Postgres (0013)
+
+**Read when:** touching `bookings`, `create_booking()`, the agenda's booking
+controls, or the attendee list on `/admin/seances`.
+
+### The live RLS and grant audit, 2026-08-20
+
+⚠️ **Audited by exercising the tables with real clients after pushing**, never
+by re-reading the migration — reading the file is what produced the grant bug
+in 0003 after 0002 existed solely to repair it. Twenty-eight assertions against
+the TEST project, all passing:
+
+| Claim | Result |
+|---|---|
+| anon reads `bookings` | `42501` — a GRANT refusal, not an empty list |
+| anon calls `session_availability()` | `42501` |
+| a parent books their own child | `ok` |
+| a parent books another family's child | `forbidden` |
+| a parent INSERTs into `bookings` directly | refused (`42501`) |
+| the same child booked twice | `already` |
+| capacity 2 + margin 1 | third booking `ok`, fourth `full` |
+| a parent cancels their own booking | `ok`, and the place is re-bookable |
+| a parent cancels another family's booking | `forbidden` |
+| a member cancels inside 2 hours | `too_late` |
+| a prof cancels inside 2 hours | `ok` |
+| a prof reads every booking for a session | 4 of 4 |
+| a parent reads the same session | 2 of 4 — their own children only |
+| `service_role` INSERT / UPDATE / DELETE | all `ok` |
+
+⚠️ **THE TWO FAILURES THE AUDIT FOUND WERE IN THE AUDIT, AND THAT IS WORTH
+RECORDING.** Both prof assertions failed at first because the harness set
+`profiles.role` with a direct `UPDATE` as `service_role`. **A guard trigger
+refuses a role write even for `service_role`**, because `auth.uid()` is null;
+the sanctioned path is `admin_set_role(target_id, new_role)`, which
+`tests/e2e/helpers/supabase-admin.ts` already uses. The role column being
+genuinely un-writable is the *feature* — the audit rediscovered it the
+expensive way.
+
+### The concurrency measurement
+
+Six bookings fired at one session with **three** places, nothing awaited
+between them: **exactly three `ok` and three `full`**, and the row count asked
+of the database afterwards is 3. Repeated in `booking.spec.ts`.
+
+⚠️ **NO CLIENT CAN FORCE TWO TRANSACTIONS TO INTERLEAVE**, so the test does not
+claim to. What it asserts is the invariant that survives any interleaving: the
+database ends holding exactly the number of places that exist. Without
+`select … for update` the count-then-insert window is wide open across six
+overlapping requests, and the assertion fails.
+
+⚠️ **THE LOCK IS TAKEN BEFORE THE COUNT AND ON THE SESSION ROW.** Counting
+first and locking after would let two transactions both read 13 of 14 and both
+insert. And the lock is **not a write** — it fires none of 0011's triggers,
+which is the whole reason capacity is counted rather than cached.
+
+### The staleness answer, stated
+
+`/agenda/` is baked, so "places restantes" is live data on a static page. The
+answer has two halves:
+
+1. **The baked page never claims a remaining count.** `capacity` and
+   `overbook_margin` are baked and fingerprinted — they are session properties
+   a prof edits and a reader sees. The **booking count is not baked at all**.
+   ⚠️ Baking it would put a number in a static file that every booking
+   invalidates, and since a booking deliberately fires no rebuild, the deployed
+   agenda would be permanently stale — which is precisely how a staleness
+   warning stops being read. A signed-in member reads the live number from
+   `session_availability()`; a signed-out one sees the capacity and an
+   invitation to sign in, and makes zero requests.
+2. **The function is the truth and its refusal is readable.** A stale page can
+   still offer a button for a session that filled a moment ago. Pressing it
+   returns `full`, the surface renders *« Cette séance est complète »*, and it
+   then **re-reads from the database rather than guessing** — a refusal means
+   the page was out of date, so the repair is to refresh, not to decrement a
+   number the server never agreed to.
+
+⚠️ **AN UNKNOWN CODE RENDERS THE GENERIC REFUSAL, NEVER SILENCE.** If the
+database grows a code a deployed build predates, the reader is told the booking
+did not go through — recoverable — rather than watching a button do nothing.
+
+### Why a code and not a French sentence
+
+The brief asked for the rejection to be readable in French. It is — and it is
+also readable in English, which a Postgres-supplied string could not be. The
+member surface is FR/EN (only `/admin*` is French-only, CF43), so
+`create_booking()` returns `full` / `already` / `past` / `not_published` /
+`forbidden` and `src/i18n/ui.ts` owns both wordings under `booking.code.*`.
+
+### What is NOT built, deliberately
+
+- **No waiting list.** Full means the button is disabled and says «Complet».
+- **No per-session detail route.** The controls live on the agenda card; a
+  session has no page of its own yet, and inventing one for a button would add
+  a route with nothing else on it.
+- **No prof-side booking creation.** A prof can cancel and can mark attendance
+  for anyone; adding a walk-in is done by marking the register, which is the
+  record of who came rather than of who said they would.

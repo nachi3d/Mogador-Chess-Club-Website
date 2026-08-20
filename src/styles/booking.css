@@ -1,0 +1,145 @@
+/**
+ * Booking controls on the agenda.
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️ A REAL STYLESHEET, NOT A SCOPED `<style>`, AND THAT IS FORCED.
+ *
+ * The per-child buttons are built by script at runtime — the account's
+ * children are not known at build time. Astro stamps `data-astro-cid-*` onto
+ * the elements a component DECLARES, at build time, and compiles
+ * `.booking-child` to `.booking-child[data-astro-cid-…]`. An element created
+ * by script carries the class and not the attribute, so every scoped rule
+ * would silently miss it and the control would look like it belonged to a
+ * different website. Same lesson as `admin.css`, `family.css` and `video.css`.
+ *
+ * ⚠️ EVERY RULE IS PREFIXED WITH `.booking`, so the cascade is settled by
+ * SPECIFICITY rather than by stylesheet order — which is not guaranteed for a
+ * sheet imported from `global.css`.
+ *
+ * ⚠️ NO `opacity` ON TEXT OVER AN AUDITED FILL. `check-contrast.mjs` proves
+ * the token pair and cannot see an alpha applied on top of it; 0.9 once
+ * dropped a proved pair to 4.42:1. A disabled control is distinguished by its
+ * own token pair, its cursor and its wording — never by fading it.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+
+.booking {
+  margin-top: 0.85rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--mcc-border-subtle);
+}
+
+.booking[hidden] {
+  display: none;
+}
+
+/* The live count. Its own line, because it changes under the reader. */
+.booking .booking-places {
+  margin: 0 0 0.6rem;
+  color: var(--mcc-text-primary);
+  font-family: var(--font-display);
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.booking .booking-places-full {
+  color: var(--mcc-text-secondary);
+}
+
+.booking .booking-prompt {
+  margin: 0 0 0.5rem;
+  color: var(--mcc-text-secondary);
+  font-size: 0.9375rem;
+}
+
+.booking .booking-children {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.booking .booking-child {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/**
+ * ⚠️ 44px MINIMUM, AND THE PARENT IS ON A PHONE. This is the whole point of
+ * the surface: booking two children happens one-handed, in a hurry, often
+ * standing up. The target is sized for that and measured by a spec.
+ */
+.booking .booking-button {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0.5rem 0.9rem;
+  background-color: var(--mcc-primary);
+  color: var(--mcc-on-primary);
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  font-family: var(--font-display);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.booking .booking-button:hover:not(:disabled) {
+  background-color: var(--mcc-primary-hover);
+}
+
+.booking .booking-button:disabled {
+  background-color: var(--mcc-surface-sunken);
+  color: var(--mcc-text-secondary);
+  border-color: var(--mcc-border-subtle);
+  cursor: not-allowed;
+}
+
+/* A booked place: the cancel control is secondary, never the loudest thing. */
+.booking .booking-button-cancel {
+  background-color: transparent;
+  color: var(--mcc-text-primary);
+  border-color: var(--mcc-border-strong);
+}
+
+.booking .booking-button-cancel:hover:not(:disabled) {
+  background-color: var(--mcc-surface-sunken);
+}
+
+.booking .booking-state {
+  color: var(--mcc-text-primary);
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.booking .booking-note {
+  margin: 0.5rem 0 0;
+  color: var(--mcc-text-secondary);
+  font-size: 0.875rem;
+}
+
+/**
+ * The outcome line. ⚠️ IT IS AN `aria-live` REGION AND IT IS NEVER THE ONLY
+ * SIGNAL: the button's own label and disabled state change with it, so a
+ * reader who never hears it still sees what happened.
+ */
+.booking .booking-message {
+  margin: 0.6rem 0 0;
+  padding: 0.5rem 0.7rem;
+  background-color: var(--mcc-surface-sunken);
+  border-left: 3px solid var(--mcc-primary);
+  border-radius: var(--radius-control);
+  color: var(--mcc-text-primary);
+  font-size: 0.9375rem;
+}
+
+.booking .booking-message:empty {
+  display: none;
+}
+
+.booking .booking-signin {
+  color: var(--mcc-link);
+  font-weight: 600;
+}

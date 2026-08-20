@@ -82,6 +82,19 @@ const STATUSES = [
 
     <p class="admin-status" data-mark-summary hidden></p>
 
+    {/* ── Inscrits (0013) ─────────────────────────────────────────────────
+        ⚠️ THIS IS WHAT A PROF READS BEFORE THE DOOR OPENS, so it carries the
+        parent's phone. "Which children are booked" is answerable from the
+        register; "who do I ring when one is missing" is not, and that is the
+        question at 16:05.
+
+        ⚠️ A CANCELLED BOOKING IS SHOWN, NOT HIDDEN. A released place and a
+        no-show are different situations and only one needs a phone call. */}
+    <div class="admin-subblock" data-booked-block hidden>
+      <h3 class="admin-subtitle" data-booked-title>Inscrits</h3>
+      <ul class="booked-list" data-booked-list></ul>
+    </div>
+
     <ul class="mark-list" data-mark-list></ul>
     <p class="admin-empty" data-mark-empty hidden>
       Choisissez une séance pour marquer les présences.
@@ -120,6 +133,32 @@ const STATUSES = [
       <div class="admin-field">
         <label for="session-duration">Durée (minutes)</label>
         <input id="session-duration" type="number" min="15" max="480" value="90" data-field="duration" />
+      </div>
+      {/* ── Places (0013) ───────────────────────────────────────────────────
+          ⚠️ THE MARGIN IS NOT A BUG AND THE HINT SAYS SO, ON THE SCREEN.
+          A session of 12 with a margin of 2 accepts FOURTEEN bookings. A prof
+          who reads "12" and counts 14 children on the list needs the reason
+          in front of them, not in a migration comment — cancellations are
+          frequent and the venue absorbs the overflow, so nobody is turned
+          away. Decision taken by Seàn. */}
+      <div class="admin-field">
+        <label for="session-capacity">Places</label>
+        <input
+          id="session-capacity"
+          type="number"
+          min="1"
+          max="200"
+          value="12"
+          data-field="capacity"
+        />
+      </div>
+      <div class="admin-field">
+        <label for="session-margin">Marge de surréservation</label>
+        <input id="session-margin" type="number" min="0" max="20" value="2" data-field="margin" />
+        <p class="admin-field-hint">
+          Réservations acceptées au-delà des places. 12 places + 2 = 14 réservations. Les
+          annulations sont fréquentes, donc personne n’est refusé pour rien.
+        </p>
       </div>
       <div class="admin-field">
         <label for="session-status">État</label>
@@ -226,6 +265,7 @@ const STATUSES = [
     cancelSession,
     createSessions,
     listAttendance,
+    listBookings,
     listChildren,
     listSessions,
     markAttendance,
@@ -233,6 +273,7 @@ const STATUSES = [
     sessionsInSeries,
     updateSession,
     updateSessions,
+    type AdminBooking,
     type AdminChild,
     type AdminSession,
     type AttendanceStatus,
@@ -256,8 +297,14 @@ const STATUSES = [
   const seriesTitle = document.querySelector('[data-series-title]') as HTMLElement | null;
   const seriesList = document.querySelector('[data-series-list]') as HTMLElement | null;
 
+  const bookedBlock = document.querySelector('[data-booked-block]') as HTMLElement | null;
+  const bookedList = document.querySelector('[data-booked-list]') as HTMLElement | null;
+  const bookedTitle = document.querySelector('[data-booked-title]') as HTMLElement | null;
+
   let children: AdminChild[] = [];
   let sessions: AdminSession[] = [];
+  /** Who is booked into the session currently selected in the register. */
+  let bookedForSession: readonly AdminBooking[] = [];
   let me: string | null = null;
   /** The marks on screen, so the summary does not need a re-read per tap. */
   const marks = new Map<string, AttendanceStatus>();
@@ -293,11 +340,35 @@ const STATUSES = [
     marks.clear();
     for (const [id, status] of attendance) marks.set(id, status);
 
-    for (const child of children) {
+    /**
+     * ⚠️ BOOKED CHILDREN FIRST — that is the "connect it" half of 0013.
+     *
+     * The register still lists the WHOLE class, because a child who turns up
+     * without booking must be markable without anyone retyping them, and
+     * because attendance is the record of who came rather than of who said
+     * they would. What changes is the ORDER: the children who reserved a place
+     * are the ones the prof is looking for, so they lead, tagged. Everyone
+     * else follows in the same order as before.
+     *
+     * ⚠️ A STABLE SORT OVER A COPY. Sorting `children` in place would reorder
+     * the class list for every other surface on the page.
+     */
+    const bookedIds = new Set(
+      bookedForSession.filter((b) => b.status === 'confirmed').map((b) => b.childId),
+    );
+    const ordered = [...children].sort((a, b) => {
+      const av = bookedIds.has(a.id) ? 0 : 1;
+      const bv = bookedIds.has(b.id) ? 0 : 1;
+      return av - bv;
+    });
+
+    for (const child of ordered) {
       const node = template.content.firstElementChild!.cloneNode(true) as HTMLElement;
       node.dataset.child = child.id;
       const name = node.querySelector('.mark-name');
       if (name) name.textContent = child.displayName || 'Élève';
+      /* A quiet tag, not a second list: the prof reads one column of names. */
+      if (bookedIds.has(child.id)) node.classList.add('mark-row-booked');
       const current = attendance.get(child.id);
       if (current) {
         const button = node.querySelector(`[data-status="${current}"]`);
@@ -382,12 +453,62 @@ const STATUSES = [
       return;
     }
     if (emptyNote) emptyNote.hidden = true;
-    const rows = await listAttendance(sessionId);
+    /* ⚠️ BOTH READS UNDER THE SAME GENERATION. The booked list and the
+       register are two answers about one session; letting them land under
+       separate counters would let a stale roster sit above a fresh register. */
+    const [rows, booked] = await Promise.all([listAttendance(sessionId), listBookings(sessionId)]);
     /* ⚠️ A NEWER LOAD HAS ALREADY ANSWERED — drop this one rather than paint
        over it. This read may have been issued before marks the prof has since
        made, and `renderMarkList()` would wipe them. */
     if (mine !== registerGeneration) return;
+    bookedForSession = booked;
+    renderBookedList(booked);
     renderMarkList(new Map(rows.map((r) => [r.childId, r.status])));
+  }
+
+  /**
+   * Who reserved a place — names, state and the parent's phone.
+   *
+   * ⚠️ BUILT WITH `innerHTML`, SO ITS STYLES LIVE IN `admin.css`, NOT IN A
+   * SCOPED `<style>`. Astro stamps `data-astro-cid-*` at build time onto the
+   * elements a component declares; an element created at runtime carries the
+   * class and not the attribute, so every scoped rule would silently miss it.
+   * Same rule as the session cards below.
+   */
+  function renderBookedList(rows: readonly AdminBooking[]) {
+    if (!bookedList || !bookedBlock) return;
+    if (rows.length === 0) {
+      bookedBlock.hidden = true;
+      bookedList.innerHTML = '';
+      return;
+    }
+    bookedBlock.hidden = false;
+    const live = rows.filter((r) => r.status === 'confirmed');
+    if (bookedTitle) {
+      bookedTitle.textContent = `Inscrits — ${live.length}`;
+    }
+    bookedList.innerHTML = rows
+      .map((r) => {
+        const cancelled = r.status === 'cancelled';
+        /* The reason matters to a prof: a place the parent released is not the
+           same news as a session the club called off. */
+        const why =
+          r.cancelReason === 'session_cancelled'
+            ? 'séance annulée'
+            : r.cancelReason === 'staff'
+              ? 'annulée par le club'
+              : 'annulée';
+        const phone = r.guardianPhone
+          ? `<a class="booked-phone" href="tel:${esc(r.guardianPhone)}">${esc(r.guardianPhone)}</a>`
+          : '<span class="booked-nophone">pas de téléphone</span>';
+        return (
+          `<li class="booked-row${cancelled ? ' booked-row-cancelled' : ''}">` +
+          `<span class="booked-name">${esc(r.childName)}</span>` +
+          (cancelled ? `<span class="booked-state">${why}</span>` : phone) +
+          '</li>'
+        );
+      })
+      .join('');
   }
 
   select?.addEventListener('change', () => void loadRegister(select.value));
@@ -810,6 +931,26 @@ const STATUSES = [
       return;
     }
 
+    /**
+     * Capacity and margin, as a partial payload.
+     *
+     * ⚠️ AN EMPTY FIELD MEANS "USE THE DEFAULT", NOT ZERO. A capacity of 0 is
+     * a session nobody can book and would pass no CHECK constraint; a margin
+     * of 0 is legitimate and must survive. So each is included only when it
+     * parses to a finite number in range, and omitted otherwise — the same
+     * omit-rather-than-null rule `series_id` follows.
+     */
+    function capacityFields(): { capacity?: number; overbookMargin?: number } {
+      const out: { capacity?: number; overbookMargin?: number } = {};
+      const cap = Number(field('capacity'));
+      if (Number.isFinite(cap) && cap >= 1 && field('capacity').trim() !== '') out.capacity = cap;
+      const margin = Number(field('margin'));
+      if (Number.isFinite(margin) && margin >= 0 && field('margin').trim() !== '') {
+        out.overbookMargin = margin;
+      }
+      return out;
+    }
+
     const common = {
       durationMinutes: Number(field('duration')) || 90,
       titleFr: field('titleFr').trim() || null,
@@ -819,6 +960,12 @@ const STATUSES = [
       /* ⚠️ A LABEL ON ROWS CREATED TOGETHER, and only when there ARE rows
          created together. A one-off carries none — see migration 0012. */
       seriesId: repeating ? newSeriesId() : null,
+      /* ⚠️ SENT ONLY WHEN THE PROF CHANGED THEM. The database defaults are 12
+         and 2 (0013); omitting the keys lets those apply and keeps creation
+         working against a pre-0013 database. `Number('')` is 0, which is a
+         legal margin and an illegal capacity, so both are parsed explicitly
+         rather than defaulted with `||`. */
+      ...capacityFields(),
     };
 
     /* ⚠️ ONE CALL, ONE STATEMENT, ONE REBUILD. Never a loop — see the section

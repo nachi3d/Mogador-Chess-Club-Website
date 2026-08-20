@@ -320,6 +320,11 @@ it. Tags said one thing and the manifest said another.
 68. **The deploy hook URL is a VAULT SECRET, and this repository is public.** It is the credential. `vault.create_secret(…, 'cloudflare_deploy_hook')`, read only by `request_site_rebuild()` — never a table, never `.env`, never a migration. ⚠️ **No secret means NO DISPATCH, not an error**, which is what lets a test project count firings safely.
 69. **`sessions.series_id` is a LABEL, never a rule — NO RRULE engine, NO recurrence table.** The expansion happens once, in the browser; what is stored is thirteen ordinary rows. Nothing may read it to decide what a session IS, only to select rows the prof already sees. One cancelled week must not require reasoning about a rule.
 70. **The rebuild trigger may NEVER fail a write.** Every failure path logs and returns. A trigger that can raise makes `/admin/seances` unable to save — somebody else's outage becoming a database outage in front of a room of children.
+71. **Capacity is enforced in POSTGRES, never in client code.** `bookings` has no insert policy for a parent at all; rows arrive only from `create_booking()`, which locks the session row before it counts. A client that bypasses the UI gets `42501`, not an overbooked session.
+72. ⚠️ **A BOOKING MUST NEVER WRITE TO `sessions`.** A denormalised `bookings_count` column is the obvious optimisation and would turn every reservation into a Cloudflare build (CF67). The count is DERIVED by counting; `select … for update` is a lock, not a write, and fires no trigger. A spec counts `rebuild_requests` across a booking and a cancellation.
+73. **The overbooking margin is a FEATURE, and it will look like a bug.** Capacity 12 + margin 2 accepts **fourteen** bookings. Cancellations are frequent and the venue absorbs the overflow, so nobody is turned away. Seàn's decision — do not "fix" it.
+74. **The database returns a CODE, never a sentence.** Member surfaces are FR/EN and a French string from Postgres cannot be rendered in English. `src/i18n/ui.ts` owns both wordings, keyed by code; an unknown code renders the generic refusal and **never a silent no-op**.
+75. **The baked agenda never claims a remaining count.** Capacity and margin are baked and fingerprinted; the live booking count is not baked at all, because a booking fires no rebuild and a baked count would mark the deployed agenda stale forever. A signed-in member reads the live number; a signed-out one sees capacity and makes **zero requests**.
 
 ---
 
@@ -1105,6 +1110,45 @@ deploy paths apart, the recurring-session decision and the series label:
 trigger, the vault secret, the webhook-UI dead end, the measured firing counts
 and the suppression seam:
 [`docs/reference/deployment.md`](./docs/reference/deployment.md).**
+### ⚠️ SESSION BOOKING — CAPACITY IS A PROPERTY OF POSTGRES (0013)
+
+A member reserves a place for a child in a published session. One row per
+`(session, child)`; a parent with two attending children makes two bookings,
+and a parent who plays books their own profile the same way (CF57).
+
+The rules that bind work elsewhere — the rest is reference:
+
+- ⚠️ **CAPACITY IS ENFORCED IN THE DATABASE** (CF71). No insert policy for a
+  parent; `create_booking()` takes `select … for update` on the session row
+  **before** counting, so two parents cannot both take the last place. ⚠️ **It
+  is measured, not assumed** — six concurrent bookings for three places, and
+  the row count is asked of the database afterwards.
+- ⚠️⚠️ **A BOOKING WRITES NOTHING TO `sessions`** (CF72). This is the one that
+  will be broken by a well-meaning optimisation.
+- ⚠️ **THE MARGIN IS DELIBERATE** (CF73) and the admin form says so on screen,
+  not only in the migration.
+- ⚠️ **CANCELLATION IS FREED BY A PARTIAL UNIQUE INDEX** —
+  `unique (session_id, child_id) where status <> 'cancelled'`. A plain unique
+  constraint would let a child cancel once and never re-book.
+- ⚠️ **THE 2-HOUR CUTOFF LIVES IN `cancel_booking()`**, and `cancellable()` only
+  greys the button. Staff are exempt: "the prof handles it" means they can.
+  The boundary is closed against the member, so button and rule cannot disagree.
+- ⚠️ **A CANCELLED SESSION CANCELS ITS BOOKINGS** with `cancel_reason =
+  'session_cancelled'` (CF46's other half), via a row trigger that **swallows
+  every failure** — it may never block a prof from cancelling (CF70).
+- ⚠️ **`session_availability()` EXISTS BECAUSE A PARENT CANNOT COUNT.**
+  `bookings_select_own` shows them their own rows, so `count(*)` would return
+  their own bookings. It returns numbers only, never a name, and is **not
+  granted to `anon`** — which is what stops a page calling it on load and
+  breaking the guest zero-request rule.
+- ⚠️ **`SESSION_COLUMNS` GAINED A RUNG AND SO DID `fetch-agenda.mjs`.** That
+  second ladder is the higher-stakes one: an explicit select naming `capacity`
+  against a pre-0013 production database would **fail the whole build**, and
+  the agenda incident is what that costs.
+
+**➡️ [`docs/reference/supabase.md`](./docs/reference/supabase.md)** — the live
+RLS audit, the concurrency measurement and the staleness answer in full.
+
 ### ⚠️ AN ACCOUNT DELETES ITSELF, AND THE FUNCTION TAKES NO TARGET
 
 `delete_own_account()` (migration 0007), reached from `/compte/`. Two rules here bind work that has nothing to do with deletion, so they stay:
