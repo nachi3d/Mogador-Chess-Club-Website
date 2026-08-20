@@ -51,6 +51,17 @@ export interface AdminSession {
   readonly noteFr: string | null;
   readonly noteEn: string | null;
   /**
+   * Places, and the margin above them (0013).
+   *
+   * ⚠️ THEY ARE FINGERPRINTED, so a prof who changes capacity is told the
+   * deployed agenda is stale — the public card shows the number.
+   *
+   * ⚠️ NULL MEANS "THIS DATABASE PREDATES 0013", not "no limit" and not zero.
+   * The surface prints "—" for it; nothing computes with it.
+   */
+  readonly capacity: number | null;
+  readonly overbookMargin: number | null;
+  /**
    * ⚠️ A LABEL ON ROWS CREATED TOGETHER, NEVER A RULE ABOUT THEM (0012).
    *
    * It may be used to SELECT rows the prof is already looking at — publish
@@ -342,6 +353,9 @@ export async function listAwards(childId?: string): Promise<AdminAward[]> {
  * The cost is one extra round trip on a misconfigured deployment only.
  */
 const SESSION_COLUMNS: readonly string[] = [
+  /* 0013 — capacity and the overbooking margin. */
+  'id,starts_at,duration_minutes,title_fr,venue,level,status,note_fr,note_en,series_id,capacity,overbook_margin',
+  /* Pre-0013 — before a session could be booked. */
   'id,starts_at,duration_minutes,title_fr,venue,level,status,note_fr,note_en,series_id',
   /* Pre-0012 — before a repeat action could label the rows it created. */
   'id,starts_at,duration_minutes,title_fr,venue,level,status,note_fr,note_en',
@@ -374,6 +388,13 @@ export async function listSessions(): Promise<AdminSession[]> {
     noteFr: row['note_fr'] ? String(row['note_fr']) : null,
     noteEn: row['note_en'] ? String(row['note_en']) : null,
     seriesId: row['series_id'] ? String(row['series_id']) : null,
+    /* ⚠️ Null on a pre-0013 database, via the ladder above — and null is a
+       real state the surface renders as "—", never as 0. A capacity of 0
+       would mean a session nobody can book. */
+    capacity: Number.isFinite(Number(row['capacity'])) ? Number(row['capacity']) : null,
+    overbookMargin: Number.isFinite(Number(row['overbook_margin']))
+      ? Number(row['overbook_margin'])
+      : null,
   }));
 }
 
@@ -386,6 +407,14 @@ export interface SessionInput {
   readonly status: SessionStatus;
   /** Null for a one-off. See `AdminSession.seriesId` — a label, never a rule. */
   readonly seriesId?: string | null;
+  /**
+   * ⚠️ OPTIONAL, AND OMITTED RATHER THAN SENT AS NULL WHEN ABSENT — the same
+   * rule `seriesId` follows. `capacity` is `not null default 12` in 0013, so
+   * sending an explicit null would violate the constraint and fail the write;
+   * omitting the key lets the default apply. READS degrade, WRITES fail loudly.
+   */
+  readonly capacity?: number;
+  readonly overbookMargin?: number;
 }
 
 /**
@@ -437,6 +466,13 @@ export async function createSessions(
          quietly dropped the label would create thirteen rows the prof could
          never act on as a set, with nothing on screen saying so. */
       ...(input.seriesId ? { series_id: input.seriesId } : {}),
+      /* ⚠️ SAME RULE AS `series_id`, AND FOR THE SAME REASON: omitted when the
+         prof left the defaults alone, so a pre-0013 database still creates
+         ordinary sessions instead of answering `42703` for every create. When
+         a value IS given, the write fails loudly there rather than silently
+         seating a number nobody chose. */
+      ...(input.capacity !== undefined ? { capacity: input.capacity } : {}),
+      ...(input.overbookMargin !== undefined ? { overbook_margin: input.overbookMargin } : {}),
     })),
   );
   return error ? { ok: false, error: error.message, created: 0 } : { ok: true, created: inputs.length };
@@ -451,6 +487,8 @@ function sessionPatchRow(patch: Partial<SessionInput>): Record<string, unknown> 
   if (patch.level !== undefined) row['level'] = patch.level;
   if (patch.status !== undefined) row['status'] = patch.status;
   if (patch.seriesId !== undefined) row['series_id'] = patch.seriesId;
+  if (patch.capacity !== undefined) row['capacity'] = patch.capacity;
+  if (patch.overbookMargin !== undefined) row['overbook_margin'] = patch.overbookMargin;
   return row;
 }
 
@@ -512,6 +550,69 @@ export function sessionsInSeries(
   seriesId: string,
 ): AdminSession[] {
   return sessions.filter((s) => s.seriesId === seriesId);
+}
+
+/* ── bookings (0013) ───────────────────────────────────────────────────── */
+
+/**
+ * Who is booked into a session — the list a prof reads before the door opens.
+ *
+ * ⚠️ STAFF SEE EVERY BOOKING BECAUSE `bookings_staff_all` SAYS SO, not because
+ * this function asks nicely. A prof token gets the rows; a parent token gets
+ * their own children's and nothing else, from this identical call.
+ *
+ * ⚠️ THE PARENT CONTACT IS THE POINT OF THE JOIN. "Which children are booked"
+ * is answerable from `bookings` alone; "who do I ring when one does not turn
+ * up" is not, and that is the question a prof actually has at 16:05. It is
+ * pulled through `child_profiles → profiles` in ONE request rather than N.
+ *
+ * ⚠️ CANCELLED ROWS ARE RETURNED, NOT FILTERED. A prof needs to see that a
+ * place was released — that is the difference between a no-show and a child
+ * who is not coming, and only one of those needs a phone call.
+ */
+export interface AdminBooking {
+  readonly id: string;
+  readonly sessionId: string;
+  readonly childId: string;
+  readonly childName: string;
+  readonly status: 'confirmed' | 'cancelled';
+  readonly cancelReason: string | null;
+  /** ⚠️ Null when the account was deleted, or when it simply has no phone. */
+  readonly guardianPhone: string | null;
+  readonly guardianName: string | null;
+}
+
+export async function listBookings(sessionId: string): Promise<AdminBooking[]> {
+  const supabase = await getSupabase();
+  const { data, error } = await supabase
+    .from('bookings')
+    .select(
+      'id,session_id,child_id,status,cancel_reason,' +
+        'child_profiles(display_name,profiles(display_name,guardian_phone))',
+    )
+    .eq('session_id', sessionId);
+  /* An error here means 0013 is not applied. Degrade to "no bookings" rather
+     than emptying the whole sessions screen — the register still works. */
+  if (error) return [];
+  /* ⚠️ The same `as unknown as` step `listSessions()` uses: PostgREST's
+     generated types model an embedded resource as a union with an error
+     shape, which no runtime check can narrow. The rows are normalised field
+     by field below, which is where the real safety is. */
+  const rows = (data ?? []) as unknown as Record<string, unknown>[];
+  return rows.map((row) => {
+    const child = (row['child_profiles'] ?? {}) as Record<string, unknown>;
+    const account = (child['profiles'] ?? {}) as Record<string, unknown>;
+    return {
+      id: String(row['id']),
+      sessionId: String(row['session_id']),
+      childId: String(row['child_id']),
+      childName: child['display_name'] ? String(child['display_name']) : '—',
+      status: row['status'] === 'cancelled' ? 'cancelled' : 'confirmed',
+      cancelReason: row['cancel_reason'] ? String(row['cancel_reason']) : null,
+      guardianPhone: account['guardian_phone'] ? String(account['guardian_phone']) : null,
+      guardianName: account['display_name'] ? String(account['display_name']) : null,
+    };
+  });
 }
 
 /* ── attendance ────────────────────────────────────────────────────────── */

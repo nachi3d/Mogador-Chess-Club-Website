@@ -47,6 +47,21 @@ export interface PublicSession {
   readonly titleFr: string | null;
   readonly noteFr: string | null;
   readonly noteEn: string | null;
+  /**
+   * Places the prof intends to seat, plus the overbooking margin (0013).
+   *
+   * ⚠️ THESE ARE SESSION PROPERTIES, AND THE LIVE BOOKING COUNT IS NOT HERE ON
+   * PURPOSE. Baking "places restantes" would put a number in a static file that
+   * every booking invalidates — and since a booking deliberately fires no
+   * rebuild (0013 §2), the deployed agenda would be permanently, uselessly
+   * stale, which is exactly how a staleness warning stops being read.
+   *
+   * So the baked page never claims a remaining count. A signed-in member reads
+   * the live number from `session_availability()`; a signed-out reader sees the
+   * capacity and an invitation to sign in, and causes no request at all.
+   */
+  readonly capacity: number | null;
+  readonly overbookMargin: number | null;
 }
 
 interface Snapshot {
@@ -89,6 +104,14 @@ function normalise(row: Record<string, unknown>): PublicSession | null {
   const text = (key: string) => (typeof row[key] === 'string' && row[key] ? String(row[key]) : null);
   const rawLevel = text('level');
   const startsAt = text('startsAt');
+  /* Normalised field by field like every other stored value, never cast: a
+     hand-edited snapshot can carry a string, a null or nothing at all, and a
+     NaN capacity would render "NaN places". */
+  const count = (key: string): number | null => {
+    const raw = row[key];
+    const n = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(raw) : NaN;
+    return Number.isFinite(n) && n >= 0 ? Math.floor(n) : null;
+  };
   return {
     id,
     /* Absent only in a hand-written snapshot; the fingerprint then falls back
@@ -102,6 +125,8 @@ function normalise(row: Record<string, unknown>): PublicSession | null {
     titleFr: text('titleFr'),
     noteFr: text('noteFr'),
     noteEn: text('noteEn'),
+    capacity: count('capacity'),
+    overbookMargin: count('overbookMargin'),
   };
 }
 
@@ -153,6 +178,13 @@ export function bakedAt(): string | null {
  * re-derive them would put a second copy of that logic in the comparison — one
  * that would agree right up until a Ramadan offset change, then quietly report
  * every session as pending.
+ *
+ * ⚠️ `capacity` AND `overbookMargin` ARE IN, AND THE BOOKING COUNT IS OUT, AND
+ * THE TWO HALVES OF THAT ARE DECIDED BY THE SAME RULE. Capacity is a field a
+ * prof edits and a reader sees, so editing it must raise the banner. The live
+ * count is not a session field at all — it changes when a parent books, which
+ * deliberately triggers no rebuild, so including it would mark every deployed
+ * agenda stale forever and train a prof to ignore the warning.
  */
 export interface FingerprintableSession {
   readonly id: string;
@@ -163,6 +195,8 @@ export interface FingerprintableSession {
   readonly titleFr: string | null;
   readonly noteFr: string | null;
   readonly noteEn: string | null;
+  readonly capacity: number | null;
+  readonly overbookMargin: number | null;
 }
 
 export function sessionFingerprint(s: FingerprintableSession): string {
@@ -175,6 +209,8 @@ export function sessionFingerprint(s: FingerprintableSession): string {
     s.titleFr ?? '',
     s.noteFr ?? '',
     s.noteEn ?? '',
+    s.capacity ?? '',
+    s.overbookMargin ?? '',
   ].join('|');
 }
 

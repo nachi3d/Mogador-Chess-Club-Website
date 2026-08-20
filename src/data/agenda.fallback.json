@@ -13,7 +13,9 @@
       "venue": null,
       "titleFr": null,
       "noteFr": "Séance d'ouverture de la saison — initiation, matériel fourni. Venez comme vous êtes.",
-      "noteEn": "Season opening session — beginners welcome, sets provided. Just turn up."
+      "noteEn": "Season opening session — beginners welcome, sets provided. Just turn up.",
+      "capacity": 12,
+      "overbookMargin": 2
     }
   ]
 }

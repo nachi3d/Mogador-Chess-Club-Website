@@ -55,6 +55,13 @@
    attribute, so a scoped rule could not reach it. See the file's own header. */
 @import './video.css';
 
+/* Booking controls on the agenda (0013). Shared rather than scoped for the
+   same reason video.css is, and the reason is the stronger of the two here:
+   the per-child buttons are BUILT BY SCRIPT, so they carry no
+   `data-astro-cid` attribute and a scoped rule could not reach them at all.
+   See the file's own header. */
+@import './booking.css';
+
 @layer base {
   html {
     background-color: var(--mcc-surface-page);
