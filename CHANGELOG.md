@@ -11,7 +11,43 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
-Nothing yet.
+### Documentation
+
+- ⚠️⚠️ **`verify:deploy`'s residual gap FIRED FOR REAL at the v0.17.0 deploy, and
+  the incident is now recorded** in `docs/reference/deployment.md`. The gap had
+  been written down narrowly — "a release that changes only island JavaScript" —
+  which read as a rare curiosity. **The real condition is broader: any release
+  whose changes do not reach the three compared documents**, and an **admin-only
+  release is exactly that case**.
+  - v0.17.0 changed four source files, all admin. `/`,
+    `/exercices/mat-du-couloir/` and `/progres/` are **byte-identical** between
+    the old and new tree once `/_astro` fingerprints are normalised away.
+  - **The live site served the OLD build for ~4 minutes after the push** (both
+    new markers absent at 17:03, present at 17:07:54). Run in that window,
+    `verify:deploy` would have reported "serving this exact build" — **true of a
+    build that predated the release**.
+  - **What caught it was a content check with a discriminator**, and the
+    checklist now carries the step: ask whether the release touched any of the
+    three documents, and if not, verify by a marker from a document it *did*
+    change — **proved absent from the old tree before being relied on**, with a
+    **negative control** that must not match. ⚠️ **The tool cannot substitute for
+    this, and it is the step a hurried operator skips because a green tick
+    already printed.**
+- **CLAUDE.md's production-schema note re-verified and dated 2026-08-20**, at the
+  v0.17.0 gate: `account_shape` `42501` (0010), `rebuild_requests` `42501` rather
+  than `PGRST205` (0011), `series_id` 200 (0012).
+  - ⚠️ **The gap in that probe is now stated: PostgREST sees tables and columns,
+    NOT triggers or functions.** `trigger_count = 3` and
+    `request_site_rebuild(text,integer)` **remain unverified** from a machine
+    holding only the anon key — the SQL editor needs credentials that are
+    deliberately not on a developer machine. ⚠️ **0011 is precisely the migration
+    whose value lives in its trigger**, so "the table exists" is weaker evidence
+    than it looks.
+  - ⚠️ **The controls that make a `42501` mean "present" are recorded**, because
+    the reading is otherwise wrong in the dangerous direction: a table that
+    cannot exist returns `PGRST205`, and a bad column on a *denied* table returns
+    **`42703`, not `42501`** — column validation runs **before** the permission
+    check.
 
 ---
 

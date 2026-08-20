@@ -723,6 +723,66 @@ toolchain noise removes that signal with it. This site is content-heavy and such
 a release is rare — but it exists, and for one of those the operator must verify
 a **behaviour** on the live site instead. Nothing here covers it.
 
+#### ⚠️⚠️ THE GAP IS WIDER THAN "ISLAND JS ONLY", AND IT FIRED AT THE v0.17.0 GATE
+
+The paragraph above named the case narrowly and therefore read as a rare
+curiosity. **The real condition is broader: any release whose changes do not
+reach the three compared documents.** `/`, `/exercices/mat-du-couloir/` and
+`/progres/` were chosen for three different module graphs, so a *partial* deploy
+cannot pass by luck — but they say nothing about a release that never touches
+them.
+
+⚠️ **An ADMIN-ONLY release is exactly that case, and it is not rare at all.**
+v0.17.0 changed four source files — `AdminSessionsPage.astro`, `src/lib/admin.ts`,
+`src/lib/recurrence.ts`, `src/styles/admin.css` — none of which affect any of the
+three. Their HTML is **byte-identical** between the old and new tree once
+`/_astro` fingerprints are normalised away.
+
+**What happened on 2026-08-20**, in order:
+
+1. `main` was pushed at ~17:00; the Cloudflare Workers Build began.
+2. At **17:03** the live `/admin/seances/` was fetched: **both** new markers
+   (`Chaque semaine`, `Toutes les deux semaines`) were **absent**, while the
+   local `dist/` contained them unconditionally. The old build was still being
+   served.
+3. The deploy landed at **17:07:54**.
+4. `verify:deploy` then reported all three documents matching.
+
+⚠️ **HAD IT BEEN RUN IN THE FOUR-MINUTE WINDOW, IT WOULD HAVE REPORTED SUCCESS
+AGAINST THE OLD BUILD** — not as a bug, but as the honest consequence of
+comparing documents the release did not change. "Serving this exact build" would
+have been true of a build that predated the release.
+
+#### ⚠️ THE ANSWER IS A DISCRIMINATOR, AND IT MUST BE PROVED BEFORE IT IS USED
+
+For an admin-only or island-only release, pick a string from a document the
+release **did** change, and **prove it is absent from the old tree before
+relying on it**:
+
+```sh
+# 1. prove the marker discriminates — it must NOT exist in the previous tree
+git show <old-main>:src/components/pages/admin/AdminSessionsPage.astro \
+  | grep -c "Toutes les deux semaines"     # expect 0
+
+# 2. it must be present in the LOCAL build, unconditionally
+grep -c "Toutes les deux semaines" dist/admin/seances/index.html
+
+# 3. only then is its presence on the live site evidence the deploy landed
+```
+
+⚠️ **AND CARRY A NEGATIVE CONTROL**, for the same reason the schema probe does: a
+check that cannot fail proves nothing. Assert that a string which never existed
+(`Toutes les trois semaines`) is **absent** from the same fetched page. Without
+it, a fetch that silently returned an error page, or a `Contains` against the
+wrong variable, reads as a pass.
+
+⚠️ **`verify:deploy` CANNOT SUBSTITUTE FOR THIS, AND THE CONVERSE IS ALSO TRUE.**
+The discriminator proves *a* new document is live; `verify:deploy` proves the
+whole rendered surface matches, including the documents the discriminator says
+nothing about. Run both. On an admin-only or island-only release the
+discriminator is the one carrying the weight, and it is the one a hurried
+operator skips because the tool printed a green tick.
+
 ⚠️ **The negative test is part of the check's credibility.** After the rewrite,
 a single injected line in one `dist/` document was confirmed to fail the run and
 name the differing line. A verifier nobody has watched fail is a verifier nobody
@@ -924,6 +984,13 @@ Run `npm run demo`, which prints its path, and work down it. The release gate is
   cut?" — which `smoke:prod` and `wrangler deployments list` structurally
   cannot. ⚠️ Then `npm run smoke:prod`. Both: one says it is THE build, the
   other says the build is good.
+□ ⚠️⚠️ DID THE RELEASE TOUCH ANY OF /, /exercices/mat-du-couloir/, /progres/ ?
+  `git diff --name-only <old-main> HEAD -- src/` answers it. If NO — an
+  admin-only or island-only release — `verify:deploy` CANNOT tell this build
+  from the previous one, and it will print a green tick either way. Verify by
+  CONTENT instead: a marker from a document the release DID change, proved
+  absent from the old tree first, plus a negative control that must not match.
+  This fired for real at the v0.17.0 gate — see "The residual gap" above.
 ```
 
 It is a **living document**: keep it in step with the site, in the same commit as the feature. See the session finish routine under Conventions.

@@ -947,10 +947,31 @@ and always will be. Verified 2026-08-15 by probing the live site: `/connexion/`,
 switched off in production" and reasons from it will get every conclusion about
 the live site wrong — **ask the deployment, not the default.**
 
-✅ **PRODUCTION'S SCHEMA IS CURRENT THROUGH 0012** — verified 2026-08-18 against
-the catalog: `account_shape` 200 (0010), `rebuild_requests` `42501` rather than
-`PGRST205` (0011), `series_id` 200 (0012). ⚠️ **Re-ask rather than trusting this
-line** — it is a claim about the outside world and it expires.
+✅ **PRODUCTION'S SCHEMA IS CURRENT THROUGH 0012** — re-verified **2026-08-20**
+at the v0.17.0 gate: `account_shape` `42501` (0010), `rebuild_requests` `42501`
+rather than `PGRST205` (0011), `series_id` 200 (0012). ⚠️ **Re-ask rather than
+trusting this line** — it is a claim about the outside world and it expires.
+
+⚠️ **AND THE PROBE ONLY ANSWERS HALF THE QUESTION.** PostgREST can see **tables
+and columns; it cannot see triggers or functions.** So the catalog query in
+[`docs/reference/deployment.md`](./docs/reference/deployment.md) has two halves
+and this probe checks one: **`trigger_count = 3` and
+`request_site_rebuild(text,integer)` REMAIN UNVERIFIED** from a machine holding
+only the anon key. Verifying them needs the SQL editor, and the production
+service-role key and database password are deliberately **not** on a developer
+machine (`docs/SETUP-NEW-MACHINE.md` §5). ⚠️ **0011 is exactly the migration
+whose value lives in its trigger**, so "`rebuild_requests` exists" is weaker
+evidence than it looks — the table can be present with no trigger firing into
+it. The live-log check below is what covers that gap; do not treat the table
+probe as covering it.
+
+⚠️ **A `42501` PROVES EXISTENCE ONLY BECAUSE THE CONTROLS SAY SO**, and the
+controls are cheap enough to re-run every time: a table that cannot exist
+returns **`PGRST205` (404)**, and a bad column on a *denied* table returns
+**`42703`, not `42501`** — column validation happens **before** the permission
+check. That second control is the load-bearing one: without it, a `42501` on
+`profiles?select=account_shape` is equally consistent with "column missing, table
+denied", and the reading would be wrong in the dangerous direction.
 
 ✅ **AND THE VAULT ENTRY IS LIVE** — production's `rebuild_requests` carries
 firings with `dispatched = true`. A schema query cannot show that half; a log
