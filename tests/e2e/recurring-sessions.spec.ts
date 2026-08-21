@@ -251,6 +251,27 @@ test.describe('a recurring set is ONE statement and thirteen ordinary rows', () 
     await expect(page.getByTestId('admin')).toHaveAttribute('data-state', 'staff', {
       timeout: 15_000,
     });
+    await openNewSessionForm(page);
+  }
+
+  /**
+   * Open the "Nouvelle séance" disclosure the creation form now lives behind.
+   *
+   * ⚠️ THE ASSERTIONS BELOW ARE UNCHANGED — this is reaching the form the way a
+   * prof does, not weakening a check. The form moved behind a disclosure
+   * because a prof opens this page to mark a register and read the list, and
+   * ten fields sat permanently between the two.
+   *
+   * ⚠️ PRESSED, NOT `open = true`. A real press also proves the affordance is
+   * operable, which is the half a `.open` assignment would skip — and it
+   * happens BEFORE any field is filled, so the caret-still-in-the-end-date
+   * test further down is untouched by it.
+   */
+  async function openNewSessionForm(page: Page) {
+    const summary = page.locator('[data-new-session] > summary');
+    await expect(summary).toBeVisible();
+    await summary.click();
+    await expect(page.locator('#session-when')).toBeVisible();
   }
 
   test('thirteen sessions, shown before they are made, and ONE trigger firing', async ({ page }) => {

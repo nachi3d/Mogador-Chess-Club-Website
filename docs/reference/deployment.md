@@ -715,6 +715,54 @@ Build with `.env.local` and `PUBLIC_AUTH_ENABLED=true`. A build with the TEST
 credentials bakes a different Supabase URL into the client chunk and the HTML
 will legitimately differ.
 
+### ⚠️⚠️ A LOCAL `npm run build` BAKES THE COMMITTED FALLBACK AGENDA — `.env.local` DOES NOT REACH `fetch-agenda.mjs`
+
+**Read when:** running `verify:deploy`, or wondering why `npm run demo` shows an
+agenda that does not match the `sessions` table.
+
+`scripts/fetch-agenda.mjs` runs **before Astro**, as a plain Node script, and
+reads `process.env`. Astro loads `.env.local` for **its own** build — that
+loading never reaches a script in the `&&` chain ahead of it. So on a developer
+machine, with `.env.local` full of perfectly good production credentials:
+
+```
+▸ fetch-agenda — baking the public agenda into the build
+  ! no PUBLIC_SUPABASE_URL / PUBLIC_SUPABASE_ANON_KEY — using the committed fallback
+```
+
+⚠️ **CLOUDFLARE IS UNAFFECTED, WHICH IS WHY THIS SURVIVES.** Its build variables
+are real environment variables, so the deployed build fetches correctly. The
+divergence exists only locally, and only for the agenda.
+
+⚠️ **WHAT IT LOOKS LIKE WHEN IT BITES — AND IT LOOKS LIKE A FAILED DEPLOY.** At
+the v0.18.0 promotion, `verify:deploy` reported `/` as *"the live build is NOT
+this tree"* minutes after a deploy that had demonstrably landed. The differing
+bytes were the home dashboard's next-session line — `2026-09-12` locally against
+`2026-08-29` live — because the local `dist/` held the **committed snapshot of
+one session** and production held the **three real rows**. The other two
+compared documents matched, so the report was one third red for a reason that
+had nothing to do with the deploy.
+
+**The fix is to export them, not to add a dotenv loader:**
+
+```sh
+export PUBLIC_SUPABASE_URL=$(sed -n 's/^PUBLIC_SUPABASE_URL=//p' .env.local | tr -d '"')
+export PUBLIC_SUPABASE_ANON_KEY=$(sed -n 's/^PUBLIC_SUPABASE_ANON_KEY=//p' .env.local | tr -d '"')
+PUBLIC_AUTH_ENABLED=true npm run build
+```
+
+⚠️ **STRIP THE QUOTES.** `.env.local` quotes its values; exported verbatim, the
+URL keeps them and the fetch dies with `Failed to parse URL from
+"https://….supabase.co"` — a message that reads like a network fault and is a
+quoting fault.
+
+✅ **THE GUARD ITSELF IS CORRECT AND SHOULD NOT BE SOFTENED.** With credentials
+configured and the read failing, `fetch-agenda.mjs` **fails the build** rather
+than falling back — *"Credentials are configured, so this is not a dev build."*
+That is what stops a stale agenda reaching readers while every check goes green.
+The silent-fallback path is reserved for a machine with no credentials at all,
+which is a dev build by definition.
+
 ### ⚠️ The residual gap, stated rather than hidden
 
 A release that changes **only island JavaScript**, leaving every byte of rendered

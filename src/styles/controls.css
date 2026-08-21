@@ -14,6 +14,24 @@
    what is genuinely page-specific: colours, and margins that
    depend on what the button sits next to.
 
+   ── …and then the APPEARANCE came home too ───────────────────
+   ⚠️ THAT SPLIT DID NOT HOLD, AND THE COUNT WENT UP RATHER THAN
+   DOWN. Leaving "just the colours" per page meant seven scoped
+   blocks each re-declaring background, border, radius and
+   weight — and by the time the containment work audited it,
+   `.btn-primary` was defined in NINE files with three different
+   paddings (0.6 / 0.65 / 0.7rem) and two different min-heights.
+   "Only the colours" is not a stable boundary: a colour needs a
+   border to sit against, a border needs a radius, and the copy
+   is whole again.
+
+   So appearance lives here now as well, and the scoped blocks
+   are gone. What a page may still set is what genuinely depends
+   on its neighbours: margin. Nothing else.
+
+   ⚠️ If you are about to write `.btn-primary { background… }` in a
+   component, that is the tenth copy. Add a variant below instead.
+
    ── The press ────────────────────────────────────────────────
    A button that only changes colour on :active does not read as
    pressed — it reads as a link doing something. The press is a
@@ -37,6 +55,7 @@
 .btn,
 .btn-primary,
 .btn-ghost,
+.btn-danger,
 .share {
   display: inline-flex;
   align-items: center;
@@ -53,6 +72,68 @@
   cursor: pointer;
 }
 
+/* ── Appearance, declared ONCE ────────────────────────────────
+   What the seven scoped blocks each said, said here instead. */
+.btn-primary {
+  background-color: var(--mcc-primary);
+  border: 1px solid var(--mcc-primary);
+  color: var(--mcc-primary-contrast);
+}
+
+.btn-primary:hover {
+  background-color: var(--mcc-primary-hover);
+}
+
+.btn-primary:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+/* ⚠️ `--mcc-link`, NOT `--mcc-text-primary`. Four of the seven scoped copies
+   coloured the ghost button as a link and three said nothing, so link is what
+   the site actually looked like. Consolidating is not a licence to restyle:
+   the brief this came from is structure only. */
+.btn-ghost {
+  background-color: transparent;
+  border: 1px solid var(--mcc-border-strong);
+  color: var(--mcc-link);
+}
+
+.btn-ghost:hover {
+  background-color: var(--mcc-surface-sunken);
+}
+
+/* ── The primary action fills its card ────────────────────────
+   ⚠️ A submit button the width of its own text, sitting wherever
+   the flow left it, is the shape a prof cannot find one-handed.
+   Inside a card the primary action takes the full width and is
+   taller than a normal control. ONE per card — if a second thing
+   here wants to be full width, one of them is not primary. */
+.btn-block {
+  inline-size: 100%;
+  min-block-size: 3rem;
+  margin-block-start: var(--mcc-space-md);
+}
+
+/* ── Destructive is never routine ─────────────────────────────
+   ⚠️ `/admin/seances/` shipped "Modifier" and "Annuler la séance"
+   at identical weight, side by side. Cancelling a session tells a
+   room of children not to come; editing it changes a time. They
+   must not look like the same act.
+
+   Quieter than primary — outlined, not filled — and it commits to
+   danger only on hover, where the reader is already pointing. */
+.btn-danger {
+  background-color: transparent;
+  border: 1px solid var(--mcc-danger-text);
+  color: var(--mcc-danger-text);
+}
+
+.btn-danger:hover {
+  background-color: var(--mcc-danger-text);
+  color: var(--mcc-surface-raised);
+}
+
 /* ── The press vocabulary ─────────────────────────────────────
    Applied to everything a reader can push. Kept as one rule so
    the site cannot develop two different presses.
@@ -66,6 +147,7 @@
 .btn,
 .btn-primary,
 .btn-ghost,
+.btn-danger,
 .share,
 .settings-button,
 .lesson-nav-link {
@@ -80,6 +162,7 @@
 .btn:active,
 .btn-primary:active,
 .btn-ghost:active,
+.btn-danger:active,
 .share:active,
 .settings-button:active,
 .lesson-nav-link:active {
@@ -109,6 +192,7 @@
   .btn,
   .btn-primary,
   .btn-ghost,
+  .btn-danger,
   .share,
   .settings-button,
   .lesson-nav-link {
@@ -118,6 +202,7 @@
   .btn:active,
   .btn-primary:active,
   .btn-ghost:active,
+  .btn-danger:active,
   .share:active,
   .settings-button:active,
   .lesson-nav-link:active {

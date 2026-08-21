@@ -24,14 +24,14 @@ import AdminShell from '@components/admin/AdminShell.astro';
     <li class="admin-tile"><b data-tile="awards">–</b><span>points attribués</span></li>
   </ul>
 
-  <section class="admin-block">
+  <section class="admin-block mcc-card">
     <h2 class="admin-block-title">Prochaines séances</h2>
     <div data-next-sessions>
       <p class="admin-empty">Chargement…</p>
     </div>
   </section>
 
-  <section class="admin-block">
+  <section class="admin-block mcc-card">
     <h2 class="admin-block-title">Activité récente</h2>
     {/* ⚠️ NAMES AND DATES, NOT A LEADERBOARD. Ordering students by output in
         front of their teacher is the same mistake as a daily streak: it turns a
@@ -42,7 +42,7 @@ import AdminShell from '@components/admin/AdminShell.astro';
     </div>
   </section>
 
-  <section class="admin-block">
+  <section class="admin-block mcc-card">
     <h2 class="admin-block-title">Raccourcis</h2>
     <p class="admin-links">
       <a class="btn-primary" href="/admin/seances/">Marquer les présences</a>

@@ -105,7 +105,7 @@ const bookingStrings = Object.fromEntries(BOOKING_KEYS.map((k) => [k, t(k)]));
           const cancelled = session.status === 'cancelled';
           return (
             <li
-              class:list={['session', cancelled && 'session-cancelled']}
+              class:list={['session', 'mcc-card', cancelled && 'session-cancelled']}
               data-reveal
               data-status={session.status}
             >
@@ -206,20 +206,21 @@ const bookingStrings = Object.fromEntries(BOOKING_KEYS.map((k) => [k, t(k)]));
 <style>
   .sessions {
     display: grid;
-    gap: 1rem;
+    gap: var(--mcc-card-gap);
     margin: 0;
     padding: 0;
     list-style: none;
   }
 
+  /* ⚠️ THE COLOURED LEFT EDGE IS GONE, AND IT WAS ON EVERY SESSION.
+     A 4px accent edge that every card carries marks nothing — it is the
+     general treatment the containment brief rules out, and it is why the same
+     edge meant nothing anywhere else on the site. Surface, border, radius and
+     shadow now come from `.mcc-card`; what stays here is the grid, which is
+     genuinely this card's own. */
   .session {
     display: grid;
     gap: 0.5rem 1.5rem;
-    padding: 1.25rem;
-    background-color: var(--mcc-surface-raised);
-    border: 1px solid var(--mcc-border-subtle);
-    border-left: 4px solid var(--mcc-primary);
-    border-radius: var(--radius-card);
   }
 
   @media (min-width: 640px) {

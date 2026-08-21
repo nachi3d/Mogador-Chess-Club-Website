@@ -239,21 +239,9 @@ const t = useTranslations(locale);
     outline-offset: 1px;
   }
 
+  /* Appearance lives in controls.css. Only the margin is this page’s. */
   .btn-primary {
     margin-top: 1rem;
-    padding: 0.7rem 1.4rem;
-    border: 1px solid var(--mcc-primary);
-    border-radius: var(--radius-card);
-    background-color: var(--mcc-primary);
-    color: var(--mcc-primary-contrast);
-    font: inherit;
-    font-weight: 500;
-    cursor: pointer;
-  }
-
-  .btn-primary:disabled {
-    opacity: 0.7;
-    cursor: default;
   }
 
   /* ⚠️ OFF-SCREEN, NOT `display: none` AND NOT `visibility: hidden`. A scraper
