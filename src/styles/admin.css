@@ -20,35 +20,66 @@
   margin-inline: auto;
 }
 
+/* ⚠️⚠️ A PHANTOM TOKEN LIVED IN THIS FILE, FIVE TIMES, AND PAINTED NOTHING.
+
+   `--mcc-surface-card` is not declared anywhere, and never was. An unknown
+   custom property invalidates the WHOLE declaration at computed-value time —
+   no error, no warning — so `.mark-button`, `.repeat-preview`, `.series-card`,
+   `.session-card` and `.admin-tile` all shipped with no background at all.
+
+   ⚠️ IT WAS INVISIBLE BECAUSE THE PAGE HAD NO SURFACES EITHER. Against a page
+   that was one flat colour, an unpainted card looks like a card that was meant
+   to be flat. It is only once the blocks around them became real cards that
+   five transparent panels became obvious — which is the containment argument
+   making its own case.
+
+   That is the FIFTH phantom custom property this repository has shipped, after
+   `--mcc-border` and `--font-mono` among others. The rule is in CLAUDE.md:
+   assert the RESOLVED value, never that a rule exists. */
+
 .admin-checking {
   color: var(--mcc-text-secondary);
 }
 
-/* ── the buttons ────────────────────────────────────────────────────────
-   ⚠️ HERE AND NOT IN A SCOPED <style>, AND THAT IS NOT A PREFERENCE.
+/* ── 48px, NOT 44px, ON THESE SURFACES ───────────────────────────────────
+   ⚠️ THE SITE-WIDE FLOOR IS 44px AND STAYS 44px. `controls.css` sets it, and
+   `motion.spec.ts` measures it, for a reader tapping a link in a lesson.
 
-   `controls.css` owns the STRUCTURE of every button on the site (the 44px
-   floor, the press, the transition) and each page has historically added its
-   own colours in a scoped block. That does not work on these surfaces: the
-   session cards and their Publier / Annuler buttons are built with
-   `innerHTML` at runtime, and Astro's scoping attribute is stamped at BUILD
-   time — so a scoped rule would style the buttons written in the template and
-   silently skip every identical button the script creates.
+   The admin surfaces are a different act: a prof standing up, one-handed, in a
+   room with twenty teenagers in it, working fast and not looking closely. The
+   attendance buttons were already given 3rem for exactly that reason and the
+   note there is the argument — "the extra 4px is the difference between a
+   correction and a clean pass". This extends the same floor to every control
+   on these pages rather than leaving the marker as the one careful surface.
 
-   The failure would be invisible in review (the static ones look right) and
-   obvious only on the page a prof actually uses. Scoped under `.admin` so
-   nothing here reaches the public site. */
-.admin .btn-primary {
-  border: 1px solid var(--mcc-primary);
-  background-color: var(--mcc-primary);
-  color: var(--mcc-primary-contrast);
+   ⚠️ SCOPED TO `.admin`, DELIBERATELY. Raising the global floor would change
+   every button on the public site to satisfy a requirement that is about a
+   room at Dar Souiri. */
+.admin :is(.btn, .btn-primary, .btn-ghost, .btn-danger),
+.admin .admin-nav-link,
+.admin summary.mcc-summary-action {
+  min-block-size: 3rem;
 }
 
-.admin .btn-ghost {
-  border: 1px solid var(--mcc-border-strong);
-  background: none;
-  color: var(--mcc-link);
-}
+/* ── the buttons: GONE FROM HERE, AND THE REASON THEY EXISTED IS GONE TOO ──
+   ⚠️ THIS FILE USED TO RE-DECLARE `.admin .btn-primary` AND `.admin
+   .btn-ghost`, AND THE COMMENT DEFENDING THAT WAS CORRECT AT THE TIME.
+
+   The argument was: the session cards and their buttons are built with
+   `innerHTML` at runtime, Astro stamps its scoping attribute at BUILD time, so
+   a SCOPED rule would style the template's buttons and silently skip every
+   identical one the script creates — a failure invisible in review and obvious
+   only on the page a prof actually uses.
+
+   All of that still holds. What changed is the premise underneath it: button
+   appearance is no longer scoped anywhere. `controls.css` is global and
+   unscoped, so it reaches a runtime-created button exactly as well as a
+   template one, and these two rules became a ninth and tenth copy of colours
+   that now have a single home.
+
+   ⚠️ THE RULE THE OLD COMMENT WAS PROTECTING SURVIVES, AND IS WHY `admin.css`
+   still exists: anything a script paints must be styled from a REAL stylesheet,
+   never a scoped `<style>`. That applies to every session-card class below. */
 
 /* ── nav ────────────────────────────────────────────────────────────────
    A scroll strip, not a bar. See AdminShell for why it is not fixed. */
@@ -105,8 +136,10 @@
 }
 
 /* ── blocks ─────────────────────────────────────────────────────────────── */
+/* ⚠️ The gap comes from the SCALE now (tokens.css), not a literal. Surface,
+   border, radius and shadow come from `.mcc-card` — see surfaces.css. */
 .admin-block {
-  margin-block-end: 2rem;
+  margin-block-end: var(--mcc-card-gap);
 }
 
 .admin-block-title {
@@ -258,7 +291,10 @@
   padding: 0;
   border: 1px solid var(--mcc-border-strong);
   border-radius: var(--radius-card);
-  background-color: var(--mcc-surface-card);
+  /* ⚠️ WAS `--mcc-surface-card`, WHICH IS NOT A TOKEN — see the note at the
+     top of this file. The declaration was silently void and this surface was
+     never painted at all. */
+  background-color: var(--mcc-surface-field);
   color: var(--mcc-text-secondary);
   font: inherit;
   font-weight: 600;
@@ -375,7 +411,10 @@
   padding: 0.6rem 0.75rem;
   border: 1px solid var(--mcc-border-subtle);
   border-radius: var(--radius-card);
-  background-color: var(--mcc-surface-card);
+  /* ⚠️ WAS `--mcc-surface-card`, WHICH IS NOT A TOKEN — see the note at the
+     top of this file. The declaration was silently void and this surface was
+     never painted at all. */
+  background-color: var(--mcc-surface-field);
 }
 
 .repeat-preview[data-state='problem'] {
@@ -416,7 +455,10 @@
   border: 1px solid var(--mcc-border-subtle);
   border-inline-start-width: 4px;
   border-radius: var(--radius-card);
-  background-color: var(--mcc-surface-card);
+  /* ⚠️ WAS `--mcc-surface-card`, WHICH IS NOT A TOKEN — see the note at the
+     top of this file. The declaration was silently void and this surface was
+     never painted at all. */
+  background-color: var(--mcc-surface-field);
 }
 
 .series-when {
@@ -446,7 +488,10 @@
   padding: 0.9rem 1rem;
   border: 1px solid var(--mcc-border-subtle);
   border-radius: var(--radius-card);
-  background-color: var(--mcc-surface-card);
+  /* ⚠️ WAS `--mcc-surface-card`, WHICH IS NOT A TOKEN — see the note at the
+     top of this file. The declaration was silently void and this surface was
+     never painted at all. */
+  background-color: var(--mcc-surface-field);
 }
 
 .session-card[data-status='cancelled'] {
@@ -504,7 +549,10 @@
   padding: 0.9rem 1rem;
   border: 1px solid var(--mcc-border-subtle);
   border-radius: var(--radius-card);
-  background-color: var(--mcc-surface-card);
+  /* ⚠️ WAS `--mcc-surface-card`, WHICH IS NOT A TOKEN — see the note at the
+     top of this file. The declaration was silently void and this surface was
+     never painted at all. */
+  background-color: var(--mcc-surface-field);
 }
 
 .admin-tile b {
@@ -754,7 +802,7 @@
   padding: 0.45rem 0.6rem;
   background-color: var(--mcc-surface-raised);
   border: 1px solid var(--mcc-border-subtle);
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-card);
 }
 
 /* ⚠️ A WORD AND AN EDGE, NEVER OPACITY. check-contrast.mjs proves the token
@@ -804,7 +852,7 @@
   padding: 0.1rem 0.45rem;
   background-color: var(--mcc-surface-sunken);
   border: 1px solid var(--mcc-border-subtle);
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-card);
   color: var(--mcc-text-secondary);
   font-family: var(--font-notation);
   font-size: 0.8125rem;

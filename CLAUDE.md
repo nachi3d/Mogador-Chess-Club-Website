@@ -900,6 +900,51 @@ itself covered on all five projects).
 
 ---
 
+## ⚠️ CONTAINMENT — ONE CARD, ONE FIELD, ONE SECTION HEADER, ONE RHYTHM
+
+`src/styles/surfaces.css` is the source. It exists because the app surfaces had
+**eight card treatments and no containment**: `.admin-block` was
+`margin-block-end: 2rem` and no surface at all, and `.admin-field input` was
+filled with `--mcc-surface-page` — the colour of the page behind it.
+
+- ⚠️⚠️ **CONSOLIDATE, NEVER ADD ANOTHER — AND RUN THE CHECK FIRST.**
+  `node scripts/check-css-dupes.mjs`. This is the FOURTH component to drift
+  into copies: `.btn-primary` reached **nine** definitions, and the check found
+  **four live phantom custom properties** on top of it, one of them
+  (`--mcc-surface-card`) used five times and painting nothing.
+  ⚠️ **Its phantom half GATES; its duplicate half only advises** — two files is
+  often correct, four is how `.btn-primary` reached nine.
+- ⚠️ **A CARD IS CLOSED ON ALL FOUR SIDES** — `.mcc-card`. **A left border
+  closes nothing.**
+- ⚠️ **THE GOLD EDGE IS AN ACCENT ON ONE CARD PER PAGE — THE PRIMARY ACTION —
+  NEVER THE GENERAL TREATMENT.** It was on every `/agenda/` session and on
+  `/compte/`'s **danger** block, which is both meaningless and wrong.
+- ⚠️ **CONTENT CARDS KEEP THE 3px STATIONERY RADIUS** (`cards.css`); app and
+  admin surfaces use `--mcc-radius-app`. That 3px **is** the identity.
+- ⚠️ **A FORM FIELD IS AN OBJECT, NOT A LINE** — `.mcc-field`: 48px, a fill
+  distinct from the card, label above with air at body size, hint below the
+  control. ⚠️ **Ten stacked fields are a wall — group them** with
+  `.mcc-fieldgroup`.
+- ⚠️ **THE PRIMARY ACTION FILLS ITS CARD** (`.btn-block`), **one per card**;
+  **destructive is never routine** (`.btn-danger`, outlined not filled).
+- ⚠️ **EVERY GAP COMES FROM THE SCALE** — `--mcc-space-*` and `--mcc-card-gap`
+  in `tokens.css`. The 40px-next-to-200px variation it replaced was not a
+  decision anybody made.
+- ⚠️ **A NEW SURFACE PAIR GOES THROUGH `check-contrast.mjs`.** Moving text onto
+  cards put `--mcc-border-strong` **under 3:1** in two theme/mode combinations.
+  **371 assertions now, up from 315.**
+- ⚠️⚠️ **`display: flex` BEATS THE `hidden` ATTRIBUTE.** `/compte/`'s panel is
+  `hidden` until a script reveals it; a bare `display: flex` on its container
+  for the new rhythm would have shown every signed-out reader the email
+  address, the profiles and the deletion control. It is written
+  `:not([hidden])`, and that guard is load-bearing.
+
+**➡️ The eight treatments, the nine buttons, the four phantoms, the two
+contrast failures and the field grouping in full:
+[`docs/reference/theming.md`](./docs/reference/theming.md).**
+
+---
+
 ## Design tokens, themes and typography
 
 `src/styles/tokens.css` is the source of record. Direction: **"old chess club"**

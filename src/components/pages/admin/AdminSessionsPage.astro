@@ -70,10 +70,17 @@ const STATUSES = [
       ⚠️ ABOVE THE CRUD FORM, DELIBERATELY. Marking happens weekly and takes
       two minutes; creating a session happens rarely and can be scrolled to.
       The thing done most often is the thing at the top. */}
-  <section class="admin-block">
-    <h2 class="admin-block-title">Présences</h2>
+  <div class="mcc-stack">
+  <section class="mcc-card">
+    <div class="mcc-section-head">
+      <span class="mcc-section-icon" aria-hidden="true">✓</span>
+      <div class="mcc-section-text">
+        <h2 class="mcc-section-title">Présences</h2>
+        <p class="mcc-section-sub">Choisir la séance, puis un appui par enfant.</p>
+      </div>
+    </div>
 
-    <div class="admin-field">
+    <div class="mcc-field">
       <label for="mark-session">Séance</label>
       <select id="mark-session" data-mark-session>
         <option value="">Choisir une séance…</option>
@@ -101,9 +108,29 @@ const STATUSES = [
     </p>
   </section>
 
-  {/* ── Sessions ─────────────────────────────────────────────────────── */}
-  <section class="admin-block">
-    <h2 class="admin-block-title">Programmer une séance</h2>
+  {/* ── Creating a session ───────────────────────────────────────────────
+      ⚠️ BEHIND A DISCLOSURE, AND THAT IS THE ANSWER TO "consider whether the
+      creation form belongs behind a Nouvelle séance affordance". A prof opens
+      this page weekly to mark a register and read the list, and rarely to
+      create anything — so ten fields sat permanently between the two things
+      they came for.
+
+      ⚠️ NATIVE `<details>`, NOT A SCRIPTED ACCORDION — the same rule
+      `/compte/` follows. It works with no JavaScript, it is keyboard- and
+      screen-reader-correct for free, and there is no state to get wrong.
+
+      ⚠️ AND `startEdit()` OPENS IT. Pressing "Modifier" on a session card
+      fills this form; if the form were closed the press would look like it did
+      nothing. See the script. */}
+  <details class="mcc-card" data-new-session>
+    <summary class="mcc-summary-action">
+      <span class="mcc-section-icon" aria-hidden="true">+</span>
+      <span>
+        <span class="mcc-section-title">Nouvelle séance</span>
+        <span class="mcc-section-sub">Une seule, ou toute une série.</span>
+      </span>
+    </summary>
+
     {/* ⚠️ ONE FORM, TWO MODES. A separate edit form would be a second place
         for the field list to be wrong — and capacity reached the create form
         alone once already, which is what left a prof unable to change it
@@ -113,36 +140,46 @@ const STATUSES = [
       Modification d’une séance existante.
       <button type="button" class="btn-ghost" data-edit-cancel>Annuler la modification</button>
     </p>
+    {/* ⚠️ THREE GROUPS, NOT TEN STACKED FIELDS. The ten fields answer three
+        questions — QUAND, QUOI, COMBIEN — and grouping them is what lets a
+        prof find the one they came to change instead of reading a wall. */}
     <form class="admin-form" data-session-form>
-      <div class="admin-field">
-        <label for="session-when">Date et heure</label>
-        <input id="session-when" type="datetime-local" required data-field="startsAt" />
-      </div>
-      <div class="admin-field">
-        <label for="session-title">Intitulé</label>
-        <input id="session-title" type="text" maxlength="80" data-field="titleFr" />
-      </div>
-      <div class="admin-field">
-        <label for="session-venue">Lieu</label>
-        {/* ⚠️ Free text, and empty means "the club's usual venue". The venue
-            lives in site config and must never be hardcoded here — a session
-            carries its own only when it differs. See the portability rule. */}
-        <input id="session-venue" type="text" maxlength="80" data-field="venue" />
-        <p class="admin-field-hint">Vide = le lieu habituel du club.</p>
-      </div>
-      <div class="admin-field">
-        <label for="session-level">Niveau</label>
-        <select id="session-level" data-field="level">
-          <option value="">Tous niveaux</option>
-          <option value="debutant">Débutant</option>
-          <option value="intermediaire">Intermédiaire</option>
-          <option value="avance">Avancé</option>
-        </select>
-      </div>
-      <div class="admin-field">
-        <label for="session-duration">Durée (minutes)</label>
-        <input id="session-duration" type="number" min="15" max="480" value="90" data-field="duration" />
-      </div>
+      <fieldset class="mcc-fieldgroup">
+        <legend>Quand</legend>
+        <div class="mcc-field">
+          <label for="session-when">Date et heure</label>
+          <input id="session-when" type="datetime-local" required data-field="startsAt" />
+        </div>
+        <div class="mcc-field">
+          <label for="session-duration">Durée (minutes)</label>
+          <input id="session-duration" type="number" min="15" max="480" value="90" data-field="duration" />
+        </div>
+      </fieldset>
+
+      <fieldset class="mcc-fieldgroup">
+        <legend>Quoi</legend>
+        <div class="mcc-field">
+          <label for="session-title">Intitulé</label>
+          <input id="session-title" type="text" maxlength="80" data-field="titleFr" />
+        </div>
+        <div class="mcc-field">
+          <label for="session-venue">Lieu</label>
+          {/* ⚠️ Free text, and empty means "the club's usual venue". The venue
+              lives in site config and must never be hardcoded here — a session
+              carries its own only when it differs. See the portability rule. */}
+          <input id="session-venue" type="text" maxlength="80" data-field="venue" />
+          <p class="mcc-field-hint">Vide = le lieu habituel du club.</p>
+        </div>
+        <div class="mcc-field">
+          <label for="session-level">Niveau</label>
+          <select id="session-level" data-field="level">
+            <option value="">Tous niveaux</option>
+            <option value="debutant">Débutant</option>
+            <option value="intermediaire">Intermédiaire</option>
+            <option value="avance">Avancé</option>
+          </select>
+        </div>
+      </fieldset>
       {/* ── Places (0013) ───────────────────────────────────────────────────
           ⚠️ THE MARGIN IS NOT A BUG AND THE HINT SAYS SO, ON THE SCREEN.
           A session of 12 with a margin of 2 accepts FOURTEEN bookings. A prof
@@ -150,33 +187,48 @@ const STATUSES = [
           in front of them, not in a migration comment — cancellations are
           frequent and the venue absorbs the overflow, so nobody is turned
           away. Decision taken by Seàn. */}
-      <div class="admin-field">
-        <label for="session-capacity">Places</label>
-        <input
-          id="session-capacity"
-          type="number"
-          min="1"
-          max="200"
-          value="12"
-          data-field="capacity"
-        />
-      </div>
-      <div class="admin-field">
-        <label for="session-margin">Marge de surréservation</label>
-        <input id="session-margin" type="number" min="0" max="20" value="2" data-field="margin" />
-        <p class="admin-field-hint">
+      <fieldset class="mcc-fieldgroup">
+        <legend>Combien</legend>
+        <div class="mcc-field-row">
+          <div class="mcc-field">
+            <label for="session-capacity">Places</label>
+            <input
+              id="session-capacity"
+              type="number"
+              min="1"
+              max="200"
+              value="12"
+              data-field="capacity"
+            />
+          </div>
+          <div class="mcc-field">
+            <label for="session-margin">Marge de surréservation</label>
+            <input id="session-margin" type="number" min="0" max="20" value="2" data-field="margin" />
+          </div>
+        </div>
+        <p class="mcc-field-hint">
           Réservations acceptées au-delà des places. 12 places + 2 = 14 réservations. Les
           annulations sont fréquentes, donc personne n’est refusé pour rien.
         </p>
-      </div>
-      <div class="admin-field">
-        <label for="session-status">État</label>
-        <select id="session-status" data-field="status">
-          <option value="draft">Brouillon</option>
-          <option value="published">Publiée</option>
-        </select>
-        <p class="admin-field-hint">Seules les séances publiées sont visibles par les élèves.</p>
-      </div>
+      </fieldset>
+
+      {/* ⚠️ ÉTAT IS ITS OWN GROUP, NOT PART OF "QUOI". The brief grouped the
+          fields as quand / quoi / combien and listed "âge" under quoi — there
+          is no âge field on this form, and the one field that had nowhere to
+          go was État. It does not describe what the session IS; it decides
+          whether anyone can see it, which is the last thing a prof settles
+          before pressing the button. So it sits next to the button. */}
+      <fieldset class="mcc-fieldgroup">
+        <legend>Visibilité</legend>
+        <div class="mcc-field">
+          <label for="session-status">État</label>
+          <select id="session-status" data-field="status">
+            <option value="draft">Brouillon</option>
+            <option value="published">Publiée</option>
+          </select>
+          <p class="mcc-field-hint">Seules les séances publiées sont visibles par les élèves.</p>
+        </div>
+      </fieldset>
       {/* ── Repeat ──────────────────────────────────────────────────────────
           ⚠️ THE PREVIEW IS NOT A COURTESY. A prof presses one button and
           thirteen rows land in the public agenda; if the only way to find out
@@ -188,9 +240,9 @@ const STATUSES = [
           ⚠️ AND THE BUTTON SAYS THE NUMBER. "Créer" and "Créer les 13 séances"
           are different promises; a submit button that does not change when the
           form means thirteen times as much is the half a prof reads. */}
-      <fieldset class="admin-repeat">
+      <fieldset class="mcc-fieldgroup admin-repeat">
         <legend>Répéter</legend>
-        <div class="admin-field">
+        <div class="mcc-field">
           <label for="session-cadence">Répétition</label>
           <select id="session-cadence" data-field="cadence">
             <option value="none">Aucune — une seule séance</option>
@@ -198,21 +250,43 @@ const STATUSES = [
             <option value="fortnightly">Toutes les deux semaines</option>
           </select>
         </div>
-        <div class="admin-field" data-until-field hidden>
+        <div class="mcc-field" data-until-field hidden>
           <label for="session-until">Jusqu’au</label>
           <input id="session-until" type="date" data-field="until" />
-          <p class="admin-field-hint">
+          <p class="mcc-field-hint">
             La dernière séance possible avant cette date incluse. 52 au maximum.
           </p>
         </div>
         <div class="repeat-preview" data-repeat-preview role="status" hidden></div>
       </fieldset>
 
-      <div class="admin-actions">
-        <button type="submit" class="btn-primary" data-session-submit>Créer</button>
-      </div>
+      {/* ⚠️ FULL WIDTH OF THE CARD, AND ONE PRIMARY. It was the width of the
+          word "Créer" and sat wherever the flow left it — the shape a prof
+          cannot find one-handed at 360px. */}
+      <button type="submit" class="btn-primary btn-block" data-session-submit>Créer</button>
       <p class="admin-error" data-session-error role="status"></p>
     </form>
+  </details>
+
+
+    {/* ── Series ──────────────────────────────────────────────────────────
+        ⚠️ ONE ROW PER SERIES, NOT TWO MORE BUTTONS ON EVERY CARD. Thirteen
+        cards each carrying "publier la série" is thirteen chances to press the
+        one that acts on twelve others, and no way to see the set as a set.
+
+        ⚠️ AND BOTH ACTIONS ARE ONE STATEMENT. `update … in (…)` — see the
+        rule at the top of `src/lib/admin.ts`. Iterating here would cost one
+        Cloudflare build per session, which is precisely the defect the
+        statement-level trigger in migration 0011 exists to avoid. */}
+  <section class="mcc-card">
+    <div class="mcc-section-head">
+      <span class="mcc-section-icon" aria-hidden="true">☰</span>
+      <div class="mcc-section-text">
+        <h2 class="mcc-section-title">Toutes les séances</h2>
+        <p class="mcc-section-sub">Publiées, brouillons et annulées — rien n’est supprimé.</p>
+      </div>
+    </div>
+
 
     {/* ── Is the public agenda up to date? ─────────────────────────────────
         Hidden until the script has compared; a banner that flashes "à jour"
@@ -226,25 +300,16 @@ const STATUSES = [
     >
     </div>
 
-    {/* ── Series ──────────────────────────────────────────────────────────
-        ⚠️ ONE ROW PER SERIES, NOT TWO MORE BUTTONS ON EVERY CARD. Thirteen
-        cards each carrying "publier la série" is thirteen chances to press the
-        one that acts on twelve others, and no way to see the set as a set.
-
-        ⚠️ AND BOTH ACTIONS ARE ONE STATEMENT. `update … in (…)` — see the
-        rule at the top of `src/lib/admin.ts`. Iterating here would cost one
-        Cloudflare build per session, which is precisely the defect the
-        statement-level trigger in migration 0011 exists to avoid. */}
-    <h2 class="admin-block-title" data-series-title hidden>Séries</h2>
+    <h3 class="admin-subtitle" data-series-title hidden>Séries</h3>
     <div data-series-list hidden></div>
 
-    <h2 class="admin-block-title">Toutes les séances</h2>
     {/* ⚠️ CANCELLED SESSIONS STAY IN THIS LIST, with their state. They are
         never deleted: a session that vanishes leaves students wondering whether
         they misremembered, and deleting it would cascade away a register that
         had already been marked. */}
     <div data-session-list><p class="admin-empty">Chargement…</p></div>
   </section>
+  </div>
 
   <template data-mark-template>
     <li class="mark-row">
@@ -666,7 +731,7 @@ const STATUSES = [
             }
             ${
               upcoming.length > 0
-                ? `<button type="button" class="btn-ghost" data-series-cancel>Annuler les ${upcoming.length} séances à venir</button>`
+                ? `<button type="button" class="btn-danger" data-series-cancel>Annuler les ${upcoming.length} séances à venir</button>`
                 : ''
             }
           </p>
@@ -782,7 +847,7 @@ const STATUSES = [
             }
             ${
               s.status !== 'cancelled'
-                ? '<button type="button" class="btn-ghost" data-cancel>Annuler la séance</button>'
+                ? '<button type="button" class="btn-danger" data-cancel>Annuler la séance</button>'
                 : ''
             }
           </p>
@@ -835,7 +900,20 @@ const STATUSES = [
 
     paintPreview();
     if (editHint) setHidden(editHint, false);
+    /* ⚠️ OPEN THE DISCLOSURE BEFORE SCROLLING TO IT. The form lives inside
+       `<details data-new-session>`; filling a closed one would look to the prof
+       exactly like "Modifier" doing nothing at all. Scrolling a collapsed
+       element is worse than not scrolling. */
+    openNewSession();
     form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  /** Open the "Nouvelle séance" disclosure, if it is not already. */
+  function openNewSession() {
+    const box = document.querySelector('[data-new-session]') as HTMLDetailsElement | null;
+    /* Idempotent: writing `open` when it is already true would be a DOM write
+       from a handler for no reason — the discipline `booking-ui.ts` states. */
+    if (box && !box.open) box.open = true;
   }
 
   /** Back to creating. Also the "Annuler la modification" control. */

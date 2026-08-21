@@ -246,6 +246,22 @@ const MUST_PASS = [
   ['--mcc-text-primary', '--mcc-surface-raised', TEXT, 'body text on raised surface (cards)'],
   ['--mcc-border-strong', '--mcc-surface-page', UI, 'control border on page (non-text)'],
 
+  /* ── The containment work put far more text ON CARDS ──────────────────────
+     ⚠️ ADDED BECAUSE THE SURFACE UNDER THE TEXT CHANGED, NOT BECAUSE A COLOUR
+     DID. Before, `/compte/` and `/admin/seances/` floated their content on
+     `--mcc-surface-page`, which is the surface every pair above audits. Now
+     every block sits on `--mcc-surface-raised` and every form control on
+     `--mcc-surface-field` — two surfaces that carried almost no audited text
+     between them. A redesign that moves text onto an unaudited surface is
+     exactly how a proved pair stops being the pair that is actually rendered. */
+  ['--mcc-text-heading', '--mcc-surface-raised', TEXT, 'section title on a card'],
+  ['--mcc-text-secondary', '--mcc-surface-raised', TEXT, 'section subtitle / hint on a card'],
+  ['--mcc-link', '--mcc-surface-raised', TEXT, 'ghost-button label on a card'],
+  ['--mcc-danger-text', '--mcc-surface-raised', TEXT, 'destructive label on a card'],
+  ['--mcc-border-strong', '--mcc-surface-raised', UI, 'field border on a card (non-text)'],
+  ['--mcc-text-primary', '--mcc-surface-field', TEXT, 'what a prof types, in the field'],
+  ['--mcc-border-strong', '--mcc-surface-field', UI, 'field border against its own fill'],
+
   ['--mcc-link', '--mcc-surface-page', TEXT, 'link on page'],
   ['--mcc-accent-text', '--mcc-surface-page', TEXT, 'accent AS TEXT — the deep variant'],
   ['--mcc-primary-contrast', '--mcc-primary', TEXT, 'primary CTA label on its fill'],

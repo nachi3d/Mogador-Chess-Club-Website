@@ -460,3 +460,101 @@ time. No error, no warning, no visible red — just a border that computes to
 **The rule: assert the RESOLVED value, never that a rule exists.** A spec
 asserting the rule would have passed throughout all four bugs.
 
+---
+
+## Containment — the audit behind the one card, and what it found
+
+**Read when:** adding a card, a form field, a section header or a spacing value;
+or before writing any rule for `.btn-*`.
+
+Seàn compared the site against Mogador Games Club and named what was missing:
+not the palette — the four themes, the AA guarantees and the old-chess-club
+identity all stay — but **containment**. Every group of content there lives
+inside a closed object whose surface differs from the page. Here, `/compte/` and
+`/admin/seances/` floated on one background with nothing saying where a block
+began or ended.
+
+### What the audit found before anything was written
+
+| | count | |
+|---|---|---|
+| card treatments | **8** | `.card`, `.auth-card`, `.dash-card`, `.lesson-card`, `.hub-card`, `.resume-card`, `.series-card`, `.session-card` — four of them defined in two files each |
+| `.btn-primary` definitions | **9** | `controls.css` plus 7 scoped component blocks plus `admin.css`, with three different paddings (0.6 / 0.65 / 0.7rem) and two min-heights |
+| `.btn-ghost` definitions | **6** | |
+| live phantom custom properties | **4** | `--mcc-surface-card` (×5), `--radius-control` (×4), `--mcc-on-primary`, plus `--mcc-surface-inverse-hover` |
+
+⚠️ **`--mcc-surface-card` WAS USED FIVE TIMES IN `admin.css` AND PAINTED
+NOTHING.** `.mark-button`, `.repeat-preview`, `.series-card`, `.session-card`
+and `.admin-tile` all shipped with no background at all, because an unknown
+custom property invalidates the whole declaration at computed-value time,
+silently. **It was invisible precisely because the page had no surfaces
+either** — against one flat colour, an unpainted card looks deliberate. Making
+the blocks into real cards is what exposed it.
+
+⚠️ **`--mcc-on-primary` MEANT THE BOOKING BUTTON'S LABEL COLOUR NEVER APPLIED**
+— on the member-facing control shipped in v0.18.0.
+
+`scripts/check-css-dupes.mjs` now finds both classes of defect. Its **phantom
+half gates** (a `var()` with no declaration is a fact, not a judgement); its
+**duplicate half advises** (two files is often correct; four is how
+`.btn-primary` reached nine). It reads scoped `<style>` blocks too — a check
+that only read `src/styles/` would have found one `.btn-primary`, not nine.
+
+⚠️ **AND IT LEARNED TWO FALSE-POSITIVE CLASSES THE HARD WAY:** `var(--x, 60ms)`
+with a fallback is never a phantom, and a property set with
+`element.style.setProperty()` is declared. Its first version flagged both, plus
+`LessonPage.astro`'s comment *describing* a historical phantom — a check that
+flags a file for correctly documenting a fixed bug is one people learn to mute.
+
+### The decisions
+
+⚠️ **CONTENT CARDS KEEP 3px; APP SURFACES GET 14px.** `tokens.css` calls
+`--radius-card: 3px` "club stationery, not a SaaS dashboard", and the brief said
+the identity does not move. So `.card`, `.lesson-card` and `.step` were not
+touched, and `.mcc-card` uses `--mcc-radius-app` — the 14px the mobile work
+established for a tap target. Generous radius where a reader operates a tool;
+stationery where they read.
+
+⚠️ **THE FIELD FILL IS AN ALIAS, NOT AN EIGHTH THEMED VALUE.**
+`--mcc-surface-field: var(--mcc-surface-sunken)` — declared once. Sunken already
+means "a recess", which is what a form control is, and every theme already
+declares it in both modes, so a new theme gets a correct field for free.
+
+⚠️ **`/admin/seances/`'s TEN FIELDS ARE FOUR QUESTIONS, NOT THREE.** The brief
+grouped them *quand / quoi / combien* and listed "âge" under *quoi* — **there is
+no âge field on this form**. The field with nowhere to go was **État**, which
+does not describe what the session is; it decides whether anyone can see it. It
+became its own group, **Visibilité**, next to the submit button.
+
+⚠️ **THE CREATION FORM WENT BEHIND A DISCLOSURE.** The brief said "consider
+whether"; the answer is yes. A prof opens that page weekly to mark a register
+and read the list, and rarely to create anything, so ten fields sat permanently
+between the two things they came for. Native `<details>`, like `/compte/`.
+⚠️ **`startEdit()` OPENS IT** — filling a closed form would look exactly like
+"Modifier" doing nothing.
+
+### The two contrast failures this caused, and the corrections
+
+Moving text onto cards and controls onto a distinct fill put a **non-text**
+border under the 3:1 floor in two combinations:
+
+| | measured | fix |
+|---|---|---|
+| `--mcc-border-strong` on `--mcc-surface-raised`, **bois / dark** | **2.78** | base dark `#5a6b60` → `#617267` (7 per channel) |
+| `--mcc-border-strong` on its own field fill, **marbre / light** | **3.00** | marbre light `#7d8593` → `#7b8391` (2 per channel) |
+
+⚠️ **CORRECTIONS, NOT PALETTE MOVES.** Both are the strength of a control edge,
+invisible as colour changes, and the dark one had been measured at 3.1:1 against
+the **page** — a floor that stopped holding the moment controls moved onto
+cards. The auditor now carries **seven raised/field pairs** and runs **371
+assertions, up from 315**, so neither can silently fall under again.
+
+### Measured
+
+- **No horizontal overflow at 360px or 390px** on `/admin/seances/`, `/compte/`,
+  `/agenda/`, `/admin/` or `/parametres/`.
+- **Every control in the admin content clears 48px** at 360px. What remains
+  below it is the shared header and footer chrome — `a.brand` 28px,
+  `a.account-link` 34px, `button.theme-toggle` 44px, and the footer's inline
+  text links at 17–19px, which WCAG 2.5.8 exempts. Changing those is a
+  site-wide header decision, not part of this work.

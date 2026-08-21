@@ -259,7 +259,38 @@
   --mcc-selection-bg: var(--color-brass-300);
   --mcc-selection-ink: var(--color-ink-950);
 
-  /* ---------- Layout rhythm ---------- */
+  /* ---------- Layout rhythm ----------
+     ⚠️ THE SPACING SCALE. Before this existed, vertical gaps were written as
+     whatever number the component happened to need: `/compte/` shipped a 40px
+     gap next to a 200px one with no rule connecting them, which is what makes
+     a page read as a pile rather than a sequence.
+
+     Six steps, each a step of the same series, so a gap is chosen from a scale
+     rather than invented. Anything between two steps is a design question, not
+     a tuning question — the same rule the motion families follow. */
+  --mcc-space-2xs: 0.25rem; /*  4px — inside a chip */
+  --mcc-space-xs: 0.5rem; /*   8px — label to its field */
+  --mcc-space-sm: 0.75rem; /* 12px — between fields in a group */
+  --mcc-space-md: 1.25rem; /* 20px — card padding on a phone */
+  --mcc-space-lg: 2rem; /*    32px — between cards */
+  --mcc-space-xl: 3rem; /*    48px — between sections */
+
+  /* The one card's padding and the one gap between cards. Components read
+     these rather than picking a step, so the rhythm cannot drift per page. */
+  --mcc-card-pad: var(--mcc-space-md);
+  --mcc-card-gap: var(--mcc-space-lg);
+
+  /* ⚠️ THE FIELD FILL IS AN ALIAS OF `surface-sunken`, DELIBERATELY, AND IS
+     DECLARED ONCE.
+
+     A form control must read as a well cut into the card — which is precisely
+     what `surface-sunken` already means ("a recess"), and every theme already
+     declares it in both modes. Aliasing rather than adding an eighth themed
+     value means a new theme gets a correct field for free and the two cannot
+     drift apart. Text on it is audited by `check-contrast.mjs` like any other
+     pair. */
+  --mcc-surface-field: var(--mcc-surface-sunken);
+
   --mcc-container-max: 74rem;
   --mcc-gutter: 1.25rem;
   --mcc-section-gap: 4rem;
@@ -321,7 +352,17 @@
   --mcc-text-on-inverse-muted: #9fb8a8; /*  6.9:1 on the header */
 
   --mcc-border-subtle: #2b3c31;
-  --mcc-border-strong: #5a6b60; /*  3.1:1 — control borders are non-text */
+  /* ⚠️ 3.1:1 AGAINST THE PAGE WAS NOT ENOUGH ONCE CONTROLS MOVED ONTO CARDS.
+     This was #5a6b60, measured against `--mcc-surface-page`. The containment
+     work put every form control on `--mcc-surface-raised`, which is lighter —
+     and the same border came out at 2.78:1 there, under the 3:1 floor for
+     non-text UI. Lifted by 7 per channel, which clears 3.08 on raised and
+     improves the page and sunken pairs it already passed.
+
+     A correction, not a palette move: this is the strength of a control edge,
+     it is invisible as a colour change, and `check-contrast.mjs` now audits it
+     against all three surfaces so it cannot silently fall under again. */
+  --mcc-border-strong: #617267;
 
   /* The baize has to lift off an almost-black page: green-700 would be a
      button-shaped hole. This clears 3:1 as a shape AND 5:1 for its label. */
