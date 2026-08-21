@@ -2195,3 +2195,31 @@ un vrai téléphone, la lisibilité au soleil, et la taille réelle des cibles.
 | 1 | `npm run db:push -- --dry-run` avec une migration en attente | Liste les migrations en attente puis **« ✓ dry run — NOTHING was applied. »** |
 | 2 | Relancer la même commande | ⚠️ La migration est **toujours en attente** — c’est la preuve que rien n’a été appliqué |
 | 3 | `npm run db:push -- --dryrun` (faute de frappe) | ⚠️ **Refus**, code de sortie 1. Un argument non reconnu n’est jamais ignoré |
+
+### 7f. Contenance — sur un téléphone, sans chercher
+
+⚠️ **LA QUESTION EST CELLE-CI, ET ELLE SE POSE SUR UN VRAI TÉLÉPHONE : un prof
+peut-il créer une séance et marquer un appel sans chercher ?** Le reste de cette
+section n’est qu’une façon d’y répondre. Si la réponse est « oui, mais… », c’est
+un défaut, pas un détail.
+
+Pré-requis : `npm run demo:accounts`, un compte prof, une séance publiée.
+
+| # | Étape | Résultat attendu |
+|---|---|---|
+| 1 | `/admin/seances/` sur un téléphone | Trois **blocs distincts**, chacun sur sa propre surface, avec un titre, un sous-titre et un filet. On voit où chaque bloc commence et finit **sans lire** |
+| 2 | Regarder ce qui est visible en arrivant | **Présences en haut**, puis « Nouvelle séance » **repliée**, puis la liste. ⚠️ **Les dix champs ne sont plus entre les deux choses qu’on vient faire** |
+| 3 | Ouvrir « Nouvelle séance » | Les champs sont groupés : **Quand, Quoi, Combien, Visibilité**. Chaque champ a un **fond distinct de la carte**, une étiquette au-dessus avec de l’air, l’aide **sous** le champ |
+| 4 | Le bouton « Créer » | **Toute la largeur de la carte**, haut, impossible à manquer. Un seul bouton principal par carte |
+| 5 | Sur une carte de séance, comparer « Modifier » et « Annuler la séance » | ⚠️ **Ils ne se ressemblent plus.** Annuler est en contour rouge ; modifier est discret. Annuler une séance prévient une salle d’enfants que ça n’a pas lieu |
+| 6 | Appuyer sur « Modifier » | Le formulaire **s’ouvre tout seul** et défile jusqu’à lui. ⚠️ Il ne doit **jamais** se remplir en restant replié — ce serait « Modifier » qui ne fait rien |
+| 7 | `/compte/` | Trois cartes de **même facture** : profils, réglages, options avancées. Espacement **régulier** entre elles — plus de 40px ici et 200px là |
+| 8 | `/compte/` déconnecté | ⚠️⚠️ **RIEN du panneau connecté n’apparaît** : ni l’adresse, ni les profils, ni la suppression. Seulement l’invitation à se connecter |
+| 9 | `/agenda/` | Les séances sont des cartes fermées. ⚠️ **Aucune n’a de liseré de couleur à gauche** — ce liseré ne sert qu’à marquer **une** carte par page, l’action principale |
+| 10 | Les quatre thèmes, clair et sombre, sur `/admin/seances/` | Les cartes se détachent de la page dans **chaque** thème. Les champs se détachent des cartes. Aucun bord ne disparaît |
+
+⚠️ **Ce qui est déjà automatisé** : l’absence de débordement à 360 et 390px, les
+cibles ≥48px dans le contenu admin, les paires de contraste des nouvelles
+surfaces (371 assertions), et axe sur les pages touchées. **Ce qui reste
+manuel** est ce qu’aucun spec ne voit : est-ce que ça se *tient*, à bout de bras,
+dans une salle.

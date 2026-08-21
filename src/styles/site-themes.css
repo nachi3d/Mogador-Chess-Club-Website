@@ -146,7 +146,10 @@
   /* #868e9b measured 3.00 exactly — a floor is not a target, and a value that
      is one rounding away from failing is a value that will fail on the next
      palette nudge. Stepped down until it had room. */
-  --mcc-border-strong: #7d8593;
+  /* ⚠️ 3.00:1 against its own field fill — JUST under the 3:1 floor once form
+     controls gained a distinct fill. Two steps darker per channel clears 3.08
+     and is invisible; see the note on the dark value in tokens.css. */
+  --mcc-border-strong: #7b8391;
 
   --mcc-primary: #38495e;
   --mcc-primary-hover: #2a3849;

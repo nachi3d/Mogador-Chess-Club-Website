@@ -105,7 +105,7 @@ const t = useTranslations(locale);
           below when the profile says prof or admin; a student who un-hides it
           in devtools reaches a page whose every query RLS answers with nothing.
           The label is French because the destination is. */}
-      <section class="account-staff" data-testid="account-staff" hidden>
+      <section class="account-staff mcc-card mcc-card-accent" data-testid="account-staff" hidden>
         <h2>Espace encadrants</h2>
         <p>Classe, séances et présences.</p>
         <p>
@@ -116,7 +116,7 @@ const t = useTranslations(locale);
       </section>
 
       {/* ══ 2. ACCOUNT SETTINGS ════════════════════════════════════════════ */}
-      <details class="account-block" data-testid="account-settings">
+      <details class="account-block mcc-card" data-testid="account-settings">
         <summary>
           <span class="account-block-title">{t('account.settings.heading')}</span>
           <span class="account-block-hint">{t('account.settings.summary')}</span>
@@ -231,7 +231,7 @@ const t = useTranslations(locale);
           ⚠️ THE LIST NAMES WHAT GOES. "Are you sure?" tells a reader nothing;
           the words "progression" and "présences" have to be read BEFORE the
           confirmation, not discovered after it. */}
-      <details class="account-block account-block-danger" data-testid="account-advanced">
+      <details class="account-block account-block-danger mcc-card" data-testid="account-advanced">
         <summary>
           <span class="account-block-title">{t('account.advanced.heading')}</span>
           <span class="account-block-hint">{t('account.advanced.summary')}</span>
@@ -501,11 +501,15 @@ const t = useTranslations(locale);
   /* ── The two disclosures ────────────────────────────────────────────────
      ⚠️ NATIVE `<details>`, STYLED — not reimplemented. It works with no JS, it
      is keyboard-operable and announced for free, and find-in-page opens it. */
+  /* ⚠️ SURFACE, BORDER AND RADIUS COME FROM `.mcc-card` NOW — see
+     `src/styles/surfaces.css`. This block used to declare its own, at 3px and
+     with no shadow, while `.account-staff` declared a THIRD treatment beside
+     it. Three cards, three looks, on one page.
+
+     What stays here is only what a disclosure needs: the summary is the whole
+     control, so the card's padding moves onto the two halves instead. */
   .account-block {
-    margin-block: 1.5rem;
-    border: 1px solid var(--mcc-border-subtle);
-    border-radius: var(--radius-card);
-    background-color: var(--mcc-surface-raised);
+    padding: 0;
   }
 
   .account-block summary {
@@ -547,9 +551,38 @@ const t = useTranslations(locale);
   /* The danger block is marked by its edge and its words, NOT by a red fill and
      not by opacity. A red panel reads as "error" rather than "this is the part
      you should be careful with", and it is a section a reader chose to open. */
-  .account-block-danger {
-    margin-top: 2.5rem;
-    border-inline-start: 4px solid var(--mcc-accent-strong);
+  /* ⚠️ THE GOLD LEFT BORDER IS GONE FROM HERE, DELIBERATELY.
+     It marked the DANGER block in the accent colour — the same gold the site
+     uses to say "this is the thing to press". Marking permanent deletion with
+     the primary-action colour is the wrong signal twice over, and it was also
+     the reason gold meant nothing anywhere else: everything had it.
+
+     The gold edge now appears on ONE card per page, on the primary action.
+     Danger is told by its heading and its button, which is `.btn-danger`. */
+  .account-block-danger summary .account-block-title {
+    color: var(--mcc-danger-text);
+  }
+
+  /* ── One rhythm for the whole panel ──────────────────────────────────────
+     ⚠️ THE GAPS HERE WERE NOT DECISIONS. This container had no styles at all,
+     so the distance between two blocks was whichever margin the upper one
+     happened to carry — which is how the page came to show a ~40px gap in one
+     place and a ~200px one in another. The gap is now chosen once, from the
+     scale in `tokens.css`, and the children's own margins are cleared so they
+     cannot re-introduce it.
+
+     ⚠️⚠️ `:not([hidden])` IS LOAD-BEARING, NOT TIDINESS. `display: flex` beats
+     the `hidden` attribute's `display: none`, so an unguarded rule here would
+     reveal the whole signed-in panel — email, profiles, deletion — to every
+     signed-out reader, on a page that renders signed-out by construction. */
+  .account-panel:not([hidden]) {
+    display: flex;
+    flex-direction: column;
+    gap: var(--mcc-card-gap);
+  }
+
+  .account-panel > * {
+    margin-block: 0;
   }
 
   .account-import {
@@ -618,29 +651,9 @@ const t = useTranslations(locale);
     font-size: 1rem;
   }
 
+  /* Appearance lives in controls.css. Only the margin is this page’s. */
   .btn-primary {
     margin-top: 1rem;
-    min-height: 2.75rem;
-    padding: 0.6rem 1.2rem;
-    border: 1px solid var(--mcc-primary);
-    border-radius: var(--radius-card);
-    background-color: var(--mcc-primary);
-    color: var(--mcc-primary-contrast);
-    font: inherit;
-    font-weight: 500;
-    text-decoration: none;
-    cursor: pointer;
-  }
-
-  .btn-ghost {
-    min-height: 2.75rem;
-    padding: 0.55rem 1.1rem;
-    border: 1px solid var(--mcc-border-strong);
-    border-radius: var(--radius-card);
-    background: none;
-    color: var(--mcc-link);
-    font: inherit;
-    cursor: pointer;
   }
 
   .account-status,
@@ -655,12 +668,13 @@ const t = useTranslations(locale);
 
   /* The staff block reads as a destination, not a notice: a solid accent edge
      rather than the dashed "coming soon" border below it. */
-  .account-staff {
-    margin-bottom: 1.5rem;
-    padding: 1rem 1.25rem;
-    border-inline-start: 3px solid var(--mcc-accent);
-    background-color: var(--mcc-surface-sunken);
-    border-radius: var(--radius-card);
+  /* ⚠️ THE ONE CARD ON THIS PAGE THAT KEEPS THE GOLD EDGE, and it keeps it
+     because it is the page's primary action: a prof landing here is going to
+     `/admin/`. Surface, border, radius and shadow come from `.mcc-card`;
+     `.mcc-card-accent` adds the edge ON TOP of the full border rather than
+     instead of it. Nothing else on this page carries it. */
+  .account-staff h2 {
+    margin-block-start: 0;
   }
 
   .account-staff h2 {

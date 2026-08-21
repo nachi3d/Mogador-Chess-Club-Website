@@ -11,7 +11,104 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### Changed
+
+- ⚠️⚠️ **CONTAINMENT — THE APP SURFACES BECAME CLOSED OBJECTS, AND EIGHT CARD
+  TREATMENTS BECAME ONE.** Structure only: the palette, the four themes and the
+  old-chess-club identity do not move. `src/styles/surfaces.css` is the source —
+  one card, one form field, one section header, one spacing rhythm.
+  - **What was there:** `.admin-block` was `margin-block-end: 2rem` and **no
+    surface at all**, so every block on `/admin/seances/` bled into the page;
+    `.admin-field input` was filled with `--mcc-surface-page`, the same colour
+    as the page behind it; and `/compte/` carried **three different treatments
+    for three cards** with 40px and 200px gaps that no rule connected.
+  - **A card is closed on all four sides** — `.mcc-card`: its own surface, a
+    full border, `--mcc-radius-app`, a real shadow, one padding. ⚠️ **A left
+    border closes nothing.**
+  - ⚠️ **THE GOLD EDGE IS NOW AN ACCENT ON ONE CARD PER PAGE — THE PRIMARY
+    ACTION.** It was on **every** `/agenda/` session and on `/compte/`'s
+    **danger** block, in the accent colour: meaningless because everything had
+    it, and wrong because gold says "press this" rather than "this deletes your
+    account". `/compte/` keeps it on the one card that is a primary action, the
+    staff link.
+  - ⚠️ **CONTENT CARDS WERE NOT TOUCHED.** `.card`, `.lesson-card` and `.step`
+    keep `--radius-card` (3px), which `tokens.css` calls "club stationery, not a
+    SaaS dashboard". **That 3px is the identity.** Generous radius applies where
+    a reader operates a tool, not where they read.
+  - **Form fields are objects** — `.mcc-field`: 48px, a fill distinct from the
+    card, label above with air at body size, hint below the control it belongs
+    to, selects styled like inputs with a CSS-drawn chevron (no asset, no
+    request).
+  - **`/admin/seances/`'s ten fields became four groups** — Quand, Quoi,
+    Combien, Visibilité — and **the creation form moved behind a "Nouvelle
+    séance" disclosure**. A prof opens that page weekly to mark a register and
+    read the list; ten fields sat permanently between the two things they came
+    for. Native `<details>`, and `startEdit()` opens it, because filling a
+    closed form would look exactly like "Modifier" doing nothing.
+  - **The primary action fills its card** (`.btn-block`), one per card; **and
+    destructive is no longer routine** — *Modifier* and *Annuler la séance*
+    shipped at identical weight, and cancelling a session tells a room of
+    children not to come.
+  - **Every gap comes from a scale** — `--mcc-space-2xs … xl` and
+    `--mcc-card-gap` in `tokens.css`.
+- ⚠️ **`.btn-primary` WAS DEFINED IN NINE FILES; IT IS NOW DEFINED IN ONE.**
+  `controls.css` already owned the structure and deliberately left "just the
+  colours" to each page — **that boundary did not hold**: a colour needs a
+  border to sit against, a border needs a radius, and by this audit there were
+  seven scoped copies with three different paddings and two min-heights, plus
+  `admin.css`. Appearance came home; what a page may still set is margin.
+- **Touch targets on the admin surfaces are ≥48px**, scoped to `.admin`. The
+  site-wide floor stays 44px — the extra 4px is for a prof standing up in a room
+  at Dar Souiri, which is the argument the attendance buttons already made.
+
+### Fixed
+
+- ⚠️⚠️ **FOUR LIVE PHANTOM CUSTOM PROPERTIES, FOUND BY THE NEW CHECK AND
+  REPAIRED.** An unknown custom property invalidates the **whole** declaration
+  at computed-value time — silently.
+  - **`--mcc-surface-card`, used FIVE times in `admin.css`, painted nothing.**
+    `.mark-button`, `.repeat-preview`, `.series-card`, `.session-card` and
+    `.admin-tile` all shipped with **no background at all**. ⚠️ It was invisible
+    *because the page had no surfaces either* — against one flat colour an
+    unpainted card looks deliberate. Making the blocks real cards is what
+    exposed it.
+  - **`--mcc-on-primary` meant the booking button's label colour never
+    applied** — on the member-facing control shipped in v0.18.0.
+  - **`--radius-control`**, four uses across `admin.css` and `booking.css`.
+- ⚠️ **Two contrast pairs were under the floor once text moved onto cards**, and
+  `check-contrast.mjs` caught both: `--mcc-border-strong` at **2.78:1 on a
+  raised surface (bois/dark)** and **3.00:1 on its own field fill
+  (marbre/light)**, against a 3:1 requirement for non-text UI. Corrected by 7
+  and 2 steps per channel respectively — the strength of a control edge, not a
+  palette move. The dark value had been measured at 3.1:1 against the **page**,
+  a floor that stopped holding the moment controls moved onto cards.
+
+### Added
+
+- **`scripts/check-css-dupes.mjs`** — finds a component defined in several files
+  and a custom property that does not exist.
+  - ⚠️ **Its phantom half GATES and its duplicate half ADVISES**, and the split
+    is whether the finding can be wrong: a class in two files is often correct
+    (a page owns its margins), but a `var()` with no declaration is a fact.
+  - **It reads scoped `<style>` blocks**, which is the only reason it finds
+    nine `.btn-primary` rather than one.
+  - ⚠️ **It learned two false-positive classes the hard way:** `var(--x, 60ms)`
+    with a fallback is never a phantom, and a property set with
+    `setProperty()` is declared. Its first version also flagged
+    `LessonPage.astro` for a **comment describing a historical phantom** — a
+    check that flags a file for correctly documenting a fixed bug is one people
+    learn to mute.
+- **Seven new contrast pairs** for text and borders on raised and field
+  surfaces. **371 assertions, up from 315.**
+
 ### Documentation
+
+- **CLAUDE.md** carries the containment rules; the audit, the counts, the two
+  contrast corrections and the field grouping are in
+  [`docs/reference/theming.md`](./docs/reference/theming.md).
+- ⚠️ **`docs/MANUAL-TESTS.md` gains the question this work is answerable to:**
+  *on a phone, can a prof create a session and mark a register without
+  hunting?*
 
 - ⚠️⚠️ **A LOCAL `npm run build` BAKES THE COMMITTED FALLBACK AGENDA, BECAUSE
   `.env.local` NEVER REACHES `fetch-agenda.mjs`** — recorded in

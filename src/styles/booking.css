@@ -77,9 +77,9 @@
   min-width: 44px;
   padding: 0.5rem 0.9rem;
   background-color: var(--mcc-primary);
-  color: var(--mcc-on-primary);
+  color: var(--mcc-primary-contrast);
   border: 1px solid transparent;
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-card);
   font-family: var(--font-display);
   font-size: 0.9375rem;
   font-weight: 600;
@@ -130,7 +130,7 @@
   padding: 0.5rem 0.7rem;
   background-color: var(--mcc-surface-sunken);
   border-left: 3px solid var(--mcc-primary);
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-card);
   color: var(--mcc-text-primary);
   font-size: 0.9375rem;
 }

@@ -38,6 +38,13 @@
    owns its whole definition in one file. */
 @import './cards.css';
 
+/* Containment — the ONE app card, form field, section header and spacing
+   rhythm. After cards.css, which owns the CONTENT card and its stationery
+   3px radius; this file is the app/admin vocabulary and does not touch it.
+   Shared rather than scoped for the same reason score.css is: the pages that
+   use it are many, and a scoped block is inlined into every one of them. */
+@import './surfaces.css';
+
 /* The achievement toast (E3). Shared rather than scoped: the resolver that
    renders it is on ~62 pages, and a scoped block is inlined into each one. */
 @import './score.css';
