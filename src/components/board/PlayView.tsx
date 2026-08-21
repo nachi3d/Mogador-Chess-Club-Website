@@ -108,6 +108,28 @@ export default function PlayView(props: PlayViewProps) {
   const [result, setResult] = useState<string | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [focusSignal, setFocusSignal] = useState(0);
+  /**
+   * ⚠️ FALSE UNTIL THIS ISLAND HAS HYDRATED, AND THE START BUTTON DEPENDS ON IT.
+   *
+   * The setup form is SERVER-RENDERED — it is the same markup before and after
+   * hydration, `data-phase="setup"` included. So until the island's JS arrives
+   * the button is a button in appearance only: pressing it runs no handler,
+   * nothing changes, and **nothing tells the reader their press was
+   * swallowed.** Measured by delaying the island chunk: the press is lost in
+   * silence, and the reader is left looking at an unchanged form.
+   *
+   * `client:visible` makes that window wider than it sounds — hydration is not
+   * even REQUESTED until the island scrolls into view, so on a phone, on a
+   * slow connection, the gap is between "the form is readable" and "the form
+   * works".
+   *
+   * ⚠️ IT IS ALSO THE ONLY HONEST READINESS SIGNAL A TEST CAN WAIT ON, and its
+   * absence is what made `play.spec.ts` flake at three consecutive gates —
+   * every wait available to the spec was satisfied by the server's HTML. Same
+   * `data-ready` convention as the exercise board.
+   */
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => setHydrated(true), []);
   /* Which door the last move came through. See useMoveSource.ts. */
   const moveSource = useMoveSource();
   /**
@@ -411,15 +433,23 @@ export default function PlayView(props: PlayViewProps) {
   if (phase === 'setup' || phase === 'loading') {
     const busy = phase === 'loading';
     return (
-      <div class="mcc-play mcc-play-setup" data-testid="play" data-phase={phase}>
+      <div
+        class="mcc-play mcc-play-setup"
+        data-testid="play"
+        data-phase={phase}
+        data-ready={hydrated ? 'true' : 'false'}
+      >
         <form
           class="mcc-play-form"
           onSubmit={(event) => {
             event.preventDefault();
-            if (!busy) void start();
+            /* `hydrated` for the same reason the button carries it: Enter in a
+               radio group submits the form without going through the button,
+               so a disabled button alone does not close the window. */
+            if (!busy && hydrated) void start();
           }}
         >
-          <fieldset class="mcc-play-fieldset" disabled={busy}>
+          <fieldset class="mcc-play-fieldset" disabled={busy || !hydrated}>
             <legend>{labels.colourLegend}</legend>
             <div class="mcc-play-options">
               {(['white', 'black'] as const).map((side) => (
@@ -437,7 +467,7 @@ export default function PlayView(props: PlayViewProps) {
             </div>
           </fieldset>
 
-          <fieldset class="mcc-play-fieldset" disabled={busy}>
+          <fieldset class="mcc-play-fieldset" disabled={busy || !hydrated}>
             <legend>{labels.levelLegend}</legend>
             <div class="mcc-play-options">
               {LEVEL_IDS.map((id) => (
@@ -458,7 +488,11 @@ export default function PlayView(props: PlayViewProps) {
           <button
             type="submit"
             class="mcc-play-start"
-            disabled={busy}
+            /* ⚠️ `!hydrated` IS NOT BELT AND BRACES — see the flag's note above.
+               Without it this is a live-looking button with no handler behind
+               it, and a press in that window is swallowed silently. Disabled
+               is the honest state: it says "not yet" instead of lying. */
+            disabled={busy || !hydrated}
             /* Tap or click sets this; Enter/Space on the button never fires
                pointerdown, so a keyboard player still gets focus placed. */
             onPointerDown={() => {
@@ -497,6 +531,10 @@ export default function PlayView(props: PlayViewProps) {
       class="mcc-play"
       data-testid="play"
       data-phase={phase}
+      /* Always true here — this branch only renders on the client — but kept
+         so `[data-testid="play"][data-ready="true"]` means the same thing in
+         every phase rather than vanishing once the game starts. */
+      data-ready="true"
       data-thinking={thinking ? 'true' : 'false'}
       data-turn={snapshot?.turn ?? ''}
     >

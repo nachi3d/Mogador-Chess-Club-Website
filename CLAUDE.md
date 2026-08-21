@@ -1430,6 +1430,32 @@ broken process. ⚠️ **Never pipe the test run into `tail`** — it reports ta
 exit code, so 14 failures read as "196 passed, exit 0". ⚠️ **A browser-crash row
 is a FINDING when it comes from `test:release`.**
 
+#### ⚠️⚠️ AND THE CONVERSE HAS NOW HAPPENED: PASSING SERIALLY IS **NOT** A CLEAN BILL
+
+`play.spec.ts` flaked at **three consecutive gates**, passed every serial
+re-run, and was waved through all three times on the rule above. It was a
+**real defect in the application** the whole time — a
+**server-rendered control that is live-looking and inert until its island
+hydrates**, so a click aimed at it did nothing at all.
+
+⚠️ **A HYDRATION RACE HAS EXACTLY THE SIGNATURE OF CONTENTION** — it needs load
+to widen the window, it moves between tests, and it evaporates under
+`--workers=1`. The serial re-run cannot distinguish the two, so it must not be
+the last word.
+
+⚠️ **THE DISCRIMINATOR IS THE FAILURE ARTEFACT, NOT THE RE-RUN.** `error-context.md`
+carries the page state; read it before blaming the machine. Here the error alert
+was **empty**, which the load-failure path cannot produce — that one line said
+"the handler never ran", and it was sitting in the artefact at every one of the
+three gates.
+
+⚠️ **AN ISLAND'S READINESS MUST BE OBSERVABLE, AND `data-ready` IS THE
+CONVENTION** (the exercise board, now `PlayView` too). A wait on
+server-rendered markup — `data-phase="setup"` — proves the HTML arrived and
+**nothing about whether anything is listening**. ⚠️ **AND NO CONTROL INSIDE A
+HYDRATING ISLAND MAY LOOK USABLE BEFORE IT IS**: disable it until `data-ready`,
+or a reader on a slow connection presses a dead button and is told nothing.
+
 **➡️ The full symptom table and the diagnoses behind it:
 [`docs/reference/testing.md`](./docs/reference/testing.md).**
 ### ⚠️ Driving a board from a spec — the four gates

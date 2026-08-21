@@ -51,18 +51,55 @@ test.beforeEach(() => {
  *
  * `retries: 1` covers what that cannot: the five PROJECTS still run
  * concurrently, so a full-matrix run can have five engines booting at once
- * across five browsers. When one loses the race its view correctly shows
- * "could not load" and the test fails with `data-phase="setup"`. The retry runs
- * once the crowd has thinned. This absorbs contention, not bugs — a real break
- * is deterministic and fails the retry too, exactly as for the WebKit and
- * Firefox browser crashes documented in CLAUDE.md.
+ * across five browsers. The retry runs once the crowd has thinned. This
+ * absorbs contention, not bugs — a real break is deterministic and fails the
+ * retry too, exactly as for the WebKit and Firefox browser crashes documented
+ * in CLAUDE.md.
+ *
+ * ⚠️⚠️ THIS NOTE USED TO SAY THAT A LOST RACE SHOWS "could not load", AND THAT
+ * WAS WRONG — IT IS WHY THREE CONSECUTIVE GATES WAVED THE SAME FAILURE
+ * THROUGH. The failure looked like contention and was read as contention every
+ * time. It was not: the captured page state showed `data-phase="setup"` with
+ * the error alert **EMPTY**, which the load-error path cannot produce — it
+ * sets `loadError` before returning to `setup`. Empty alert means `start()`
+ * never ran, which means the CLICK ITSELF WAS SWALLOWED, because the button
+ * was still server-rendered markup with no handler attached.
+ *
+ * ⚠️ THE TELL IS THE ALERT, AND IT IS ONE LINE OF THE FAILURE ARTEFACT. On any
+ * future `data-phase="setup"` failure here, read it before blaming the
+ * machine: text in it is a real engine-load failure; empty is a lost click.
  */
 test.describe.configure({ mode: 'default', retries: 1 });
 
+/**
+ * ⚠️ `data-ready="true"` IS THE WAIT THAT MATTERS, AND IT IS THE ONE THIS
+ * HELPER SPENT THREE GATES WITHOUT.
+ *
+ * `data-phase="setup"` is SERVER-RENDERED — identical before and after
+ * hydration — so waiting on it proves the HTML arrived and nothing more. The
+ * button is present, enabled-looking and inert, and a click aimed at it in
+ * that window runs no handler at all. The test then waits 60s for a phase
+ * change that was never going to come, and reports
+ * `Received: "setup"` with an empty error alert.
+ *
+ * ⚠️ THE OLD HELPER "WORKED" BY ACCIDENT, NOT BY DESIGN. The scroll plus a
+ * locator round-trip bought a few tens of milliseconds, which usually won the
+ * race — so the seventeen tests that used it were not protected, only
+ * luckier than the three that did not. Proved by delaying the island chunk:
+ * with hydration late, the old wait returned with the island still
+ * un-hydrated and the click was swallowed exactly as in the bare-`goto` case.
+ *
+ * See `PlayView.tsx` — the flag is also what stops a READER pressing a dead
+ * button.
+ */
 async function openPlay(page: Page, path: string) {
   await page.goto(path);
-  // `client:visible`: on a phone the board starts below the fold.
+  // `client:visible`: on a phone the board starts below the fold, and hydration
+  // is not even requested until it intersects.
   await page.getByTestId('play').scrollIntoViewIfNeeded();
+  await expect(page.getByTestId('play')).toHaveAttribute('data-ready', 'true', {
+    timeout: 15_000,
+  });
   await expect(page.getByTestId('play')).toHaveAttribute('data-phase', 'setup', {
     timeout: 15_000,
   });
@@ -109,7 +146,7 @@ test.describe('play — focus follows the modality of the move', () => {
     });
 
   test('starting the game by pointer does not focus the move field', async ({ page }) => {
-    await page.goto(FR);
+    await openPlay(page, FR);
     await startGame(page);
     /* The setup form — and the button the reader just pressed — is replaced by
        the board, so SOMETHING has to happen to focus for a keyboard player.
@@ -124,7 +161,7 @@ test.describe('play — focus follows the modality of the move', () => {
   test('a tapped move does not focus the field, even after the engine replies', async ({
     page,
   }) => {
-    await page.goto(FR);
+    await openPlay(page, FR);
     await startGame(page);
 
     await page
@@ -151,10 +188,75 @@ test.describe('play — focus follows the modality of the move', () => {
   });
 
   test('a TYPED move still brings focus back after the reply', async ({ page }) => {
-    await page.goto(FR);
+    await openPlay(page, FR);
     await startGame(page);
     await typeMove(page, 'e4');
     await expect(page.getByTestId('move-input-field')).toBeFocused({ timeout: ENGINE_TIMEOUT });
+  });
+});
+
+/**
+ * ⚠️ THE START BUTTON MUST NOT BE PRESSABLE BEFORE IT WORKS.
+ *
+ * The setup form is server-rendered, so for as long as the island's JS is in
+ * flight the button is markup with nothing behind it. Pressing it in that
+ * window used to do NOTHING AT ALL — no start, no error, no acknowledgement —
+ * and `client:visible` widens the window, because hydration is not requested
+ * until the form scrolls into view.
+ *
+ * That was found chasing a test flake, but it is a READER's defect first: on a
+ * slow connection a human presses "Commencer la partie" and the page ignores
+ * them. It is only invisible in a test suite because a fast local build
+ * hydrates in a few hundred milliseconds.
+ *
+ * ⚠️ THE DELAY IS WHAT MAKES THIS A TEST RATHER THAN A HOPE. Without throttling
+ * the island chunk the window is too narrow to observe, which is exactly why
+ * this went three gates unexplained.
+ */
+test.describe('play — the start button is honest about being ready', () => {
+  const HYDRATION_DELAY_MS = 3000;
+
+  /** Hold every island chunk back, so hydration is reliably late. */
+  const throttleIslandJs = (page: Page) =>
+    page.route('**/_astro/*.js', async (route) => {
+      await new Promise((r) => setTimeout(r, HYDRATION_DELAY_MS));
+      await route.continue();
+    });
+
+  test('before hydration it is disabled, and says so rather than swallowing a press', async ({
+    page,
+  }) => {
+    await throttleIslandJs(page);
+    await page.goto(FR, { waitUntil: 'domcontentloaded' });
+
+    const play = page.getByTestId('play');
+    // The form is readable — this is not a blank page — but not yet working.
+    await expect(play).toHaveAttribute('data-ready', 'false');
+    await expect(page.getByTestId('play-start')).toBeDisabled();
+
+    /* ⚠️ THE RADIOS TOO, AND THEY WERE THE HALF THAT GOT MISSED. Disabling
+       only the button leaves the choices live: a colour picked before
+       hydration is DISCARDED when Preact attaches, and the control snaps back
+       to "Les blancs" under the reader's hand. Visible rather than silent, so
+       milder than the swallowed press — but it is the same half-alive form,
+       and a form is either working or it is not. */
+    await expect(page.getByRole('radio', { name: /noirs/i })).toBeDisabled();
+    await expect(page.getByRole('radio', { name: /Interm/i })).toBeDisabled();
+  });
+
+  test('once hydrated it becomes usable, and a press then starts the game', async ({ page }) => {
+    await throttleIslandJs(page);
+    await page.goto(FR, { waitUntil: 'domcontentloaded' });
+
+    await expect(page.getByTestId('play')).toHaveAttribute('data-ready', 'true', {
+      timeout: 30_000,
+    });
+    await expect(page.getByTestId('play-start')).toBeEnabled();
+
+    await page.getByTestId('play-start').click();
+    await expect(page.getByTestId('play')).toHaveAttribute('data-phase', 'playing', {
+      timeout: ENGINE_TIMEOUT,
+    });
   });
 });
 

@@ -11,6 +11,24 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`/jouer/`: the start button was live-looking and inert until the island
+  hydrated, and a press in that window was swallowed in silence.** No start, no
+  error, no acknowledgement — the reader is simply ignored. The setup form is
+  server-rendered and the island is `client:visible`, so the window is between
+  "the form is readable" and "the form works", and it widens on a slow
+  connection. `PlayView` now exposes `data-ready` (the same convention as the
+  exercise board) and disables the button until it is true.
+- **The colour and level radios were the half nearly missed.** Disabling only
+  the button leaves the choices live, and a colour picked before hydration is
+  discarded when Preact attaches — the control snaps back to "Les blancs" under
+  the reader's hand. Visible rather than silent, so milder, but a form is
+  either working or it is not. Both fieldsets are now disabled until ready.
+- ⚠️ **This is what `play.spec.ts` had been flaking on for THREE CONSECUTIVE
+  GATES**, and it was written off as machine contention all three times. It was
+  a real application defect throughout.
+
 ### Changed
 
 - **Engine levels retuned — Intermédiaire and Avancé.** Seàn reported mistakes
@@ -60,6 +78,19 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 - ⚠️ **CLAUDE.md is at 81% of the size guard** (121 k / 150 k) and warning
   again. Not split in this session — an engine branch is the wrong place for
   it. Flagged rather than trimmed.
+- ⚠️ **"Passing serially" is no longer accepted as proof that a flake is
+  environmental**, and CLAUDE.md now says so. A hydration race needs load to
+  widen its window and evaporates under `--workers=1`, which is exactly the
+  signature the old rule read as contention. **The discriminator is the failure
+  artefact** — `error-context.md` named the cause at every one of the three
+  gates that waved it through.
+- ⚠️ **The exercise and replay islands were NOT audited** for the same defect.
+  They are the same shape — server-rendered controls inside a `client:visible`
+  island. Assume it until measured.
+- The regression test **throttles the island chunk on purpose** (`page.route`,
+  4 s). At its natural rate the defect reproduced once in sixty runs, which is
+  not something a suite can hold; forced open it fails 100% of the time, and it
+  was watched to fail against the un-fixed component first.
 
 ---
 
