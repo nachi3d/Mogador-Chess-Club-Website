@@ -1436,6 +1436,13 @@ from what changed.
 actually changed (`scripts/spec-map.mjs`). `--all` runs every chromium spec for
 a sweeping refactor — still one browser.
 
+⚠️ **AND IT BUILDS THE SHAPE ITS SELECTION NEEDS.** If any selected spec is in
+`NEEDS_ACCOUNTS_ON` (`scripts/lanes.mjs`) the branch build is accounts-ON;
+otherwise it stays OFF. Before that, every branch build was OFF while the gate
+was ON, so **a session touching the booking UI got no coverage until
+promotion** — a hole in the daily loop, which is where a defect is cheapest to
+catch. An explicit `PUBLIC_AUTH_ENABLED` in the environment still wins.
+
 ⚠️ **THE GATE RUNS IN THE ACCOUNTS-ON SHAPE, BECAUSE THAT IS WHAT PRODUCTION
 SERVES.** It ends with a two-minute accounts-OFF sliver, which is not a second
 matrix — see below.

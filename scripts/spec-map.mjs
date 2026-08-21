@@ -47,16 +47,16 @@ export const SPEC_MAP = [
   ],
   [
     /^src\/components\/pages\/AgendaPage\./,
-    ['agenda.spec.ts', 'themes.spec.ts', 'booking.spec.ts'],
+    ['agenda.spec.ts', 'themes.spec.ts', 'booking.spec.ts', 'booking-ui.spec.ts'],
   ],
-  /* The booking data layer, its painter and its stylesheet. genda.spec.ts
+  /* The booking data layer, its painter and its stylesheet. agenda.spec.ts
      rides along because the controls render on that page — including the
      guest zero-request assertion, which the booking script could break. */
   [
     /^src\/lib\/booking(-ui)?\./,
-    ['booking.spec.ts', 'agenda.spec.ts', 'auth-disabled.spec.ts'],
+    ['booking.spec.ts', 'booking-ui.spec.ts', 'agenda.spec.ts', 'auth-disabled.spec.ts'],
   ],
-  [/^src\/styles\/booking\./, ['agenda.spec.ts', 'themes.spec.ts']],
+  [/^src\/styles\/booking\./, ['agenda.spec.ts', 'themes.spec.ts', 'booking-ui.spec.ts']],
   [/^src\/components\/pages\/PrivacyPage\./, ['auth.spec.ts', 'legal.spec.ts']],
   [/^src\/i18n\/ui\./, ['smoke.spec.ts', 'nav-coords.spec.ts', 'main-menu.spec.ts']],
   [/^src\/config\/site\./, ['legal.spec.ts', 'smoke.spec.ts']],
@@ -175,10 +175,12 @@ export const SPEC_MAP = [
       /* 0011 hangs the rebuild trigger on `sessions` and 0012 adds the series
          label; this is the only spec that counts the trigger's firings. */
       'recurring-sessions.spec.ts',
-      /* 0013 adds ookings, create_booking() and the cutoff. This is the
+      /* 0013 adds bookings, create_booking() and the cutoff. This is the
          only spec that proves the lock holds under concurrency and that a
          booking fires NO rebuild. */
       'booking.spec.ts',
+      /* …and the surface a member actually taps. */
+      'booking-ui.spec.ts',
     ],
   ],
   /* The recurrence expansion is pure and its spec runs with no credentials and

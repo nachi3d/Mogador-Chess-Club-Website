@@ -116,6 +116,52 @@ export const LANES = {
 export const OFF_SLIVER = ['auth-disabled', 'admin'];
 
 /**
+ * Specs that DO NOTHING unless the build has accounts ON.
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️ THIS CLOSES A HOLE IN THE DAILY LOOP, NOT THE RELEASE LOOP — WHICH IS
+ * WHY IT MATTERS MORE THAN ITS SIZE SUGGESTS.
+ *
+ * The release gate runs accounts-ON because that is what production serves.
+ * `test-branch.mjs` set no flag at all, so every branch build was OFF and every
+ * spec below SKIPPED. A session touching the booking UI therefore got no
+ * coverage until promotion — the branch gate silently answering a question
+ * nobody asked, on the loop where defects are cheapest to catch.
+ *
+ * ⚠️ MEASURED, NOT GUESSED: this is the ON-only and partly-ON set from the gate
+ * audit, taken from run/skip status across two recorded matrix JSONs. Eight run
+ * nothing at all in the OFF shape; `admin` runs 3 of 15, `auth` 6 of 26 and
+ * `recurring-sessions` 6 of 9.
+ *
+ * ⚠️ `booking`, `booking-ui` AND `recurring-sessions` WERE MISSING from the
+ * older copy of this list in `test-branch.mjs`, which is exactly the drift that
+ * putting it here prevents.
+ *
+ * ⚠️ `auth-disabled` IS NOT HERE AND MUST NOT BE. It is the mirror image — it
+ * only means anything in an OFF build, and the release gate's sliver is what
+ * proves it. A branch selecting it runs OFF; see `test-branch.mjs` for what
+ * happens when a selection wants both shapes at once.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+export const NEEDS_ACCOUNTS_ON = [
+  'account-deletion',
+  'admin',
+  'attendance-timing',
+  'auth',
+  'booking',
+  'booking-ui',
+  'child-profiles',
+  'family',
+  'onboarding',
+  'progress-sync',
+  'recurring-sessions',
+  'role-separation',
+];
+
+/** Specs that only mean anything in an accounts-OFF build. */
+export const NEEDS_ACCOUNTS_OFF = ['auth-disabled'];
+
+/**
  * Base names → the glob list `testMatch` wants: `a` becomes a recursive-match
  * pattern ending in `a.spec.ts`.
  *
