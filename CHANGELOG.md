@@ -11,7 +11,508 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
-Nothing yet.
+_Nothing yet._
+
+---
+
+## [0.18.0] — 2026-08-21
+
+**Session booking: a member reserves a place for a child, and capacity is a
+property of Postgres rather than of the page. Migration 0013 — per-session
+capacity and an overbooking margin, a row lock taken before the count, and a
+two-hour cancellation cutoff that lives in the database rather than in a
+disabled button.**
+
+The agenda stops informing and starts enrolling. On the prof's side a session
+can now be edited rather than only created, and every card carries its own
+filling. `db:push --dry-run` stopped lying, and the PowerShell round-trip that
+silently double-encodes accented French is now a hard rule.
+
+**And the release gate that verifies it went from 4.8 hours to 21.9 minutes** —
+chromium over the whole suite plus four named cross-browser lanes, one flag
+shape, and a two-minute accounts-OFF sliver. ⚠️ **The audit that shrank it found
+a gap rather than only a saving:** the booking controls this release ships had
+**no browser test on any engine**, because `booking.spec.ts` never opens a page.
+The gate change and the release it first gates land together, deliberately —
+a gate that arrives one release after the feature it was meant to verify has
+verified nothing.
+
+### Added
+
+- **Session booking — a member reserves a place for a child, and capacity is a
+  property of POSTGRES rather than of the page.** Migration **0013**:
+  `sessions.capacity` (default 12) and `sessions.overbook_margin` (default 2),
+  a `bookings` table, and `create_booking()` / `cancel_booking()` /
+  `session_availability()`.
+  - ⚠️ **THERE IS NO INSERT POLICY FOR A PARENT, AND THAT IS THE ENFORCEMENT.**
+    Rows arrive only from `create_booking()`, which is SECURITY DEFINER and
+    checks ownership itself. A parent who bypasses the UI gets `42501`, not an
+    overbooked session — asserted with a real token.
+  - ⚠️ **THE LOCK IS TAKEN BEFORE THE COUNT, AND ON THE SESSION ROW.**
+    `select … for update` serialises two parents going for the last place;
+    counting first and locking after would let both read 13 of 14 and both
+    insert. **Measured: six concurrent bookings for three places produce
+    exactly three `ok` and three `full`**, and the row count is then asked of
+    the database rather than inferred from the replies.
+  - ⚠️⚠️ **A BOOKING WRITES NOTHING TO `sessions`, AND A SPEC COUNTS IT.** 0011
+    hangs statement-level rebuild triggers on that table, so a denormalised
+    `bookings_count` column — the obvious optimisation — would turn every
+    reservation into a Cloudflare build. A lock is not a write; the count is
+    derived by counting. `booking.spec.ts` compares `rebuild_requests` across a
+    booking and a cancellation and expects **no change**.
+  - ⚠️ **CANCELLATION FREES THE PLACE VIA A PARTIAL UNIQUE INDEX** —
+    `unique (session_id, child_id) where status <> 'cancelled'`. A plain unique
+    constraint would let a child cancel once and never re-book.
+  - ⚠️ **THE OVERBOOKING MARGIN IS A FEATURE AND WILL LOOK LIKE A BUG.**
+    Capacity 12 + margin 2 accepts **fourteen**. Cancellations are frequent and
+    the venue absorbs the overflow, so nobody is turned away. The reason is on
+    the admin form, not only in the migration.
+  - ⚠️ **THE TWO-HOUR CUTOFF LIVES IN THE DATABASE**; `cancellable()` only greys
+    the button. **Staff are exempt** — "after that the prof handles it" means
+    the prof can. The boundary is closed against the member so the button and
+    the rule cannot disagree.
+  - **A cancelled session cancels its bookings** with `cancel_reason =
+    'session_cancelled'`, via a row trigger that **swallows every failure**: it
+    may never block a prof from cancelling (Critical Feature 70).
+  - ⚠️ **`session_availability()` EXISTS BECAUSE A PARENT CANNOT COUNT.**
+    `bookings_select_own` shows them their own rows, so `count(*)` would return
+    their own bookings. Numbers only, never a name, and **not granted to
+    `anon`** — which is what stops a page calling it on load and breaking the
+    guest zero-request rule.
+  - **Live RLS/GRANT audit against the TEST project: 28 assertions, all
+    passing**, exercised with real tokens rather than by re-reading the
+    migration. ⚠️ **The two failures it did find were in the AUDIT**: setting
+    `profiles.role` with a direct `UPDATE` as `service_role` silently does
+    nothing, because a guard trigger refuses a role write when `auth.uid()` is
+    null. The sanctioned path is `admin_set_role()`. The column being genuinely
+    un-writable is the feature.
+- **The member surface, FR/EN** — places restantes and a book button per child
+  on `/agenda/`, "Réservé" with cancel until the cutoff, and «Complet» on a full
+  session.
+  - ⚠️ **A SIGNED-OUT READER STILL CAUSES ZERO REQUESTS.** `hasStoredSession()`
+    reads `localStorage` for supabase-js's own token key and **imports nothing**
+    — asking Supabase whether we are signed in is already the violation, because
+    constructing the client can refresh a token. No token, no import, no
+    request; the server-rendered invitation to sign in is what stays on screen.
+  - ⚠️ **THE DATABASE RETURNS A CODE, NEVER A SENTENCE** (Critical Feature 74).
+    A French string from Postgres could not be rendered for an English reader,
+    so `create_booking()` returns `full` / `already` / `past` / … and
+    `src/i18n/ui.ts` owns both wordings. **An unknown code renders the generic
+    refusal — never a silent no-op.**
+  - ⚠️ **`src/styles/booking.css` IS NOT SCOPED**, because the per-child buttons
+    are built by script and carry no `data-astro-cid` attribute. Same lesson as
+    `admin.css`, `family.css` and `video.css`.
+- **The prof surface** — capacity and margin on the session form, an **attendee
+  list carrying the parent's phone as a `tel:` link**, and booked children
+  leading the register.
+  - ⚠️ **THE REGISTER STILL LISTS THE WHOLE CLASS.** Only the ORDER changes. A
+    child who turns up without booking must be markable without anyone retyping
+    them — attendance is the record of who came, not of who said they would.
+  - ⚠️ **BOTH READS RUN UNDER THE SAME GENERATION COUNTER**, so a stale roster
+    cannot sit above a fresh register.
+
+### Fixed
+
+- ⚠️⚠️ **`npm run db:push -- --dry-run` APPLIED THE MIGRATION AND REPORTED THAT
+  IT HAD NOT.** `scripts/db-push.mjs` read `process.argv` **not at all**: it ran
+  a `--dry-run` probe to find the pooler host, printed the pending list, then
+  applied unconditionally with `--include-all`. The flag was accepted, ignored,
+  and contradicted by the script's own output (`"dryRun":false` beside
+  *"Applying migration…"*).
+  - ⚠️ **A DRY-RUN FLAG THAT LIES IS WORSE THAN NO FLAG.** The whole purpose of
+    this wrapper is that it refuses production; a flag someone learns to trust
+    for "just checking" is the one they reach for when they are least sure what
+    they are pointed at. Found at the 0013 gate, where the migration was wanted
+    anyway — which is exactly the luck that lets a defect like this survive.
+  - **`--dry-run` now stops after the probe**, having changed nothing, and says
+    so. ⚠️ **And an unrecognised argument now FAILS CLOSED** — `--dryrun`, a
+    typo or anything else refuses with exit 1, because silently discarding an
+    argument is what caused this in the first place.
+  - **Verified by watching it not happen:** a throwaway pending migration stayed
+    pending across a `--dry-run`, and `--dryrun` was refused.
+
+### Added
+
+- **A session EDIT form on `/admin/seances`, which is the missing half of
+  "capacity is set by the prof".** The fields were on the write path but no form
+  reached them, so a prof could set capacity at creation and never change it.
+  - ⚠️ **ONE FORM, TWO MODES — not a second form.** A separate edit form is a
+    second place for the field list to be wrong, and capacity reaching the
+    create form alone is precisely how this gap appeared.
+  - ⚠️ **EDIT MODE SHORT-CIRCUITS THE REPEAT PREVIEW.** Repetition creates rows;
+    editing changes one. Leaving the cadence live would offer "modify this
+    session, thirteen times" — and 0012's rule is that a series is a LABEL, so
+    editing a member edits that member only.
+  - ⚠️ **`datetime-local` WANTS LOCAL WALL-CLOCK, NOT AN ISO INSTANT.** Assigning
+    the stored `…Z` string leaves the field silently empty in every browser, so
+    the value is rebuilt from local parts.
+  - ⚠️ **A cancelled session is not offered as a form state.** Un-cancelling has
+    consequences for everyone who was told it was off; it is not a dropdown.
+  - The status is sent as-is, so editing a draft never accidentally announces it.
+- **Occupancy on each admin session card — "9 / 14 places".**
+  - ⚠️ **THE DENOMINATOR IS `capacity + margin`, THE NUMBER THAT ACTUALLY
+    REFUSES.** Printing "9 / 12" beside a session that accepts fourteen would
+    make the margin invisible again, and a prof counting fourteen children
+    against a card reading 12 is the confusion the form's hint exists to prevent.
+  - ⚠️ **AN ABSENT COUNT PRINTS "—", NEVER 0** (the same rule as Critical
+    Feature 30): `capacity` is null on a pre-0013 database and availability is
+    empty until it loads, and neither of those is zero.
+  - It reads **the same `session_availability()` the member surface calls**, so a
+    prof and a parent can never see different occupancy for one session — the
+    lesson `computeLedger()` already carries.
+
+### Changed
+
+- ⚠️⚠️ **`scripts/fetch-agenda.mjs` GAINED A COLUMN LADDER, AND IT IS THE
+  HIGHEST-STAKES ONE IN THE REPOSITORY.** It now names `capacity` and
+  `overbook_margin`; an explicit select naming a column the database lacks
+  returns `42703`, which that script treats as a fatal read and **exits 1** —
+  so a Cloudflare build against a production database without 0013 would fail
+  the whole build. The ladder degrades to the pre-0013 columns instead. ⚠️ **Only
+  a missing column earns the retry**: a network error, a bad key or an RLS
+  refusal stays fatal, because degrading those would hide the failures the
+  script exists to surface.
+- **`SESSION_COLUMNS` gained a rung** for the same reason, and `SessionInput`
+  omits capacity rather than sending null — reads degrade, writes fail loudly.
+- ⚠️ **`sessionFingerprint()` NOW COVERS `capacity` AND `overbookMargin`, AND
+  DELIBERATELY NOT THE BOOKING COUNT.** Both halves follow the same rule.
+  Capacity is a field a prof edits and a reader sees, so editing it must raise
+  the staleness banner. The live count is not a session field at all — it
+  changes on every booking, which fires no rebuild, so baking it would mark the
+  deployed agenda **permanently** stale and train a prof to ignore the warning.
+  The baked page therefore never claims a remaining count: a signed-in member
+  reads the live number, a signed-out one sees the capacity.
+  - The type system enforced this on its own — adding the fields to
+    `FingerprintableSession` broke the build until `AdminSession` carried them,
+    which is the guard working as designed.
+
+### Documentation
+
+- ⚠️⚠️ **CLAUDE.md → Conventions → Shell: NEVER ROUND-TRIP A SOURCE FILE THROUGH
+  `Get-Content` / `Set-Content`.** Windows PowerShell 5.1 reads a BOM-less file
+  as the system ANSI codepage and writes UTF-8, so a read-modify-write
+  **double-encodes every non-ASCII character** — `séances` → `sÃ©ances`. This
+  repository is full of accented French, so the damage is silent and
+  widespread: one three-line edit corrupted **141 sequences** in
+  `AdminSessionsPage.astro` and turned a small change into a 536-line diff.
+  - ✅ **Appends are safe.** The corruption comes from the READ, not the write.
+  - ⚠️ **The gate caught it, and only because an assertion read the TEXT.**
+    `recurring-sessions.spec.ts` expects `toContainText('13 séances')`. A spec
+    checking structure rather than content would have passed while every accent
+    on the page was mangled.
+  - ⚠️⚠️ **Reversing the double-encoding is NOT the repair when the file is
+    mixed** — and it is mixed whenever an edit landed after the bad write.
+    Measured on the real case: **357 characters would have been lost**, because
+    cp1252 cannot represent `⚠`, `’` or `—`. **Restore from git and re-apply.**
+- ⚠️ **The CLAUDE.md size guard was WARNING again — 120,306 characters (80%) —
+  and this release SPLIT it: 120,306 → 111,582 characters (80% → 74%).** The
+  warning was recorded in BACKLOG rather than papered over with a trim, per the
+  rule, and cleared here as its own first act rather than squeezed into the end
+  of the feature work.
+  - **Seventeen blocks moved VERBATIM** into the reference set, each under a
+    **Read when** line: the account surfaces, the admin surfaces, the baked
+    agenda, session booking, the migration checklist, self-deletion, the
+    test-environment interlock and `demo:accounts` to
+    [`docs/reference/supabase.md`](./docs/reference/supabase.md); the
+    anon-key schema probe to
+    [`docs/reference/deployment.md`](./docs/reference/deployment.md); the
+    environment-symptom tells, the four board-driving gates, why the gate runs
+    twice, why the matrix runs one project at a time and the removed
+    "critical path" trigger to
+    [`docs/reference/testing.md`](./docs/reference/testing.md); the facade
+    rules and the fixture rules to
+    [`docs/reference/video.md`](./docs/reference/video.md); and the 768px
+    divergence rules to
+    [`docs/reference/ui-navigation.md`](./docs/reference/ui-navigation.md).
+  - ⚠️ **`check-split.mjs` proves it lost nothing: 344 lines moved, 1,090
+    stayed, and NOTHING was newly declared obsolete** —
+    `.split-obsolete.txt` is unchanged from v0.17.0.
+  - ⚠️ **THE BINDING RULE STAYED IN CLAUDE.md IN EVERY CASE**, with a pointer
+    saying when the detail matters. Where a state-of-the-world claim was moved
+    (the v0.17.0 schema probe), the **superseding v0.18.0 claim was written
+    beside it in the reference file** rather than the old one being edited in
+    place — the block is evidence of what was verified when, and rewording a
+    moved block is what `check-split.mjs` reads as a lost line.
+  - ⚠️ **THE HEADROOM IS STILL ONLY ~8,400 CHARACTERS, AND THE NEXT SPLIT WILL
+    BE HARDER.** What remains is no longer narrative: the two largest blocks are
+    **Critical Features (14,377)** and the **routes table (4,945)**, and both are
+    indexes of rules that a session could break without going looking — exactly
+    the test for staying. A further reduction would be a **trim**, not a split,
+    and the rule forbids it. If the file warns again, the question for Seàn is
+    structural (does the Critical Features list become a linked file?), not
+    editorial.
+- ⚠️⚠️ **`verify:deploy`'s residual gap FIRED FOR REAL at the v0.17.0 deploy, and
+  the incident is now recorded** in `docs/reference/deployment.md`. The gap had
+  been written down narrowly — "a release that changes only island JavaScript" —
+  which read as a rare curiosity. **The real condition is broader: any release
+  whose changes do not reach the three compared documents**, and an **admin-only
+  release is exactly that case**.
+  - v0.17.0 changed four source files, all admin. `/`,
+    `/exercices/mat-du-couloir/` and `/progres/` are **byte-identical** between
+    the old and new tree once `/_astro` fingerprints are normalised away.
+  - **The live site served the OLD build for ~4 minutes after the push** (both
+    new markers absent at 17:03, present at 17:07:54). Run in that window,
+    `verify:deploy` would have reported "serving this exact build" — **true of a
+    build that predated the release**.
+  - **What caught it was a content check with a discriminator**, and the
+    checklist now carries the step: ask whether the release touched any of the
+    three documents, and if not, verify by a marker from a document it *did*
+    change — **proved absent from the old tree before being relied on**, with a
+    **negative control** that must not match. ⚠️ **The tool cannot substitute for
+    this, and it is the step a hurried operator skips because a green tick
+    already printed.**
+- **CLAUDE.md's production-schema note re-verified and dated 2026-08-20**, at the
+  v0.17.0 gate: `account_shape` `42501` (0010), `rebuild_requests` `42501` rather
+  than `PGRST205` (0011), `series_id` 200 (0012).
+  - ⚠️ **The gap in that probe is now stated: PostgREST sees tables and columns,
+    NOT triggers or functions.** `trigger_count = 3` and
+    `request_site_rebuild(text,integer)` **remain unverified** from a machine
+    holding only the anon key — the SQL editor needs credentials that are
+    deliberately not on a developer machine. ⚠️ **0011 is precisely the migration
+    whose value lives in its trigger**, so "the table exists" is weaker evidence
+    than it looks.
+  - ⚠️ **The controls that make a `42501` mean "present" are recorded**, because
+    the reading is otherwise wrong in the dangerous direction: a table that
+    cannot exist returns `PGRST205`, and a bad column on a *denied* table returns
+    **`42703`, not `42501`** — column validation runs **before** the permission
+    check.
+- ✅ **PRODUCTION'S SCHEMA IS NOW CURRENT THROUGH 0013, AND v0.17.0's OPEN ITEM
+  IS CLOSED.** Verified against the catalog at this gate: `bookings`,
+  `sessions.capacity`, `sessions.overbook_margin`, `create_booking()` and both
+  booking policies are present, **and the half an anon key cannot reach was
+  answered** — `trigger_count = 3` and `request_site_rebuild(text,integer)`
+  exist. CLAUDE.md's note is updated to say so, and still says **re-ask rather
+  than trust it**: it is a claim about the outside world and it expires.
+  - ⚠️ **Still outstanding, and still not a deploy blocker:**
+    `supabase_migrations.schema_migrations` lists `0001, 0002` on a database
+    holding everything through 0013. **Registering is bookkeeping, not proof** —
+    the backfill SQL stays in
+    [`docs/reference/deployment.md`](./docs/reference/deployment.md) and the row
+    stays in BACKLOG.
+
+### Changed
+
+- ⚠️⚠️ **THE RELEASE GATE WENT FROM 4.8 HOURS TO ~25 MINUTES, AND THE
+  VERIFICATION POLICY IN CLAUDE.md CHANGED WITH IT** — in the same commit, per
+  the rule that exists for exactly this. It was five projects × every spec ×
+  both flag shapes: **~6,700 test executions, measured at 115.6 + 172.1
+  minutes**, for a static teaching site.
+  - **Chromium is now the backbone** — it runs the WHOLE suite, proving all 42
+    spec files once, in a **measured 7.1 minutes**.
+  - **The other four projects became LANES**, each pinned to the engine that
+    caught a real, user-facing defect: **webkit** (the "Créer" click-synthesis
+    bug, `956b05a`, one release earlier), **firefox** (the agenda axe violation
+    Gecko's accessibility tree produced), **iphone-13** (the tap-versus-bar
+    collision), **pixel-5** (the same touch surface, other engine).
+  - **`scripts/lanes.mjs` is the ONE definition**, read by both
+    `playwright.config.ts` and `scripts/check-lanes.mjs` — same reasoning that
+    put the spec map in its own module.
+  - **Measured GREEN end to end: 21.9 min, 1,277 passed, 0 failed**, sliver
+    included. Per lane: chromium 7.1 min, webkit 5.1, firefox 5.6, iphone-13
+    3.6, pixel-5 1.1. **1,279 test executions against ~6,700 — 81% fewer.**
+    ⚠️ Troughs were **0.51-2.03 GB free**, i.e. the starvation regime §9a
+    describes — **the bad case, not the good one.**
+- ⚠️ **THE GATE RUNS ONE FLAG SHAPE — ACCOUNTS ON, BECAUSE THAT IS WHAT
+  PRODUCTION SERVES** — and ends with a **two-minute accounts-OFF sliver** that
+  is not a second matrix.
+  - **29 of the 41 spec files ran IDENTICALLY in both shapes**, proved by
+    run/skip status rather than inferred. The second matrix re-ran **~3,000
+    tests that could not answer anything new.**
+  - What the OFF shape uniquely proves is exactly two files —
+    `auth-disabled.spec.ts` (Critical Feature 18) and `admin.spec.ts`'s "the
+    admin surfaces are NOT BUILT" describe. ⚠️ **The second BUILD is
+    irreducible — you cannot inspect an artefact you did not produce** — but
+    the tests take seconds, on chromium alone.
+  - ⚠️ **A sliver that runs zero tests FAILS the gate**, naming Critical
+    Feature 18. A gate that quietly stops proving the flag still works is the
+    failure this change could most easily have introduced.
+  - ⚠️ **The sliver is preceded by a sweep**, because the accounts-ON preview
+    server is still listening and `reuseExistingServer` would otherwise run the
+    OFF specs against the ON build.
+
+- ⚠️⚠️ **`test:branch` NOW FOLLOWS THE SELECTION'S FLAG SHAPE — A HOLE IN THE
+  DAILY LOOP, WHICH IS WHERE DEFECTS ARE CHEAPEST TO CATCH.** With the release
+  gate moved to accounts-ON, `test-branch.mjs` still set no flag: every branch
+  build was OFF, so **every auth, admin, family, onboarding and booking spec
+  SKIPPED**. A session touching the booking UI got no coverage at all until
+  promotion — the branch gate answering a question nobody asked.
+  - **The smallest fix that closes it:** `NEEDS_ACCOUNTS_ON` moves into
+    `scripts/lanes.mjs` (one list, two consumers) and the branch runner builds
+    ON when the selection contains any of them. **The cost is paid only by
+    branches that touch account code** — everything else still builds OFF and
+    is unchanged; those that do pay a slightly longer build and some of
+    Supabase's per-IP verify quota, which `--workers=2` already exists to
+    survive.
+  - ⚠️ **The old copy of that list, inline in `test-branch.mjs`, was missing
+    `booking`, `booking-ui` and `recurring-sessions`** — exactly the drift that
+    a second copy always produces.
+  - ⚠️ **An explicit `PUBLIC_AUTH_ENABLED` in the environment still wins**, and
+    a selection that wants BOTH shapes says so out loud rather than being
+    silently half-covered.
+- ⚠️ **`booking-ui.spec.ts` is mapped in `spec-map.mjs`**, so it runs on the
+  branch that changes the booking painter, its page or its stylesheet. **A spec
+  mapped from nothing only runs at the release gate**, which would have undone
+  most of the point of adding it.
+- ⚠️ **`scripts/quick.mjs` now REFUSES a change to what the gate runs** —
+  `lanes.mjs`, `test-release.mjs`, `test-branch.mjs` and `spec-map.mjs` joined
+  the FORBIDDEN list. The lane design made this reachable: removing one name
+  from `lanes.mjs` is a one-line edit that looks like a tidy-up and silently
+  deletes a browser's worth of coverage. **The fast path must never be able to
+  shorten the gate that polices it.**
+
+### Added
+
+- ⚠️⚠️ **`tests/e2e/booking-ui.spec.ts` — THE BOOKING CONTROLS HAD NO BROWSER
+  TEST ON ANY ENGINE, AND THAT IS THE REAL FINDING OF THIS AUDIT.**
+  `booking.spec.ts` is 14 tests of `rpc()` calls, capacity under concurrency,
+  RLS and the rebuild-trigger count — and it **never opens a page**. So the
+  per-child controls on `/agenda/`, which are **painted by script**, shipped in
+  v0.18.0 untested, and `booking.spec.ts` would have stayed green throughout.
+  - ⚠️ **They are the same surface class as the "Créer" button**, which did
+    nothing at all on WebKit for a whole release. The new spec is in the
+    **webkit lane** for that reason.
+  - It drives the real controls: the signed-out invitation with **zero Supabase
+    requests** (FR and EN), an account with no child profile, a booking
+    **confirmed against the database rather than against the button's label**,
+    a **stale past session refusing in words** (Critical Feature 74), and — the
+    regression it exists for — **book, cancel, book with no reload**, so every
+    press lands on a control the previous press rebuilt.
+  - ⚠️ **It reads the roster back rather than seeding one**, and the comment
+    says why: `/compte/` adopts a child asynchronously, so seeding around it
+    raced the adoption, left two children of the same name, and produced a spec
+    that failed while the feature worked. The page said *"C'est réservé."*, the
+    database agreed, and only the spec was wrong.
+  - **6/6 green on chromium and 6/6 on webkit.**
+- **`scripts/check-lanes.mjs` — ADVISORY, and it says so in its own output.**
+  It scores each spec for signals a different engine could answer differently
+  and reports the chromium-only ones.
+  - ⚠️⚠️ **IT ALWAYS EXITS 0 AND MUST NEVER BECOME A GATE**, and the reason is
+    a fact about this repository rather than caution:
+    **`recurring-sessions.spec.ts` scores ZERO on every signal it measures —
+    and it is the spec that caught the Créer bug.** The score sees what a spec
+    *asserts*; that defect lived in how the spec *drives* the page, a plain
+    `fill()` then a plain `click()`. No pattern added to the list would find
+    it. A green tick would read as "the lanes are complete", which is the exact
+    false confidence that lets the next one through.
+  - It also lists the four specs that **never take the `page` fixture** —
+    `booking`, `child-profiles`, `engine-levels`, `role-separation` — which
+    between them spawned **255 browser contexts per release** for `rpc()` calls
+    and arithmetic.
+- **`missingLaneSpecs()` — the one lane check that IS a gate.** A lane naming a
+  spec that does not exist makes `testMatch` match **nothing**, so the project
+  runs zero tests and the gate goes green having proved less than it claims —
+  the one failure mode the lane design introduces. It is a fact about the
+  filesystem, so it is checked exactly, and `test-release.mjs` refuses before a
+  browser starts.
+
+### Fixed
+
+- ⚠️⚠️ **`booking.spec.ts` COUNTED A GLOBAL LOG AND SO COULD FAIL WHILE THE RULE
+  IT GUARDS WAS INTACT — it now watches the session ROW.** "A booking and a
+  cancellation fire no rebuild at all" took a before/after count of
+  `rebuild_requests`, which is one log for the whole database.
+  `test.describe.configure({ mode: 'serial' })` serialises only the tests in
+  that file; `recurring-sessions`, `admin` and `attendance-timing` create and
+  cancel sessions in **other** files, concurrently, and each of those
+  legitimately fires a rebuild.
+  - **It failed the first run of the new gate at `1868` vs `1870`** — two
+    firings the test did not cause. ⚠️ **A serial re-run of the file passed
+    14/14**, which is this project's own arbiter for "not deterministic", so the
+    rule (Critical Feature 72) was never in question.
+  - **The session row is isolated and tests the rule more directly:** CF72 says
+    a booking must never WRITE to `sessions`, and the regression it names — a
+    denormalised `bookings_count` — changes that row. `select … for update` is a
+    lock and leaves no trace.
+  - ⚠️ **What it gives up is stated in the spec rather than hidden:** an UPDATE
+    writing the same values back would fire the trigger and leave the row equal.
+    Nothing plausible does that, and nothing isolated could see it.
+  - **Watched to fail before being trusted**, per the house rule: with a
+    one-line write to the session row injected, it fails naming CF72; without
+    it, 14/14 green.
+- ⚠️ **TWO CONTROL BYTES WERE SITTING IN `scripts/spec-map.mjs`, AND THEY GOT
+  THERE THE SAME WAY THE MOJIBAKE DOES.** A `0x07` (BEL) stood where the `a` of
+  `agenda.spec.ts` belonged and a `0x08` (BS) where the `b` of `bookings` did —
+  i.e. `\a` and `\b` interpreted as C escapes by whatever wrote the file. Found
+  by a byte scan while adding a mapping; harmless (both are inside comments) and
+  repaired in Node, which is byte-honest.
+  - ⚠️ **The lesson is the one CLAUDE.md already draws about PowerShell,
+    widened:** a scripted edit can corrupt a source file in more than one
+    encoding-shaped way, and neither the build, the linter nor a diff review
+    would ever have flagged these. **A byte scan is cheap; add it to the check
+    when a scripted edit is unavoidable.** The rest of the repo is clean —
+    every other control byte found is a deliberate ANSI colour escape.
+- **`test-release.mjs`'s arithmetic check no longer compares the projects to
+  each other.** That was right while every project ran every spec; under the
+  lanes, disagreement is the design. It now asserts that **no project ran zero**
+  and that **chromium — the superset — is never the smaller run**, which is
+  aimed at the mistyped-lane failure instead.
+
+### Documentation
+
+- **The full audit is in [`docs/reference/testing.md`](./docs/reference/testing.md)** —
+  the before/after cost per project, the per-spec chromium cost table, the
+  flag-shape classification, the lane table with what each is earned by, **what
+  was cut and the risk of each cut**, and why the heuristic's blind spot cannot
+  be tuned away.
+  - ⚠️ **The risk is stated in both directions.** The last two full matrices
+    found **zero** genuine cross-browser defects — every failure and flake was
+    memory starvation cleared by a serial re-run. But the matrix caught a real
+    WebKit defect **one release earlier**. The redundancy that produced nothing
+    is what was cut; the coverage that produced defects is what the lanes keep.
+  - ⚠️ **The biggest accepted risk is named rather than buried:** `exercise`,
+    `replayer`, `play` and `tutorial` drop to chromium. Their engine-sensitive
+    surface is the board, which stays covered on webkit and both mobile
+    projects through `board-pointer`, `board-frame`, `board-affordance` and
+    `nav-coords`.
+- **`docs/MANUAL-TESTS.md`** — the gate line now names the real command, and
+  §7e says which half of the booking walkthrough is automated so the manual
+  pass can spend its time on what no spec sees: one-handed use on a real phone,
+  readability in sunlight, and real target sizes.
+
+### Verification
+
+⚠️⚠️ **THIS RELEASE WAS PROMOTED ON A GREEN GATE FROM AN EQUIVALENT TREE, NOT
+FROM THE PROMOTED TREE ITSELF. THAT IS AN EXCEPTION, AND IT IS RECORDED HERE
+RATHER THAN MADE SILENTLY.**
+
+**What was green.** `PUBLIC_AUTH_ENABLED=true npm run test:release` at
+**2026-08-21 09:27 — 1,277 passed, 0 failed, 21.9 min**: chromium 732, firefox
+145, **webkit 161**, pixel-5 102, **iphone-13 116**, plus the accounts-OFF
+sliver (21 passed, Critical Feature 18 proved).
+
+**What then broke, and it was the machine.** A later run of the same gate came
+back with **265 failures, every one of them `browserType.launch: Target page,
+context or browser has been closed`** — the browser never started. Diagnosis:
+
+- **Smart App Control is ENFORCED on this machine and blocks Playwright's
+  unsigned `zlib1.dll`** — `PrintDeps.exe` reports *"An Application Control
+  policy has blocked this file"*.
+- Chromium and Firefox keep working because SAC is **reputation**-based, not
+  signature-based; their binaries are unsigned too but far more widely seen.
+- Deleting and re-downloading `webkit-2336` restored every file
+  (`JavaScriptCore.dll`, `WebCore.dll`, `WebKit2.dll`, `zlib1.dll` all present
+  and a valid x64 PE) and changed nothing: the block is on **loading**, not on
+  the files.
+- ⚠️ **It changed mid-session.** The same lane was green two hours earlier on
+  this machine.
+
+**Why the earlier green transfers.** `git diff` between the gate's tree
+(`e51d9cc`) and the promoted tree is **empty** for `src/`, `tests/`, `public/`,
+`playwright.config.ts`, `package.json`, `supabase/` and `astro.config.mjs`, and
+**no lane membership changed**. The only differences are `scripts/spec-map.mjs`
+and `scripts/test-branch.mjs` — branch tooling the release gate never invokes —
+and additive exports in `scripts/lanes.mjs`. Nothing between the two trees can
+alter what the site does or what the WebKit lane runs.
+
+⚠️ **WHAT THIS DOES NOT COVER, STATED PLAINLY:** no gate ran on the exact
+promoted commit. The argument above is a mechanical equivalence, not a run, and
+a future session must not read it as licence to re-argue a red gate. **A red
+gate is still a finding.** The exception here is that the redness was proved to
+be the host, with the browser failing to launch at all and the same code green
+on the same machine hours earlier.
+
+⚠️ **NOT DONE, AND NOT CLAIMED:** the `docs/MANUAL-TESTS.md` pass on a real
+phone, and Lighthouse ≥ 90. Both are on the release gate and both are Seàn's.
 
 ---
 
@@ -5207,7 +5708,8 @@ Foundation only: no real content, no interactive board yet.
   `url()` references unresolved and the fonts silently 404 into a Georgia
   fallback. `scripts/build-fonts.mjs` self-hosts them instead. See CLAUDE.md.
 
-[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.17.0...HEAD
+[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.18.0...HEAD
+[0.18.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.14.0...v0.15.0

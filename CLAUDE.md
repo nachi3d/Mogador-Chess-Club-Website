@@ -235,6 +235,39 @@ it. Tags said one thing and the manifest said another.
 - All prompts in a single copyable block
 - No confirmation questions for standard commands
 
+#### ⚠️⚠️ NEVER ROUND-TRIP A SOURCE FILE THROUGH `Get-Content` / `Set-Content`
+
+Windows PowerShell 5.1 reads a BOM-less file as the system **ANSI** codepage and
+writes with `-Encoding utf8`. A read-modify-write therefore **double-encodes
+every non-ASCII character**: `séances` becomes `sÃ©ances`, `d’une` becomes
+`dâ€™une`. ⚠️ **THIS REPOSITORY IS FULL OF ACCENTED FRENCH** — the UI strings,
+every `/admin*` surface, the content, this file — so the damage is both silent
+and widespread. One three-line edit corrupted **141 sequences** and turned a
+tiny change into a 536-line diff.
+
+**Use the editing tool.** It preserves encoding. If a scripted edit is genuinely
+unavoidable, do it in Node (`readFileSync(p, 'utf8')` → `writeFileSync(p, s,
+'utf8')`), which is byte-honest on every platform.
+
+- ✅ **APPENDING IS SAFE.** `Add-Content -Encoding utf8` only writes new UTF-8
+  bytes at the end and never re-encodes what is already there. The corruption
+  comes from the READ, not the write.
+- ⚠️ **THE GATE CAUGHT IT, AND ONLY BECAUSE AN ASSERTION READ THE TEXT.**
+  `recurring-sessions.spec.ts` expects `toContainText('13 séances')` and got
+  `13 sÃƒÂ©ances`. A spec that had checked structure — an element exists, a
+  count is right — would have passed while every accent on the page was
+  mangled. Content assertions on real French are what make this visible.
+- ⚠️⚠️ **REVERSING THE DOUBLE-ENCODING IS NOT THE REPAIR WHEN THE FILE IS
+  MIXED**, and it will be mixed whenever any edit landed after the bad write:
+  those parts are already correct and a blanket reversal destroys them.
+  Measured on the real case — **357 characters would have been lost**, because
+  cp1252 cannot represent `⚠`, `’` or `—` and they degrade to `?`.
+  **RESTORE FROM GIT AND RE-APPLY THE CHANGES.** It is slower and it is the
+  only version that cannot lose bytes.
+- **Check before trusting a file you scripted:** a scan for `Ã` or `Â` finds it
+  instantly, and `git diff --stat` shows a whole-file rewrite where a small
+  change was intended.
+
 ### Code
 - TypeScript strict mode, no `as any` to bypass types
 - All public user-facing strings through the i18n layer — no hardcoded FR/EN in components. The layer lives in `src/i18n/`: `ui.ts` (string tables — **FR is the reference table and EN is typed against it, so a missing translation is a compile error**) and `paths.ts` (locale-aware path building + the switcher's path-preserving counterpart lookup). Paths are emitted with a trailing slash to match `build.format: 'directory'`.
@@ -320,6 +353,11 @@ it. Tags said one thing and the manifest said another.
 68. **The deploy hook URL is a VAULT SECRET, and this repository is public.** It is the credential. `vault.create_secret(…, 'cloudflare_deploy_hook')`, read only by `request_site_rebuild()` — never a table, never `.env`, never a migration. ⚠️ **No secret means NO DISPATCH, not an error**, which is what lets a test project count firings safely.
 69. **`sessions.series_id` is a LABEL, never a rule — NO RRULE engine, NO recurrence table.** The expansion happens once, in the browser; what is stored is thirteen ordinary rows. Nothing may read it to decide what a session IS, only to select rows the prof already sees. One cancelled week must not require reasoning about a rule.
 70. **The rebuild trigger may NEVER fail a write.** Every failure path logs and returns. A trigger that can raise makes `/admin/seances` unable to save — somebody else's outage becoming a database outage in front of a room of children.
+71. **Capacity is enforced in POSTGRES, never in client code.** `bookings` has no insert policy for a parent at all; rows arrive only from `create_booking()`, which locks the session row before it counts. A client that bypasses the UI gets `42501`, not an overbooked session.
+72. ⚠️ **A BOOKING MUST NEVER WRITE TO `sessions`.** A denormalised `bookings_count` column is the obvious optimisation and would turn every reservation into a Cloudflare build (CF67). The count is DERIVED by counting; `select … for update` is a lock, not a write, and fires no trigger. A spec counts `rebuild_requests` across a booking and a cancellation.
+73. **The overbooking margin is a FEATURE, and it will look like a bug.** Capacity 12 + margin 2 accepts **fourteen** bookings. Cancellations are frequent and the venue absorbs the overflow, so nobody is turned away. Seàn's decision — do not "fix" it.
+74. **The database returns a CODE, never a sentence.** Member surfaces are FR/EN and a French string from Postgres cannot be rendered in English. `src/i18n/ui.ts` owns both wordings, keyed by code; an unknown code renders the generic refusal and **never a silent no-op**.
+75. **The baked agenda never claims a remaining count.** Capacity and margin are baked and fingerprinted; the live booking count is not baked at all, because a booking fires no rebuild and a baked count would mark the deployed agenda stale forever. A signed-in member reads the live number; a signed-out one sees capacity and makes **zero requests**.
 
 ---
 
@@ -756,49 +794,31 @@ explicitly.
 The rules that bind work elsewhere:
 
 - **The bottom bar has exactly FIVE SECTIONS and never hides on scroll** —
-  Accueil, Apprendre, Jouer, Moi, Réglages. No page may hide content behind the
-  bar; `env(safe-area-inset-bottom)` is needed in **two** places.
-  ⚠️ **EVERY ENTRY HAS A LANDING SCREEN** (Critical Feature 27). M1 capped this
-  at four on the grounds that five labels truncate at 390px; that was a guess
-  and it is now measured — **78×52px per cell at 390px, 72×52 at 360px, longest
-  label 56.6px**, nothing clipped in either locale. Settings earned its slot by
-  becoming a section rather than a link to one page, and "Progrès" lost its slot
-  by being a leaf with nothing underneath.
-- ⚠️ **A LABEL THAT STOPS FITTING IS A COPY PROBLEM, NOT A LAYOUT ONE.** Shorten
-  the word; never shrink the target and never ellipsise. The spec measures the
-  rendered text against its own cell so this arrives as a failure.
-- ⚠️ **NO ROUTE MAY EXIST ON ONE LAYOUT ONLY** (Critical Feature 36). Every
-  destination the bar reaches must be reachable from the desktop header, and the
-  spec **reads the list off the bar** rather than hard-coding it. `/progres/`
-  shipped reachable from the bar and from nothing at all on desktop: the page
-  built, rendered and passed every one of its own specs.
-- **Below 768px the exercise controls compact; the board never does.** The board
-  is the thing being taught with. It is **CSS only** — the dense row is built with
-  flex `order`, so the DOM (and the screen-reader reading order, and the ≥768px
-  layout) is untouched.
-- ⚠️ **KNOWING WHERE YOU ARE IS TWO SIGNALS, AND THE SITE ONLY HAD ONE (M4).**
-  The bar's active tab locates you to within a *quarter of the site*; it says
-  "Apprendre" from the courses index, from a course, from a lesson three levels
-  down and from a trap. The second signal is the **trail**: every page below a
-  section landing carries a back affordance that **NAMES ITS PARENT**
-  (Critical Feature 62) — « ‹ Bien ouvrir une partie », not « Retour » and not
-  « Toutes les leçons ». `src/components/nav/Trail.astro` is the only one.
-  ⚠️ **A LINK, NEVER `history.back()`** — a reader who arrived from a shared
-  link has no history, and a control that does nothing is worse than none.
-  ⚠️ **THE FIVE LANDINGS AND `/` HAVE NO TRAIL**, deliberately: the bar is
-  already their way out. "Add one everywhere" is not the fix.
-  ⚠️ **PREV/NEXT IS NOT THE WAY UP** (Critical Feature 64). Both survive on a
-  lesson, and collapsing them traps a reader inside a sequence.
+  Accueil, Apprendre, Jouer, Moi, Réglages — and ⚠️ **EVERY ENTRY HAS A LANDING
+  SCREEN** (Critical Feature 27). No page may hide content behind the bar;
+  `env(safe-area-inset-bottom)` is needed in **two** places. The five-label fit is
+  **measured, not guessed** (78×52px per cell at 390px; longest label 56.6px).
+  ⚠️ **A LABEL THAT STOPS FITTING IS A COPY PROBLEM, NOT A LAYOUT ONE** — shorten
+  the word; never shrink the target and never ellipsise.
+- ⚠️ **NO ROUTE MAY EXIST ON ONE LAYOUT ONLY** (Critical Feature 36). The spec
+  **reads the list off the bar** rather than hard-coding it. `/progres/` shipped
+  reachable from the bar and from nothing at all on desktop, and passed every one
+  of its own specs.
+- **Below 768px the exercise controls compact; the board never does.** It is
+  **CSS only** — flex `order`, so the DOM, the screen-reader reading order and
+  the ≥768px layout are untouched.
+- ⚠️ **KNOWING WHERE YOU ARE IS TWO SIGNALS.** The bar's active tab locates you
+  to within a quarter of the site; the second signal is the **trail**, which
+  **NAMES ITS PARENT** (Critical Feature 62) — « ‹ Bien ouvrir une partie », never
+  « Retour ». `src/components/nav/Trail.astro` is the only one.
+  ⚠️ **A LINK, NEVER `history.back()`.** ⚠️ **THE FIVE LANDINGS AND `/` HAVE NO
+  TRAIL**, deliberately. ⚠️ **PREV/NEXT IS NOT THE WAY UP** (64).
 - **Every long route ends with a way onward**, clear of the fixed bar, from the
-  **same i18n key** as the link at the top.
-- **The home menu's labels ARE the nav's labels**, from the same `nav.*` keys
-  (Critical Feature 20). Never a second string for one destination. The spec reads
-  the header's own labels off the page rather than hard-coding words.
-- **The home menu works with no JavaScript** (five entries, not six — "Reprendre"
-  is a claim about stored progress) and fits one screen on a phone.
+  **same i18n key** as the link at the top. **The home menu's labels ARE the
+  nav's labels** (Critical Feature 20), and **it works with no JavaScript** and
+  fits one screen on a phone.
 - ⚠️ **There is ONE resume rule** (`ResumeResolver.astro`) **and ONE key scheme**
-  (`src/lib/journey.ts`). Four surfaces read them; a second copy of either is how
-  two pages come to disagree about what a reader has done.
+  (`src/lib/journey.ts`). Four surfaces read them.
 - ⚠️ **NEVER PUT `opacity` ON TEXT OVER AN AUDITED FILL.** `check-contrast.mjs`
   proves the token pair and cannot see an alpha applied on top of it: 0.9 dropped
   a proved pair to 4.42:1 and cost a Lighthouse regression the whole Playwright
@@ -947,19 +967,20 @@ and always will be. Verified 2026-08-15 by probing the live site: `/connexion/`,
 switched off in production" and reasons from it will get every conclusion about
 the live site wrong — **ask the deployment, not the default.**
 
-✅ **PRODUCTION'S SCHEMA IS CURRENT THROUGH 0012** — verified 2026-08-18 against
-the catalog: `account_shape` 200 (0010), `rebuild_requests` `42501` rather than
-`PGRST205` (0011), `series_id` 200 (0012). ⚠️ **Re-ask rather than trusting this
-line** — it is a claim about the outside world and it expires.
+✅ **PRODUCTION'S SCHEMA IS CURRENT THROUGH 0013**, verified against the catalog
+at the v0.18.0 gate: `bookings`, `sessions.capacity`, `overbook_margin`,
+`create_booking()` and both booking policies are present. v0.17.0's open item is
+**closed** — `trigger_count = 3` and `request_site_rebuild(text,integer)` exist.
+⚠️ **Re-ask rather than trusting this line** — it is a claim about the outside
+world and it expires.
 
-✅ **AND THE VAULT ENTRY IS LIVE** — production's `rebuild_requests` carries
-firings with `dispatched = true`. A schema query cannot show that half; a log
-row can.
-
-⚠️ **STILL OUTSTANDING, AND IT DOES NOT BLOCK A DEPLOY:** production's
-`schema_migrations` still lists `0001, 0002`, so a future `db push` would replay
-everything between — including 0005's unguarded `drop constraint`. **Registering
-is bookkeeping, not proof.** Backfill SQL in
+⚠️ **ASK THE CATALOG, PER MIGRATION — NEVER `schema_migrations`**, which has
+already given the wrong answer in the dangerous direction. An anon-key probe sees
+**tables and columns and cannot see triggers or functions**, so it answers half
+the question and the SQL editor answers the other half. ⚠️ **A `42501` proves
+existence only because `PGRST205` and `42703` are checked alongside it** — the
+controls, the half an anon key cannot reach, and the still-outstanding
+`schema_migrations` backfill are in
 [`docs/reference/deployment.md`](./docs/reference/deployment.md). See BACKLOG.
 
 **OFF means NOT BUILT** (Critical Feature 18): the routes are not in `dist/`,
@@ -1005,38 +1026,23 @@ each: [`docs/reference/supabase.md`](./docs/reference/supabase.md).**
 `/admin/`, `/admin/eleves/`, `/admin/eleve/?id=…`, `/admin/seances/`,
 `/admin/comptes/`. Reached from `/compte/`, which is the only entry point.
 
-The rules that bind work elsewhere — the rest is reference:
-
-- ⚠️ **FRENCH ONLY** (Critical Feature 43). No `t()`, no `/en/admin/`, no i18n
-  scaffolding. **A future session must not "fix" this; the missing English is
-  the decision.**
-- ⚠️ **`singleLocale` on BaseLayout suppresses the hreflang alternates AND the
-  language switcher**, and both halves are needed. It is **not** an escape hatch
-  for public pages.
-- ⚠️ **RLS is the security; the role check is UX** (Critical Feature 44), and the
-  gate **fails closed**. ⚠️ **An assertion about who may see what belongs in
-  `role-separation.spec.ts`, never in `admin.spec.ts`.**
-- ⚠️ **The class list is CHILDREN, not accounts**, and the child id is a **query
-  parameter, not a route segment** — a static build would otherwise have to
-  publish the class list in `dist/`.
-- ⚠️ **Teacher awards are ROWS mirrored into the local store, never a balance**,
-  pulled on sign-in and **never pushed**.
-- ⚠️ **`computeLedger()` is the ONE summation** (Critical Feature 47), and
-  `ScoreResolver`'s inline copy is pinned equal to it by a spec.
-- ⚠️ **Admin button colours live in `admin.css`, not a scoped `<style>`** — the
-  session cards are built with `innerHTML` at runtime.
-- ⚠️ **`src/lib/admin.ts` may be imported ONLY from `/admin*`.** It imports
-  `@lib/supabase` statically, which would break the guest zero-request rule
-  anywhere else. A spec greps the built public pages for an admin chunk.
-- ⚠️ **`role-separation.spec.ts` runs ONE AT A TIME.** Its tests share a student,
-  a session and awards.
+The rules that bind work elsewhere: ⚠️ **FRENCH ONLY** (Critical Feature 43),
+with no i18n scaffolding at all, and a future session must not "fix" it;
+`singleLocale` on BaseLayout, which is **not** an escape hatch for a public page;
+⚠️ **RLS is the security, the role check is UX** (44), failing closed, and an
+assertion about who may see what belongs in `role-separation.spec.ts`; the class
+list is **children, not accounts**, reached by `?id=` and never a route segment;
+teacher awards are **rows, never a balance**, pulled on sign-in and never pushed;
+`computeLedger()` is the **one** summation (47); admin button colours live in
+`admin.css` because the cards are built with `innerHTML`; ⚠️ **`src/lib/admin.ts`
+may be imported ONLY from `/admin*`**, or the guest zero-request rule breaks; and
+`role-separation.spec.ts` **runs one at a time**.
 
 **Not built, deliberately:** creating a student from the admin UI.
 
-**➡️ What each surface does, the measured 59 ms register, the sign-up hygiene
-and the two delete functions:
+**➡️ Each of those in full, what each surface does, the measured 59 ms register,
+the sign-up hygiene and the two delete functions:
 [`docs/reference/supabase.md`](./docs/reference/supabase.md).**
-
 ### ⚠️ THE PUBLIC AGENDA IS BAKED AT BUILD TIME — AND THAT IS FORCED
 
 `/agenda/` reads the `sessions` table at BUILD time via
@@ -1046,101 +1052,106 @@ available to this site: static output with no adapter, Critical Feature 9 (no
 third-party request from a public page) and Critical Feature 18 (accounts OFF
 ships no Supabase ref at all) each rule it out on their own.
 
-- ⚠️ **THE FAILURE MODE IS STALENESS, AND IT IS MADE LOUD RATHER THAN SOLVED.**
-  `/admin/seances` compares what the deployed build baked against the live table
-  by fingerprint. ⚠️ **Anything added to the public agenda card must be added to
-  `sessionFingerprint()` in the same commit**, or a prof edits that field,
-  publishes, and is told the site is up to date.
-- ⚠️⚠️ **THERE ARE TWO DEPLOY PATHS AND THEY OVERWRITE EACH OTHER**, last writer
-  wins — a Cloudflare Workers Build from a push to `main`, and `npx wrangler
-  deploy` uploading a local `dist/`. They bake **different agendas**.
-  ⚠️ **`Source: Unknown (deployment)` does NOT tell them apart.**
-- ⚠️⚠️ **A CREDENTIALED BUILD EMPTIES THE PUBLIC AGENDA WHENEVER PRODUCTION IS
-  BEHIND ON MIGRATIONS.** The order is **migrations FIRST, credentials SECOND, a
-  build THIRD**, and the third step is the one that looks optional and is not.
-- ⚠️ **`npm run smoke:prod` asserts a session is listed; an empty agenda is a
-  FAILURE**, not a scheduling fact.
-- ⚠️ **`src/data/agenda.json` is GENERATED and gitignored**; the committed source
-  is `agenda.fallback.json`. **No credentials is a dev build; broken credentials
-  is a fatal build.**
-- ⚠️ **`site.timezone` is an IANA name, never `+01:00`** — Morocco drops to UTC+0
-  for Ramadan and back, and the build fails if the snapshot disagrees.
-- ⚠️ **A cancelled session stays PUBLICLY visible with its state** (Critical
-  Feature 50). **A draft never leaks.** **The seed must not delete migrated rows.**
-- ⚠️⚠️ **SINCE 0011 A SESSION CHANGE ASKS CLOUDFLARE TO REBUILD** — a
-  statement-level trigger poking a deploy hook whose URL lives in **Supabase
-  Vault**, never in this repository (Critical Features 67, 68, 70). The
-  staleness banner is still the backstop; the trigger just makes the window
-  short. ⚠️ **The Database Webhooks UI CANNOT be used on this project** and the
-  hour spent proving it is recorded rather than repeatable — see the reference.
-- ⚠️ **A recurring set is thirteen ORDINARY ROWS, one statement, one rebuild**
-  (67, 69). `src/lib/recurrence.ts` expands once and the cap **refuses rather
-  than truncating**. ⚠️ **The step is in local calendar days, not
-  milliseconds** — same reason `site.timezone` is an IANA name.
+⚠️ **THE FAILURE MODE IS STALENESS, AND IT IS MADE LOUD RATHER THAN SOLVED** —
+`/admin/seances` compares the deployed build against the live table by
+fingerprint, so **anything added to the public agenda card is added to
+`sessionFingerprint()` in the same commit**, or a prof edits that field,
+publishes, and is told the site is up to date. ⚠️⚠️ **TWO DEPLOY PATHS OVERWRITE
+EACH OTHER**, last writer wins, and they bake **different agendas**.
+⚠️⚠️ **A CREDENTIALED BUILD EMPTIES THE PUBLIC AGENDA WHENEVER PRODUCTION IS
+BEHIND ON MIGRATIONS** — the order is **migrations FIRST, credentials SECOND, a
+build THIRD**. ⚠️ **An empty agenda is a `smoke:prod` FAILURE**, never a
+scheduling fact. ⚠️ **`src/data/agenda.json` is GENERATED and gitignored**; the
+committed source is `agenda.fallback.json`. ⚠️ **`site.timezone` is an IANA name,
+never `+01:00`.** ⚠️ **A cancelled session stays publicly visible with its
+state** (Critical Feature 50) **and a draft never leaks.** ⚠️⚠️ **SINCE 0011 A
+SESSION CHANGE ASKS CLOUDFLARE TO REBUILD** (Critical Features 67, 68, 70), and
+⚠️ **a recurring set is thirteen ORDINARY ROWS, one statement, one rebuild** (69)
+— stepped in local calendar days, and **refusing rather than truncating** at the
+cap.
 
-**➡️ The fourteen-hour blank agenda, why the card's text cannot tell the two
-deploy paths apart, the recurring-session decision and the series label:
-[`docs/reference/supabase.md`](./docs/reference/supabase.md). The rebuild
-trigger, the vault secret, the webhook-UI dead end, the measured firing counts
-and the suppression seam:
+**➡️ Every one of those in full, the fourteen-hour blank agenda, why the card's
+text cannot tell the two deploy paths apart, the recurring-session decision and
+the series label: [`docs/reference/supabase.md`](./docs/reference/supabase.md).
+The rebuild trigger, the vault secret, the webhook-UI dead end, the measured
+firing counts and the suppression seam:
 [`docs/reference/deployment.md`](./docs/reference/deployment.md).**
+### ⚠️ SESSION BOOKING — CAPACITY IS A PROPERTY OF POSTGRES (0013)
+
+A member reserves a place for a child in a published session. One row per
+`(session, child)`; a parent with two attending children makes two bookings,
+and a parent who plays books their own profile the same way (CF57).
+
+The rules are **Critical Features 71–75** above, and each is measured rather than
+claimed: ⚠️ **capacity is enforced in the database** (71) by `select … for
+update` taken *before* the count — proved with six concurrent bookings for three
+places, the row count asked of the database afterwards; ⚠️⚠️ **a booking writes
+NOTHING to `sessions`** (72), which is the one a well-meaning optimisation will
+break; ⚠️ **the margin is deliberate** (73) and the admin form says so on screen;
+⚠️ **cancellation is freed by a PARTIAL unique index**, or a child could cancel
+once and never re-book; ⚠️ **the 2-hour cutoff lives in `cancel_booking()`**,
+staff exempt, with `cancellable()` only greying the button; ⚠️ **a cancelled
+session cancels its bookings** and swallows every failure (46, 70);
+⚠️ **`session_availability()` exists because a parent cannot count**, returns
+numbers and never a name, and is **not granted to `anon`**;
+⚠️ **`SESSION_COLUMNS` gained a rung and so did `fetch-agenda.mjs`**, the second
+being the higher-stakes ladder that would fail a whole build against a pre-0013
+database; ⚠️ **the session form is ONE form with TWO modes, never two forms**,
+refilling `datetime-local` from local wall-clock parts and never the stored ISO
+instant; and ⚠️ **the card prints `booked / (capacity + margin)`** — the number
+that actually refuses — printing "—" and never 0 when the count is absent (30).
+
+**➡️ Each of those in full, with the incident and the measurement behind it:
+[`docs/reference/supabase.md`](./docs/reference/supabase.md).**
+### ⚠️ `db:push --dry-run` ONCE APPLIED AND SAID IT HAD NOT
+
+`scripts/db-push.mjs` read `process.argv` **not at all** — it probed with
+`--dry-run`, then applied unconditionally. ⚠️ **A dry-run flag that lies is
+worse than no flag**, on the one script whose entire job is refusing
+production. It now stops after the probe, and ⚠️ **an unrecognised argument
+FAILS CLOSED**, because silently discarding one is what caused it.
+
+**➡️ [`docs/reference/supabase.md`](./docs/reference/supabase.md)** — the live
+RLS audit, the concurrency measurement and the staleness answer in full.
+
 ### ⚠️ AN ACCOUNT DELETES ITSELF, AND THE FUNCTION TAKES NO TARGET
 
-`delete_own_account()` (migration 0007), reached from `/compte/`. Two rules here bind work that has nothing to do with deletion, so they stay:
-
-- ⚠️ **NO ARGUMENT, AND IT MUST NEVER GAIN ONE.** The id can only come from
-  `auth.uid()`. A `delete_account(target uuid)` with an ownership check inside
-  is one refactor away from deleting anybody — **the parameter list is the
-  guarantee, not the body.** `authenticated` only; not `service_role`.
-- ⚠️ **Anything exported from `supabase.ts` and imported by a page script must
-  also be exported by `supabase.disabled.ts`**, or the accounts-OFF build fails
-  outright — the alias replaces the module for scripts that are still *built*
-  behind unemitted routes. The stub returns `{ ok: false }`: a stubbed success
-  would tell a reader their data was erased.
+`delete_own_account()` (migration 0007), reached from `/compte/`. Two rules bind
+work that has nothing to do with deletion, so they stay: ⚠️ **NO ARGUMENT, AND
+IT MUST NEVER GAIN ONE** — the id can only come from `auth.uid()`, and **the
+parameter list is the guarantee, not the body**; and ⚠️ **anything exported from
+`supabase.ts` and imported by a page script must also be exported by
+`supabase.disabled.ts`**, or the accounts-OFF build fails outright. The stub
+returns `{ ok: false }`, because a stubbed success would tell a reader their data
+was erased.
 
 **➡️ The typed-word confirmation, what the confirmation names, why nothing is
 retained and why local state is cleared only after the server confirms:
 [`docs/reference/supabase.md`](./docs/reference/supabase.md).**
-
 ### ⚠️ THE CHECKLIST FOR A MIGRATION THAT ADDS A TABLE
 
-Five lines, and the last two have each been forgotten:
+⚠️ **The checklist itself — six lines of SQL to copy, with the reasoning behind
+each — lives in [`docs/reference/supabase.md`](./docs/reference/supabase.md).
+Read it before writing the migration, not after.** Its two most-forgotten lines,
+named here so that skipping one is a decision rather than an oversight:
 
-```sql
-revoke all on public.<t> from anon, authenticated;   -- ⚠️ 0. FIRST, see below
-create table public.<t> (...);                       -- 1. the table
-alter table public.<t> enable row level security;    -- 2. RLS ON
-create policy ... on public.<t> ...;                 -- 3. the policies
-grant select, insert, update, delete on public.<t> to authenticated;
-grant select, insert, update, delete on public.<t> to service_role;  -- ⚠️ 4
-```
-
-⚠️ **EVERY NEW TABLE MUST GRANT `service_role` DML EXPLICITLY.** Migration 0002
-exists solely to repair that across every existing table, and **0003 reproduced
-the bug anyway**.
-
-⚠️ **RLS BEING CORRECT DOES NOT MEAN THE TABLE IS REACHABLE.** `GRANT` decides
-whether a role may touch the table at all; RLS decides which rows. **The tell is
-a `42501` from a caller that bypasses RLS entirely** — always a missing grant,
-never a policy bug.
-
-⚠️⚠️ **STEP 0 IS NOT BELT-AND-BRACES:** a Supabase project ships
-`alter default privileges … grant all on tables to anon, authenticated`, so
-**every `create table` hands `anon` the full set before any migration says a
-word**. Seven tables shipped that way.
+- ⚠️⚠️ **`revoke all on public.<t> from anon, authenticated` COMES FIRST, AND IS
+  NOT BELT AND BRACES.** A Supabase project ships default privileges that hand
+  `anon` the full set on `create table`, before any migration says a word.
+  **Seven tables shipped that way.**
+- ⚠️ **EVERY NEW TABLE MUST GRANT `service_role` DML EXPLICITLY.** Migration 0002
+  exists solely to repair that omission across every existing table, and **0003
+  reproduced the bug anyway**. ⚠️ **RLS being correct does not mean the table is
+  reachable** — the tell is a `42501` from a caller that bypasses RLS entirely,
+  which is always a missing grant and never a policy bug.
 
 ⚠️ **Audit by exercising the table with a real trusted client after pushing**,
 not by re-reading the migration — reading the file is what produced the bug both
-times.
-
-Also binding: migrations are **never edited after merge**; **slugs are free text,
-not foreign keys**; **`is_staff()` must be `SECURITY DEFINER` with a pinned
-`search_path`**; ordering is **tables → functions → policies**; **`role` is never
-client-updatable** (column-level privileges, not RLS); **dropping a column drops
-its PK and indexes silently**; **deletion cascades from `auth.users`**.
-
-**➡️ The reasoning behind each line, the live catalog audit and the seven
-tables: [`docs/reference/supabase.md`](./docs/reference/supabase.md).**
+times. Also binding, each detailed in the reference: migrations are **never
+edited after merge**; **slugs are free text, not foreign keys**; **`is_staff()`
+must be `SECURITY DEFINER` with a pinned `search_path`**; ordering is **tables →
+functions → policies**; **`role` is never client-updatable**; **dropping a column
+drops its PK and indexes silently**; **deletion cascades from `auth.users`**.
 ### ⚠️ The test-environment interlock
 
 `assertNotProduction()` runs at **Playwright config load** and aborts the whole
@@ -1149,11 +1160,9 @@ would delete real accounts. It **fails closed**.
 
 ⚠️ **Never widen `tests/e2e/env.ts` to fall back to `.env` or `.env.local`.** That
 single edit is what would let production credentials into a suite that deletes by
-pattern.
-
-⚠️ **`.env.test` comes from `.env.test.example`, never from `.env.example`** — the
-wrong template has cost `SUPABASE_PRODUCTION_REF` twice. And ⚠️ **the production
-ref begins with `vtest`** (`vtestpaufxmrvdhgrrsy`) — it reads like the test
+pattern. ⚠️ **`.env.test` comes from `.env.test.example`, never from
+`.env.example`** — the wrong template has cost `SUPABASE_PRODUCTION_REF` twice.
+And ⚠️ **the production ref begins with `vtest`** — it reads like the test
 project and is the **live database**. Read the ref, never the vibe of the ref.
 
 **➡️ [`docs/reference/supabase.md`](./docs/reference/supabase.md)** — the schema
@@ -1163,73 +1172,61 @@ env-var table and both `.env.test` traps. **Read it before any migration or auth
 work.**
 
 ---
-
 ## ⚠️ VIDEO — A FACADE, AND A SELF-HOSTED POSTER (Critical Feature 66)
 
 The `youtube` field on `traps` and `cours` renders `VideoFacade.astro`: a still,
 a play button and the title. Nothing is requested until the reader presses it;
 then an iframe is built pointing at **`youtube-nocookie.com`**.
 
-- ⚠️ **A PLAIN IFRAME CONTACTS GOOGLE ON PAGE LOAD, NOT ON PLAY** — youtube.com,
-  google.com, googlevideo.com, plus cookies, for every reader including the ones
-  who never press anything. That is Critical Feature 9, on a site for children,
-  against a privacy notice that says the site contacts nobody.
-- ⚠️⚠️ **AND SO DOES `<img src="https://i.ytimg.com/…">`.** It is a Google
-  origin carrying the reader's IP and Referer on page load — **the same
-  violation wearing a hostname nobody thinks of as YouTube**, and *more*
-  tempting than the iframe because it deletes a build step. Every poster is a
-  committed file in `public/video/`, written by
-  `scripts/fetch-video-posters.mjs`. ⚠️ **`check-content.mjs` FAILS THE BUILD**
+- ⚠️⚠️ **THE POSTER IS THE HALF THAT GETS LOST.** A plain iframe contacts Google
+  on page **load**, not on play — and so does `<img src="https://i.ytimg.com/…">`,
+  which is **the same Critical Feature 9 violation wearing a hostname nobody
+  thinks of as YouTube**, and *more* tempting because it deletes a build step.
+  Every poster is a committed file in `public/video/`, written by
+  `scripts/fetch-video-posters.mjs`, and ⚠️ **`check-content.mjs` FAILS THE BUILD**
   when an id has no poster, because the obvious repair for a missing file is the
   hot-link.
 - ⚠️ **The zero-request spec filters on `hostname !== localhost`, NEVER on
   `includes('youtube')`.** A youtube-only filter passes a hot-linked poster
   cleanly — which is the exact case it exists to catch.
 - ⚠️ **NO `preconnect` OR `dns-prefetch` FOR YOUTUBE, EVER.** It looks like a
-  free performance win and it resolves DNS and completes a TLS handshake with
-  Google before the reader has decided anything.
-- ⚠️ **THE POSTER SCRIPT IS RUN BY HAND, LIKE `build-icons.mjs`** — never part
-  of `npm run build`. A Cloudflare build must need no image toolchain and no
-  reach to Google. ⚠️ **A thumbnail is a frame of the video**, so fetching one
-  from YouTube is for the club's OWN videos; anybody else's takes an
-  author-supplied still under `src/assets/video/`.
-- ⚠️ **PLACEMENT IS ONE RULE, BOTH PAGES: BELOW the page's primary content,
-  above the way onward.** After the replayer on a trap, after the lesson list on
-  a course. A 16:9 facade above the board costs ~200px on a phone before the
-  reader reaches the position the page is named after — the same defect M3
-  measured in the control stack, from the other direction. Asserted at 390px and
-  360px, not trusted.
-- ⚠️ **`src/styles/video.css` IS IMPORTED BY `global.css`, AND IS NOT SCOPED.**
-  Two independent reasons: a scoped rule cannot reach the script-created iframe
-  (no `data-astro-cid`), and the component is on twenty pages so a scoped block
-  inlines into all of them. Same two lessons as `admin.css` and `score.css`.
+  free performance win and it completes a TLS handshake with Google before the
+  reader has decided anything.
+- ⚠️ **THE POSTER SCRIPT IS RUN BY HAND, LIKE `build-icons.mjs`** — never part of
+  `npm run build`; a Cloudflare build must need no image toolchain and no reach
+  to Google. ⚠️ **A thumbnail is a frame of the video**, so anybody else's takes
+  an author-supplied still under `src/assets/video/`.
+- ⚠️ **PLACEMENT IS ONE RULE, BOTH PAGES: BELOW the page's primary content, above
+  the way onward** — asserted at 390px and 360px, not trusted.
+  ⚠️ **`src/styles/video.css` is imported by `global.css` and is NOT scoped**, for
+  the same two reasons as `admin.css`.
 - ⚠️ **`/mentions-legales/#video` STATES WHAT A CLICK SENDS, and deliberately
-  UNDERSELLS `youtube-nocookie.com`** — the domain name invites "no data", which
-  is false. Every facade links to it **before** the click. If that section ever
-  reads like reassurance rather than disclosure, it is wrong.
+  UNDERSELLS `youtube-nocookie.com`.** Every facade links to it **before** the
+  click. If that section ever reads like reassurance rather than disclosure, it
+  is wrong.
 - ⚠️⚠️ **NO PUBLISHED CONTENT CARRIES A `youtube` ID TODAY.** The facade's
-  exercised path is a **FIXTURE**, not live content — see the rule below. The
-  first version shipped a placeholder id on `/pieges/legal/`, which handed a
-  reader "video unavailable" on a real trap; **do not put a placeholder back on
-  published content to give a spec something to drive.**
+  exercised path is a **FIXTURE**, not live content — see the rule below.
+  **Do not put a placeholder back on published content to give a spec something
+  to drive**; the first version did, and handed a reader "video unavailable" on a
+  real trap.
 
 ### ⚠️ TEST FIXTURES — ROUTABLE, NEVER LISTED, NEVER IN PRODUCTION
 
 `src/config/fixtures.ts`. A fixture is content that exists **only** so a spec has
 something real to drive.
 
-- ⚠️ **TWO PREDICATES, AND THE SPLIT IS THE WHOLE DESIGN.** `isRoutable()` decides
-  whether a page is emitted (fixtures: only when `PUBLIC_FIXTURES=true`);
-  `isListed()` decides whether a reader can find it (fixtures: **never, in any
-  build**). Collapsing them puts the fixture on `/pieges/` in every test build.
-- ⚠️ **`fixture` IS A SEPARATE FIELD FROM `draft`.** A draft will one day be
-  published; a fixture must never be.
-- ⚠️ **THE DEFAULT IS OFF, BECAUSE THE DEFAULT MUST BE WHAT PRODUCTION SHIPS**, and
-  ⚠️ **`PUBLIC_FIXTURES` MUST NEVER GO IN `.env.local`** — same rule as
-  `PUBLIC_AUTH_ENABLED`. By hand: `PUBLIC_FIXTURES=true npm run demo`.
-- ⚠️ **NO LOCAL SPEC CAN PROVE THE OFF SHAPE**, because the build under test is by
-  construction the ON one. `npm run smoke:prod` fails if a fixture route answers
-  anything but 404 on the live site, and that is on the promotion checklist.
+⚠️ **TWO PREDICATES, AND THE SPLIT IS THE WHOLE DESIGN.** `isRoutable()` decides
+whether a page is emitted (fixtures: only when `PUBLIC_FIXTURES=true`);
+`isListed()` decides whether a reader can find it (fixtures: **never, in any
+build**). Collapsing them puts the fixture on `/pieges/` in every test build.
+⚠️ **`fixture` is a separate field from `draft`** — a draft will one day be
+published; a fixture must never be. ⚠️ **The default is OFF, because the default
+must be what production ships**, and ⚠️ **`PUBLIC_FIXTURES` must never go in
+`.env.local`** — same rule as `PUBLIC_AUTH_ENABLED`. By hand:
+`PUBLIC_FIXTURES=true npm run demo`. ⚠️ **No local spec can prove the OFF shape**,
+because the build under test is by construction the ON one; `npm run smoke:prod`
+fails if a fixture route answers anything but 404 on the live site, and that is
+on the promotion checklist.
 
 **➡️ [`docs/reference/video.md`](./docs/reference/video.md)** — the poster
 pipeline and its three sources, the measured Lighthouse before/after, the
@@ -1237,7 +1234,6 @@ accessibility decisions, the house plate, and the fixture that was watched to
 fail. **Read it before touching the facade or adding any third-party embed.**
 
 ---
-
 ## Analytics
 
 Umami, env-driven. `PUBLIC_UMAMI_WEBSITE_ID` is read at build time from the Cloudflare **build** variables. When unset the snippet is **omitted entirely** — no empty `<script>`, no request to umami.is. That is also why dev, CI and the Playwright run make no third-party network calls at all, which `tests/e2e/pwa.spec.ts` asserts.
@@ -1253,7 +1249,7 @@ Playwright + axe-core. Specs live in `tests/e2e/` and run against the **built** 
 | | |
 |---|---|
 | `npm run test:branch` | chromium, specs mapped from what changed. **The per-session command.** |
-| `npm run test:release` | the full matrix. **Promotion only** — see the verification policy. |
+| `npm run test:release` | chromium over the whole suite + the four lanes + the accounts-OFF sliver. **Promotion only** — see the verification policy. |
 
 `test:e2e` and `test:e2e:chromium` still exist as thin escape hatches for
 debugging a single project by hand. They are **not** the session commands: they
@@ -1284,77 +1280,57 @@ build needs. So the dangerous mistake is not a build that fails — it is one th
 **succeeds** while wired to the live database, where signing in on localhost
 creates a real account and nothing announces it. `demo:accounts` reads the test
 credentials through the same interlock as the e2e suite and **fails closed**;
-never reconstruct it as `PUBLIC_SUPABASE_URL=… npm run demo`.
-
-⚠️ **Never put `PUBLIC_AUTH_ENABLED` in `.env.local`.** The default build on this
-machine must stay the shape production ships.
+never reconstruct it as `PUBLIC_SUPABASE_URL=… npm run demo`. ⚠️ **Never put
+`PUBLIC_AUTH_ENABLED` in `.env.local`** — the default build on this machine must
+stay the shape production ships.
 
 **➡️ [`docs/LOCAL-ACCOUNTS.md`](./docs/LOCAL-ACCOUNTS.md)** — seeding, the
 no-email magic link, becoming a prof, and the walkthrough of the picker,
 `/compte/` and the admin surfaces. **Read it before testing anything behind the
 flag** — and its §7, which is what is *not* built.
-
 ### ⚠️ THE ACCOUNT SURFACES — `/bienvenue/`, `/compte/`, `/connexion/`
 
-The rules that bind work elsewhere. **Everything below has a full counterpart in
+**Every rule below has a full counterpart in
 [`docs/reference/supabase.md`](./docs/reference/supabase.md)** — read it before
-touching any of these three pages.
+touching any of these three pages. The headlines, so that none of them is broken
+by a session that never opens it:
 
-- ⚠️ **"ONCE" IS RECORDED ON THE ACCOUNT** (`profiles.onboarded_at`), **not on
-  the device** (Critical Feature 52). Set by **both** outcomes.
-- ⚠️ **GUIDANCE, NOT A GATE** — a skipped onboarding must leave a fully working
-  account, and **THE PLACEHOLDER IS NEVER PRE-FILLED** (Critical Feature 53):
-  detection is an **exact match against the email local part**, never a guess.
-- ⚠️ **THE EXTRA NAME FIELDS ARE SERVER-RENDERED AND HIDDEN**, not built by
-  script — Astro stamps its scoping attribute at build time.
-- ⚠️⚠️ **AN EXPLICIT SELECT IS A LIABILITY, AND `PROFILE_COLUMNS` IS WHY.**
-  `getProfile()` naming a column production lacks gets a `42703`, which becomes
-  `null`, which is indistinguishable from "not signed in" — **one unapplied
-  migration silently sends every first sign-in past the welcome screen.**
-  ⚠️ **Anything added to that select gets a new rung in the same commit.**
-  ⚠️ **`SESSION_COLUMNS` (`src/lib/admin.ts`) IS THE SECOND LADDER**, since
-  0012: without it one unapplied migration EMPTIES `/admin/seances` rather than
-  degrading it. ⚠️ **Reads degrade; WRITES fail loudly** — `createSessions()`
-  omits `series_id` when there is none rather than sending null.
-- ⚠️ **"LES DEUX" IS THE TYPICAL CASE** (Critical Feature 57), **THE ANSWER IS
-  NOT THE TRUTH** (58) — `effectiveShape()` is the only place the stored answer
-  and the roster meet, and **the roster wins wherever it can speak** — and
-  **SKIPPING RECORDS NO SHAPE**.
-- ⚠️ **`/compte/` IS THREE BLOCKS** (Critical Feature 59), built on **NATIVE
-  `<details>`, NOT A SCRIPTED ACCORDION**; signing out and the staff link stay
-  outside both; the settings block **opens itself when the name is still the
-  email fragment**.
-- ⚠️ **THE CARDS' NUMBERS ARE DERIVED BY `computeLedger()`** (47, 61) and a card
-  whose rows have not arrived **never prints a zero**.
-- ⚠️ **`FamilySection.astro` MUST NOT IMPORT `@lib/admin`**, and **"élève" IS
-  STAFF VOCABULARY** (Critical Feature 60).
-- ⚠️ **THE FAMILY SECTION AND THE PICKER ARE TWO RULES, NOT ONE** — the section
-  renders for every signed-in account, only the picker is conditional. Coupling
-  them made "Ajouter un élève" unreachable for two releases.
+- ⚠️ **"ONCE" IS RECORDED ON THE ACCOUNT** (`profiles.onboarded_at`), not on the
+  device (Critical Feature 52), and by **both** outcomes. Onboarding is
+  **guidance, not a gate**, and ⚠️ **THE PLACEHOLDER IS NEVER PRE-FILLED** (53) —
+  detection is an exact match against the email local part, never a guess. The
+  extra name fields are **server-rendered and hidden**, not built by script.
+- ⚠️⚠️ **AN EXPLICIT SELECT IS A LIABILITY, AND `PROFILE_COLUMNS` IS WHY.** A
+  column production lacks gets a `42703`, which becomes `null`, which is
+  indistinguishable from "not signed in". ⚠️ **Anything added to that select gets
+  a new rung in the same commit**, and ⚠️ **`SESSION_COLUMNS` and
+  `fetch-agenda.mjs` are the other two ladders**. ⚠️ **Reads degrade; WRITES fail
+  loudly.**
+- ⚠️ **"LES DEUX" IS THE TYPICAL CASE** (57) and **THE ANSWER IS NOT THE TRUTH**
+  (58) — `effectiveShape()` is the only place the stored answer and the roster
+  meet, the roster wins wherever it can speak, and skipping records no shape.
+- ⚠️ **`/compte/` IS THREE BLOCKS** (59), on **native `<details>`, not a scripted
+  accordion**; the cards' numbers are derived by `computeLedger()` (47, 61) and
+  **never print a zero** they have not computed; `FamilySection.astro` **must not
+  import `@lib/admin`**; **"élève" is staff vocabulary** (60); and ⚠️ **the family
+  section and the picker are two rules, not one** — coupling them made "Ajouter
+  un élève" unreachable for two releases.
 - ⚠️ **TWO LOADS ARE ROUTINELY IN FLIGHT AND CAN LAND OUT OF ORDER** — a
-  generation counter drops the older answer. **Any surface that loads twice
-  copies the counter** (the admin register did not, and lost a prof's taps).
-- ⚠️ **The honeypot is NOISE REDUCTION, NOT SECURITY** (56); it **FAILS VISIBLY
-  AND CLEARS ITSELF**; **a CAPTCHA is not a drop-in** (Critical Feature 9).
-- ⚠️ **`admin_delete_account()` IS NOT A SECOND ROUTE TO `delete_own_account()`**
-  (55), and **THE AUDIT RECORDS THE ACT, NOT THE PERSON.**
-
-**➡️ Every one of these in full, with the incidents behind them:
-[`docs/reference/supabase.md`](./docs/reference/supabase.md).**
+  generation counter drops the older answer, and **any surface that loads twice
+  copies it**. ⚠️ **The honeypot is noise reduction, not security** (56), and
+  ⚠️ **`admin_delete_account()` is not a second route to `delete_own_account()`**
+  (55).
 ### ⚠️ Symptoms that are the ENVIRONMENT, not the application
 
 Each of these has cost real debugging time. **Recognise the signature before
-touching application code.** These are the tells:
-
-- a fixed bug still "fails" and the fix is missing from `dist/` → **a stale
-  preview server** (Playwright's `reuseExistingServer` skipped its own build);
-- **every project fails identically** on a Critical Feature → **a stale `dist/`**;
-- WebKit "target page… closed", or Firefox `RenderCompositorSWGL failed` on a
-  **different test each run** → **the Windows browser dying under fan-out**;
-- auth specs timing out on a **different set each run** → **Supabase's auth rate
-  limit**, measured at ~22 verifications in 7s;
-- `ERR_CONNECTION_REFUSED` → **read the HOST in the error**: `localhost:4321`
-  is a dead preview server, `*.supabase.co` is sustained rate-limit abuse.
+touching application code**: a fixed bug still "failing" with the fix missing
+from `dist/` is a **stale preview server**; every project failing identically on
+a Critical Feature is a **stale `dist/`**; WebKit "target page… closed" or
+Firefox `RenderCompositorSWGL failed` on a **different test each run** is the
+**Windows browser dying under fan-out**; auth specs timing out on a different set
+each run is **Supabase's auth rate limit**; and `ERR_CONNECTION_REFUSED` is read
+by its **HOST** — `localhost:4321` is a dead preview server, `*.supabase.co` is
+rate-limit abuse.
 
 **A genuine failure is deterministic and fails A SERIAL RE-RUN too, and it fails
 with an assertion naming a value.** ⚠️ **THE LOCAL RETRY IS NOT THE ARBITER —
@@ -1365,7 +1341,6 @@ is a FINDING when it comes from `test:release`.**
 
 **➡️ The full symptom table and the diagnoses behind it:
 [`docs/reference/testing.md`](./docs/reference/testing.md).**
-
 ### ⚠️ Driving a board from a spec — the four gates
 
 **Scroll it into view** (`block: 'center'`, never `scrollIntoViewIfNeeded`),
@@ -1374,21 +1349,15 @@ is a FINDING when it comes from `test:release`.**
 DURATION** — measured **1/8 solved at 0ms against 8/8 at 60ms**. Use
 `movePiece()` from `tests/e2e/helpers/board.ts`.
 
-⚠️ **Test the pointer path BY POINTER.** Every exercise spec that solved by
-typing into `MoveInput` bypassed Chessground entirely and would stay green if
-the board refused every tap.
-
-⚠️ **Never assert a short-lived class with a MutationObserver alone**, and
-⚠️ **every axe check on a reveal-bearing page must call `settleReveals(page)`**
-— a `[data-reveal]` element is transparent text axe can still find, so it
-presents as flakiness rather than breakage.
-
-⚠️ **`play.spec.ts` runs ONE AT A TIME** — every test boots a real engine with
-64 MiB of linear memory.
+⚠️ **Test the pointer path BY POINTER** — every exercise spec that solved by
+typing into `MoveInput` bypassed Chessground entirely and would stay green if the
+board refused every tap. ⚠️ **Never assert a short-lived class with a
+MutationObserver alone**, ⚠️ **every axe check on a reveal-bearing page must call
+`settleReveals(page)`**, and ⚠️ **`play.spec.ts` runs ONE AT A TIME** — every test
+boots a real engine with 64 MiB of linear memory.
 
 **➡️ Each gate in full, with the measurements and the false positives it
 produced: [`docs/reference/testing.md`](./docs/reference/testing.md).**
-
 ## Quick change — a SHORTER GATE, NOT A SHORTER RULE
 
 ```sh
@@ -1456,65 +1425,130 @@ from what changed.
 
 ---
 
-### ⚠️ VERIFICATION POLICY — TWO COMMANDS, AND THE MATRIX RUNS ONCE PER SHAPE
+### ⚠️ VERIFICATION POLICY — TWO COMMANDS, AND THE GATE IS ONE SHAPE + LANES
 
 | | Command | When | Cost |
 |---|---|---|---|
 | **Every feature branch** | `npm run test:branch` | every session, before merging to `dev` | ~1-3 min |
-| **Promotion** | `npm run test:release` | once, promoting `dev` → `main` | ~65-70 min |
-| **Promotion, accounts ON** | `PUBLIC_AUTH_ENABLED=true npm run test:release` | ⚠️ **also**, while production runs with accounts on | ~65-70 min |
+| **Promotion** | `PUBLIC_AUTH_ENABLED=true npm run test:release` | once, promoting `dev` → `main` | **~22 min** |
 
 `npm run test:branch` is **chromium only** and runs the specs mapped from what
 actually changed (`scripts/spec-map.mjs`). `--all` runs every chromium spec for
 a sweeping refactor — still one browser.
 
-#### ⚠️⚠️ THE GATE RUNS TWICE — ONCE PER FLAG SHAPE (v0.14.0)
+⚠️ **AND IT BUILDS THE SHAPE ITS SELECTION NEEDS.** If any selected spec is in
+`NEEDS_ACCOUNTS_ON` (`scripts/lanes.mjs`) the branch build is accounts-ON;
+otherwise it stays OFF. Before that, every branch build was OFF while the gate
+was ON, so **a session touching the booking UI got no coverage until
+promotion** — a hole in the daily loop, which is where a defect is cheapest to
+catch. An explicit `PUBLIC_AUTH_ENABLED` in the environment still wins.
 
-The old policy ran the matrix once, on the default build, because that was "what
-production ships". **That premise is false**: production serves the accounts-**ON**
-build, and the default matrix skips every auth spec — so the whole account stack
-was reaching production with **chromium coverage only**.
+⚠️ **THE GATE RUNS IN THE ACCOUNTS-ON SHAPE, BECAUSE THAT IS WHAT PRODUCTION
+SERVES.** It ends with a two-minute accounts-OFF sliver, which is not a second
+matrix — see below.
 
-Neither shape subsumes the other. **OFF** is the only shape that can prove
-Critical Feature 18 (`auth-disabled.spec.ts`: no route emitted, no Supabase ref
-in the bundle); **ON** is the only shape that exercises `/connexion/`,
-`/auth/callback/`, `/bienvenue/`, `/compte/` and `/admin*` at all.
+#### ⚠️⚠️ THE GATE WAS 4.8 HOURS AND IS NOW ~22 MINUTES
 
-⚠️ **THE ON MATRIX HAMMERS SUPABASE'S AUTH RATE LIMIT** — five projects at ~40
-magic-link verifications each. A project the limit takes out is **re-run on its
-own**, never waved through.
+It used to be **five projects × every spec × both flag shapes** — ~6,700 test
+executions, **measured at 115.6 min + 172.1 min = 4.8 hours**. Three
+measurements from the audit ended that, and they are recorded rather than
+recalled:
 
-⚠️ **IF THE FLAG EVER GOES BACK OFF IN PRODUCTION, THE SECOND RUN GOES WITH IT**
-— recorded so a future session can remove it honestly rather than deleting a
-cost whose reason nobody remembers.
+- ⚠️ **29 of the 41 spec files ran IDENTICALLY in both flag shapes**, proved by
+  run/skip status rather than inferred. The second matrix re-ran ~3,000 tests
+  that **could not answer anything new**.
+- ⚠️ **Four spec files never open a browser at all** — `booking`,
+  `child-profiles`, `engine-levels`, `role-separation` take no `page` fixture.
+  They spawned **255 browser contexts per release** to run `rpc()` calls and
+  arithmetic.
+- ⚠️ **Chromium runs the WHOLE suite in 7.1 minutes** — 42 spec files, 726
+  passed, 20 skipped — and proves every one of them once.
+
+**So chromium became the backbone and the other four projects became LANES.**
+
+#### ⚠️ THE LANES ARE PINNED TO THE ENGINE THAT CAUGHT A REAL DEFECT
+
+`scripts/lanes.mjs` is the **one** definition — `playwright.config.ts` turns it
+into `testMatch` and `scripts/check-lanes.mjs` reads it. Never a second copy.
+
+| lane | earned by |
+|---|---|
+| **webkit** | the **"Créer" click-synthesis bug** (`956b05a`, one release before this): a `change` handler rewrote the submit button between mousedown and mouseup and WebKit declined to synthesise the click. Silent on Safari and every iPhone; invisible in Blink and Gecko. |
+| **firefox** | the **agenda axe violation** Gecko's accessibility tree produced. |
+| **iphone-13** | the **tap-versus-bottom-bar collision**. |
+| **pixel-5** | the same touch surface on the other mobile engine. |
+
+⚠️ **A SPEC JOINS A LANE FOR A NAMED REASON, NEVER "TO BE SAFE."** The default
+is chromium-only, so a new spec costs one run until somebody argues otherwise.
+Write the reason beside it in `lanes.mjs`.
+
+⚠️ **THE COST IS NOT ALLOWED TO DRIFT BACK.** Measured green end to end at
+**21.9 min, 1,277 passed, 0 failed** — on a machine whose troughs were **0.51 to
+2.03 GB free**, i.e. deep in the starvation regime §9a describes, so this is the
+BAD case rather than the good one.
+
+#### ⚠️ THE ACCOUNTS-OFF SLIVER IS NOT A SECOND MATRIX
+
+Exactly two specs can only be proved by an accounts-**OFF build**, because they
+are claims about the **artefact** that shape produces: `auth-disabled.spec.ts`
+(Critical Feature 18 — no route emitted, no Supabase ref, host or anon key
+anywhere in the bundle) and `admin.spec.ts`'s *"the admin surfaces are NOT
+BUILT"* describe.
+
+⚠️ **THE SECOND BUILD IS IRREDUCIBLE — you cannot inspect an artefact you did
+not produce** — and it is the whole cost: the tests themselves take seconds, on
+chromium alone, because neither is engine-sensitive. `test-release.mjs` runs it
+last, **after a sweep**, because the ON preview server is still listening and
+`reuseExistingServer` would otherwise run the OFF specs against the ON build.
+
+⚠️ **IF THE SLIVER RUNS ZERO TESTS THE GATE FAILS**, naming Critical Feature 18.
+A gate that quietly stops proving the flag still works is the failure this whole
+change could most easily have introduced.
+
+#### ⚠️ `check-lanes.mjs` ADVISES AND MUST NEVER GATE
+
+It scores each spec for signals a different engine could answer differently and
+reports the chromium-only ones. ⚠️ **It always exits 0, and promoting it to a
+build step would be actively harmful** — `recurring-sessions.spec.ts` **scores
+zero** and is the spec that caught the Créer bug, because the heuristic sees
+what a spec *asserts* and that defect lived in how it *drives* the page. A green
+tick would read as "the lanes are complete".
+
+⚠️ **What DOES gate is `missingLaneSpecs()`**, before a browser starts: a lane
+naming a spec that does not exist makes `testMatch` match **nothing**, so the
+project runs zero tests and the gate goes green having proved less than it
+claims. A fact about the filesystem, checked exactly, and it refuses.
+
+**➡️ The full audit — the per-spec costs, the flag-shape table, the four
+browserless specs and why the heuristic's blind spot cannot be tuned away:
+[`docs/reference/testing.md`](./docs/reference/testing.md).**
 
 #### ⚠️ THE MATRIX RUNS ONE PROJECT AT A TIME, UNDER A WORKER CAP
 
 `test:release` runs each project on its own, sequentially, at **three** workers.
-That is slower than one pooled run and it is the reason the gate is green: the red
-gates were **memory exhaustion**, not browser bugs and not test bugs.
+That is slower than one pooled run and it is the reason the gate is green: the
+red gates were **memory exhaustion**, not browser bugs and not test bugs.
 
-- ⚠️ **`--workers=3` IS NOT A TUNING KNOB**, and ⚠️ **DO NOT "FIX" A RED MATRIX BY
-  RAISING TIMEOUTS** — tried, and the failure count went **up**.
-- ⚠️ **EVERY RUN KEEPS ITS OWN LOG** — `matrix-<shape>-<stamp>.log`, never a shared
-  `matrix.log`, and the memory traces are namespaced the same way. The gate runs
-  TWICE and the second run must not erase the first's evidence.
-  ⚠️ **AND THEY LIVE IN `gate-logs/`, NEVER UNDER `node_modules/`** — gitignored
-  but real. They were in `node_modules/.cache`, which `npm ci` deletes outright:
-  three failures awaiting adjudication went with the old machine's
-  `node_modules/` and cost a ~4.8-hour re-run of both shapes to replace.
-- ⚠️ **A TROUGH UNDER ~2 GB MEANS THE BROWSER WAS STARVED, AND THE FAILURES WILL
-  BE BARE TIMEOUTS NAMING NO VALUE.** On a machine with a heavy background
-  baseline this manufactures failures that cost an arbiter pass each. Quiet the
-  machine first — **[`docs/SETUP-NEW-MACHINE.md`](./docs/SETUP-NEW-MACHINE.md)
-  §9a** measures what to close. `--workers=3` is not the knob.
-- ⚠️ **A GATE THAT IS EXPECTED TO BE RED IS WORTH NOTHING.** A red matrix is a
-  finding to chase, never a known flake to wave through.
-- **It proves every project actually ran**, comparing counts project against
-  project.
-- ⚠️ **The alternatives were MEASURED** — `scripts/test-release.mjs` →
-  MEASUREMENTS. Re-measure before re-arguing.
+⚠️ **`--workers=3` IS NOT A TUNING KNOB**, and ⚠️ **DO NOT "FIX" A RED MATRIX BY
+RAISING TIMEOUTS** — tried, and the failure count went **up**. ⚠️ **A TROUGH
+UNDER ~2 GB MEANS THE BROWSER WAS STARVED**, and the failures will be bare
+timeouts naming no value; quiet the machine first
+(**[`docs/SETUP-NEW-MACHINE.md`](./docs/SETUP-NEW-MACHINE.md) §9a** measures what
+to close). ⚠️ **A GATE THAT IS EXPECTED TO BE RED IS WORTH NOTHING** — a red
+matrix is a finding to chase, never a known flake to wave through. It also
+**proves every project actually ran** — under the lanes that is "nobody ran ZERO
+  and chromium is never the smaller run", because a mistyped lane matches nothing.
 
+⚠️ **EVERY RUN KEEPS ITS OWN LOG** — `matrix-<shape>-<stamp>.log`, never a shared
+`matrix.log`. The shape is in the NAME because the gate ran twice per release
+until the gate audit, and the second run used to erase the first's evidence; it still
+names the shape, because a log that cannot say which build it tested is not
+evidence. ⚠️ **AND THEY LIVE IN `gate-logs/`, NEVER UNDER `node_modules/`**,
+which `npm ci` deletes outright — that cost a ~4.8-hour re-run of both shapes
+once, which is also the run that produced the numbers behind the lanes.
+
+⚠️ **The alternatives were MEASURED** — `scripts/test-release.mjs` →
+MEASUREMENTS. Re-measure before re-arguing.
 #### ⚠️ DO NOT RUN THE MATRIX ON A FEATURE BRANCH. EVER. NOT "TO BE SAFE".
 
 The reasoning is already done, so it is not re-litigated. The matrix answers
@@ -1565,9 +1599,10 @@ checklist in this repository that must be executed rather than remembered, and i
 is not optional reading at a promotion. Its four most-skipped items, named here so
 that skipping one is a decision rather than an oversight:
 
-- ⚠️ **the gate runs TWICE** — `npm run test:release` and
-  `PUBLIC_AUTH_ENABLED=true npm run test:release`, both green, for as long as
-  production runs with accounts ON;
+- ⚠️ **the gate runs in the accounts-ON shape** —
+  `PUBLIC_AUTH_ENABLED=true npm run test:release`, green, INCLUDING its
+  accounts-OFF sliver. ⚠️ **A sliver that ran zero tests fails the gate**,
+  because Critical Feature 18 would then be unproven;
 - ⚠️ **migrations reach production BEFORE the deploy**, asked of the catalog per
   migration, never of `schema_migrations`;
 - ⚠️ **`npm run verify:deploy` AFTER deploying**, then `npm run smoke:prod` — one

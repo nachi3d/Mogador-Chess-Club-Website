@@ -635,3 +635,66 @@ position), and a `➡️` pointer back to this same file is the move showing its
 seam, not a mistake.
 
 ⚠️ **The EN legal notice is `/en/mentions-legales/`, not `/en/legal-notice/`.** The Session 3 brief asked for the translated segment; it is deliberately not implemented that way, because the no-translated-segments rule above is what makes the switcher a pure prefix swap that *cannot* fail to find its counterpart. A translated segment needs a lookup map, and a missing entry 404s a reader mid-visit — on the one page whose whole job is to be findable. The visible link label **is** translated ("Mentions légales" / "Legal notice"); the URL is structural. Flagged for Seàn: it is a one-line change in `paths.ts` plus a map if he wants the English URL, and the site is unlaunched so it is still cheap to reverse.
+
+---
+
+## The 768px divergence — every rule that binds it
+
+**Read when:** touching the header, the mobile bottom bar, the home page, a trail or the resume resolver.
+
+⚠️ **Moved verbatim out of CLAUDE.md at the v0.18.0 split.**
+`scripts/check-split.mjs` compares normalised lines, so nothing inside the
+block below may be reworded. Relative links like `./docs/reference/…` are
+written from the repository root — CLAUDE.md's position, not this file's.
+
+- **The bottom bar has exactly FIVE SECTIONS and never hides on scroll** —
+  Accueil, Apprendre, Jouer, Moi, Réglages. No page may hide content behind the
+  bar; `env(safe-area-inset-bottom)` is needed in **two** places.
+  ⚠️ **EVERY ENTRY HAS A LANDING SCREEN** (Critical Feature 27). M1 capped this
+  at four on the grounds that five labels truncate at 390px; that was a guess
+  and it is now measured — **78×52px per cell at 390px, 72×52 at 360px, longest
+  label 56.6px**, nothing clipped in either locale. Settings earned its slot by
+  becoming a section rather than a link to one page, and "Progrès" lost its slot
+  by being a leaf with nothing underneath.
+- ⚠️ **A LABEL THAT STOPS FITTING IS A COPY PROBLEM, NOT A LAYOUT ONE.** Shorten
+  the word; never shrink the target and never ellipsise. The spec measures the
+  rendered text against its own cell so this arrives as a failure.
+- ⚠️ **NO ROUTE MAY EXIST ON ONE LAYOUT ONLY** (Critical Feature 36). Every
+  destination the bar reaches must be reachable from the desktop header, and the
+  spec **reads the list off the bar** rather than hard-coding it. `/progres/`
+  shipped reachable from the bar and from nothing at all on desktop: the page
+  built, rendered and passed every one of its own specs.
+- **Below 768px the exercise controls compact; the board never does.** The board
+  is the thing being taught with. It is **CSS only** — the dense row is built with
+  flex `order`, so the DOM (and the screen-reader reading order, and the ≥768px
+  layout) is untouched.
+- ⚠️ **KNOWING WHERE YOU ARE IS TWO SIGNALS, AND THE SITE ONLY HAD ONE (M4).**
+  The bar's active tab locates you to within a *quarter of the site*; it says
+  "Apprendre" from the courses index, from a course, from a lesson three levels
+  down and from a trap. The second signal is the **trail**: every page below a
+  section landing carries a back affordance that **NAMES ITS PARENT**
+  (Critical Feature 62) — « ‹ Bien ouvrir une partie », not « Retour » and not
+  « Toutes les leçons ». `src/components/nav/Trail.astro` is the only one.
+  ⚠️ **A LINK, NEVER `history.back()`** — a reader who arrived from a shared
+  link has no history, and a control that does nothing is worse than none.
+  ⚠️ **THE FIVE LANDINGS AND `/` HAVE NO TRAIL**, deliberately: the bar is
+  already their way out. "Add one everywhere" is not the fix.
+  ⚠️ **PREV/NEXT IS NOT THE WAY UP** (Critical Feature 64). Both survive on a
+  lesson, and collapsing them traps a reader inside a sequence.
+- **Every long route ends with a way onward**, clear of the fixed bar, from the
+  **same i18n key** as the link at the top.
+- **The home menu's labels ARE the nav's labels**, from the same `nav.*` keys
+  (Critical Feature 20). Never a second string for one destination. The spec reads
+  the header's own labels off the page rather than hard-coding words.
+- **The home menu works with no JavaScript** (five entries, not six — "Reprendre"
+  is a claim about stored progress) and fits one screen on a phone.
+- ⚠️ **There is ONE resume rule** (`ResumeResolver.astro`) **and ONE key scheme**
+  (`src/lib/journey.ts`). Four surfaces read them; a second copy of either is how
+  two pages come to disagree about what a reader has done.
+- ⚠️ **NEVER PUT `opacity` ON TEXT OVER AN AUDITED FILL.** `check-contrast.mjs`
+  proves the token pair and cannot see an alpha applied on top of it: 0.9 dropped
+  a proved pair to 4.42:1 and cost a Lighthouse regression the whole Playwright
+  suite passed. Differentiate by size, weight and letter-spacing.
+- Navigation is **disclosure semantics, not `role="menu"`**; panels open on
+  **click, never hover**; the `html.js` gate means no layout shift and no no-JS
+  trap.

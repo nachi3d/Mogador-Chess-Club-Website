@@ -1,13 +1,38 @@
 #!/usr/bin/env node
 /**
- * `npm run test:release` — the FULL matrix. Run ONCE, when promoting to main.
+ * `npm run test:release` — the release gate. Run ONCE, when promoting to main.
  *
  * ─────────────────────────────────────────────────────────────────────────
- * ⚠️ THIS IS THE ONLY PLACE THE MATRIX BELONGS.
+ * ⚠️ THIS IS THE ONLY PLACE THE GATE BELONGS.
  *
- * Five projects — chromium, firefox, webkit, pixel-5, iphone-13. That cost is
- * worth paying once per release and is not worth paying once per session, which
- * is what was happening. Feature branches run `npm run test:branch`.
+ * Chromium over the WHOLE suite, then four LANES on the other four projects,
+ * then a two-minute accounts-OFF sliver. One flag shape. Feature branches run
+ * `npm run test:branch`.
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️ IT USED TO BE FIVE PROJECTS × EVERY SPEC × BOTH FLAG SHAPES, AND THAT WAS
+ * MEASURED AT 4.8 HOURS FOR A STATIC TEACHING SITE.
+ *
+ * The gate audit (`docs/reference/testing.md`) found three things:
+ *
+ *   - 29 of the 41 spec files run IDENTICALLY in both flag shapes, proved by
+ *     run/skip status — so the second matrix re-ran ~3,000 tests that could
+ *     not answer anything new;
+ *   - four spec files never open a browser at all, yet spawned 255 browser
+ *     contexts per release between them;
+ *   - chromium runs the whole suite in 7.1 minutes and proves every spec once.
+ *
+ * ⚠️ WHAT WAS KEPT IS WHAT HAS ACTUALLY CAUGHT DEFECTS. Each lane is pinned to
+ * the engine that found a real, user-facing bug — WebKit's "Créer" click
+ * synthesis, Gecko's agenda axe violation, the iPhone tap-versus-bar collision.
+ * The lanes and the reasoning live in `scripts/lanes.mjs`; do not re-derive
+ * them here.
+ *
+ * ⚠️ THE COST NOW: measured GREEN end to end at 21.9 min, 1,277 passed, on a
+ * machine whose troughs were 0.51-2.03 GB free — i.e. the bad case, not the
+ * good one. Do not let it drift back by adding specs to lanes without a named
+ * reason.
+ * ═════════════════════════════════════════════════════════════════════════
  *
  * ⚠️ IT WRITES TO A LOG AND CHECKS THE EXIT CODE ITSELF.
  * `npx playwright test | tail -12` reports TAIL's exit code, not Playwright's:
@@ -45,10 +70,11 @@
  * ═════════════════════════════════════════════════════════════════════════
  *
  * ⚠️ IT PROVES EVERY PROJECT ACTUALLY RAN. A project that silently runs zero
- * tests is the worst possible pass: the summary says "green" and one fifth of
- * the matrix never happened. Per-project counts are read from Playwright's
- * JSON reporter and checked against each other — see the `── Report ──`
- * section at the foot of this file.
+ * tests is the worst possible pass: the summary says "green" and a whole lane
+ * never happened. Per-project counts are read from Playwright's JSON reporter,
+ * and under the lanes the check is "nobody ran ZERO, and chromium — the
+ * superset — is never the smaller run", because a mistyped lane matches
+ * nothing. See the `── Report ──` section at the foot of this file.
  *
  * ═════════════════════════════════════════════════════════════════════════
  * MEASUREMENTS — the three candidates, and why this one won
@@ -96,6 +122,7 @@ import { readFileSync, writeFileSync, mkdirSync, rmSync, existsSync } from 'node
 import { totalmem } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { OFF_SLIVER, missingLaneSpecs } from './lanes.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -287,6 +314,21 @@ function stopMemorySampler(handle) {
 
 const PROJECTS = ['chromium', 'firefox', 'webkit', 'pixel-5', 'iphone-13'];
 
+/** The OFF-shape run is reported beside the projects, never mixed into one. */
+const SLIVER_LABEL = 'chromium (OFF)';
+
+/* ⚠️ PREFLIGHT, AND IT REFUSES. A lane naming a spec that does not exist makes
+   `testMatch` match nothing, so the project runs zero tests and the gate goes
+   green having proved less than it claims. Checked before a single browser
+   starts, because finding it 20 minutes in is finding it too late. */
+const missing = missingLaneSpecs(ROOT);
+if (missing.length > 0) {
+  console.error(red('\n  ✗ scripts/lanes.mjs names spec files that do not exist:'));
+  for (const m of missing) console.error(red(`      ${m.project}: ${m.name}.spec.ts`));
+  console.error(dim('\n  Fix the names — a lane that matches nothing runs nothing.\n'));
+  process.exit(1);
+}
+
 const MODE = process.env['MCC_MATRIX_MODE'] ?? 'per-project';
 /**
  * ⚠️ THREE, NOT SIX. Six is Playwright's default here (half of 12 logical
@@ -314,7 +356,8 @@ const started = Date.now();
 
 console.log(
   `\n${bold('▸ test:release')}  ${dim(
-    `— the full matrix, ${PROJECTS.length} projects, ${MODE}, ${WORKERS} workers.`,
+    `— chromium over the whole suite + ${PROJECTS.length - 1} lanes, ` +
+      `${MODE}, ${WORKERS} workers.`,
   )}`,
 );
 /* The shape is stated rather than implied: the gate runs twice and a log that
@@ -338,7 +381,7 @@ function appendLog(text) {
  * nothing to it. The JSON carries the project name on every test result, which
  * is the only way to prove all five ran.
  */
-function runPlaywright(args, label) {
+function runPlaywright(args, label, envOverride = {}) {
   rmSync(JSON_OUT, { force: true });
   const command =
     `npx playwright test ${args} --reporter=line,json >> "${LOG}" 2>&1`;
@@ -346,7 +389,7 @@ function runPlaywright(args, label) {
     cwd: ROOT,
     stdio: 'inherit',
     shell: true,
-    env: { ...process.env, PLAYWRIGHT_JSON_OUTPUT_NAME: JSON_OUT },
+    env: { ...process.env, PLAYWRIGHT_JSON_OUTPUT_NAME: JSON_OUT, ...envOverride },
   });
 
   const tally = new Map();
@@ -430,6 +473,46 @@ if (MODE === 'pooled') {
   }
 }
 
+/* ── The accounts-OFF sliver ──────────────────────────────────────────── */
+
+/**
+ * ⚠️ TWO SPECS THAT ONLY AN ACCOUNTS-OFF BUILD CAN PROVE — AND IT IS NOT A
+ * SECOND MATRIX.
+ *
+ * The gate used to run the entire matrix twice, once per flag shape, at a
+ * measured 4.8 hours. 29 of the 41 spec files run IDENTICALLY in both shapes,
+ * so almost all of that second run could not answer anything new. What the OFF
+ * shape uniquely proves is small and exact: `auth-disabled.spec.ts` (Critical
+ * Feature 18 — no route emitted, no Supabase ref anywhere in the bundle) and
+ * `admin.spec.ts`'s "the admin surfaces are NOT BUILT" describe.
+ *
+ * ⚠️ THE SECOND BUILD IS IRREDUCIBLE, and it is the whole cost here: these are
+ * claims about the ARTEFACT the other shape produces, and you cannot inspect a
+ * build you did not make. The tests themselves take seconds.
+ *
+ * ⚠️ THE SWEEP BEFORE IT IS LOAD-BEARING, not tidiness. The ON preview server
+ * is still listening on 4321 and `reuseExistingServer` is true, so without the
+ * sweep Playwright would attach to it and run the OFF specs against the ON
+ * build — which would fail confusingly, or worse, pass.
+ */
+if (SHAPE === 'on' && process.env['MCC_SKIP_OFF_SLIVER'] !== 'true') {
+  const banner = `\n########## accounts-OFF sliver ##########\n`;
+  appendLog(banner);
+  console.log(bold(`\n  ▸ accounts-OFF sliver`) + dim('  — the shape this run cannot prove'));
+  sweepMachine('accounts-OFF sliver');
+  const files = OFF_SLIVER.map((n) => `tests/e2e/${n}.spec.ts`).join(' ');
+  const run = runPlaywright(
+    `--project=chromium --workers=${WORKERS} ${files}`,
+    'off-sliver',
+    /* ⚠️ EMPTY, NOT DELETED — `playwright.config.ts` reads it with `?? ''` and
+       passes it to the build, so an empty string IS the OFF shape. */
+    { PUBLIC_AUTH_ENABLED: '' },
+  );
+  if (run.status !== 0) worstStatus = run.status;
+  const entry = run.tally.get('chromium') ?? { passed: 0, failed: 0, flaky: 0, skipped: 0 };
+  totals.set(SLIVER_LABEL, entry);
+}
+
 /* ── Report ───────────────────────────────────────────────────────────── */
 
 const minutes = ((Date.now() - started) / 60_000).toFixed(1);
@@ -485,25 +568,65 @@ for (const project of PROJECTS) {
 }
 
 /**
- * ⚠️ THE ARITHMETIC CHECK, KEPT AND MADE STRONGER.
+ * ⚠️ THE SLIVER IS REPORTED ON ITS OWN LINE, NEVER FOLDED INTO CHROMIUM'S.
  *
- * It used to be "the total must be a multiple of 5". That was a proxy for
- * "every project ran the same specs", and a weak one — it passes on 4 projects
- * of 100 and one of 0 only by coincidence, and fails on a legitimately skipped
- * spec. Comparing the projects to EACH OTHER is the thing that proxy was
- * reaching for, and it names the odd one out instead of asking you to go and
- * read the log.
+ * It is a different BUILD of the site, and a summary that adds the two together
+ * would make "chromium" mean two artefacts at once — which is precisely the
+ * confusion the shape suffix in the log filename exists to prevent.
+ */
+const sliver = totals.get(SLIVER_LABEL);
+if (sliver) {
+  const ran = sliver.passed + sliver.failed + sliver.flaky + sliver.skipped;
+  console.log(
+    `    ${SLIVER_LABEL.padEnd(18)} ${String(sliver.passed).padStart(4)} passed` +
+      `${sliver.failed ? red(`, ${sliver.failed} failed`) : ''}` +
+      `${sliver.skipped ? dim(`, ${sliver.skipped} skipped`) : ''}` +
+      `  ${dim(`(${ran} run — Critical Feature 18)`)}`,
+  );
+  if (ran === 0) {
+    problems.push(
+      'the accounts-OFF sliver ran ZERO tests — Critical Feature 18 is UNPROVEN ' +
+        'by this gate. It is the one thing the ON shape structurally cannot show.',
+    );
+  }
+} else if (SHAPE === 'on' && process.env['MCC_SKIP_OFF_SLIVER'] !== 'true') {
+  problems.push('the accounts-OFF sliver did not run at all — Critical Feature 18 is unproven.');
+}
+
+/**
+ * ⚠️ THE ARITHMETIC CHECK, REWRITTEN FOR THE LANES.
+ *
+ * It used to compare the projects to EACH OTHER — "they must all have run the
+ * same number of tests" — which was the right check while every project ran
+ * every spec. Under the lanes that premise is gone: chromium runs the whole
+ * suite and each lane runs a named subset, so disagreement is now the DESIGN
+ * rather than the symptom.
+ *
+ * ⚠️ WHAT REPLACES IT IS AIMED AT THE FAILURE THE LANES INTRODUCED. A misspelt
+ * `testMatch` entry matches nothing, the project runs zero tests, and the gate
+ * goes green having proved less than it claims. So: every project must have run
+ * something, and chromium — the superset — must have run at least as much as
+ * any lane. `missingLaneSpecs()` catches the same mistake earlier and by name;
+ * this catches it if it ever arrives another way.
  */
 const executed = PROJECTS.map((p) => {
   const e = totals.get(p);
   return { project: p, ran: e ? e.passed + e.failed + e.flaky + e.skipped : 0 };
 });
-const expected = Math.max(...executed.map((e) => e.ran));
-const odd = executed.filter((e) => e.ran !== expected);
-if (expected > 0 && odd.length > 0) {
+const empty = executed.filter((e) => e.ran === 0);
+if (empty.length > 0) {
   problems.push(
-    `projects disagree on how many tests exist: expected ${expected}, but ` +
-      odd.map((e) => `${e.project} saw ${e.ran}`).join(', '),
+    `${empty.map((e) => e.project).join(', ')} ran ZERO tests — a lane matched ` +
+      'nothing. Check the names in scripts/lanes.mjs against tests/e2e/.',
+  );
+}
+const backbone = executed.find((e) => e.project === 'chromium')?.ran ?? 0;
+const bigger = executed.filter((e) => e.project !== 'chromium' && e.ran > backbone);
+if (bigger.length > 0) {
+  problems.push(
+    `chromium ran ${backbone} tests but ` +
+      bigger.map((e) => `${e.project} ran ${e.ran}`).join(', ') +
+      ' — chromium is the superset and cannot be the smaller run.',
   );
 }
 

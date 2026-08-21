@@ -39,6 +39,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { specsFor } from './spec-map.mjs';
+import { NEEDS_ACCOUNTS_ON, NEEDS_ACCOUNTS_OFF } from './lanes.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const BASE = process.env.BRANCH_BASE ?? 'dev';
@@ -118,17 +119,11 @@ const target = all ? '' : specs.map((s) => `tests/e2e/${s}`).join(' ');
  * memory in `test-release.mjs`. The cost is paid ONLY on branches that touch
  * auth; everything else keeps the full fan-out.
  */
-const AUTH_SPECS = new Set([
-  'account-deletion.spec.ts',
-  'admin.spec.ts',
-  'attendance-timing.spec.ts',
-  'auth.spec.ts',
-  'child-profiles.spec.ts',
-  'family.spec.ts',
-  'onboarding.spec.ts',
-  'progress-sync.spec.ts',
-  'role-separation.spec.ts',
-]);
+/* ⚠️ ONE LIST, IN `lanes.mjs`. The copy that used to live here was missing
+   `booking`, `booking-ui` and `recurring-sessions` — the drift that a second
+   copy always produces, and the reason the spec map lives in its own module
+   too. */
+const AUTH_SPECS = new Set(NEEDS_ACCOUNTS_ON.map((n) => `${n}.spec.ts`));
 const authSpecs = all ? AUTH_SPECS.size : specs.filter((s) => AUTH_SPECS.has(s)).length;
 const workers = authSpecs > 2 ? ' --workers=2' : '';
 if (workers) {
@@ -137,10 +132,53 @@ if (workers) {
   );
 }
 
+/**
+ * ⚠️⚠️ THE BRANCH BUILD FOLLOWS THE SELECTION'S SHAPE, AND UNTIL NOW IT DID NOT.
+ *
+ * The release gate runs accounts-ON, because that is what production serves.
+ * This script set no flag, so every branch build was OFF and every spec in
+ * `NEEDS_ACCOUNTS_ON` SKIPPED — a session touching the booking UI got no
+ * coverage at all until promotion. That is a hole in the DAILY loop, which is
+ * where a defect is cheapest to catch.
+ *
+ * ⚠️ THE COST IS PAID ONLY BY BRANCHES THAT TOUCH ACCOUNT CODE. A selection
+ * with none of those specs still builds OFF and is unchanged. One that has them
+ * pays a slightly longer build and some of Supabase's per-IP verify quota,
+ * which is what `--workers=2` above already exists to survive.
+ *
+ * ⚠️ AN EXPLICIT `PUBLIC_AUTH_ENABLED` IN THE ENVIRONMENT WINS. Someone
+ * deliberately testing the other shape is not overruled by a heuristic.
+ */
+const offSpecs = all ? NEEDS_ACCOUNTS_OFF.length
+  : specs.filter((s) => NEEDS_ACCOUNTS_OFF.includes(s.replace('.spec.ts', ''))).length;
+const explicit = process.env['PUBLIC_AUTH_ENABLED'];
+const shapeOn = explicit === undefined ? authSpecs > 0 : explicit === 'true';
+
+if (explicit === undefined && shapeOn) {
+  console.log(dim(`  ${authSpecs} spec(s) need accounts ON → building with PUBLIC_AUTH_ENABLED=true`));
+}
+/* ⚠️ ONE RUN CANNOT BE BOTH SHAPES. Said out loud rather than silently
+   half-covered: the OFF-only spec skips here, and the release gate's
+   accounts-OFF sliver is what proves it. */
+if (shapeOn && offSpecs > 0) {
+  console.log(
+    yellow(
+      `  ! the selection also wants the accounts-OFF shape (${NEEDS_ACCOUNTS_OFF.join(', ')}).\n` +
+        '    Running ON; those skip. The release gate proves them in its sliver,\n' +
+        '    or run them by hand with PUBLIC_AUTH_ENABLED= (empty).',
+    ),
+  );
+}
+
 const command = `npx playwright test --project=chromium${workers} ${target}`.trim();
 
 console.log(dim(`  ${command}\n`));
-const result = spawnSync(command, { cwd: ROOT, stdio: 'inherit', shell: true });
+const result = spawnSync(command, {
+  cwd: ROOT,
+  stdio: 'inherit',
+  shell: true,
+  env: { ...process.env, PUBLIC_AUTH_ENABLED: shapeOn ? 'true' : '' },
+});
 
 if (result.status !== 0) {
   console.error(red('\n  ✗ test:branch FAILED.\n'));

@@ -21,6 +21,11 @@ import PageIntro from '@components/PageIntro.astro';
 import Trail from '@components/nav/Trail.astro';
 import { localizePath } from '@i18n/paths';
 import LevelBadge from '@components/LevelBadge.astro';
+/* The booking controls render only when accounts are on — with the flag off
+   there is no `/connexion/` route to send a reader to, so the invitation would
+   point nowhere. This gates the MARKUP; what keeps the SCRIPT out of the
+   bundle is the alias, not this flag. See the note above the script block. */
+import { AUTH_ENABLED } from '@config/auth';
 
 interface Props {
   locale: Locale;
@@ -45,6 +50,42 @@ const dateFormat = new Intl.DateTimeFormat(locale === 'fr' ? 'fr-FR' : 'en-GB', 
   year: 'numeric',
   timeZone: 'UTC',
 });
+
+/**
+ * ⚠️ THE CLIENT SCRIPT'S STRINGS, RESOLVED HERE AND HANDED OVER AS DATA.
+ *
+ * The booking controls are painted in the browser and need wording; importing
+ * `@i18n/ui` into a client script would bundle BOTH language tables into every
+ * page and still leave the script guessing which locale it was rendered in.
+ * Resolving them at build time keeps `ui.ts` the single source of strings —
+ * including the `booking.code.*` keys, which mirror the codes the database
+ * returns (see src/lib/booking.ts).
+ */
+const BOOKING_KEYS = [
+  'booking.places',
+  'booking.places.one',
+  'booking.full',
+  'booking.book',
+  'booking.booking',
+  'booking.booked',
+  'booking.cancel',
+  'booking.cancelling',
+  'booking.noChildren',
+  'booking.cutoff',
+  'booking.cutoffPassed',
+  'booking.code.ok',
+  'booking.code.full',
+  'booking.code.already',
+  'booking.code.past',
+  'booking.code.too_late',
+  'booking.code.not_published',
+  'booking.code.forbidden',
+  'booking.code.no_session',
+  'booking.code.no_booking',
+  'booking.code.error',
+] as const;
+
+const bookingStrings = Object.fromEntries(BOOKING_KEYS.map((k) => [k, t(k)]));
 ---
 
 <BaseLayout locale={locale} title={t('agenda.title')} description={t('agenda.intro')} reveals>
@@ -81,6 +122,46 @@ const dateFormat = new Intl.DateTimeFormat(locale === 'fr' ? 'fr-FR' : 'en-GB', 
                 {session.level && <LevelBadge locale={locale} level={session.level} />}
                 {venue && <p class="session-venue">{venue}</p>}
                 {note && <p class="session-note">{note}</p>}
+                {/*
+                  ⚠️ SERVER-RENDERED AND `hidden`, NEVER BUILT FROM NOTHING.
+                  The container, the live region and the sign-in invitation are
+                  real elements in the HTML: only the per-child buttons are
+                  painted at runtime, because only the account knows its
+                  children. A signed-out reader gets the invitation with no
+                  script having run and no request having been made.
+
+                  ⚠️ NOT RENDERED FOR A CANCELLED SESSION. Booking a session
+                  that is not happening is not a state worth designing.
+                */}
+                {!cancelled && AUTH_ENABLED && (
+                  <div
+                    class="booking"
+                    data-booking
+                    data-session-id={session.id}
+                    data-starts-at={session.startsAt}
+                    data-capacity={session.capacity ?? ''}
+                  >
+                    {/* The baked hint: capacity, never a remaining count —
+                        see the note on PublicSession.capacity. */}
+                    {session.capacity !== null && (
+                      <p class="booking-places" data-booking-places>
+                        {t('booking.capacity').replace('{n}', String(session.capacity))}
+                      </p>
+                    )}
+                    <p class="booking-prompt" data-booking-signedout>
+                      {t('booking.signedOut')}{' '}
+                      <a class="booking-signin" href={localizePath('/connexion/', locale)}>
+                        {t('booking.signIn')}
+                      </a>
+                    </p>
+                    <ul class="booking-children" data-booking-children hidden />
+                    <p class="booking-note" data-booking-cutoff hidden>{t('booking.cutoff')}</p>
+                    {/* ⚠️ NEVER THE ONLY SIGNAL — the button's label and
+                        disabled state change with it (Critical Feature 39's
+                        reasoning, applied to a non-audio channel). */}
+                    <p class="booking-message" data-booking-message role="status" aria-live="polite" />
+                  </div>
+                )}
               </div>
             </li>
           );
@@ -88,7 +169,39 @@ const dateFormat = new Intl.DateTimeFormat(locale === 'fr' ? 'fr-FR' : 'en-GB', 
       </ul>
     )
   }
+
+  {
+    /* Data, not markup: read once by the booking script. `set:html` on a JSON
+       string inside a non-executable script type is the standard Astro way to
+       hand structured data to a client script. */
+    AUTH_ENABLED && (
+      <script
+        is:inline
+        type="application/json"
+        data-booking-strings
+        set:html={JSON.stringify(bookingStrings)}
+      />
+    )
+  }
 </BaseLayout>
+
+{/*
+ * ⚠️ UNCONDITIONAL, AND THAT IS DELIBERATE RATHER THAN LAZY.
+ *
+ * Wrapping this in `AUTH_ENABLED &&` would look like it kept the code out of
+ * the accounts-OFF bundle and would NOT: Astro collects a page's `<script>`
+ * blocks from the MODULE GRAPH, not from what renders — the same trap that
+ * once shipped 216 KB of unreachable Supabase into a build meant to prove
+ * Supabase was absent. What actually keeps the bundle clean is the alias in
+ * `astro.config.mjs`, which swaps `@lib/supabase` for the stub; `booking-ui`
+ * reaches it only through a dynamic import, and only after `hasStoredSession()`
+ * says a token exists. With accounts off there is no token, so nothing loads.
+ */}
+<script>
+  import { renderBooking } from '@lib/booking-ui';
+
+  renderBooking();
+</script>
 
 <style>
   .sessions {

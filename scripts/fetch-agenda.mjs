@@ -132,6 +132,13 @@ function normalise(row) {
     titleFr: row.title_fr ? String(row.title_fr) : null,
     noteFr: row.note_fr ? String(row.note_fr) : null,
     noteEn: row.note_en ? String(row.note_en) : null,
+    /* ⚠️ Session PROPERTIES, not a live count. The number of places already
+       booked is deliberately never baked — it changes on every booking, and a
+       booking fires no rebuild (0013), so a baked count would be stale from the
+       first reservation and would mark the deployed agenda permanently out of
+       date. Absent on a pre-0013 database, via the column ladder above. */
+    capacity: Number.isFinite(Number(row.capacity)) ? Number(row.capacity) : null,
+    overbookMargin: Number.isFinite(Number(row.overbook_margin)) ? Number(row.overbook_margin) : null,
   };
 }
 
@@ -202,23 +209,66 @@ async function main() {
      A build script has no session to manage, and keeping the dependency out of
      the build path means it cannot be dragged anywhere near a bundle. */
   const since = new Date(Date.now() - KEEP_PAST_DAYS * 86_400_000).toISOString();
-  const query =
+
+  /**
+   * ⚠️⚠️ A COLUMN LADDER, FOR THE SAME REASON `PROFILE_COLUMNS` AND
+   * `SESSION_COLUMNS` HAVE ONE — AND THE STAKES HERE ARE THE HIGHEST OF THE
+   * THREE.
+   *
+   * An explicit select naming a column the database lacks gets `42703`, which
+   * this script treats as a fatal read failure and exits 1 on. That is correct
+   * behaviour for a broken connection and catastrophic for a missing column:
+   * a Cloudflare build against a production database that has not yet had 0013
+   * applied would FAIL THE WHOLE BUILD, or — worse, if the failure were ever
+   * softened — ship a blank agenda. Migrations-before-deploy is the rule, and
+   * this ladder is what makes breaking it survivable rather than a fourteen-hour
+   * incident.
+   *
+   * ⚠️ NEWEST FIRST, AND A NEW COLUMN ADDS A RUNG IN THE SAME COMMIT.
+   */
+  const COLUMN_SETS = [
+    /* 0013 — capacity and the overbooking margin. */
+    'id,starts_at,status,level,venue,title_fr,note_fr,note_en,capacity,overbook_margin',
+    /* Pre-0013 — before a session could be booked. */
+    'id,starts_at,status,level,venue,title_fr,note_fr,note_en',
+  ];
+
+  const queryFor = (columns) =>
     `${url.replace(/\/$/, '')}/rest/v1/sessions` +
-    '?select=id,starts_at,status,level,venue,title_fr,note_fr,note_en' +
+    `?select=${columns}` +
     `&starts_at=gte.${encodeURIComponent(since)}` +
     '&status=in.(published,cancelled)' +
     '&order=starts_at.asc';
 
   let rows;
   try {
-    const response = await fetch(query, {
-      headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` },
-    });
-    if (!response.ok) {
-      throw new Error(`${response.status} ${response.statusText} — ${await response.text()}`);
+    let lastError = null;
+    for (const [rung, columns] of COLUMN_SETS.entries()) {
+      const response = await fetch(queryFor(columns), {
+        headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` },
+      });
+      if (response.ok) {
+        rows = await response.json();
+        if (!Array.isArray(rows)) throw new Error('PostgREST did not return an array');
+        if (rung > 0) {
+          console.log(
+            yellow(
+              `  ! this database predates 0013 — baked without capacity ` +
+                `(rung ${rung + 1} of ${COLUMN_SETS.length})`,
+            ),
+          );
+        }
+        lastError = null;
+        break;
+      }
+      const body = await response.text();
+      lastError = new Error(`${response.status} ${response.statusText} — ${body}`);
+      /* Only a MISSING COLUMN earns a retry. A network error, a bad key or an
+         RLS refusal must stay fatal — degrading those would hide exactly the
+         failures this script exits 1 on. */
+      if (!body.includes('42703')) break;
     }
-    rows = await response.json();
-    if (!Array.isArray(rows)) throw new Error('PostgREST did not return an array');
+    if (lastError) throw lastError;
   } catch (error) {
     console.error(red(`\n  ✗ the agenda read FAILED: ${error.message}`));
     console.error(

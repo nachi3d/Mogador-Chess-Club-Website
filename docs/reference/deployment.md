@@ -723,6 +723,66 @@ toolchain noise removes that signal with it. This site is content-heavy and such
 a release is rare — but it exists, and for one of those the operator must verify
 a **behaviour** on the live site instead. Nothing here covers it.
 
+#### ⚠️⚠️ THE GAP IS WIDER THAN "ISLAND JS ONLY", AND IT FIRED AT THE v0.17.0 GATE
+
+The paragraph above named the case narrowly and therefore read as a rare
+curiosity. **The real condition is broader: any release whose changes do not
+reach the three compared documents.** `/`, `/exercices/mat-du-couloir/` and
+`/progres/` were chosen for three different module graphs, so a *partial* deploy
+cannot pass by luck — but they say nothing about a release that never touches
+them.
+
+⚠️ **An ADMIN-ONLY release is exactly that case, and it is not rare at all.**
+v0.17.0 changed four source files — `AdminSessionsPage.astro`, `src/lib/admin.ts`,
+`src/lib/recurrence.ts`, `src/styles/admin.css` — none of which affect any of the
+three. Their HTML is **byte-identical** between the old and new tree once
+`/_astro` fingerprints are normalised away.
+
+**What happened on 2026-08-20**, in order:
+
+1. `main` was pushed at ~17:00; the Cloudflare Workers Build began.
+2. At **17:03** the live `/admin/seances/` was fetched: **both** new markers
+   (`Chaque semaine`, `Toutes les deux semaines`) were **absent**, while the
+   local `dist/` contained them unconditionally. The old build was still being
+   served.
+3. The deploy landed at **17:07:54**.
+4. `verify:deploy` then reported all three documents matching.
+
+⚠️ **HAD IT BEEN RUN IN THE FOUR-MINUTE WINDOW, IT WOULD HAVE REPORTED SUCCESS
+AGAINST THE OLD BUILD** — not as a bug, but as the honest consequence of
+comparing documents the release did not change. "Serving this exact build" would
+have been true of a build that predated the release.
+
+#### ⚠️ THE ANSWER IS A DISCRIMINATOR, AND IT MUST BE PROVED BEFORE IT IS USED
+
+For an admin-only or island-only release, pick a string from a document the
+release **did** change, and **prove it is absent from the old tree before
+relying on it**:
+
+```sh
+# 1. prove the marker discriminates — it must NOT exist in the previous tree
+git show <old-main>:src/components/pages/admin/AdminSessionsPage.astro \
+  | grep -c "Toutes les deux semaines"     # expect 0
+
+# 2. it must be present in the LOCAL build, unconditionally
+grep -c "Toutes les deux semaines" dist/admin/seances/index.html
+
+# 3. only then is its presence on the live site evidence the deploy landed
+```
+
+⚠️ **AND CARRY A NEGATIVE CONTROL**, for the same reason the schema probe does: a
+check that cannot fail proves nothing. Assert that a string which never existed
+(`Toutes les trois semaines`) is **absent** from the same fetched page. Without
+it, a fetch that silently returned an error page, or a `Contains` against the
+wrong variable, reads as a pass.
+
+⚠️ **`verify:deploy` CANNOT SUBSTITUTE FOR THIS, AND THE CONVERSE IS ALSO TRUE.**
+The discriminator proves *a* new document is live; `verify:deploy` proves the
+whole rendered surface matches, including the documents the discriminator says
+nothing about. Run both. On an admin-only or island-only release the
+discriminator is the one carrying the weight, and it is the one a hurried
+operator skips because the tool printed a green tick.
+
 ⚠️ **The negative test is part of the check's credibility.** After the rewrite,
 a single injected line in one `dist/` document was confirmed to fail the run and
 name the differing line. A verifier nobody has watched fail is a verifier nobody
@@ -891,13 +951,20 @@ Run `npm run demo`, which prints its path, and work down it. The release gate is
 □ node scripts/check-claude-md.mjs — green (CLAUDE.md under the size limit)
 □ node scripts/check-contrast.mjs — green
 □ node scripts/check-content.mjs — green
-□ npm run test:release — green, meaning ZERO failures. ⚠️ It runs its projects
-  one at a time and it is EXPECTED TO BE GREEN now; a red matrix is a finding
-  to chase, not a known flake to wave through. This is the ONE place it runs.
-□ ⚠️ PUBLIC_AUTH_ENABLED=true npm run test:release — green too, for as long as
-  production runs with accounts ON. The default matrix skips every auth spec,
-  so this is the ONLY cross-browser coverage the account stack gets. See the
-  verification policy above for why neither shape subsumes the other.
+□ ⚠️ PUBLIC_AUTH_ENABLED=true npm run test:release — green, meaning ZERO
+  failures. ONE shape, in the accounts-ON build, because that is what
+  production serves. It runs chromium over the whole suite, then the four
+  LANES, then the accounts-OFF sliver. ~25 min. It is EXPECTED TO BE GREEN; a
+  red gate is a finding to chase, not a known flake to wave through. This is
+  the ONE place it runs.
+□ ⚠️ THE ACCOUNTS-OFF SLIVER INSIDE IT RAN — the summary prints it on its own
+  line as `chromium (OFF)`. A sliver that ran zero tests FAILS the gate, and
+  it must: it is the only thing proving Critical Feature 18 (no route emitted,
+  no Supabase ref anywhere in the bundle), which the ON shape structurally
+  cannot show.
+□ node scripts/check-lanes.mjs — ADVISORY, read it, never gate on it. It
+  cannot see the defect class that earned the webkit lane; see the
+  verification policy in CLAUDE.md.
 □ ⚠️ PRODUCTION'S SCHEMA HOLDS THE MIGRATIONS THIS RELEASE NEEDS, applied
   BEFORE the deploy — migrations first, build second, per the agenda incident.
   Asked of the catalog, per migration. `db-push.mjs` refuses production by
@@ -924,6 +991,13 @@ Run `npm run demo`, which prints its path, and work down it. The release gate is
   cut?" — which `smoke:prod` and `wrangler deployments list` structurally
   cannot. ⚠️ Then `npm run smoke:prod`. Both: one says it is THE build, the
   other says the build is good.
+□ ⚠️⚠️ DID THE RELEASE TOUCH ANY OF /, /exercices/mat-du-couloir/, /progres/ ?
+  `git diff --name-only <old-main> HEAD -- src/` answers it. If NO — an
+  admin-only or island-only release — `verify:deploy` CANNOT tell this build
+  from the previous one, and it will print a green tick either way. Verify by
+  CONTENT instead: a marker from a document the release DID change, proved
+  absent from the old tree first, plus a negative control that must not match.
+  This fired for real at the v0.17.0 gate — see "The residual gap" above.
 ```
 
 It is a **living document**: keep it in step with the site, in the same commit as the feature. See the session finish routine under Conventions.
@@ -970,3 +1044,50 @@ re-asked.
 the deploy card cannot tell the two paths apart:
 [`docs/reference/deployment.md`](./docs/reference/deployment.md) and
 [`docs/reference/supabase.md`](./docs/reference/supabase.md).**
+
+---
+
+## The anon-key schema probe — what it proves, and what it cannot
+
+**Read when:** verifying at a promotion that production holds the migrations a release needs. ⚠️ The state claims in the block below are the **v0.17.0 gate's**, superseded at v0.18.0 (0013 applied; `trigger_count = 3` and `request_site_rebuild()` since verified) — the reasoning about the probe's controls is not superseded and is the reason the block is kept whole.
+
+⚠️ **Moved verbatim out of CLAUDE.md at the v0.18.0 split.**
+`scripts/check-split.mjs` compares normalised lines, so nothing inside the
+block below may be reworded. Relative links like `./docs/reference/…` are
+written from the repository root — CLAUDE.md's position, not this file's.
+
+✅ **PRODUCTION'S SCHEMA IS CURRENT THROUGH 0012** — re-verified **2026-08-20**
+at the v0.17.0 gate: `account_shape` `42501` (0010), `rebuild_requests` `42501`
+rather than `PGRST205` (0011), `series_id` 200 (0012). ⚠️ **Re-ask rather than
+trusting this line** — it is a claim about the outside world and it expires.
+
+⚠️ **AND THE PROBE ONLY ANSWERS HALF THE QUESTION.** PostgREST can see **tables
+and columns; it cannot see triggers or functions.** So the catalog query in
+[`docs/reference/deployment.md`](./docs/reference/deployment.md) has two halves
+and this probe checks one: **`trigger_count = 3` and
+`request_site_rebuild(text,integer)` REMAIN UNVERIFIED** from a machine holding
+only the anon key. Verifying them needs the SQL editor, and the production
+service-role key and database password are deliberately **not** on a developer
+machine (`docs/SETUP-NEW-MACHINE.md` §5). ⚠️ **0011 is exactly the migration
+whose value lives in its trigger**, so "`rebuild_requests` exists" is weaker
+evidence than it looks — the table can be present with no trigger firing into
+it. The live-log check below is what covers that gap; do not treat the table
+probe as covering it.
+
+⚠️ **A `42501` PROVES EXISTENCE ONLY BECAUSE THE CONTROLS SAY SO**, and the
+controls are cheap enough to re-run every time: a table that cannot exist
+returns **`PGRST205` (404)**, and a bad column on a *denied* table returns
+**`42703`, not `42501`** — column validation happens **before** the permission
+check. That second control is the load-bearing one: without it, a `42501` on
+`profiles?select=account_shape` is equally consistent with "column missing, table
+denied", and the reading would be wrong in the dangerous direction.
+
+✅ **AND THE VAULT ENTRY IS LIVE** — production's `rebuild_requests` carries
+firings with `dispatched = true`. A schema query cannot show that half; a log
+row can.
+
+⚠️ **STILL OUTSTANDING, AND IT DOES NOT BLOCK A DEPLOY:** production's
+`schema_migrations` still lists `0001, 0002`, so a future `db push` would replay
+everything between — including 0005's unguarded `drop constraint`. **Registering
+is bookkeeping, not proof.** Backfill SQL in
+[`docs/reference/deployment.md`](./docs/reference/deployment.md). See BACKLOG.

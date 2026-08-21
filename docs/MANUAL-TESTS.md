@@ -2091,7 +2091,11 @@ axe covers a lot of this automatically; these are the parts it cannot judge.
 - [ ] `npm run build` — clean
 - [ ] `node scripts/check-content.mjs` — green
 - [ ] `node scripts/check-contrast.mjs` — green
-- [ ] `npx playwright test` — full matrix (see CLAUDE.md for the known environmental flakes)
+- [ ] `PUBLIC_AUTH_ENABLED=true npm run test:release` — the gate: chromium over
+      the whole suite, the four lanes, and the accounts-OFF sliver. ~25 min.
+      ⚠️ Check the sliver ran — it prints as `chromium (OFF)` and it is the only
+      thing proving Critical Feature 18
+- [ ] `node scripts/check-lanes.mjs` — advisory, read it; never gate on it
 - [ ] This checklist, worked through on desktop **and** a real phone
 - [ ] Lighthouse ≥ 90 on Performance, Accessibility and SEO
 - [ ] ⚠️ **No test fixture is live** — after deploying, `npm run smoke:prod`
@@ -2124,3 +2128,70 @@ minute and it is the whole safety margin the fast path trades away.
 
 If any of these is wrong, revert the commit rather than fixing forward — the
 same rule as the fast path itself.
+
+### 7e. Réservation d’une séance (0013)
+
+⚠️ **À faire sur un vrai téléphone.** C’est le format que la fonctionnalité
+vise : un parent réserve debout, d’une main, souvent en retard.
+
+Pré-requis : `npm run demo:accounts`, un compte avec **deux** profils enfants,
+et une séance publiée dans plus de 2 heures.
+
+⚠️ **Une partie de cette section est désormais automatisée** —
+`tests/e2e/booking-ui.spec.ts`, sur chromium **et** dans la voie webkit : le
+zéro-requête déconnecté, la réservation confirmée en base, l’annulation, la
+re-réservation sans rechargement, et le refus d’une séance déjà commencée.
+**Ce qui reste manuel est ce qu’aucun spec ne voit** : le confort à une main sur
+un vrai téléphone, la lisibilité au soleil, et la taille réelle des cibles.
+
+| # | Étape | Résultat attendu |
+|---|---|---|
+| 1 | `/agenda/` **déconnecté** | La carte montre « 12 places » (la capacité) et « Connectez-vous pour réserver ». ⚠️ **Aucune requête réseau vers Supabase** — vérifier dans l’onglet Réseau, filtre `supabase`. Zéro. |
+| 2 | Se connecter, revenir sur `/agenda/` | Le nombre devient le **compte réel** (« 14 places restantes »), et un bouton **Réserver** apparaît par enfant |
+| 3 | Réserver le premier enfant | Le bouton devient **Annuler**, l’étiquette « Réservé » s’affiche, le compte baisse de 1, et le message dit « C’est réservé. » |
+| 4 | Réserver le second enfant | Idem. ⚠️ **Deux réservations distinctes** — une par profil, jamais une pour le compte |
+| 5 | Annuler le premier | Le bouton redevient **Réserver**, le compte remonte de 1 |
+| 6 | Re-réserver le même enfant | Accepté. ⚠️ C’est l’index unique partiel : une annulation libère vraiment la place |
+| 7 | Recharger la page | L’état survit — il vient de la base, pas du navigateur |
+| 8 | Passer la séance à moins de 2 h (via `/admin/seances`, changer la date) puis recharger | Le bouton **Annuler** est **désactivé** et son infobulle dit pourquoi. ⚠️ Jamais un bouton qui ne fait rien |
+| 9 | Sur `/en/agenda/` | Tout est en anglais, y compris les messages de refus |
+
+#### 7e-bis. La page périmée — le cas qui compte
+
+| # | Étape | Résultat attendu |
+|---|---|---|
+| 1 | Ouvrir `/agenda/` sur le téléphone, ne pas recharger | La carte affiche des places libres |
+| 2 | Sur un autre appareil, remplir la séance (réserver jusqu’à `capacité + marge`) | — |
+| 3 | Sur le téléphone **sans recharger**, appuyer sur **Réserver** | ⚠️ **« Cette séance est complète. »** puis la carte se met à jour toute seule. **Jamais** un bouton qui ne réagit pas, jamais une erreur technique |
+
+#### 7e-ter. Côté prof — `/admin/seances`
+
+| # | Étape | Résultat attendu |
+|---|---|---|
+| 1 | Le formulaire « Programmer une séance » | Champs **Places** (12) et **Marge de surréservation** (2), avec l’explication : 12 + 2 = 14 réservations acceptées |
+| 2 | Choisir une séance dans **Présences** | Le bloc **Inscrits — N** liste les enfants réservés avec le **téléphone du parent**, cliquable |
+| 3 | Le registre en dessous | Les enfants **inscrits sont en tête**, marqués par un liseré. ⚠️ Toute la classe reste listée — un enfant qui vient sans avoir réservé se marque sans rien retaper |
+| 4 | Annuler la séance | Les réservations passent à **annulée**, avec « séance annulée » comme motif. ⚠️ Jamais orphelines |
+| 5 | Vérifier le nombre de rebuilds | ⚠️ Une réservation ne déclenche **aucun** rebuild ; annuler la séance en déclenche **un** |
+
+#### 7e-quater. Modifier une séance et lire le remplissage (0013)
+
+| # | Étape | Résultat attendu |
+|---|---|---|
+| 1 | `/admin/seances`, regarder la liste | Chaque carte affiche **« 9 / 14 places »**. ⚠️ Le dénominateur est **capacité + marge**, pas la capacité seule |
+| 2 | Une séance sans réservation | « 0 / 14 places ». Une base antérieure à 0013 ou un chargement en cours affiche **« — »**, jamais 0 |
+| 3 | Appuyer sur **Modifier** | Le formulaire se remplit, la bannière « Modification d’une séance existante » apparaît, le bouton devient **Enregistrer**, et la page défile jusqu’au formulaire |
+| 4 | Vérifier la date et l’heure | ⚠️ Elles doivent être **remplies et justes** — pas un champ vide. C’est le piège de `datetime-local` |
+| 5 | Changer **Places** de 12 à 20, enregistrer | La carte affiche « n / 20 » (ou « n / 22 » avec la marge). ⚠️ Le bandeau de fraîcheur de l’agenda passe à « non déployé » — la capacité est publique |
+| 6 | Modifier une séance **publiée** | Elle reste publiée. ⚠️ Modifier un **brouillon** ne le publie pas |
+| 7 | Le sélecteur « Répétition » pendant une modification | La zone de prévisualisation dit que la répétition ne s’applique qu’à la création |
+| 8 | **Annuler la modification** | Le formulaire se vide et revient en mode création (**Créer**) |
+| 9 | Modifier une séance d’une **série** | ⚠️ Seule cette séance change. Une série est une étiquette, jamais une règle |
+
+#### 7e-quinquies. `db:push --dry-run` ne ment plus
+
+| # | Étape | Résultat attendu |
+|---|---|---|
+| 1 | `npm run db:push -- --dry-run` avec une migration en attente | Liste les migrations en attente puis **« ✓ dry run — NOTHING was applied. »** |
+| 2 | Relancer la même commande | ⚠️ La migration est **toujours en attente** — c’est la preuve que rien n’a été appliqué |
+| 3 | `npm run db:push -- --dryrun` (faute de frappe) | ⚠️ **Refus**, code de sortie 1. Un argument non reconnu n’est jamais ignoré |

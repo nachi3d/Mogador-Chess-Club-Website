@@ -406,6 +406,45 @@ const fr = {
      wonders whether they misremembered — which only works if it SAYS so. */
   'agenda.cancelled': 'Séance annulée',
 
+  /* ── Réservation (0013) ───────────────────────────────────────────────
+     ⚠️ EVERY `booking.code.*` KEY MIRRORS A CODE RETURNED BY
+     `create_booking()` / `cancel_booking()`. The database returns a code and
+     never a sentence, precisely so both languages exist — see src/lib/booking.ts.
+     A code with no key here would render as `booking.code.error`, which is a
+     refusal the reader can act on; it must never be a silent no-op. */
+  'booking.places': 'places restantes',
+  'booking.places.one': 'place restante',
+  'booking.capacity': '{n} places',
+  'booking.full': 'Complet',
+  'booking.book': 'Réserver',
+  'booking.booking': 'Réservation…',
+  'booking.booked': 'Réservé',
+  'booking.cancel': 'Annuler',
+  'booking.cancelling': 'Annulation…',
+  'booking.signedOut': 'Connectez-vous pour réserver une place.',
+  'booking.signIn': 'Se connecter',
+  'booking.noChildren': 'Ajoutez un profil pour réserver une place.',
+  'booking.forWhom': 'Pour qui ?',
+  /* ⚠️ The cutoff is mirrored from the database rule, never invented here. */
+  'booking.cutoff': 'Annulation possible jusqu’à 2 h avant la séance.',
+  'booking.cutoffPassed': 'Trop tard pour annuler — prévenez le club.',
+  'booking.sessionCancelled': 'La séance a été annulée.',
+  'booking.youCancelled': 'Vous avez annulé cette réservation.',
+
+  'booking.code.ok': 'C’est réservé.',
+  /* ⚠️ THE STALE-PAGE SENTENCE. `/agenda/` is baked, so a reader can press a
+     button that a moment ago said there was room. This is what they must read
+     — never a silent failure. */
+  'booking.code.full': 'Cette séance est complète.',
+  'booking.code.already': 'Cette place est déjà réservée.',
+  'booking.code.past': 'Cette séance a déjà commencé.',
+  'booking.code.too_late': 'Trop tard pour annuler — prévenez le club.',
+  'booking.code.not_published': 'Cette séance n’est plus ouverte à la réservation.',
+  'booking.code.forbidden': 'Vous ne pouvez pas réserver pour ce profil.',
+  'booking.code.no_session': 'Cette séance n’existe plus.',
+  'booking.code.no_booking': 'Cette réservation n’existe plus.',
+  'booking.code.error': 'La réservation n’a pas pu aboutir. Réessayez.',
+
   'contact.title': 'Contact',
   'contact.intro': 'Une question, une inscription, une envie de jouer ? Écrivez-nous.',
   'contact.whatsapp': 'Écrire sur WhatsApp',
@@ -1178,6 +1217,35 @@ const en: Record<keyof typeof fr, string> = {
   'agenda.intro': "The club's upcoming sessions.",
   'agenda.empty': 'No sessions scheduled at the moment.',
   'agenda.cancelled': 'Session cancelled',
+
+  'booking.places': 'places left',
+  'booking.places.one': 'place left',
+  'booking.capacity': '{n} places',
+  'booking.full': 'Full',
+  'booking.book': 'Book',
+  'booking.booking': 'Booking…',
+  'booking.booked': 'Booked',
+  'booking.cancel': 'Cancel',
+  'booking.cancelling': 'Cancelling…',
+  'booking.signedOut': 'Sign in to book a place.',
+  'booking.signIn': 'Sign in',
+  'booking.noChildren': 'Add a profile to book a place.',
+  'booking.forWhom': 'Who for?',
+  'booking.cutoff': 'You can cancel up to 2 hours before the session.',
+  'booking.cutoffPassed': 'Too late to cancel — please tell the club.',
+  'booking.sessionCancelled': 'This session was cancelled.',
+  'booking.youCancelled': 'You cancelled this booking.',
+
+  'booking.code.ok': "That's booked.",
+  'booking.code.full': 'This session is full.',
+  'booking.code.already': 'That place is already booked.',
+  'booking.code.past': 'This session has already started.',
+  'booking.code.too_late': 'Too late to cancel — please tell the club.',
+  'booking.code.not_published': 'This session is no longer open for booking.',
+  'booking.code.forbidden': 'You cannot book for that profile.',
+  'booking.code.no_session': 'That session no longer exists.',
+  'booking.code.no_booking': 'That booking no longer exists.',
+  'booking.code.error': 'The booking could not be completed. Please try again.',
 
   'contact.title': 'Contact',
   'contact.intro': 'A question, a sign-up, or just want a game? Get in touch.',
