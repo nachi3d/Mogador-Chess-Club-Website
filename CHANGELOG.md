@@ -11,6 +11,23 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+_Nothing yet._
+
+---
+
+## [0.18.0] — 2026-08-21
+
+**Session booking: a member reserves a place for a child, and capacity is a
+property of Postgres rather than of the page. Migration 0013 — per-session
+capacity and an overbooking margin, a row lock taken before the count, and a
+two-hour cancellation cutoff that lives in the database rather than in a
+disabled button.**
+
+The agenda stops informing and starts enrolling. On the prof's side a session
+can now be edited rather than only created, and every card carries its own
+filling. `db:push --dry-run` stopped lying, and the PowerShell round-trip that
+silently double-encodes accented French is now a hard rule.
+
 ### Added
 
 - **Session booking — a member reserves a place for a child, and capacity is a
@@ -5458,7 +5475,8 @@ Foundation only: no real content, no interactive board yet.
   `url()` references unresolved and the fonts silently 404 into a Georgia
   fallback. `scripts/build-fonts.mjs` self-hosts them instead. See CLAUDE.md.
 
-[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.17.0...HEAD
+[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.18.0...HEAD
+[0.18.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.14.0...v0.15.0
