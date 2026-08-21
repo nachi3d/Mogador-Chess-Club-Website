@@ -951,13 +951,20 @@ Run `npm run demo`, which prints its path, and work down it. The release gate is
 □ node scripts/check-claude-md.mjs — green (CLAUDE.md under the size limit)
 □ node scripts/check-contrast.mjs — green
 □ node scripts/check-content.mjs — green
-□ npm run test:release — green, meaning ZERO failures. ⚠️ It runs its projects
-  one at a time and it is EXPECTED TO BE GREEN now; a red matrix is a finding
-  to chase, not a known flake to wave through. This is the ONE place it runs.
-□ ⚠️ PUBLIC_AUTH_ENABLED=true npm run test:release — green too, for as long as
-  production runs with accounts ON. The default matrix skips every auth spec,
-  so this is the ONLY cross-browser coverage the account stack gets. See the
-  verification policy above for why neither shape subsumes the other.
+□ ⚠️ PUBLIC_AUTH_ENABLED=true npm run test:release — green, meaning ZERO
+  failures. ONE shape, in the accounts-ON build, because that is what
+  production serves. It runs chromium over the whole suite, then the four
+  LANES, then the accounts-OFF sliver. ~25 min. It is EXPECTED TO BE GREEN; a
+  red gate is a finding to chase, not a known flake to wave through. This is
+  the ONE place it runs.
+□ ⚠️ THE ACCOUNTS-OFF SLIVER INSIDE IT RAN — the summary prints it on its own
+  line as `chromium (OFF)`. A sliver that ran zero tests FAILS the gate, and
+  it must: it is the only thing proving Critical Feature 18 (no route emitted,
+  no Supabase ref anywhere in the bundle), which the ON shape structurally
+  cannot show.
+□ node scripts/check-lanes.mjs — ADVISORY, read it, never gate on it. It
+  cannot see the defect class that earned the webkit lane; see the
+  verification policy in CLAUDE.md.
 □ ⚠️ PRODUCTION'S SCHEMA HOLDS THE MIGRATIONS THIS RELEASE NEEDS, applied
   BEFORE the deploy — migrations first, build second, per the agenda incident.
   Asked of the catalog, per migration. `db-push.mjs` refuses production by

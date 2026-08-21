@@ -86,6 +86,11 @@ const FORBIDDEN = [
   [/^src\/layouts\//, 'the page shell, including the anti-FOUC theme script'],
   [/^scripts\/build-sw\./, 'the service worker'],
   [/^scripts\/(build-|check-|quick)/, 'the build and its gates'],
+  /* ⚠️ WHAT THE GATE RUNS IS NOT A QUICK CHANGE, AND THE LANES MADE THIS
+     REACHABLE. Removing one name from `lanes.mjs` is a one-line edit that
+     looks like a tidy-up and silently deletes a browser's worth of coverage —
+     the fast path must never be able to shorten the gate that polices it. */
+  [/^scripts\/(lanes|test-release|test-branch|spec-map)\./, 'what the release gate runs'],
   [/^(astro|playwright|tsconfig|wrangler|postcss)\./, 'build configuration'],
   [/^package(-lock)?\.json$/, 'dependencies'],
   [/^supabase\//, 'the database'],

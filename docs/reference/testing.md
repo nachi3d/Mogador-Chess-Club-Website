@@ -1196,3 +1196,187 @@ session will know about — that is precisely how the last policy eroded.
 **➡️ The measured memory numbers, the four-red-gate diagnosis, the per-session
 cost the removal bought back and the rejected alternatives:
 [`docs/reference/testing.md`](./docs/reference/testing.md).**
+
+---
+
+## The gate audit — 4.8 hours to ~25 minutes, and what it cost in risk
+
+**Read when:** changing `scripts/lanes.mjs`, adding a spec, arguing about the
+release gate's cost, or wondering why a spec runs on one browser.
+
+⚠️ **THE CONCLUSION FIRST, BECAUSE IT IS THE PART THAT GETS RE-LITIGATED:** the
+redundancy that had produced nothing was removed, and every lane that had ever
+caught a defect was kept and pinned to the engine that caught it.
+
+### What it cost before — measured, not estimated
+
+The v0.17.0 gate, on this machine, both flag shapes:
+
+| project | accounts OFF | accounts ON |
+|---|---|---|
+| chromium | 6.0 min | 6.0 min |
+| firefox | 23.2 min | **126 min** |
+| webkit | **66 min** | 17.3 min |
+| pixel-5 | 5.3 min | 7.5 min |
+| iphone-13 | 13.7 min | 15.4 min |
+| **total** | **115.6 min** | **172.1 min** |
+
+**4.8 hours and ~6,700 test executions per release**, for a static teaching
+site. ⚠️ **The firefox/webkit volatility between shapes is memory starvation,
+not browser cost** — see §9a of `docs/SETUP-NEW-MACHINE.md`. It is why the
+figures either side of chromium cannot be read as intrinsic.
+
+### The three findings
+
+**1. 29 of the 41 spec files ran IDENTICALLY in both flag shapes.** Proved by
+comparing run/skip status per spec across the two recorded gate JSONs, not
+inferred from duration:
+
+| class | files | which |
+|---|---|---|
+| identical in both shapes | **29** | everything not listed below |
+| ON only (skip entirely in OFF) | 8 | `account-deletion`, `attendance-timing`, `booking`, `child-profiles`, `family`, `onboarding`, `progress-sync`, `role-separation` |
+| OFF only | 1 | `auth-disabled` |
+| partial | 3 | `admin` (3 of 15), `auth` (6 of 26), `recurring-sessions` (6 of 9) |
+
+⚠️ **So the second matrix re-ran ~3,000 tests that could not answer anything
+new.** What the OFF shape uniquely proves is `auth-disabled` plus three tests in
+`admin` — which is now the sliver.
+
+**2. Four spec files never open a browser at all.** `booking` (14 tests),
+`child-profiles` (7), `engine-levels` (5), `role-separation` (20) take no `page`
+fixture anywhere: they are `rpc()` calls, RLS assertions and arithmetic. Between
+them they spawned **255 browser contexts per release**.
+
+**3. Chromium runs the whole suite in 7.1 minutes** — 726 passed, 20 skipped,
+accounts ON, including the new `booking-ui.spec.ts`. It proves all 41 once.
+
+### Cost per spec file — chromium, accounts ON, CPU seconds
+
+The ten most expensive, of 1,119 s total:
+
+| spec | ran | cpu s | | spec | ran | cpu s |
+|---|---|---|---|---|---|---|
+| `themes` | 51 | 81.2 | | `sound` | 25 | 54.3 |
+| `progression` | 40 | 76.5 | | `theme` | 29 | 46.2 |
+| `family` | 10 | 63.1 | | `onboarding` | 9 | 45.1 |
+| `exercise` | 31 | 62.8 | | `play` | 20 | 44.6 |
+| `mobile-app` | 63 | 60.7 | | `account-deletion` | 6 | 43.9 |
+
+⚠️ **`pwa` is 1.8 s and `engine-levels` is 0.0 s.** Six of `pwa`'s eight tests
+take `{ request }` and inspect `sw.js`, the manifest and `dist/` — it never
+registers a service worker in a browser. "The service worker needs cross-browser
+coverage" is an intuition that does not survive reading the file.
+
+### The lanes, and what each is earned by
+
+`scripts/lanes.mjs` holds them. Measured at the gate audit on a machine with
+**2.5 GB free** — the bad case, deliberately:
+
+| lane | files | measured | earned by |
+|---|---|---|---|
+| webkit | 12 | 5.1 min | the **"Créer" click-synthesis bug** (`956b05a`) |
+| firefox | 6 | 5.6 min | the **agenda axe violation** in Gecko's a11y tree |
+| iphone-13 | 5 | 3.6 min | the **tap-versus-bottom-bar collision** |
+| pixel-5 | 3 | 1.1 min | the same touch surface, other engine |
+
+Plus chromium at 7.1 min over everything, and the sliver at ~2 min.
+**1,279 test executions against ~6,700 — 81% fewer.**
+
+⚠️ **Measured GREEN end to end: 21.9 min, 1,277 passed, 0 failed**, with the
+accounts-OFF sliver inside it (21 passed, 11 skipped). Troughs across the five
+projects were **0.51 to 2.03 GB free** — deep in the starvation regime §9a of
+[`docs/SETUP-NEW-MACHINE.md`](../SETUP-NEW-MACHINE.md) describes — so **that is
+the bad case**, and a quiet machine should beat it.
+
+### What was cut, and the risk of each
+
+- ⚠️ **`exercise` (31), `replayer` (19), `play` (20) and `tutorial` (15) dropped
+  to chromium.** This is the biggest accepted risk. Their engine-sensitive
+  surface is the **board**, which stays covered on webkit and both mobile
+  projects through `board-pointer`, `board-frame`, `board-affordance` and
+  `nav-coords`. What is no longer covered cross-browser is each mode's verdict
+  wording, attempt counting and hint UI — DOM text, low engine sensitivity.
+- ⚠️ **`progression` (40) and `wayfinding` (25) lost their Firefox axe run.**
+  `agenda` and `main-menu` keep one, so a Gecko-specific axe rule would still
+  surface somewhere in the gate.
+- ⚠️ **Evidence in both directions, stated honestly.** The last two full
+  matrices found **zero** genuine cross-browser defects — every failure and
+  flake was memory starvation, cleared by a serial re-run. But the matrix caught
+  a real, user-facing WebKit defect **one release earlier**. The lanes keep
+  exactly what produced that.
+
+### ⚠️ THE HEURISTIC'S BLIND SPOT CANNOT BE TUNED AWAY
+
+`scripts/check-lanes.mjs` scores each spec for layout, touch, board, media
+query, animation timing, axe and font signals. It is **advisory and always exits
+0**, and the reason is a fact about this repository rather than caution:
+
+> `recurring-sessions.spec.ts` scores **zero** on every signal — and it is the
+> spec that caught the Créer bug.
+
+The score measures what a spec **asserts**. The WebKit defect lived in how the
+spec **drives** the page: a plain `fill()` followed by a plain `click()`, with
+no blur in between. No pattern added to that list would find it, because the
+signal is not in the file. ⚠️ **A gate on this would print a green tick meaning
+"the lanes are complete", which is the exact false confidence that lets the next
+one through.**
+
+⚠️ **What DOES gate is `missingLaneSpecs()`.** A lane naming a spec that does
+not exist makes `testMatch` match nothing, the project runs zero tests, and the
+gate goes green having proved less than it claims — the one failure mode the
+lane design introduced. That is a filesystem fact, so it is checked exactly and
+`test-release.mjs` refuses before a browser starts.
+
+### ⚠️ THE AUDIT'S REAL FINDING WAS A GAP, NOT A SAVING
+
+`booking.spec.ts` is 14 excellent tests that never open a page. So the booking
+controls on `/agenda/` — **painted by script, the same surface class as the
+Créer button** — shipped in v0.18.0 with **no browser test on any engine**, and
+`booking.spec.ts` would have stayed green throughout.
+
+`booking-ui.spec.ts` was written with the lanes and put in the webkit lane. It
+drives the real controls: the signed-out invitation with **zero Supabase
+requests**, an account with no child, a booking confirmed against the database
+rather than against the button's own label, a **stale past session refusing in
+words**, and — the regression it exists for — **book, cancel, book with no
+reload**, so every press lands on a control the previous press rebuilt.
+
+⚠️ **A session that shrinks a gate does not get to leave a known untested
+surface behind.** That is the rule this file would want back if it were ever
+lost.
+
+### ⚠️ AN ASSERTION ON A GLOBAL TABLE IS NOT ISOLATED, AND `mode: 'serial'` DOES NOT MAKE IT SO
+
+The first run of the new gate went red on one chromium test:
+`booking.spec.ts` → *"a booking and a cancellation fire no rebuild at all"*,
+**`Expected: 1868, Received: 1870`**.
+
+It took a before/after count of `rebuild_requests` — **one log for the whole
+database**. The file carries `test.describe.configure({ mode: 'serial' })`,
+which serialises the tests **in that file** and nothing else:
+`recurring-sessions`, `admin` and `attendance-timing` create and cancel sessions
+in other files, concurrently, and every one of those *legitimately* fires a
+rebuild. A serial re-run of the file passed **14/14**.
+
+⚠️ **THE RULE WAS NEVER IN QUESTION — THE MEASUREMENT WAS.** Critical Feature 72
+held throughout; a booking had written nothing. What failed was an assertion
+that could not tell its own effects from everybody else's.
+
+⚠️ **THAT IS AS EXPENSIVE AS A FLAKE AND TEACHES THE SAME LESSON.** A reader has
+to rule out four other spec files by hand before believing the gate, and the
+habit that forms is "re-run it". The fix was to assert the thing the rule
+actually names: **the session ROW is unchanged** across the booking and the
+cancellation. That is isolated by construction, and it is closer to CF72 than
+the log was — the regression CF72 names is a denormalised `bookings_count` on
+`sessions`, which changes the row. `select … for update` is a lock and leaves no
+trace.
+
+⚠️ **WHAT IT GIVES UP IS WRITTEN IN THE SPEC RATHER THAN HIDDEN:** an UPDATE that
+wrote the same values back would fire the trigger and leave the row equal.
+Nothing plausible does that — and nothing isolated could see it, because the
+only witness is the global log.
+
+**The generalisation, for the next spec that reaches for a counter:** if an
+assertion reads a table that any other spec file may write, it is not isolated,
+and no `describe` option will make it so. Assert on a row you created.
