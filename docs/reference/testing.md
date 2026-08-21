@@ -1027,3 +1027,172 @@ which caps its workers precisely so it never reaches that state.
 
 **➡️ The full symptom table and the diagnoses behind it:
 [`docs/reference/testing.md`](./docs/reference/testing.md).**
+
+---
+
+## Symptoms that are the environment, not the application — the tells
+
+**Read when:** a test run smells stale, flaky, or fails on a different set each time.
+
+⚠️ **Moved verbatim out of CLAUDE.md at the v0.18.0 split.**
+`scripts/check-split.mjs` compares normalised lines, so nothing inside the
+block below may be reworded. Relative links like `./docs/reference/…` are
+written from the repository root — CLAUDE.md's position, not this file's.
+
+### ⚠️ Symptoms that are the ENVIRONMENT, not the application
+
+Each of these has cost real debugging time. **Recognise the signature before
+touching application code.** These are the tells:
+
+- a fixed bug still "fails" and the fix is missing from `dist/` → **a stale
+  preview server** (Playwright's `reuseExistingServer` skipped its own build);
+- **every project fails identically** on a Critical Feature → **a stale `dist/`**;
+- WebKit "target page… closed", or Firefox `RenderCompositorSWGL failed` on a
+  **different test each run** → **the Windows browser dying under fan-out**;
+- auth specs timing out on a **different set each run** → **Supabase's auth rate
+  limit**, measured at ~22 verifications in 7s;
+- `ERR_CONNECTION_REFUSED` → **read the HOST in the error**: `localhost:4321`
+  is a dead preview server, `*.supabase.co` is sustained rate-limit abuse.
+
+**A genuine failure is deterministic and fails A SERIAL RE-RUN too, and it fails
+with an assertion naming a value.** ⚠️ **THE LOCAL RETRY IS NOT THE ARBITER —
+`--workers=1` IS**; when the compositor has died the retry runs inside the same
+broken process. ⚠️ **Never pipe the test run into `tail`** — it reports tail's
+exit code, so 14 failures read as "196 passed, exit 0". ⚠️ **A browser-crash row
+is a FINDING when it comes from `test:release`.**
+
+**➡️ The full symptom table and the diagnoses behind it:
+[`docs/reference/testing.md`](./docs/reference/testing.md).**
+
+
+---
+
+## Driving a board from a spec — the four gates
+
+**Read when:** writing or debugging any spec that moves a piece.
+
+⚠️ **Moved verbatim out of CLAUDE.md at the v0.18.0 split.**
+`scripts/check-split.mjs` compares normalised lines, so nothing inside the
+block below may be reworded. Relative links like `./docs/reference/…` are
+written from the repository root — CLAUDE.md's position, not this file's.
+
+### ⚠️ Driving a board from a spec — the four gates
+
+**Scroll it into view** (`block: 'center'`, never `scrollIntoViewIfNeeded`),
+**wait on `<cg-board>`** (not `[data-testid]`, which Astro server-renders),
+**wait on `data-ready="true"` and `data-busy="false"`**, and **press for a
+DURATION** — measured **1/8 solved at 0ms against 8/8 at 60ms**. Use
+`movePiece()` from `tests/e2e/helpers/board.ts`.
+
+⚠️ **Test the pointer path BY POINTER.** Every exercise spec that solved by
+typing into `MoveInput` bypassed Chessground entirely and would stay green if
+the board refused every tap.
+
+⚠️ **Never assert a short-lived class with a MutationObserver alone**, and
+⚠️ **every axe check on a reveal-bearing page must call `settleReveals(page)`**
+— a `[data-reveal]` element is transparent text axe can still find, so it
+presents as flakiness rather than breakage.
+
+⚠️ **`play.spec.ts` runs ONE AT A TIME** — every test boots a real engine with
+64 MiB of linear memory.
+
+**➡️ Each gate in full, with the measurements and the false positives it
+produced: [`docs/reference/testing.md`](./docs/reference/testing.md).**
+
+
+---
+
+## Why the gate runs twice — once per flag shape
+
+**Read when:** promoting a release, or wondering whether one matrix run is enough.
+
+⚠️ **Moved verbatim out of CLAUDE.md at the v0.18.0 split.**
+`scripts/check-split.mjs` compares normalised lines, so nothing inside the
+block below may be reworded. Relative links like `./docs/reference/…` are
+written from the repository root — CLAUDE.md's position, not this file's.
+
+#### ⚠️⚠️ THE GATE RUNS TWICE — ONCE PER FLAG SHAPE (v0.14.0)
+
+The old policy ran the matrix once, on the default build, because that was "what
+production ships". **That premise is false**: production serves the accounts-**ON**
+build, and the default matrix skips every auth spec — so the whole account stack
+was reaching production with **chromium coverage only**.
+
+Neither shape subsumes the other. **OFF** is the only shape that can prove
+Critical Feature 18 (`auth-disabled.spec.ts`: no route emitted, no Supabase ref
+in the bundle); **ON** is the only shape that exercises `/connexion/`,
+`/auth/callback/`, `/bienvenue/`, `/compte/` and `/admin*` at all.
+
+⚠️ **THE ON MATRIX HAMMERS SUPABASE'S AUTH RATE LIMIT** — five projects at ~40
+magic-link verifications each. A project the limit takes out is **re-run on its
+own**, never waved through.
+
+⚠️ **IF THE FLAG EVER GOES BACK OFF IN PRODUCTION, THE SECOND RUN GOES WITH IT**
+— recorded so a future session can remove it honestly rather than deleting a
+cost whose reason nobody remembers.
+
+
+---
+
+## Why the matrix runs one project at a time, under a worker cap
+
+**Read when:** a matrix run goes red, or before changing `--workers`, a timeout, or where the logs live.
+
+⚠️ **Moved verbatim out of CLAUDE.md at the v0.18.0 split.**
+`scripts/check-split.mjs` compares normalised lines, so nothing inside the
+block below may be reworded. Relative links like `./docs/reference/…` are
+written from the repository root — CLAUDE.md's position, not this file's.
+
+#### ⚠️ THE MATRIX RUNS ONE PROJECT AT A TIME, UNDER A WORKER CAP
+
+`test:release` runs each project on its own, sequentially, at **three** workers.
+That is slower than one pooled run and it is the reason the gate is green: the red
+gates were **memory exhaustion**, not browser bugs and not test bugs.
+
+- ⚠️ **`--workers=3` IS NOT A TUNING KNOB**, and ⚠️ **DO NOT "FIX" A RED MATRIX BY
+  RAISING TIMEOUTS** — tried, and the failure count went **up**.
+- ⚠️ **EVERY RUN KEEPS ITS OWN LOG** — `matrix-<shape>-<stamp>.log`, never a shared
+  `matrix.log`, and the memory traces are namespaced the same way. The gate runs
+  TWICE and the second run must not erase the first's evidence.
+  ⚠️ **AND THEY LIVE IN `gate-logs/`, NEVER UNDER `node_modules/`** — gitignored
+  but real. They were in `node_modules/.cache`, which `npm ci` deletes outright:
+  three failures awaiting adjudication went with the old machine's
+  `node_modules/` and cost a ~4.8-hour re-run of both shapes to replace.
+- ⚠️ **A TROUGH UNDER ~2 GB MEANS THE BROWSER WAS STARVED, AND THE FAILURES WILL
+  BE BARE TIMEOUTS NAMING NO VALUE.** On a machine with a heavy background
+  baseline this manufactures failures that cost an arbiter pass each. Quiet the
+  machine first — **[`docs/SETUP-NEW-MACHINE.md`](./docs/SETUP-NEW-MACHINE.md)
+  §9a** measures what to close. `--workers=3` is not the knob.
+- ⚠️ **A GATE THAT IS EXPECTED TO BE RED IS WORTH NOTHING.** A red matrix is a
+  finding to chase, never a known flake to wave through.
+- **It proves every project actually ran**, comparing counts project against
+  project.
+- ⚠️ **The alternatives were MEASURED** — `scripts/test-release.mjs` →
+  MEASUREMENTS. Re-measure before re-arguing.
+
+
+---
+
+## The "critical path" matrix trigger, and why it was removed
+
+**Read when:** you believe a feature branch needs the full matrix.
+
+⚠️ **Moved verbatim out of CLAUDE.md at the v0.18.0 split.**
+`scripts/check-split.mjs` compares normalised lines, so nothing inside the
+block below may be reworded. Relative links like `./docs/reference/…` are
+written from the repository root — CLAUDE.md's position, not this file's.
+
+#### ⚠️ THE "CRITICAL PATH" TRIGGER IS GONE
+
+The old policy forced the matrix on any branch touching the board island, the
+exercise validator, i18n routing or the service worker. It read as prudence and
+**functioned as a loophole** — almost everything here touches one of those four.
+`scripts/spec-map.mjs` gained precision instead.
+
+**If you believe you have found the exception:** change this policy in CLAUDE.md
+in the same commit, with the reason. Do not make a one-off exception no future
+session will know about — that is precisely how the last policy eroded.
+
+**➡️ The measured memory numbers, the four-red-gate diagnosis, the per-session
+cost the removal bought back and the rejected alternatives:
+[`docs/reference/testing.md`](./docs/reference/testing.md).**
