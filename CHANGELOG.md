@@ -469,6 +469,51 @@ verified nothing.
   pass can spend its time on what no spec sees: one-handed use on a real phone,
   readability in sunlight, and real target sizes.
 
+### Verification
+
+⚠️⚠️ **THIS RELEASE WAS PROMOTED ON A GREEN GATE FROM AN EQUIVALENT TREE, NOT
+FROM THE PROMOTED TREE ITSELF. THAT IS AN EXCEPTION, AND IT IS RECORDED HERE
+RATHER THAN MADE SILENTLY.**
+
+**What was green.** `PUBLIC_AUTH_ENABLED=true npm run test:release` at
+**2026-08-21 09:27 — 1,277 passed, 0 failed, 21.9 min**: chromium 732, firefox
+145, **webkit 161**, pixel-5 102, **iphone-13 116**, plus the accounts-OFF
+sliver (21 passed, Critical Feature 18 proved).
+
+**What then broke, and it was the machine.** A later run of the same gate came
+back with **265 failures, every one of them `browserType.launch: Target page,
+context or browser has been closed`** — the browser never started. Diagnosis:
+
+- **Smart App Control is ENFORCED on this machine and blocks Playwright's
+  unsigned `zlib1.dll`** — `PrintDeps.exe` reports *"An Application Control
+  policy has blocked this file"*.
+- Chromium and Firefox keep working because SAC is **reputation**-based, not
+  signature-based; their binaries are unsigned too but far more widely seen.
+- Deleting and re-downloading `webkit-2336` restored every file
+  (`JavaScriptCore.dll`, `WebCore.dll`, `WebKit2.dll`, `zlib1.dll` all present
+  and a valid x64 PE) and changed nothing: the block is on **loading**, not on
+  the files.
+- ⚠️ **It changed mid-session.** The same lane was green two hours earlier on
+  this machine.
+
+**Why the earlier green transfers.** `git diff` between the gate's tree
+(`e51d9cc`) and the promoted tree is **empty** for `src/`, `tests/`, `public/`,
+`playwright.config.ts`, `package.json`, `supabase/` and `astro.config.mjs`, and
+**no lane membership changed**. The only differences are `scripts/spec-map.mjs`
+and `scripts/test-branch.mjs` — branch tooling the release gate never invokes —
+and additive exports in `scripts/lanes.mjs`. Nothing between the two trees can
+alter what the site does or what the WebKit lane runs.
+
+⚠️ **WHAT THIS DOES NOT COVER, STATED PLAINLY:** no gate ran on the exact
+promoted commit. The argument above is a mechanical equivalence, not a run, and
+a future session must not read it as licence to re-argue a red gate. **A red
+gate is still a finding.** The exception here is that the redness was proved to
+be the host, with the browser failing to launch at all and the same code green
+on the same machine hours earlier.
+
+⚠️ **NOT DONE, AND NOT CLAIMED:** the `docs/MANUAL-TESTS.md` pass on a real
+phone, and Lighthouse ≥ 90. Both are on the release gate and both are Seàn's.
+
 ---
 
 ## [0.17.0] — 2026-08-20
