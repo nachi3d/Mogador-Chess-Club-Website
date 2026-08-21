@@ -2040,3 +2040,376 @@ member surface is FR/EN (only `/admin*` is French-only, CF43), so
 - **No prof-side booking creation.** A prof can cancel and can mark attendance
   for anyone; adding a walk-in is done by marking the register, which is the
   record of who came rather than of who said they would.
+
+---
+
+## The admin surfaces — every rule, in full
+
+**Read when:** touching any `/admin*` page.
+
+⚠️ **Moved verbatim out of CLAUDE.md at the v0.18.0 split.**
+`scripts/check-split.mjs` compares normalised lines, so nothing inside the
+block below may be reworded. Relative links like `./docs/reference/…` are
+written from the repository root — CLAUDE.md's position, not this file's.
+
+### The admin surfaces (v2-S4 part 2) — BUILT, and behind the flag
+
+`/admin/`, `/admin/eleves/`, `/admin/eleve/?id=…`, `/admin/seances/`,
+`/admin/comptes/`. Reached from `/compte/`, which is the only entry point.
+
+The rules that bind work elsewhere — the rest is reference:
+
+- ⚠️ **FRENCH ONLY** (Critical Feature 43). No `t()`, no `/en/admin/`, no i18n
+  scaffolding. **A future session must not "fix" this; the missing English is
+  the decision.**
+- ⚠️ **`singleLocale` on BaseLayout suppresses the hreflang alternates AND the
+  language switcher**, and both halves are needed. It is **not** an escape hatch
+  for public pages.
+- ⚠️ **RLS is the security; the role check is UX** (Critical Feature 44), and the
+  gate **fails closed**. ⚠️ **An assertion about who may see what belongs in
+  `role-separation.spec.ts`, never in `admin.spec.ts`.**
+- ⚠️ **The class list is CHILDREN, not accounts**, and the child id is a **query
+  parameter, not a route segment** — a static build would otherwise have to
+  publish the class list in `dist/`.
+- ⚠️ **Teacher awards are ROWS mirrored into the local store, never a balance**,
+  pulled on sign-in and **never pushed**.
+- ⚠️ **`computeLedger()` is the ONE summation** (Critical Feature 47), and
+  `ScoreResolver`'s inline copy is pinned equal to it by a spec.
+- ⚠️ **Admin button colours live in `admin.css`, not a scoped `<style>`** — the
+  session cards are built with `innerHTML` at runtime.
+- ⚠️ **`src/lib/admin.ts` may be imported ONLY from `/admin*`.** It imports
+  `@lib/supabase` statically, which would break the guest zero-request rule
+  anywhere else. A spec greps the built public pages for an admin chunk.
+- ⚠️ **`role-separation.spec.ts` runs ONE AT A TIME.** Its tests share a student,
+  a session and awards.
+
+**Not built, deliberately:** creating a student from the admin UI.
+
+**➡️ What each surface does, the measured 59 ms register, the sign-up hygiene
+and the two delete functions:
+[`docs/reference/supabase.md`](./docs/reference/supabase.md).**
+
+
+---
+
+## The baked public agenda — every rule that binds it
+
+**Read when:** touching `/agenda/`, `scripts/fetch-agenda.mjs`, `sessionFingerprint()`, the rebuild trigger or a recurring session.
+
+⚠️ **Moved verbatim out of CLAUDE.md at the v0.18.0 split.**
+`scripts/check-split.mjs` compares normalised lines, so nothing inside the
+block below may be reworded. Relative links like `./docs/reference/…` are
+written from the repository root — CLAUDE.md's position, not this file's.
+
+### ⚠️ THE PUBLIC AGENDA IS BAKED AT BUILD TIME — AND THAT IS FORCED
+
+`/agenda/` reads the `sessions` table at BUILD time via
+`scripts/fetch-agenda.mjs` → `src/data/agenda.json` → `src/lib/agenda.ts`. **The
+git collection is retired and must not come back.** A runtime read is not
+available to this site: static output with no adapter, Critical Feature 9 (no
+third-party request from a public page) and Critical Feature 18 (accounts OFF
+ships no Supabase ref at all) each rule it out on their own.
+
+- ⚠️ **THE FAILURE MODE IS STALENESS, AND IT IS MADE LOUD RATHER THAN SOLVED.**
+  `/admin/seances` compares what the deployed build baked against the live table
+  by fingerprint. ⚠️ **Anything added to the public agenda card must be added to
+  `sessionFingerprint()` in the same commit**, or a prof edits that field,
+  publishes, and is told the site is up to date.
+- ⚠️⚠️ **THERE ARE TWO DEPLOY PATHS AND THEY OVERWRITE EACH OTHER**, last writer
+  wins — a Cloudflare Workers Build from a push to `main`, and `npx wrangler
+  deploy` uploading a local `dist/`. They bake **different agendas**.
+  ⚠️ **`Source: Unknown (deployment)` does NOT tell them apart.**
+- ⚠️⚠️ **A CREDENTIALED BUILD EMPTIES THE PUBLIC AGENDA WHENEVER PRODUCTION IS
+  BEHIND ON MIGRATIONS.** The order is **migrations FIRST, credentials SECOND, a
+  build THIRD**, and the third step is the one that looks optional and is not.
+- ⚠️ **`npm run smoke:prod` asserts a session is listed; an empty agenda is a
+  FAILURE**, not a scheduling fact.
+- ⚠️ **`src/data/agenda.json` is GENERATED and gitignored**; the committed source
+  is `agenda.fallback.json`. **No credentials is a dev build; broken credentials
+  is a fatal build.**
+- ⚠️ **`site.timezone` is an IANA name, never `+01:00`** — Morocco drops to UTC+0
+  for Ramadan and back, and the build fails if the snapshot disagrees.
+- ⚠️ **A cancelled session stays PUBLICLY visible with its state** (Critical
+  Feature 50). **A draft never leaks.** **The seed must not delete migrated rows.**
+- ⚠️⚠️ **SINCE 0011 A SESSION CHANGE ASKS CLOUDFLARE TO REBUILD** — a
+  statement-level trigger poking a deploy hook whose URL lives in **Supabase
+  Vault**, never in this repository (Critical Features 67, 68, 70). The
+  staleness banner is still the backstop; the trigger just makes the window
+  short. ⚠️ **The Database Webhooks UI CANNOT be used on this project** and the
+  hour spent proving it is recorded rather than repeatable — see the reference.
+- ⚠️ **A recurring set is thirteen ORDINARY ROWS, one statement, one rebuild**
+  (67, 69). `src/lib/recurrence.ts` expands once and the cap **refuses rather
+  than truncating**. ⚠️ **The step is in local calendar days, not
+  milliseconds** — same reason `site.timezone` is an IANA name.
+
+**➡️ The fourteen-hour blank agenda, why the card's text cannot tell the two
+deploy paths apart, the recurring-session decision and the series label:
+[`docs/reference/supabase.md`](./docs/reference/supabase.md). The rebuild
+trigger, the vault secret, the webhook-UI dead end, the measured firing counts
+and the suppression seam:
+[`docs/reference/deployment.md`](./docs/reference/deployment.md).**
+
+
+---
+
+## Session booking (0013) — every rule that binds it
+
+**Read when:** touching `bookings`, `create_booking()`, `cancel_booking()`, `session_availability()`, the admin session form or the agenda booking UI.
+
+⚠️ **Moved verbatim out of CLAUDE.md at the v0.18.0 split.**
+`scripts/check-split.mjs` compares normalised lines, so nothing inside the
+block below may be reworded. Relative links like `./docs/reference/…` are
+written from the repository root — CLAUDE.md's position, not this file's.
+
+### ⚠️ SESSION BOOKING — CAPACITY IS A PROPERTY OF POSTGRES (0013)
+
+A member reserves a place for a child in a published session. One row per
+`(session, child)`; a parent with two attending children makes two bookings,
+and a parent who plays books their own profile the same way (CF57).
+
+The rules that bind work elsewhere — the rest is reference:
+
+- ⚠️ **CAPACITY IS ENFORCED IN THE DATABASE** (CF71). No insert policy for a
+  parent; `create_booking()` takes `select … for update` on the session row
+  **before** counting, so two parents cannot both take the last place. ⚠️ **It
+  is measured, not assumed** — six concurrent bookings for three places, and
+  the row count is asked of the database afterwards.
+- ⚠️⚠️ **A BOOKING WRITES NOTHING TO `sessions`** (CF72). This is the one that
+  will be broken by a well-meaning optimisation.
+- ⚠️ **THE MARGIN IS DELIBERATE** (CF73) and the admin form says so on screen,
+  not only in the migration.
+- ⚠️ **CANCELLATION IS FREED BY A PARTIAL UNIQUE INDEX** —
+  `unique (session_id, child_id) where status <> 'cancelled'`. A plain unique
+  constraint would let a child cancel once and never re-book.
+- ⚠️ **THE 2-HOUR CUTOFF LIVES IN `cancel_booking()`**, and `cancellable()` only
+  greys the button. Staff are exempt: "the prof handles it" means they can.
+  The boundary is closed against the member, so button and rule cannot disagree.
+- ⚠️ **A CANCELLED SESSION CANCELS ITS BOOKINGS** with `cancel_reason =
+  'session_cancelled'` (CF46's other half), via a row trigger that **swallows
+  every failure** — it may never block a prof from cancelling (CF70).
+- ⚠️ **`session_availability()` EXISTS BECAUSE A PARENT CANNOT COUNT.**
+  `bookings_select_own` shows them their own rows, so `count(*)` would return
+  their own bookings. It returns numbers only, never a name, and is **not
+  granted to `anon`** — which is what stops a page calling it on load and
+  breaking the guest zero-request rule.
+- ⚠️ **`SESSION_COLUMNS` GAINED A RUNG AND SO DID `fetch-agenda.mjs`.** That
+  second ladder is the higher-stakes one: an explicit select naming `capacity`
+  against a pre-0013 production database would **fail the whole build**, and
+  the agenda incident is what that costs.
+- ⚠️ **THE SESSION FORM IS ONE FORM WITH TWO MODES, NEVER TWO FORMS.** A second
+  form is a second place for the field list to be wrong — capacity reached the
+  create form alone once, and a prof could not change it afterwards. Edit mode
+  **short-circuits the repeat preview** (a series is a label, so editing a
+  member edits that member only), and `datetime-local` is refilled from **local
+  wall-clock parts**, never the stored ISO instant, which lands silently empty.
+- ⚠️ **THE CARD PRINTS `booked / (capacity + margin)`** — the number that
+  actually refuses. Printing the capacity alone makes the margin invisible
+  again. An absent count prints "—", never 0 (Critical Feature 30's rule).
+
+
+---
+
+## Self-deletion — the no-argument rule and the disabled-build stub
+
+**Read when:** touching `delete_own_account()`, `/compte/`, or anything exported from `supabase.ts`.
+
+⚠️ **Moved verbatim out of CLAUDE.md at the v0.18.0 split.**
+`scripts/check-split.mjs` compares normalised lines, so nothing inside the
+block below may be reworded. Relative links like `./docs/reference/…` are
+written from the repository root — CLAUDE.md's position, not this file's.
+
+### ⚠️ AN ACCOUNT DELETES ITSELF, AND THE FUNCTION TAKES NO TARGET
+
+`delete_own_account()` (migration 0007), reached from `/compte/`. Two rules here bind work that has nothing to do with deletion, so they stay:
+
+- ⚠️ **NO ARGUMENT, AND IT MUST NEVER GAIN ONE.** The id can only come from
+  `auth.uid()`. A `delete_account(target uuid)` with an ownership check inside
+  is one refactor away from deleting anybody — **the parameter list is the
+  guarantee, not the body.** `authenticated` only; not `service_role`.
+- ⚠️ **Anything exported from `supabase.ts` and imported by a page script must
+  also be exported by `supabase.disabled.ts`**, or the accounts-OFF build fails
+  outright — the alias replaces the module for scripts that are still *built*
+  behind unemitted routes. The stub returns `{ ok: false }`: a stubbed success
+  would tell a reader their data was erased.
+
+**➡️ The typed-word confirmation, what the confirmation names, why nothing is
+retained and why local state is cleared only after the server confirms:
+[`docs/reference/supabase.md`](./docs/reference/supabase.md).**
+
+
+---
+
+## The checklist for a migration that adds a table
+
+**Read when:** writing ANY migration that creates a table. ⚠️ This is the checklist itself, not background — work down it.
+
+⚠️ **Moved verbatim out of CLAUDE.md at the v0.18.0 split.**
+`scripts/check-split.mjs` compares normalised lines, so nothing inside the
+block below may be reworded. Relative links like `./docs/reference/…` are
+written from the repository root — CLAUDE.md's position, not this file's.
+
+### ⚠️ THE CHECKLIST FOR A MIGRATION THAT ADDS A TABLE
+
+Five lines, and the last two have each been forgotten:
+
+```sql
+revoke all on public.<t> from anon, authenticated;   -- ⚠️ 0. FIRST, see below
+create table public.<t> (...);                       -- 1. the table
+alter table public.<t> enable row level security;    -- 2. RLS ON
+create policy ... on public.<t> ...;                 -- 3. the policies
+grant select, insert, update, delete on public.<t> to authenticated;
+grant select, insert, update, delete on public.<t> to service_role;  -- ⚠️ 4
+```
+
+⚠️ **EVERY NEW TABLE MUST GRANT `service_role` DML EXPLICITLY.** Migration 0002
+exists solely to repair that across every existing table, and **0003 reproduced
+the bug anyway**.
+
+⚠️ **RLS BEING CORRECT DOES NOT MEAN THE TABLE IS REACHABLE.** `GRANT` decides
+whether a role may touch the table at all; RLS decides which rows. **The tell is
+a `42501` from a caller that bypasses RLS entirely** — always a missing grant,
+never a policy bug.
+
+⚠️⚠️ **STEP 0 IS NOT BELT-AND-BRACES:** a Supabase project ships
+`alter default privileges … grant all on tables to anon, authenticated`, so
+**every `create table` hands `anon` the full set before any migration says a
+word**. Seven tables shipped that way.
+
+⚠️ **Audit by exercising the table with a real trusted client after pushing**,
+not by re-reading the migration — reading the file is what produced the bug both
+times.
+
+Also binding: migrations are **never edited after merge**; **slugs are free text,
+not foreign keys**; **`is_staff()` must be `SECURITY DEFINER` with a pinned
+`search_path`**; ordering is **tables → functions → policies**; **`role` is never
+client-updatable** (column-level privileges, not RLS); **dropping a column drops
+its PK and indexes silently**; **deletion cascades from `auth.users`**.
+
+**➡️ The reasoning behind each line, the live catalog audit and the seven
+tables: [`docs/reference/supabase.md`](./docs/reference/supabase.md).**
+
+
+---
+
+## The test-environment interlock, and both `.env.test` traps
+
+**Read when:** touching `tests/e2e/env.ts`, the Playwright config, or any test credential.
+
+⚠️ **Moved verbatim out of CLAUDE.md at the v0.18.0 split.**
+`scripts/check-split.mjs` compares normalised lines, so nothing inside the
+block below may be reworded. Relative links like `./docs/reference/…` are
+written from the repository root — CLAUDE.md's position, not this file's.
+
+### ⚠️ The test-environment interlock
+
+`assertNotProduction()` runs at **Playwright config load** and aborts the whole
+run. The suite creates users and **purges by pattern**; pointed at production it
+would delete real accounts. It **fails closed**.
+
+⚠️ **Never widen `tests/e2e/env.ts` to fall back to `.env` or `.env.local`.** That
+single edit is what would let production credentials into a suite that deletes by
+pattern.
+
+⚠️ **`.env.test` comes from `.env.test.example`, never from `.env.example`** — the
+wrong template has cost `SUPABASE_PRODUCTION_REF` twice. And ⚠️ **the production
+ref begins with `vtest`** (`vtestpaufxmrvdhgrrsy`) — it reads like the test
+project and is the **live database**. Read the ref, never the vibe of the ref.
+
+**➡️ [`docs/reference/supabase.md`](./docs/reference/supabase.md)** — the schema
+decisions and their reasoning, the offline queue, the anti-cheat position and what
+a real fix would need, the parent/child model in full, the RLS/GRANT audit, the
+env-var table and both `.env.test` traps. **Read it before any migration or auth
+work.**
+
+
+---
+
+## Manual testing with accounts ON — why never a hand-typed env line
+
+**Read when:** testing anything behind `PUBLIC_AUTH_ENABLED` on this machine.
+
+⚠️ **Moved verbatim out of CLAUDE.md at the v0.18.0 split.**
+`scripts/check-split.mjs` compares normalised lines, so nothing inside the
+block below may be reworded. Relative links like `./docs/reference/…` are
+written from the repository root — CLAUDE.md's position, not this file's.
+
+#### Accounts ON — `npm run demo:accounts`, and never a hand-typed env line
+
+```sh
+npm run demo:accounts     # + `-- --host` for a real phone
+```
+
+⚠️ **`.env.local` HOLDS THE PRODUCTION PROJECT**, because that is what a deploy
+build needs. So the dangerous mistake is not a build that fails — it is one that
+**succeeds** while wired to the live database, where signing in on localhost
+creates a real account and nothing announces it. `demo:accounts` reads the test
+credentials through the same interlock as the e2e suite and **fails closed**;
+never reconstruct it as `PUBLIC_SUPABASE_URL=… npm run demo`.
+
+⚠️ **Never put `PUBLIC_AUTH_ENABLED` in `.env.local`.** The default build on this
+machine must stay the shape production ships.
+
+**➡️ [`docs/LOCAL-ACCOUNTS.md`](./docs/LOCAL-ACCOUNTS.md)** — seeding, the
+no-email magic link, becoming a prof, and the walkthrough of the picker,
+`/compte/` and the admin surfaces. **Read it before testing anything behind the
+flag** — and its §7, which is what is *not* built.
+
+
+---
+
+## The account surfaces — `/bienvenue/`, `/compte/`, `/connexion/`
+
+**Read when:** touching any of those three pages, `getProfile()`, `PROFILE_COLUMNS`, `effectiveShape()` or `FamilySection.astro`.
+
+⚠️ **Moved verbatim out of CLAUDE.md at the v0.18.0 split.**
+`scripts/check-split.mjs` compares normalised lines, so nothing inside the
+block below may be reworded. Relative links like `./docs/reference/…` are
+written from the repository root — CLAUDE.md's position, not this file's.
+
+### ⚠️ THE ACCOUNT SURFACES — `/bienvenue/`, `/compte/`, `/connexion/`
+
+The rules that bind work elsewhere. **Everything below has a full counterpart in
+[`docs/reference/supabase.md`](./docs/reference/supabase.md)** — read it before
+touching any of these three pages.
+
+- ⚠️ **"ONCE" IS RECORDED ON THE ACCOUNT** (`profiles.onboarded_at`), **not on
+  the device** (Critical Feature 52). Set by **both** outcomes.
+- ⚠️ **GUIDANCE, NOT A GATE** — a skipped onboarding must leave a fully working
+  account, and **THE PLACEHOLDER IS NEVER PRE-FILLED** (Critical Feature 53):
+  detection is an **exact match against the email local part**, never a guess.
+- ⚠️ **THE EXTRA NAME FIELDS ARE SERVER-RENDERED AND HIDDEN**, not built by
+  script — Astro stamps its scoping attribute at build time.
+- ⚠️⚠️ **AN EXPLICIT SELECT IS A LIABILITY, AND `PROFILE_COLUMNS` IS WHY.**
+  `getProfile()` naming a column production lacks gets a `42703`, which becomes
+  `null`, which is indistinguishable from "not signed in" — **one unapplied
+  migration silently sends every first sign-in past the welcome screen.**
+  ⚠️ **Anything added to that select gets a new rung in the same commit.**
+  ⚠️ **`SESSION_COLUMNS` (`src/lib/admin.ts`) IS THE SECOND LADDER**, since
+  0012: without it one unapplied migration EMPTIES `/admin/seances` rather than
+  degrading it. ⚠️ **Reads degrade; WRITES fail loudly** — `createSessions()`
+  omits `series_id` when there is none rather than sending null.
+- ⚠️ **"LES DEUX" IS THE TYPICAL CASE** (Critical Feature 57), **THE ANSWER IS
+  NOT THE TRUTH** (58) — `effectiveShape()` is the only place the stored answer
+  and the roster meet, and **the roster wins wherever it can speak** — and
+  **SKIPPING RECORDS NO SHAPE**.
+- ⚠️ **`/compte/` IS THREE BLOCKS** (Critical Feature 59), built on **NATIVE
+  `<details>`, NOT A SCRIPTED ACCORDION**; signing out and the staff link stay
+  outside both; the settings block **opens itself when the name is still the
+  email fragment**.
+- ⚠️ **THE CARDS' NUMBERS ARE DERIVED BY `computeLedger()`** (47, 61) and a card
+  whose rows have not arrived **never prints a zero**.
+- ⚠️ **`FamilySection.astro` MUST NOT IMPORT `@lib/admin`**, and **"élève" IS
+  STAFF VOCABULARY** (Critical Feature 60).
+- ⚠️ **THE FAMILY SECTION AND THE PICKER ARE TWO RULES, NOT ONE** — the section
+  renders for every signed-in account, only the picker is conditional. Coupling
+  them made "Ajouter un élève" unreachable for two releases.
+- ⚠️ **TWO LOADS ARE ROUTINELY IN FLIGHT AND CAN LAND OUT OF ORDER** — a
+  generation counter drops the older answer. **Any surface that loads twice
+  copies the counter** (the admin register did not, and lost a prof's taps).
+- ⚠️ **The honeypot is NOISE REDUCTION, NOT SECURITY** (56); it **FAILS VISIBLY
+  AND CLEARS ITSELF**; **a CAPTCHA is not a drop-in** (Critical Feature 9).
+- ⚠️ **`admin_delete_account()` IS NOT A SECOND ROUTE TO `delete_own_account()`**
+  (55), and **THE AUDIT RECORDS THE ACT, NOT THE PERSON.**
+
+**➡️ Every one of these in full, with the incidents behind them:
+[`docs/reference/supabase.md`](./docs/reference/supabase.md).**

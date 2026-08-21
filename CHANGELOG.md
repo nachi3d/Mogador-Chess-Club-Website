@@ -178,10 +178,43 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
     mixed** — and it is mixed whenever an edit landed after the bad write.
     Measured on the real case: **357 characters would have been lost**, because
     cp1252 cannot represent `⚠`, `’` or `—`. **Restore from git and re-apply.**
-- ⚠️ **The CLAUDE.md size guard is WARNING again — 120,306 characters (80%).**
-  Recorded in BACKLOG rather than fixed by trimming, per the rule: the remedy
-  is a split, and a split is a verified move (`check-split.mjs`) rather than
-  something to squeeze into the end of another session.
+- ⚠️ **The CLAUDE.md size guard was WARNING again — 120,306 characters (80%) —
+  and this release SPLIT it: 120,306 → 111,582 characters (80% → 74%).** The
+  warning was recorded in BACKLOG rather than papered over with a trim, per the
+  rule, and cleared here as its own first act rather than squeezed into the end
+  of the feature work.
+  - **Seventeen blocks moved VERBATIM** into the reference set, each under a
+    **Read when** line: the account surfaces, the admin surfaces, the baked
+    agenda, session booking, the migration checklist, self-deletion, the
+    test-environment interlock and `demo:accounts` to
+    [`docs/reference/supabase.md`](./docs/reference/supabase.md); the
+    anon-key schema probe to
+    [`docs/reference/deployment.md`](./docs/reference/deployment.md); the
+    environment-symptom tells, the four board-driving gates, why the gate runs
+    twice, why the matrix runs one project at a time and the removed
+    "critical path" trigger to
+    [`docs/reference/testing.md`](./docs/reference/testing.md); the facade
+    rules and the fixture rules to
+    [`docs/reference/video.md`](./docs/reference/video.md); and the 768px
+    divergence rules to
+    [`docs/reference/ui-navigation.md`](./docs/reference/ui-navigation.md).
+  - ⚠️ **`check-split.mjs` proves it lost nothing: 344 lines moved, 1,090
+    stayed, and NOTHING was newly declared obsolete** —
+    `.split-obsolete.txt` is unchanged from v0.17.0.
+  - ⚠️ **THE BINDING RULE STAYED IN CLAUDE.md IN EVERY CASE**, with a pointer
+    saying when the detail matters. Where a state-of-the-world claim was moved
+    (the v0.17.0 schema probe), the **superseding v0.18.0 claim was written
+    beside it in the reference file** rather than the old one being edited in
+    place — the block is evidence of what was verified when, and rewording a
+    moved block is what `check-split.mjs` reads as a lost line.
+  - ⚠️ **THE HEADROOM IS STILL ONLY ~8,400 CHARACTERS, AND THE NEXT SPLIT WILL
+    BE HARDER.** What remains is no longer narrative: the two largest blocks are
+    **Critical Features (14,377)** and the **routes table (4,945)**, and both are
+    indexes of rules that a session could break without going looking — exactly
+    the test for staying. A further reduction would be a **trim**, not a split,
+    and the rule forbids it. If the file warns again, the question for Seàn is
+    structural (does the Critical Features list become a linked file?), not
+    editorial.
 - ⚠️⚠️ **`verify:deploy`'s residual gap FIRED FOR REAL at the v0.17.0 deploy, and
   the incident is now recorded** in `docs/reference/deployment.md`. The gap had
   been written down narrowly — "a release that changes only island JavaScript" —
@@ -217,6 +250,19 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
     cannot exist returns `PGRST205`, and a bad column on a *denied* table returns
     **`42703`, not `42501`** — column validation runs **before** the permission
     check.
+- ✅ **PRODUCTION'S SCHEMA IS NOW CURRENT THROUGH 0013, AND v0.17.0's OPEN ITEM
+  IS CLOSED.** Verified against the catalog at this gate: `bookings`,
+  `sessions.capacity`, `sessions.overbook_margin`, `create_booking()` and both
+  booking policies are present, **and the half an anon key cannot reach was
+  answered** — `trigger_count = 3` and `request_site_rebuild(text,integer)`
+  exist. CLAUDE.md's note is updated to say so, and still says **re-ask rather
+  than trust it**: it is a claim about the outside world and it expires.
+  - ⚠️ **Still outstanding, and still not a deploy blocker:**
+    `supabase_migrations.schema_migrations` lists `0001, 0002` on a database
+    holding everything through 0013. **Registering is bookkeeping, not proof** —
+    the backfill SQL stays in
+    [`docs/reference/deployment.md`](./docs/reference/deployment.md) and the row
+    stays in BACKLOG.
 
 ---
 
