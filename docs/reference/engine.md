@@ -77,17 +77,66 @@ Done this way because **importing chess.js here would land it in the engine chun
 
 | Preset | Skill | depth | movetime | blunder | vs `greedy` | vs `novice` |
 |---|---|---|---|---|---|---|
-| Débutant | 0 | 1 | 50 ms | **40%** | 60% | **38%** |
-| Intermédiaire | 3 | 4 | 500 ms | **25%** | 98% | **65%** |
-| Avancé | 14 | 12 | 1500 ms | 0% | 100% | 98% |
+| Débutant | 0 | 1 | 50 ms | **40%** | 66% | **18%** |
+| Intermédiaire | 3 | 4 | 500 ms | **20%** | 97% | **66%** |
+| Avancé | **20** | 12 | 1500 ms | 0% | 100% | **100%** |
 
-Head-to-head, which is what proves the **order** (both bots saturate at the top):
+60 games per pairing, colours alternating. Head-to-head, which is what proves
+the **order** (both bots saturate at the top):
 
 ```
 avance        vs intermediaire   100%
-intermediaire vs debutant         85%
+intermediaire vs debutant         95%
 avance        vs debutant        100%
 ```
+
+##### ⚠️ THE RETUNE THAT PRODUCED THOSE NUMBERS (2026-08-21), AND THE TWO THINGS IT GOT WRONG FIRST
+
+Seàn reported Intermédiaire and Avancé making mistakes that should not happen
+at those levels. **The two levels turned out to have different faults, and the
+first instinct — turn `blunderChance` down on both — was right for one of them
+and looking in entirely the wrong place for the other.**
+
+**Intermédiaire: `blunderChance` 0.25 → 0.20.** 0.25 measured **48%** against
+`novice`; it was losing more than half its games to an opponent whose only
+virtue is not hanging pieces, which is exactly what the complaint looks like as
+a number. The curve, `novice` at 120 games per point: `0.25`→48%, `0.20`→66%,
+`0.15`→80%, `0.10`→90%, `0.05`→96%.
+
+⚠️ **0.15 WAS MEASURED, LOOKED BETTER, AND WAS REJECTED — ON THE TARGET, NOT ON
+THE WIN RATE.** The level exists to be winnable by a student who has finished
+course 3 and plays accurately, about **one game in three**. `novice` is the
+stand-in for that student, so ~33% for the bot is the goal. 0.20 gives it 34%;
+0.15 gives it 20%, one game in five. Seàn's call, and it is the reason the
+number is not simply "as low as it can go".
+
+**Avancé: `Skill Level` 14 → 20, and `blunderChance` never moved.** It was
+already 0, and `engine-levels.spec.ts` pins it there — so the retune brief
+("blunder too often") could not have been describing `blunderChance` at all.
+The fault was `Skill Level 14`: Stockfish deliberately picks a worse root move
+bounded by `Skill Level Maximum Error`, **default 200 centipawns in this
+build**. Measured as best-move agreement against a depth-**matched** reference
+(skill 20, depth 12, 4000 ms) over six positions:
+
+| under test | agreed with reference | distinct moves returned |
+|---|---|---|
+| skill 14, d12 | **46%** | 3 in nearly every position |
+| skill 17, d12 | still spread | |
+| skill 19, d12 | still spread | |
+| **skill 20, d12** | effectively deterministic | `1 3 1 1 1 1` |
+
+⚠️ **THE FIRST RUN OF THAT MEASUREMENT WAS CONFOUNDED AND HAD TO BE THROWN
+AWAY** — it used a reference at depth 16 against candidates at depth 12, so
+"disagreement" mixed the depth difference into the skill error and could not
+attribute either. Match the reference depth to the candidate's.
+
+⚠️ **AND 40 GAMES CANNOT SEPARATE NEIGHBOURING RATES.** Two 40-game samples of
+the *same* configuration (skill 3, d4, 0.15, vs `novice`) came out **76% and
+86%**. The engine keeps its hash between games and every search is
+movetime-bounded, so runs are not reproducible. The shipped figures above are
+60 games; the tuning curve was 120. Re-tune at 120 or do not believe the
+difference — the 66% in the table replicated at both 60 and 120 games, which is
+why it is trusted.
 
 The reference opponents are in `scripts/engine-lab/bots.mjs`:
 

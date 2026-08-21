@@ -1201,8 +1201,16 @@ human has to agree with the numbers.
       real regression, not a taste question
 - [ ] **Intermédiaire**: you should have to play accurately. Beatable, but it
       punishes a hung piece
+- [ ] ⚠️ **Intermédiaire has a TARGET, not just a feel — about one game in
+      three for a student who has finished course 3 and plays accurately.**
+      Retuned 2026-08-21 (blunder 0.25 → **0.20**) because it was losing more
+      than half its games. *If it now feels like a wall, that is the regression;
+      if it hangs a piece most games, so is that. Say which.*
 - [ ] **Avancé**: it should never hand you anything, and should punish a real
       mistake
+- [ ] ⚠️ **Avancé must not make mistakes of its own.** Retuned 2026-08-21
+      (`Skill Level` 14 → **20**) — its old errors were second-best moves, not
+      blunders. *A clean piece drop from Avancé is a real regression*
 - [ ] The three feel **clearly different from each other** — that ordering is
       the fix. If two feel the same, say so
       *(these are win rates against crude reference bots, NOT Elo — the UI

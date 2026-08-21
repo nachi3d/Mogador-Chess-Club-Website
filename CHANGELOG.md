@@ -11,7 +11,55 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
-_Nothing yet._
+### Changed
+
+- **Engine levels retuned — Intermédiaire and Avancé.** Seàn reported mistakes
+  at both that should not happen there. Débutant is correctly calibrated and
+  does not move.
+  - **Intermédiaire: `blunderChance` 0.25 → 0.20.** At 0.25 it scored **48%**
+    against `novice` — losing more than half to a bot whose only virtue is not
+    hanging pieces.
+  - **Avancé: `Skill Level` 14 → 20.** ⚠️ **Its `blunderChance` was already 0
+    and a spec pins it there**, so the brief could not have been describing the
+    blunder path at all. The fault was `Skill Level 14`: Stockfish picks a
+    deliberately worse root move bounded by `Skill Level Maximum Error`,
+    default 200 centipawns. Best-move agreement against a depth-**matched**
+    reference: skill 14 agreed **46%**, returning 3 different moves in nearly
+    every position; only skill 20 is effectively deterministic.
+- **Measured, 60 games per pairing, colours alternating** — Débutant 66% /
+  **18%**, Intermédiaire 97% / **66%**, Avancé 100% / **100%** against
+  `greedy` / `novice`. Ladder: Avancé **100%** over Intermédiaire,
+  Intermédiaire **95%** over Débutant. Strictly ordered, which is the property
+  that matters.
+- ⚠️ **0.15 was measured and rejected, on the level's PURPOSE rather than its
+  win rate.** It scores 80%, leaving a student one game in five. Intermédiaire
+  is meant to be winnable **one game in three** by someone who has finished
+  course 3 and plays accurately — `novice` is the stand-in for that student and
+  0.20 gives it **34%**. That target is now written next to the numbers in
+  CLAUDE.md, so the next person tuning this knows what the level is *for*.
+
+### Added
+
+- `scripts/engine-lab --accuracy` — best-move agreement against a
+  depth-matched reference, which is what separated Avancé's *inaccuracy* from
+  Débutant's *weakness*. ⚠️ Its first run was confounded (reference at depth 16
+  vs candidates at depth 12) and was thrown away rather than reported.
+
+### Fixed
+
+- Documentation, `docs/reference/engine.md`: the preset table held the
+  **pre-retune** figures. Replaced rather than appended, per the brief.
+
+### Notes
+
+- ⚠️ **40 games cannot separate neighbouring rates.** Two 40-game samples of
+  the *same* configuration came out **76% and 86%** — the engine keeps its hash
+  between games and searches are movetime-bounded, so runs are not
+  reproducible. Tuning was redone at 120 games; the shipped 66% replicated at
+  both 60 and 120, which is why it is trusted.
+- ⚠️ **CLAUDE.md is at 81% of the size guard** (121 k / 150 k) and warning
+  again. Not split in this session — an engine branch is the wrong place for
+  it. Flagged rather than trimmed.
 
 ---
 
