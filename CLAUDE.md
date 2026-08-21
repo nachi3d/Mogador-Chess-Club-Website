@@ -1249,7 +1249,7 @@ Playwright + axe-core. Specs live in `tests/e2e/` and run against the **built** 
 | | |
 |---|---|
 | `npm run test:branch` | chromium, specs mapped from what changed. **The per-session command.** |
-| `npm run test:release` | the full matrix. **Promotion only** — see the verification policy. |
+| `npm run test:release` | chromium over the whole suite + the four lanes + the accounts-OFF sliver. **Promotion only** — see the verification policy. |
 
 `test:e2e` and `test:e2e:chromium` still exist as thin escape hatches for
 debugging a single project by hand. They are **not** the session commands: they
@@ -1425,35 +1425,97 @@ from what changed.
 
 ---
 
-### ⚠️ VERIFICATION POLICY — TWO COMMANDS, AND THE MATRIX RUNS ONCE PER SHAPE
+### ⚠️ VERIFICATION POLICY — TWO COMMANDS, AND THE GATE IS ONE SHAPE + LANES
 
 | | Command | When | Cost |
 |---|---|---|---|
 | **Every feature branch** | `npm run test:branch` | every session, before merging to `dev` | ~1-3 min |
-| **Promotion** | `npm run test:release` | once, promoting `dev` → `main` | ~65-70 min |
-| **Promotion, accounts ON** | `PUBLIC_AUTH_ENABLED=true npm run test:release` | ⚠️ **also**, while production runs with accounts on | ~65-70 min |
+| **Promotion** | `PUBLIC_AUTH_ENABLED=true npm run test:release` | once, promoting `dev` → `main` | **~22 min** |
 
 `npm run test:branch` is **chromium only** and runs the specs mapped from what
 actually changed (`scripts/spec-map.mjs`). `--all` runs every chromium spec for
 a sweeping refactor — still one browser.
 
-#### ⚠️⚠️ THE GATE RUNS TWICE — ONCE PER FLAG SHAPE (v0.14.0)
+⚠️ **THE GATE RUNS IN THE ACCOUNTS-ON SHAPE, BECAUSE THAT IS WHAT PRODUCTION
+SERVES.** It ends with a two-minute accounts-OFF sliver, which is not a second
+matrix — see below.
 
-**Neither shape subsumes the other**, which is why the cost is paid twice.
-**OFF** is the only shape that can prove Critical Feature 18
-(`auth-disabled.spec.ts`: no route emitted, no Supabase ref in the bundle);
-**ON** is the only shape that exercises `/connexion/`, `/auth/callback/`,
-`/bienvenue/`, `/compte/` and `/admin*` at all. Running only the default matrix
-— the old policy — left the whole account stack reaching production with
-**chromium coverage only**.
+#### ⚠️⚠️ THE GATE WAS 4.8 HOURS AND IS NOW ~22 MINUTES
 
-⚠️ **THE ON MATRIX HAMMERS SUPABASE'S AUTH RATE LIMIT** — five projects at ~40
-magic-link verifications each. A project the limit takes out is **re-run on its
-own**, never waved through.
+It used to be **five projects × every spec × both flag shapes** — ~6,700 test
+executions, **measured at 115.6 min + 172.1 min = 4.8 hours**. Three
+measurements from the audit ended that, and they are recorded rather than
+recalled:
 
-⚠️ **IF THE FLAG EVER GOES BACK OFF IN PRODUCTION, THE SECOND RUN GOES WITH IT**
-— recorded so a future session can remove it honestly rather than deleting a
-cost whose reason nobody remembers.
+- ⚠️ **29 of the 41 spec files ran IDENTICALLY in both flag shapes**, proved by
+  run/skip status rather than inferred. The second matrix re-ran ~3,000 tests
+  that **could not answer anything new**.
+- ⚠️ **Four spec files never open a browser at all** — `booking`,
+  `child-profiles`, `engine-levels`, `role-separation` take no `page` fixture.
+  They spawned **255 browser contexts per release** to run `rpc()` calls and
+  arithmetic.
+- ⚠️ **Chromium runs the WHOLE suite in 7.1 minutes** — 42 spec files, 726
+  passed, 20 skipped — and proves every one of them once.
+
+**So chromium became the backbone and the other four projects became LANES.**
+
+#### ⚠️ THE LANES ARE PINNED TO THE ENGINE THAT CAUGHT A REAL DEFECT
+
+`scripts/lanes.mjs` is the **one** definition — `playwright.config.ts` turns it
+into `testMatch` and `scripts/check-lanes.mjs` reads it. Never a second copy.
+
+| lane | earned by |
+|---|---|
+| **webkit** | the **"Créer" click-synthesis bug** (`956b05a`, one release before this): a `change` handler rewrote the submit button between mousedown and mouseup and WebKit declined to synthesise the click. Silent on Safari and every iPhone; invisible in Blink and Gecko. |
+| **firefox** | the **agenda axe violation** Gecko's accessibility tree produced. |
+| **iphone-13** | the **tap-versus-bottom-bar collision**. |
+| **pixel-5** | the same touch surface on the other mobile engine. |
+
+⚠️ **A SPEC JOINS A LANE FOR A NAMED REASON, NEVER "TO BE SAFE."** The default
+is chromium-only, so a new spec costs one run until somebody argues otherwise.
+Write the reason beside it in `lanes.mjs`.
+
+⚠️ **THE COST IS NOT ALLOWED TO DRIFT BACK.** Measured green end to end at
+**21.9 min, 1,277 passed, 0 failed** — on a machine whose troughs were **0.51 to
+2.03 GB free**, i.e. deep in the starvation regime §9a describes, so this is the
+BAD case rather than the good one.
+
+#### ⚠️ THE ACCOUNTS-OFF SLIVER IS NOT A SECOND MATRIX
+
+Exactly two specs can only be proved by an accounts-**OFF build**, because they
+are claims about the **artefact** that shape produces: `auth-disabled.spec.ts`
+(Critical Feature 18 — no route emitted, no Supabase ref, host or anon key
+anywhere in the bundle) and `admin.spec.ts`'s *"the admin surfaces are NOT
+BUILT"* describe.
+
+⚠️ **THE SECOND BUILD IS IRREDUCIBLE — you cannot inspect an artefact you did
+not produce** — and it is the whole cost: the tests themselves take seconds, on
+chromium alone, because neither is engine-sensitive. `test-release.mjs` runs it
+last, **after a sweep**, because the ON preview server is still listening and
+`reuseExistingServer` would otherwise run the OFF specs against the ON build.
+
+⚠️ **IF THE SLIVER RUNS ZERO TESTS THE GATE FAILS**, naming Critical Feature 18.
+A gate that quietly stops proving the flag still works is the failure this whole
+change could most easily have introduced.
+
+#### ⚠️ `check-lanes.mjs` ADVISES AND MUST NEVER GATE
+
+It scores each spec for signals a different engine could answer differently and
+reports the chromium-only ones. ⚠️ **It always exits 0, and promoting it to a
+build step would be actively harmful** — `recurring-sessions.spec.ts` **scores
+zero** and is the spec that caught the Créer bug, because the heuristic sees
+what a spec *asserts* and that defect lived in how it *drives* the page. A green
+tick would read as "the lanes are complete".
+
+⚠️ **What DOES gate is `missingLaneSpecs()`**, before a browser starts: a lane
+naming a spec that does not exist makes `testMatch` match **nothing**, so the
+project runs zero tests and the gate goes green having proved less than it
+claims. A fact about the filesystem, checked exactly, and it refuses.
+
+**➡️ The full audit — the per-spec costs, the flag-shape table, the four
+browserless specs and why the heuristic's blind spot cannot be tuned away:
+[`docs/reference/testing.md`](./docs/reference/testing.md).**
+
 #### ⚠️ THE MATRIX RUNS ONE PROJECT AT A TIME, UNDER A WORKER CAP
 
 `test:release` runs each project on its own, sequentially, at **three** workers.
@@ -1467,13 +1529,16 @@ timeouts naming no value; quiet the machine first
 (**[`docs/SETUP-NEW-MACHINE.md`](./docs/SETUP-NEW-MACHINE.md) §9a** measures what
 to close). ⚠️ **A GATE THAT IS EXPECTED TO BE RED IS WORTH NOTHING** — a red
 matrix is a finding to chase, never a known flake to wave through. It also
-**proves every project actually ran**, comparing counts project against project.
+**proves every project actually ran** — under the lanes that is "nobody ran ZERO
+  and chromium is never the smaller run", because a mistyped lane matches nothing.
 
 ⚠️ **EVERY RUN KEEPS ITS OWN LOG** — `matrix-<shape>-<stamp>.log`, never a shared
-`matrix.log`, because the gate runs TWICE and the second run must not erase the
-first's evidence. ⚠️ **AND THEY LIVE IN `gate-logs/`, NEVER UNDER
-`node_modules/`**, which `npm ci` deletes outright — that cost a ~4.8-hour re-run
-of both shapes once.
+`matrix.log`. The shape is in the NAME because the gate ran twice per release
+until the gate audit, and the second run used to erase the first's evidence; it still
+names the shape, because a log that cannot say which build it tested is not
+evidence. ⚠️ **AND THEY LIVE IN `gate-logs/`, NEVER UNDER `node_modules/`**,
+which `npm ci` deletes outright — that cost a ~4.8-hour re-run of both shapes
+once, which is also the run that produced the numbers behind the lanes.
 
 ⚠️ **The alternatives were MEASURED** — `scripts/test-release.mjs` →
 MEASUREMENTS. Re-measure before re-arguing.
@@ -1527,9 +1592,10 @@ checklist in this repository that must be executed rather than remembered, and i
 is not optional reading at a promotion. Its four most-skipped items, named here so
 that skipping one is a decision rather than an oversight:
 
-- ⚠️ **the gate runs TWICE** — `npm run test:release` and
-  `PUBLIC_AUTH_ENABLED=true npm run test:release`, both green, for as long as
-  production runs with accounts ON;
+- ⚠️ **the gate runs in the accounts-ON shape** —
+  `PUBLIC_AUTH_ENABLED=true npm run test:release`, green, INCLUDING its
+  accounts-OFF sliver. ⚠️ **A sliver that ran zero tests fails the gate**,
+  because Critical Feature 18 would then be unproven;
 - ⚠️ **migrations reach production BEFORE the deploy**, asked of the catalog per
   migration, never of `schema_migrations`;
 - ⚠️ **`npm run verify:deploy` AFTER deploying**, then `npm run smoke:prod` — one

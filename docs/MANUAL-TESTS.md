@@ -2091,7 +2091,11 @@ axe covers a lot of this automatically; these are the parts it cannot judge.
 - [ ] `npm run build` — clean
 - [ ] `node scripts/check-content.mjs` — green
 - [ ] `node scripts/check-contrast.mjs` — green
-- [ ] `npx playwright test` — full matrix (see CLAUDE.md for the known environmental flakes)
+- [ ] `PUBLIC_AUTH_ENABLED=true npm run test:release` — the gate: chromium over
+      the whole suite, the four lanes, and the accounts-OFF sliver. ~25 min.
+      ⚠️ Check the sliver ran — it prints as `chromium (OFF)` and it is the only
+      thing proving Critical Feature 18
+- [ ] `node scripts/check-lanes.mjs` — advisory, read it; never gate on it
 - [ ] This checklist, worked through on desktop **and** a real phone
 - [ ] Lighthouse ≥ 90 on Performance, Accessibility and SEO
 - [ ] ⚠️ **No test fixture is live** — after deploying, `npm run smoke:prod`
@@ -2132,6 +2136,13 @@ vise : un parent réserve debout, d’une main, souvent en retard.
 
 Pré-requis : `npm run demo:accounts`, un compte avec **deux** profils enfants,
 et une séance publiée dans plus de 2 heures.
+
+⚠️ **Une partie de cette section est désormais automatisée** —
+`tests/e2e/booking-ui.spec.ts`, sur chromium **et** dans la voie webkit : le
+zéro-requête déconnecté, la réservation confirmée en base, l’annulation, la
+re-réservation sans rechargement, et le refus d’une séance déjà commencée.
+**Ce qui reste manuel est ce qu’aucun spec ne voit** : le confort à une main sur
+un vrai téléphone, la lisibilité au soleil, et la taille réelle des cibles.
 
 | # | Étape | Résultat attendu |
 |---|---|---|

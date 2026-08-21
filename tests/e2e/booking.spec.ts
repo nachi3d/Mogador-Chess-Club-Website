@@ -286,22 +286,51 @@ test.describe('booking against the real database', () => {
   });
 
   /**
-   * ⚠️⚠️ THE CLAIM THAT DECAYS QUIETLY, SO IT IS COUNTED.
+   * ⚠️⚠️ THE CLAIM THAT DECAYS QUIETLY, SO IT IS WATCHED.
    *
-   * A booking must fire NO rebuild. It is true today because `bookings` is a
-   * different table from `sessions` and `create_booking()` only ever takes a
-   * `select … for update` lock — a lock is not a write. The way this stops
-   * being true is somebody caching a count on `sessions`, which looks like an
-   * optimisation and turns every reservation into a Cloudflare build.
+   * A booking must write nothing to `sessions`, and therefore fire NO rebuild.
+   * It is true today because `bookings` is a different table and
+   * `create_booking()` only ever takes a `select … for update` lock — a lock is
+   * not a write. The way this stops being true is somebody caching a count on
+   * `sessions`, which looks like an optimisation and turns every reservation
+   * into a Cloudflare build.
+   *
+   * ⚠️⚠️ IT WATCHES THE SESSION ROW, NOT THE GLOBAL REBUILD LOG — AND THAT
+   * CHANGED AFTER THE LOG VERSION FAILED A GATE WHILE THE RULE WAS INTACT.
+   *
+   * The first version counted `rebuild_requests` before and after. That table
+   * is ONE log for the whole database, and `test.describe.configure({ mode:
+   * 'serial' })` only serialises the tests in THIS file — `recurring-sessions`,
+   * `admin` and `attendance-timing` all create and cancel sessions in other
+   * files, concurrently, and every one of those legitimately fires a rebuild.
+   *
+   * ⚠️ IT FAILED AT THE GATE AT `1868` vs `1870`: two firings this test did not
+   * cause, on a run where a booking had written nothing at all. A serial re-run
+   * of the file passed 14/14. **An assertion that cannot be isolated will fail
+   * for reasons the reader then has to rule out by hand**, which is the same
+   * cost as a flake and teaches the same lesson — wave it through.
+   *
+   * The row IS isolated, and it tests the rule more directly than the log did:
+   * Critical Feature 72 says a booking must never WRITE to `sessions`, and the
+   * regression it names — somebody caching a `bookings_count` there — changes
+   * this row. `select … for update` is a lock, and a lock leaves no trace here.
+   *
+   * ⚠️ WHAT THIS GIVES UP, STATED RATHER THAN HIDDEN: an UPDATE that wrote the
+   * same values back would fire the trigger and leave the row equal. Nothing
+   * plausible does that, and nothing isolated can see it — the log could, and
+   * the log cannot be isolated.
    */
-  test('a booking and a cancellation fire no rebuild at all', async () => {
+  test('a booking and a cancellation write NOTHING to the session row', async () => {
     const admin = adminClient();
     const parent = await makeParent('trig');
     const session = await makeSession(48, 5, 0);
     const child = await makeChild(parent.id, 'trig-A');
 
-    const before = (await admin.from('rebuild_requests').select('id', { count: 'exact', head: true }))
-      .count;
+    const sessionRow = async () =>
+      (await admin.from('sessions').select('*').eq('id', session).single()).data;
+
+    const before = await sessionRow();
+    expect(before, 'the session under test disappeared').not.toBeNull();
 
     expect(code(await parent.client.rpc('create_booking', { child, session }))).toBe('ok');
     const { data: row } = await admin
@@ -312,9 +341,11 @@ test.describe('booking against the real database', () => {
       .single();
     expect(code(await parent.client.rpc('cancel_booking', { booking: row!['id'] }))).toBe('ok');
 
-    const after = (await admin.from('rebuild_requests').select('id', { count: 'exact', head: true }))
-      .count;
-    expect(after).toBe(before);
+    expect(
+      await sessionRow(),
+      'a booking or a cancellation changed the session row — that fires 0011’s ' +
+        'rebuild trigger, so every reservation becomes a Cloudflare build (CF72)',
+    ).toEqual(before);
   });
 
   test('cancelling a session cancels its bookings, visibly and not orphaned', async () => {

@@ -11,7 +11,149 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
-_Nothing yet._
+### Changed
+
+- ⚠️⚠️ **THE RELEASE GATE WENT FROM 4.8 HOURS TO ~25 MINUTES, AND THE
+  VERIFICATION POLICY IN CLAUDE.md CHANGED WITH IT** — in the same commit, per
+  the rule that exists for exactly this. It was five projects × every spec ×
+  both flag shapes: **~6,700 test executions, measured at 115.6 + 172.1
+  minutes**, for a static teaching site.
+  - **Chromium is now the backbone** — it runs the WHOLE suite, proving all 42
+    spec files once, in a **measured 7.1 minutes**.
+  - **The other four projects became LANES**, each pinned to the engine that
+    caught a real, user-facing defect: **webkit** (the "Créer" click-synthesis
+    bug, `956b05a`, one release earlier), **firefox** (the agenda axe violation
+    Gecko's accessibility tree produced), **iphone-13** (the tap-versus-bar
+    collision), **pixel-5** (the same touch surface, other engine).
+  - **`scripts/lanes.mjs` is the ONE definition**, read by both
+    `playwright.config.ts` and `scripts/check-lanes.mjs` — same reasoning that
+    put the spec map in its own module.
+  - **Measured GREEN end to end: 21.9 min, 1,277 passed, 0 failed**, sliver
+    included. Per lane: chromium 7.1 min, webkit 5.1, firefox 5.6, iphone-13
+    3.6, pixel-5 1.1. **1,279 test executions against ~6,700 — 81% fewer.**
+    ⚠️ Troughs were **0.51-2.03 GB free**, i.e. the starvation regime §9a
+    describes — **the bad case, not the good one.**
+- ⚠️ **THE GATE RUNS ONE FLAG SHAPE — ACCOUNTS ON, BECAUSE THAT IS WHAT
+  PRODUCTION SERVES** — and ends with a **two-minute accounts-OFF sliver** that
+  is not a second matrix.
+  - **29 of the 41 spec files ran IDENTICALLY in both shapes**, proved by
+    run/skip status rather than inferred. The second matrix re-ran **~3,000
+    tests that could not answer anything new.**
+  - What the OFF shape uniquely proves is exactly two files —
+    `auth-disabled.spec.ts` (Critical Feature 18) and `admin.spec.ts`'s "the
+    admin surfaces are NOT BUILT" describe. ⚠️ **The second BUILD is
+    irreducible — you cannot inspect an artefact you did not produce** — but
+    the tests take seconds, on chromium alone.
+  - ⚠️ **A sliver that runs zero tests FAILS the gate**, naming Critical
+    Feature 18. A gate that quietly stops proving the flag still works is the
+    failure this change could most easily have introduced.
+  - ⚠️ **The sliver is preceded by a sweep**, because the accounts-ON preview
+    server is still listening and `reuseExistingServer` would otherwise run the
+    OFF specs against the ON build.
+
+- ⚠️ **`scripts/quick.mjs` now REFUSES a change to what the gate runs** —
+  `lanes.mjs`, `test-release.mjs`, `test-branch.mjs` and `spec-map.mjs` joined
+  the FORBIDDEN list. The lane design made this reachable: removing one name
+  from `lanes.mjs` is a one-line edit that looks like a tidy-up and silently
+  deletes a browser's worth of coverage. **The fast path must never be able to
+  shorten the gate that polices it.**
+
+### Added
+
+- ⚠️⚠️ **`tests/e2e/booking-ui.spec.ts` — THE BOOKING CONTROLS HAD NO BROWSER
+  TEST ON ANY ENGINE, AND THAT IS THE REAL FINDING OF THIS AUDIT.**
+  `booking.spec.ts` is 14 tests of `rpc()` calls, capacity under concurrency,
+  RLS and the rebuild-trigger count — and it **never opens a page**. So the
+  per-child controls on `/agenda/`, which are **painted by script**, shipped in
+  v0.18.0 untested, and `booking.spec.ts` would have stayed green throughout.
+  - ⚠️ **They are the same surface class as the "Créer" button**, which did
+    nothing at all on WebKit for a whole release. The new spec is in the
+    **webkit lane** for that reason.
+  - It drives the real controls: the signed-out invitation with **zero Supabase
+    requests** (FR and EN), an account with no child profile, a booking
+    **confirmed against the database rather than against the button's label**,
+    a **stale past session refusing in words** (Critical Feature 74), and — the
+    regression it exists for — **book, cancel, book with no reload**, so every
+    press lands on a control the previous press rebuilt.
+  - ⚠️ **It reads the roster back rather than seeding one**, and the comment
+    says why: `/compte/` adopts a child asynchronously, so seeding around it
+    raced the adoption, left two children of the same name, and produced a spec
+    that failed while the feature worked. The page said *"C'est réservé."*, the
+    database agreed, and only the spec was wrong.
+  - **6/6 green on chromium and 6/6 on webkit.**
+- **`scripts/check-lanes.mjs` — ADVISORY, and it says so in its own output.**
+  It scores each spec for signals a different engine could answer differently
+  and reports the chromium-only ones.
+  - ⚠️⚠️ **IT ALWAYS EXITS 0 AND MUST NEVER BECOME A GATE**, and the reason is
+    a fact about this repository rather than caution:
+    **`recurring-sessions.spec.ts` scores ZERO on every signal it measures —
+    and it is the spec that caught the Créer bug.** The score sees what a spec
+    *asserts*; that defect lived in how the spec *drives* the page, a plain
+    `fill()` then a plain `click()`. No pattern added to the list would find
+    it. A green tick would read as "the lanes are complete", which is the exact
+    false confidence that lets the next one through.
+  - It also lists the four specs that **never take the `page` fixture** —
+    `booking`, `child-profiles`, `engine-levels`, `role-separation` — which
+    between them spawned **255 browser contexts per release** for `rpc()` calls
+    and arithmetic.
+- **`missingLaneSpecs()` — the one lane check that IS a gate.** A lane naming a
+  spec that does not exist makes `testMatch` match **nothing**, so the project
+  runs zero tests and the gate goes green having proved less than it claims —
+  the one failure mode the lane design introduces. It is a fact about the
+  filesystem, so it is checked exactly, and `test-release.mjs` refuses before a
+  browser starts.
+
+### Fixed
+
+- ⚠️⚠️ **`booking.spec.ts` COUNTED A GLOBAL LOG AND SO COULD FAIL WHILE THE RULE
+  IT GUARDS WAS INTACT — it now watches the session ROW.** "A booking and a
+  cancellation fire no rebuild at all" took a before/after count of
+  `rebuild_requests`, which is one log for the whole database.
+  `test.describe.configure({ mode: 'serial' })` serialises only the tests in
+  that file; `recurring-sessions`, `admin` and `attendance-timing` create and
+  cancel sessions in **other** files, concurrently, and each of those
+  legitimately fires a rebuild.
+  - **It failed the first run of the new gate at `1868` vs `1870`** — two
+    firings the test did not cause. ⚠️ **A serial re-run of the file passed
+    14/14**, which is this project's own arbiter for "not deterministic", so the
+    rule (Critical Feature 72) was never in question.
+  - **The session row is isolated and tests the rule more directly:** CF72 says
+    a booking must never WRITE to `sessions`, and the regression it names — a
+    denormalised `bookings_count` — changes that row. `select … for update` is a
+    lock and leaves no trace.
+  - ⚠️ **What it gives up is stated in the spec rather than hidden:** an UPDATE
+    writing the same values back would fire the trigger and leave the row equal.
+    Nothing plausible does that, and nothing isolated could see it.
+  - **Watched to fail before being trusted**, per the house rule: with a
+    one-line write to the session row injected, it fails naming CF72; without
+    it, 14/14 green.
+- **`test-release.mjs`'s arithmetic check no longer compares the projects to
+  each other.** That was right while every project ran every spec; under the
+  lanes, disagreement is the design. It now asserts that **no project ran zero**
+  and that **chromium — the superset — is never the smaller run**, which is
+  aimed at the mistyped-lane failure instead.
+
+### Documentation
+
+- **The full audit is in [`docs/reference/testing.md`](./docs/reference/testing.md)** —
+  the before/after cost per project, the per-spec chromium cost table, the
+  flag-shape classification, the lane table with what each is earned by, **what
+  was cut and the risk of each cut**, and why the heuristic's blind spot cannot
+  be tuned away.
+  - ⚠️ **The risk is stated in both directions.** The last two full matrices
+    found **zero** genuine cross-browser defects — every failure and flake was
+    memory starvation cleared by a serial re-run. But the matrix caught a real
+    WebKit defect **one release earlier**. The redundancy that produced nothing
+    is what was cut; the coverage that produced defects is what the lanes keep.
+  - ⚠️ **The biggest accepted risk is named rather than buried:** `exercise`,
+    `replayer`, `play` and `tutorial` drop to chromium. Their engine-sensitive
+    surface is the board, which stays covered on webkit and both mobile
+    projects through `board-pointer`, `board-frame`, `board-affordance` and
+    `nav-coords`.
+- **`docs/MANUAL-TESTS.md`** — the gate line now names the real command, and
+  §7e says which half of the booking walkthrough is automated so the manual
+  pass can spend its time on what no spec sees: one-handed use on a real phone,
+  readability in sunlight, and real target sizes.
 
 ---
 
