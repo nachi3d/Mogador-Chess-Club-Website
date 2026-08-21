@@ -11,6 +11,28 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+_Nothing yet._
+
+---
+
+## [0.19.0] — 2026-08-21
+
+**UI containment: closed cards, form fields as objects with grouping, section
+headers, and a constant vertical rhythm. Structure only — the palette, the four
+themes and the old-chess-club identity do not move.**
+
+The app surfaces stopped floating. `/compte/` and `/admin/seances/` had blocks
+with no boundaries and form fields the colour of the page behind them; they are
+now closed objects with one card, one field, one section header and one spacing
+scale.
+
+**Component consolidation: 8 card treatments → 1, 9 `.btn-primary` → 1, 6
+`.btn-ghost` → 1.** ⚠️ **And it found four LIVE phantom custom properties**, one
+of which had left five admin blocks with **no background at all** — invisible
+precisely because the page had no surfaces either. `scripts/check-css-dupes.mjs`
+now gates on phantoms. Two contrast pairs were corrected where controls moved
+onto cards.
+
 ### Changed
 
 - ⚠️⚠️ **CONTAINMENT — THE APP SURFACES BECAME CLOSED OBJECTS, AND EIGHT CARD
@@ -5829,7 +5851,8 @@ Foundation only: no real content, no interactive board yet.
   `url()` references unresolved and the fonts silently 404 into a Georgia
   fallback. `scripts/build-fonts.mjs` self-hosts them instead. See CLAUDE.md.
 
-[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.18.0...HEAD
+[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.19.0...HEAD
+[0.19.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.15.0...v0.16.0
