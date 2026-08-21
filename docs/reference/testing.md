@@ -795,6 +795,86 @@ touching application code.**
 with an assertion naming a value.** WebKit and Firefox carry one local retry;
 chromium has none. A run reporting `N passed, 1 flaky` on WebKit is green.
 
+### ⚠️⚠️ THE HYDRATION RACE — WHERE THAT RULE FAILED, THREE GATES RUNNING (2026-08-21)
+
+The rule above is a filter for false positives. **It has no power against a race
+that load merely WIDENS**, and this is the case that proved it.
+
+**The symptom.** `play.spec.ts` reported one flaky test at each of three
+consecutive gates. A different test each time — `:307` legality across plies,
+`:153` typed focus, `:111` pointer focus — which is this project's own
+definition of non-deterministic. Every serial `--workers=1` re-run passed, once
+in **997 ms** against a 60 s timeout. It was written off as contention three
+times.
+
+⚠️ **THE "AREA" WAS A MIRAGE.** Two of the three failures were not in the
+behaviour their test names describe: they failed inside `startGame()`, at the
+shared wait for `data-phase="playing"`, before reaching any assertion of their
+own. Reading the test NAMES suggested a focus-modality problem in
+`useMoveSource.ts`; reading the STACKS said the tests had nothing in common but
+their helper.
+
+**What it actually was.** The setup form is server-rendered, and the island is
+`client:visible`. Between the HTML arriving and Preact attaching, the start
+button is markup with no handler. A click in that window does **nothing** — no
+start, no error, no acknowledgement.
+
+⚠️ **THE ONE LINE THAT SETTLED IT WAS IN THE ARTEFACT ALL ALONG.** The captured
+page state showed `data-phase="setup"` with the error alert **EMPTY**. The
+load-failure path cannot produce that: it sets `loadError` *before* returning to
+`setup`, and the alert renders text. Empty alert ⇒ `start()` never ran ⇒ the
+click was swallowed. `error-context.md` had said so at every gate.
+
+**Reproduction, and why the first two attempts found nothing.**
+
+| attempt | result | why |
+|---|---|---|
+| 15 rounds, one page reused | 0 failures | the island chunk is cached after round 1; the race needs a cold fetch |
+| 15 rounds, fresh context each | 0 failures | Playwright's own actionability wait (~tens of ms) usually covers a ~500 ms hydration |
+| `play.spec.ts --repeat-each=3` | **1 in 60** | the real thing, at its real rate — too rare to iterate against |
+| **island JS delayed 4 s via `page.route`** | **100%** | the window is forced open; the race becomes an ordinary assertion |
+
+⚠️ **FORCE THE WINDOW OPEN RATHER THAN CHASING THE RATE.** Throttling the chunk
+turned a 1-in-60 ghost into something that fails every time and can be watched
+to fail — which is also what made a regression test possible.
+
+**What the same experiment proved about the helper.** `openPlay()` waited for
+`data-phase="setup"`, which is in the SERVER's HTML — so it proves the document
+arrived and nothing more. With hydration delayed it returned with the island
+still un-hydrated and its click was swallowed too. ⚠️ **THE SEVENTEEN TESTS
+USING IT WERE NOT PROTECTED, ONLY LUCKIER** than the three that called
+`page.goto` directly: a scroll plus one locator round-trip bought a few tens of
+milliseconds, and that accident was the entire difference.
+
+**It is a READER's defect first.** With hydration late, a human pressing
+"Commencer la partie" is ignored, and nothing on screen changes. Only a fast
+local build hides it.
+
+**The fix, both halves.**
+
+- `PlayView` exposes `data-ready`, false until a mount effect sets it — the same
+  convention as the exercise board — and the start button and both radio
+  fieldsets are `disabled` until then. ⚠️ **The radios were the half nearly
+  missed**: disabling only the button leaves the choices live, and a colour
+  picked before hydration is discarded when Preact attaches, snapping back to
+  "Les blancs" under the reader's hand. Visible rather than silent, so milder —
+  but a form is either working or it is not.
+- `openPlay()` waits on `data-ready="true"`, and the three tests that skipped
+  it now use it.
+
+⚠️ **THE REGRESSION TEST THROTTLES THE CHUNK ON PURPOSE.** Without that the
+window is too narrow to observe, which is exactly how this survived three
+gates. It was watched to fail on the un-fixed component first (`Received: ""` —
+no such attribute).
+
+**The lesson, and it is the general one:** *passing serially is not a clean bill
+of health.* A hydration race, a resource race and machine contention share one
+signature. The re-run cannot separate them; **the artefact can**.
+
+⚠️ **NOT AUDITED: the exercise and replay islands.** They are the same shape —
+server-rendered controls inside a `client:visible` island — and were not checked
+in this session. Assume the defect until measured.
+
 ⚠️ **THE TWO BROWSER-CRASH ROWS ARE NOW A FINDING WHEN THEY COME FROM
 `test:release`.** They belong to a raw `npx playwright test`, which still pools
 every project at the default fan-out. The matrix caps its workers and runs one

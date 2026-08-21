@@ -1181,6 +1181,24 @@ On any exercise, and on `/jouer/` — **without touching the board at all**:
 - [ ] Moves work by **dragging**, by **tapping**, and from the **keyboard field**
 - [ ] The move list fills in correctly, White and Black in the right columns
 - [ ] While the computer is thinking the board does not accept moves and says so
+
+#### ⚠️ The setup form on a SLOW connection — the press that used to vanish
+
+*Found chasing a test flake, but it is a reader's defect: the form is
+server-rendered, so until the island's JS arrives the button has no handler
+behind it. Pressing it did nothing at all — no start, no error, no
+acknowledgement. Throttle the network in DevTools ("Slow 3G") and reload
+`/jouer/` to see this window.*
+
+- [ ] **While the page is still loading, the "Commencer la partie" button is
+      visibly DISABLED** — not enabled-looking and dead
+- [ ] The colour and level choices are **disabled in the same window**, and do
+      not snap back to "Les blancs" under your hand once the page finishes
+      loading
+- [ ] Once loading finishes, everything becomes usable and a single press
+      starts the game. ⚠️ *If you ever press it and nothing whatsoever happens,
+      that is the regression — say so*
+
 ### Difficulty — the thing that was wrong until v0.6.0
 
 Until v0.6.0 all three levels were effectively **one opponent**, and a club
