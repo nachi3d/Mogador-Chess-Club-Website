@@ -11,7 +11,31 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
-_Nothing yet._
+### Documentation
+
+- ⚠️⚠️ **A LOCAL `npm run build` BAKES THE COMMITTED FALLBACK AGENDA, BECAUSE
+  `.env.local` NEVER REACHES `fetch-agenda.mjs`** — recorded in
+  [`docs/reference/deployment.md`](./docs/reference/deployment.md) after it cost
+  a diagnosis at the v0.18.0 deploy. The script runs **before Astro**, as plain
+  Node, and reads `process.env`; Astro's dotenv loading is for Astro's own build
+  and never reaches a script earlier in the `&&` chain. **Cloudflare is
+  unaffected** — its build variables are real environment variables — so the
+  divergence is local only, and only for the agenda.
+  - ⚠️ **IT PRESENTS AS A FAILED DEPLOY.** `verify:deploy` reported `/` as *"the
+    live build is NOT this tree"* minutes after a deploy that had demonstrably
+    landed. The differing bytes were the home dashboard's next-session line —
+    local `2026-09-12` against live `2026-08-29` — because the local `dist/`
+    held the committed one-session snapshot and production held the three real
+    rows. The other two documents matched, so the report was one third red for a
+    reason that had nothing to do with the deploy.
+  - ⚠️ **Export the two variables and STRIP THE QUOTES.** `.env.local` quotes its
+    values, and exported verbatim the URL keeps them and the fetch dies with
+    `Failed to parse URL from "https://….supabase.co"` — a message that reads
+    like a network fault and is a quoting fault.
+  - ✅ **The guard itself is correct and was NOT softened:** with credentials
+    configured and the read failing, `fetch-agenda.mjs` **fails the build**
+    rather than falling back. Silent fallback is reserved for a machine with no
+    credentials at all, which is a dev build by definition.
 
 ---
 
