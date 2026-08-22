@@ -11,6 +11,31 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+## [0.21.0] — 2026-08-22
+
+**The release in one line:** the club is reachable on a phone, and two checks
+that had been lying stopped.
+
+- **Mobile bar, second revision — Accueil · Apprendre · Jouer · Club · Moi.**
+  "Réglages" left the bar (it is still in Moi, the desktop gear and the
+  footer); **Club** took the slot. ⚠️ **Réglages passed the letter of Critical
+  Feature 27 and failed its spirit** — it had a landing, so the rule as written
+  would have kept it forever, while it was really one rarely-opened page
+  holding a fifth of the most valuable strip on a phone. **CF27 is now sharper:
+  would this section otherwise be unreachable on a phone?**
+- **`/club/` and `/a-propos/`** — a chooser for the club, and a real page about
+  it with **not one venue string in the component**.
+- **Trails corrected on three pages.** `/parametres/` stopped being a landing
+  and had to stop behaving like one; `/agenda/` and `/contact/` named "Accueil"
+  because they had no section and now name "‹ Le club".
+- **`verify:deploy` no longer false-fails on `/`** — it had become a check that
+  cried wolf on every correct deploy, which is the state that teaches an
+  operator to skip the one check standing between them and shipping v0.13.0
+  again.
+- **A stale fallback agenda now fails the build**, because `smoke:prod` is
+  structurally blind to it: a stale agenda is not an empty one, so it counts the
+  rows, sees one, and passes while the site names a day that has gone by.
+
 ### Changed
 
 - **The mobile bottom bar, second revision — Accueil · Apprendre · Jouer ·
@@ -6275,7 +6300,8 @@ Foundation only: no real content, no interactive board yet.
   `url()` references unresolved and the fonts silently 404 into a Georgia
   fallback. `scripts/build-fonts.mjs` self-hosts them instead. See CLAUDE.md.
 
-[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.20.0...HEAD
+[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.21.0...HEAD
+[0.21.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.17.0...v0.18.0
