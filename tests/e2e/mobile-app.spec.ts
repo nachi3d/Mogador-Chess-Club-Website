@@ -73,9 +73,13 @@ test.describe('the bottom navigation bar', () => {
        of these has a LANDING SCREEN, not a shortcut to a leaf page. That is
        what makes a fifth entry defensible where M1 capped it at four — and
        "Progrès", a leaf page with nothing under it, is the one that left. If
-       this ever reads four again, check whether a section lost its landing. */
+       this ever reads four again, check whether a section lost its landing.
+       ⚠️ SECOND REVISION: "Réglages" left too — it had a landing and still
+       failed the spirit of the rule, being one rarely-opened page holding a
+       fifth of the bar. "Club" took the slot because the club itself had no
+       route on a phone at all. */
     await expect(links).toHaveCount(5);
-    await expect(links).toHaveText([/Accueil/, /Apprendre/, /Jouer/, /Moi/, /Réglages/]);
+    await expect(links).toHaveText([/Accueil/, /Apprendre/, /Jouer/, /Club/, /Moi/]);
   });
 
   /**
@@ -183,9 +187,21 @@ test.describe('the bottom navigation bar', () => {
     ['/apprendre-les-bases/', 'Apprendre'],
     ['/apprendre-les-bases/la-tour/', 'Apprendre'],
     ['/jouer/', 'Jouer'],
+    ['/club/', 'Club'],
+    /* ⚠️ THE LEAVES OF THE NEW SECTION. Before the second revision these three
+       lit NOTHING — the club had no bar entry at all, so a reader on the
+       agenda had no location signal whatsoever. That is the defect the
+       section exists to fix, so it is asserted per page rather than only on
+       the landing. */
+    ['/agenda/', 'Club'],
+    ['/contact/', 'Club'],
+    ['/a-propos/', 'Club'],
     ['/moi/', 'Moi'],
     ['/progres/', 'Moi'],
-    ['/parametres/', 'Réglages'],
+    /* ⚠️ RÉGLAGES LEFT THE BAR AND MUST STILL LIGHT SOMETHING. It lives inside
+       Moi now; without it in Moi's match list the settings page lights nothing
+       at all, which is exactly what Critical Feature 63 forbids. */
+    ['/parametres/', 'Moi'],
   ] as const) {
     test(`${path} marks "${expected}" as the current section`, async ({ page }) => {
       await page.goto(path);

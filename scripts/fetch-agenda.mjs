@@ -187,6 +187,62 @@ async function main() {
       console.error('    The agenda would build empty. Restore the fallback or set the env.\n');
       process.exit(1);
     }
+    /**
+     * ⚠️⚠️ A STALE FALLBACK IS WORSE THAN AN EMPTY ONE, AND NOTHING ELSE CATCHES
+     * IT.
+     *
+     * An EMPTY agenda already fails `smoke:prod` — that rule exists because a
+     * blank agenda is never a scheduling fact. But a fallback whose sessions
+     * have all gone by is not empty: `smoke:prod` counts the rows, prints "at
+     * least one session listed", and goes green while the site tells a family
+     * to turn up on a day that has passed. **Structurally blind**, and the
+     * failure lands on the people the site is for.
+     *
+     * ⚠️ IT MATTERS TO NOBODY UNTIL IT MATTERS ENORMOUSLY. The fallback is baked
+     * only when a build cannot reach Supabase — which is exactly the moment
+     * nobody is watching the agenda.
+     *
+     * So: every session in the past is **FATAL**, on the same reasoning that
+     * makes an empty agenda fatal. It is the one case that is unambiguously
+     * wrong rather than merely drifted, and both ways out are named in the
+     * message.
+     */
+    const now = Date.now();
+    const stamp = (s) => Date.parse(s.startsAt ?? `${s.date}T23:59:59Z`);
+    const dated = (fallback.sessions ?? []).filter((s) => Number.isFinite(stamp(s)));
+    const newest = dated.length > 0 ? Math.max(...dated.map(stamp)) : null;
+    const days = (ms) => Math.round((ms - now) / 86_400_000);
+
+    if (newest !== null && newest < now) {
+      const last = dated.find((s) => stamp(s) === newest);
+      console.error(red('\n  ✗ the committed fallback agenda has EXPIRED.'));
+      console.error(
+        `    Its newest session is ${last?.date ?? '(undated)'}, ${Math.abs(days(newest))} day(s) ago,\n` +
+          '    so this build would publish an agenda with nothing upcoming at all.\n',
+      );
+      console.error(
+        '    A stale agenda is worse than a blank one: smoke:prod counts the rows,\n' +
+          '    sees one, and passes — while the site names a day that has gone by.\n',
+      );
+      console.error('    Two ways out, and both are correct:');
+      console.error('      • set PUBLIC_SUPABASE_URL and PUBLIC_SUPABASE_ANON_KEY, so this');
+      console.error('        build reads the real sessions table (what Cloudflare does); or');
+      console.error('      • refresh src/data/agenda.fallback.json from the live table.\n');
+      process.exit(1);
+    }
+
+    /* Warned BEFORE it becomes fatal, so the hard failure above is never the
+       first anyone hears of it. */
+    if (newest !== null && days(newest) <= 14) {
+      console.log(
+        yellow(
+          `  ! the committed fallback agenda expires in ${days(newest)} day(s) ` +
+            `(newest session ${dated.find((s) => stamp(s) === newest)?.date}).`,
+        ),
+      );
+      console.log(dim('    Refresh src/data/agenda.fallback.json before it goes stale.\n'));
+    }
+
     /* ⚠️ COPIED, NOT SYMLINKED OR IMPORTED. `src/lib/agenda.ts` imports exactly
        one path, so the artefact must always exist — including on a fresh clone
        where nothing has ever been fetched. */

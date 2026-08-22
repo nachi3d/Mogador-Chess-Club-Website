@@ -21,18 +21,27 @@ const fr = {
   'nav.play': 'Jouer',
   'nav.agenda': 'Agenda',
   'nav.contact': 'Contact',
+  'nav.about': 'À propos',
   'nav.group.learn': 'Apprendre',
   'nav.group.practise': "S'entraîner",
   'nav.group.club': 'Le club',
   'nav.basics': 'Les bases',
-  /* ── The five SECTIONS (M4) ───────────────────────────────────────────
+  /* ── The five SECTIONS (M4, revised) ──────────────────────────────────
      ⚠️ THESE ARE SECTIONS, NOT SHORTCUTS. Each has a landing screen, which is
      what makes a fifth bar entry defensible after M1 capped it at four: the
      bar stopped being a row of links to leaf pages and became a map of the
-     site. "Réglages" earns its slot as the home of theme, language and sound
-     rather than as a link to one settings page. */
+     site.
+
+     ⚠️ "RÉGLAGES" LEFT THE BAR AND IS NOT GONE — it is inside Moi, where it
+     always also lived, plus the desktop header gear and the footer. It held a
+     slot as "the home of theme, language and sound", which is true and was
+     still the weakest claim of the five: one page, reached rarely, sitting
+     permanently in the most valuable strip of a phone screen. "Club" took the
+     slot because the club itself — when it meets, how to reach it, what it is
+     — had no home at all on a phone. `nav.settings` went with it; `/paramètres`
+     is named by `me.settings.name` in the chooser that now owns it. */
   'nav.me': 'Moi',
-  'nav.settings': 'Réglages',
+  'nav.club': 'Club',
   /* The section landing, seen from inside the desktop "Apprendre" group —
      "Apprendre › Apprendre" would read as a mistake. */
   'nav.overview': 'Vue d’ensemble',
@@ -83,6 +92,51 @@ const fr = {
   'me.account.signedOut': 'Se connecter pour retrouver ta progression sur tous tes appareils.',
   'me.settings.name': 'Réglages',
   'me.settings.body': 'Thème, langue et sons.',
+
+  /* ── /club — the club chooser ───────────────────────────────────────────
+     ⚠️ THE ONE SECTION THAT IS NOT ABOUT LEARNING. Everything else in the bar
+     is the site; this is the club — when it meets, how to reach it, and what
+     it actually is. On a phone that had no home at all: the agenda and contact
+     sat under "Le club" in the desktop header and nowhere below 768px. */
+  'club.title': 'Le club',
+  'club.intro': 'Quand on se retrouve, comment nous joindre, et qui nous sommes.',
+  'club.agenda.name': 'Agenda',
+  'club.agenda.body': 'Les prochaines séances, avec le lieu et l’horaire.',
+  'club.contact.name': 'Contact',
+  'club.contact.body': 'Nous écrire sur WhatsApp, ou nous suivre sur Instagram.',
+  'club.about.name': 'À propos',
+  'club.about.body': 'Le club, l’association qui le porte, et comment nous rejoindre.',
+  /* ⚠️ A FACT, NOT A TALLY — the same rule as `learn.traps.count`. Nothing
+     tracks "sessions attended" for a guest, so the card states what is coming
+     rather than inventing a counter to fill the slot. */
+  'club.agenda.count': '%s séances annoncées',
+  'club.agenda.none': 'Aucune séance annoncée pour l’instant',
+
+  /* ── /a-propos ──────────────────────────────────────────────────────────
+     ⚠️ EVERY FACT HERE THAT COULD MOVE IS DATA, NOT PROSE. The venue, the
+     WhatsApp number and the association's handle come from `src/config/site.ts`
+     through the page, never from these strings — venue portability is a hard
+     rule and a sentence naming Dar Souiri would break it silently. What lives
+     here is only the wording around those values. */
+  'about.title': 'À propos',
+  'about.intro': 'Un club d’échecs à Essaouira, et un site pour continuer entre les séances.',
+  'about.club.heading': 'Le club',
+  'about.club.body':
+    'Le Mogador Chess Club réunit chaque semaine des joueuses et des joueurs de tous niveaux, des débutants complets aux joueurs de club. Les séances sont encadrées, le matériel est fourni, et il n’est pas nécessaire de savoir jouer pour venir la première fois.',
+  'about.who.heading': 'Pour qui',
+  'about.who.body':
+    'Le club accueille surtout des enfants et des adolescents, et les adultes sont les bienvenus. On y vient pour apprendre, pour jouer, ou simplement pour voir.',
+  'about.site.heading': 'Et ce site',
+  'about.site.body':
+    'Ce site existe pour la semaine entre deux séances : des cours progressifs, une bibliothèque de pièges d’ouverture, des exercices à résoudre et une partie contre l’ordinateur. Tout fonctionne sans compte, et rien n’est envoyé nulle part.',
+  'about.association.heading': 'L’association',
+  'about.association.body':
+    'Le club est porté par l’Association Essaouira Mogador, qui accueille les séances et soutient le projet.',
+  'about.join.heading': 'Nous rejoindre',
+  'about.join.body':
+    'Le plus simple est de venir à une séance — l’agenda dit quand et où. Pour poser une question avant, écrivez-nous.',
+  'about.join.agenda': 'Voir l’agenda',
+  'about.join.contact': 'Nous contacter',
 
   'nav.label': 'Navigation principale',
   'nav.skipToContent': 'Aller au contenu principal',
@@ -930,13 +984,14 @@ const en: Record<keyof typeof fr, string> = {
   'nav.play': 'Play',
   'nav.agenda': 'Schedule',
   'nav.contact': 'Contact',
+  'nav.about': 'About',
   'nav.group.learn': 'Learn',
   'nav.group.practise': 'Practise',
   'nav.group.club': 'The club',
   'nav.basics': 'The basics',
   /* ── The five SECTIONS (M4). See the FR note. ─────────────────────── */
   'nav.me': 'Me',
-  'nav.settings': 'Settings',
+  'nav.club': 'Club',
   'nav.overview': 'Overview',
 
   /* ── The trail (M4). See the FR note. ─────────────────────────────── */
@@ -970,6 +1025,39 @@ const en: Record<keyof typeof fr, string> = {
   'me.account.signedOut': 'Sign in to keep your progress across all your devices.',
   'me.settings.name': 'Settings',
   'me.settings.body': 'Theme, language and sound.',
+
+  /* ── /club — the club chooser. See the FR note. ────────────────────── */
+  'club.title': 'The club',
+  'club.intro': 'When we meet, how to reach us, and who we are.',
+  'club.agenda.name': 'Agenda',
+  'club.agenda.body': 'The next sessions, with the place and the time.',
+  'club.contact.name': 'Contact',
+  'club.contact.body': 'Message us on WhatsApp, or follow us on Instagram.',
+  'club.about.name': 'About',
+  'club.about.body': 'The club, the association behind it, and how to join us.',
+  'club.agenda.count': '%s sessions announced',
+  'club.agenda.none': 'No sessions announced yet',
+
+  /* ── /a-propos. See the FR note — the venue and the handles are DATA. ── */
+  'about.title': 'About',
+  'about.intro': 'A chess club in Essaouira, and a site to keep going between sessions.',
+  'about.club.heading': 'The club',
+  'about.club.body':
+    'Mogador Chess Club meets every week and welcomes players of every level, from complete beginners to club players. Sessions are taught, sets are provided, and you do not need to know how to play to come the first time.',
+  'about.who.heading': 'Who it is for',
+  'about.who.body':
+    'The club is mostly children and teenagers, and adults are welcome too. People come to learn, to play, or simply to watch.',
+  'about.site.heading': 'And this site',
+  'about.site.body':
+    'This site exists for the week between two sessions: progressive lessons, a library of opening traps, exercises to solve and a game against the computer. All of it works without an account, and nothing is sent anywhere.',
+  'about.association.heading': 'The association',
+  'about.association.body':
+    'The club is run under Association Essaouira Mogador, which hosts the sessions and supports the project.',
+  'about.join.heading': 'Joining us',
+  'about.join.body':
+    'The simplest way is to come to a session — the agenda says when and where. To ask something first, write to us.',
+  'about.join.agenda': 'See the agenda',
+  'about.join.contact': 'Contact us',
 
   'nav.label': 'Main navigation',
   'nav.skipToContent': 'Skip to main content',
@@ -1687,8 +1775,17 @@ export const NAV_GROUPS = [
     key: 'nav.group.club',
     id: 'club',
     items: [
+      /* ⚠️ THE LANDING COMES FIRST, AND CRITICAL FEATURE 36 IS WHY IT IS HERE
+         AT ALL. `/club/` is a bottom-bar destination, so the desktop header
+         must reach it or a desktop reader has a section they cannot open —
+         and `mobile-app.spec.ts` reads the list off the bar, so omitting this
+         fails the gate rather than shipping quietly. Labelled `nav.overview`
+         for the same reason Apprendre is: a group called "Le club" whose first
+         item is also "Le club" reads as a mistake. */
+      { path: '/club/', key: 'nav.overview' },
       { path: '/agenda/', key: 'nav.agenda' },
       { path: '/contact/', key: 'nav.contact' },
+      { path: '/a-propos/', key: 'nav.about' },
     ],
   },
 ] as const satisfies readonly {

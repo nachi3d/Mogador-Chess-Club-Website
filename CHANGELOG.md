@@ -11,6 +11,220 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+## [0.21.0] — 2026-08-22
+
+**The release in one line:** the club is reachable on a phone, and two checks
+that had been lying stopped.
+
+- **Mobile bar, second revision — Accueil · Apprendre · Jouer · Club · Moi.**
+  "Réglages" left the bar (it is still in Moi, the desktop gear and the
+  footer); **Club** took the slot. ⚠️ **Réglages passed the letter of Critical
+  Feature 27 and failed its spirit** — it had a landing, so the rule as written
+  would have kept it forever, while it was really one rarely-opened page
+  holding a fifth of the most valuable strip on a phone. **CF27 is now sharper:
+  would this section otherwise be unreachable on a phone?**
+- **`/club/` and `/a-propos/`** — a chooser for the club, and a real page about
+  it with **not one venue string in the component**.
+- **Trails corrected on three pages.** `/parametres/` stopped being a landing
+  and had to stop behaving like one; `/agenda/` and `/contact/` named "Accueil"
+  because they had no section and now name "‹ Le club".
+- **`verify:deploy` no longer false-fails on `/`** — it had become a check that
+  cried wolf on every correct deploy, which is the state that teaches an
+  operator to skip the one check standing between them and shipping v0.13.0
+  again.
+- **A stale fallback agenda now fails the build**, because `smoke:prod` is
+  structurally blind to it: a stale agenda is not an empty one, so it counts the
+  rows, sees one, and passes while the site names a day that has gone by.
+
+### Verification
+
+**`PUBLIC_AUTH_ENABLED=true npm run test:release` — 2026-08-22 18:13, green:
+1,297 passed, 0 failed, **0 flaky**, 23.8 min.** Gated on the promoted tree
+itself.
+
+| project | result | trough |
+|---|---|---|
+| chromium | 745 passed, 21 skipped | 1.91 GB |
+| firefox | 145 passed | **0.77 GB** |
+| webkit | 160 passed, 4 skipped | 2.54 GB |
+| pixel-5 | 106 passed | 2.44 GB |
+| iphone-13 | 120 passed | 2.49 GB |
+| chromium (OFF) sliver | 21 passed, 32 run | — |
+
+- ⚠️ **THE SLIVER RAN 32 TESTS, NOT ZERO** — Critical Feature 18 proved.
+- ✅ **WebKit launched and ran**, so the lane that caught the "Créer" bug
+  covered this tree. The Smart App Control row stays open regardless: it is a
+  claim about the host and it has reversed mid-session before.
+- ⚠️ **ZERO FLAKY, ON A MACHINE THAT WAS TIGHTER THAN LAST RELEASE, NOT
+  LOOSER.** Every project ran under the 3 GB advisory line and firefox troughed
+  at **0.77 GB** — deep inside the starvation regime — and still returned
+  145/145. v0.20.0 had four flaky at *higher* troughs. **That is worth
+  recording precisely because it cuts against the memory explanation**: it does
+  not refute it (a trough is a minimum, not a duration), but a clean run in
+  worse conditions is evidence the v0.20.0 flakes were not simply "the machine
+  was busy", and the artefact gap filed in BACKLOG is what would settle it.
+
+**`verify:deploy` will discriminate this release, proved before the deploy.**
+The live v0.20.0 tree serves `data-testid="mobilenav-sliders"` and **zero**
+occurrences of `mobilenav-calendar`; this tree is the reverse. ⚠️ **And because
+`MobileNav` renders from `BaseLayout`, the marker is on ALL THREE compared
+documents** — `/`, `/exercices/mat-du-couloir/` and `/progres/` — rather than
+the single document v0.20.0 had. This is the least blind release of the last
+four.
+
+**No migrations.** `git diff main HEAD -- supabase/` is empty.
+
+### Changed
+
+- **The mobile bottom bar, second revision — Accueil · Apprendre · Jouer ·
+  Club · Moi.** "Réglages" left the bar; "Club" took the slot.
+  - ⚠️ **RÉGLAGES PASSED THE LETTER OF THE SECTION RULE AND FAILED ITS SPIRIT.**
+    Critical Feature 27 asks that every entry be a section with a landing, and
+    Réglages had one — so the rule as written would have kept it forever. What
+    it actually was: one page, opened rarely, holding a fifth of the most
+    valuable strip on a phone. CF27 now carries the sharper test — **would this
+    section otherwise be unreachable on a phone?**
+  - ⚠️ **AND THAT TEST IS WHY CLUB WON.** The agenda, contact and about pages
+    sat under "Le club" in the desktop header and under **nothing** below
+    768px — a mobile reader could reach them only from the home page. **That is
+    the mirror of the `/progres/` defect Critical Feature 36 exists for:** not
+    one page missing from desktop, but a whole section missing from mobile.
+  - **Réglages is not gone** — it is inside Moi, plus the desktop header gear
+    and the footer. Nothing was lost but the slot.
+- **`/parametres/` stopped being a section landing, and had to stop behaving
+  like one.** It gained a trail reading "‹ Moi" (Critical Feature 62 — a
+  landing deliberately has none), and it now lights **Moi** in the bar. ⚠️
+  **Without the second half it would have lit nothing at all**, which is
+  precisely the defect Critical Feature 63 names.
+- **`/agenda/` and `/contact/` now trail to "‹ Le club", not "‹ Accueil".**
+  They named home because they had no section; naming home from two levels down
+  is the bare-"Retour" failure wearing a different word.
+
+### Added
+
+- **`/club/` and `/en/club/` — the club section landing.** A chooser, not a
+  menu (Critical Feature 65): Agenda, Contact, À propos, each with a line
+  saying what is behind it. ⚠️ **The agenda card states what is ANNOUNCED, not
+  a tally** — nothing records which sessions a guest attended, and inventing a
+  counter to fill the slot is how a surface starts lying. With nothing baked it
+  says so in words rather than printing "0 séances annoncées" (Critical
+  Features 30 and 61).
+- **`/a-propos/` and `/en/a-propos/` — what the club is, who runs it, how to
+  join.** ⚠️ **Not one venue string, handle or number lives in the component.**
+  The association, the venue block and the socials all come from
+  `src/config/site.ts`; `src/i18n/ui.ts` holds only the wording around them. An
+  about page is the single most tempting place to break venue portability —
+  "the club meets at Dar Souiri" is exactly the sentence somebody wants to
+  write here, and it would turn a one-commit venue change into a prose edit.
+  `hasVenue()` still makes the venue block disappear rather than render an
+  empty heading.
+- The desktop header's "Le club" group gained `/club/` (labelled "Vue
+  d'ensemble", as Apprendre does) and `/a-propos/`. ⚠️ **Critical Feature 36
+  forced this**: `mobile-app.spec.ts` reads the destination list **off the
+  bar**, so a bar entry with no desktop home fails the gate rather than
+  shipping quietly. It did fail first.
+
+### Notes
+
+- ⚠️ **MEASURED, AT BOTH WIDTHS AND IN BOTH LOCALES — the revision GAINED
+  headroom rather than spending it.** Cells are **72×52 at 360px** and **78×52
+  at 390px**, so every target clears 48px in both dimensions, and measured
+  overflow is **0 on all ten cells**. "Club" is **24.6px** in both locales,
+  against the "Réglages"/"Settings" it replaced. The worst case is unchanged
+  and is still "Apprendre" at 56.6px — **15.4px clear at 360px**.
+- **The desktop home menu was deliberately left alone.** Its "Le club" entry
+  still points at `/agenda/` rather than the new landing, because the E5 menu's
+  group entries all point at their most-wanted child (`nav.group.learn` →
+  `/cours/`, not `/apprendre/`). Repointing only this one would have broken
+  that pattern to satisfy a symmetry nobody asked for.
+
+### Fixed
+
+- **`verify:deploy` no longer fails on `/` for every correct deploy.** `/`
+  prints "Prochaine séance" from the baked agenda, and a local build cannot read
+  the `sessions` table — `.env.local` never reaches `fetch-agenda.mjs` — so it
+  bakes `agenda.fallback.json` while Cloudflare bakes the live table. The
+  comparison was structurally unable to pass. The next-session **value** is now
+  normalised away, exactly as `/_astro` fingerprints already are.
+  - ⚠️ **`/` was kept, deliberately.** Swapping it for a quieter document was
+    the obvious fix and is the wrong one: `/` is the page most releases touch,
+    which makes it the most valuable of the three.
+  - ⚠️ **Only the VALUE is dropped, never the structure.** The label, the
+    classes, the venue span and the surrounding `<a>` are still compared, so a
+    release that changes how the block is *built* is still caught.
+  - ⚠️ **The normalisation cannot silently become a no-op.** It counts its own
+    matches on both sides and says so if it ever gets zero — verified by
+    renaming the class and watching the warning fire. A normalisation nobody has
+    seen fire is one that may not work.
+  - Measured before and after against the live v0.20.0 build: `/` went from
+    *"the live build is NOT this tree"* to **66,358 bytes match**, with the
+    other two documents unchanged.
+
+### Added
+
+- **`fetch-agenda.mjs` refuses an EXPIRED fallback agenda.** If the committed
+  fallback is used *and every session in it has passed*, the build **fails**.
+  - ⚠️ **A stale agenda is worse than a blank one, and nothing else catches
+    it.** An empty agenda already fails `smoke:prod`; a fallback whose sessions
+    have all gone by is *not* empty, so `smoke:prod` counts the rows, prints
+    "at least one session listed" and goes green — while the site names a day
+    that has passed, to the families the site exists for.
+  - ⚠️ **It is fatal on the same reasoning that makes an empty agenda fatal**,
+    and the message names both ways out: set the Supabase env (what Cloudflare
+    does), or refresh the fallback.
+  - **It warns for fourteen days first**, so the hard failure is never the first
+    anyone hears of it.
+  - Both paths were watched to fire: expired → **exit 1**; five days out →
+    warning at exit 0.
+
+### Changed
+
+- **`src/data/agenda.fallback.json` refreshed from the live table — 1 session →
+  3.** ⚠️ **It was not WRONG, it was INCOMPLETE**, which is the more misleading
+  failure: its 12 September session is real, but it was missing the two nearer
+  ones, so the dashboard's "Prochaine séance" named **12 September** when the
+  true next session is **29 August**.
+  - ⚠️ **Reconstructed from the DEPLOYED agenda, not from the table directly**,
+    because this machine has no agenda credentials. That is one step removed and
+    the limits are stated rather than glossed: it cannot see a `draft` session
+    (correctly — a draft must never leak) and it is current only as of the
+    v0.20.0 build.
+  - **Two fields are inferences.** `titleFr` is not rendered by the agenda
+    template at all, and `overbookMargin` is not exposed publicly; both are set
+    from the schema default and from the one record whose true values were
+    already committed. ⚠️ **That record is what calibrates the rest** — for the
+    12 September session the page renders a level badge and a note and the known
+    record has both, while the two new cards render neither, which is what makes
+    `level: null` and `noteFr: null` a reading rather than a guess.
+
+### Notes
+
+- **v0.20.0 was deployed and verified on 2026-08-22.** Recorded here rather than
+  inside the tagged `[0.20.0]` section, so the tag keeps saying exactly what it
+  said when it was cut.
+  - ✅ **`npm run smoke:prod` green** — every route 200 with its structural
+    sentinel, canonical and og agreeing, both video fixtures **404**, the
+    manifest and `sw.js` correct with the engine not precached, and `/agenda/`
+    listing **3 sessions** rather than blank.
+  - ⚠️ **`npm run verify:deploy` reported a FAILURE on `/`, and it was a FALSE
+    one.** `/exercices/mat-du-couloir/` (54,074 bytes) and `/progres/` (86,356
+    bytes) matched exactly; the entire difference on `/` was the dashboard's
+    next-session block, because a local build bakes `agenda.fallback.json`
+    while Cloudflare bakes the live table. Filed in BACKLOG — ⚠️ **the risk is
+    that a check which cries wolf every release is one somebody learns to
+    skip**, and this is the check that exists because v0.13.0 was merged,
+    tagged and never served.
+  - **The deploy verdict was therefore reached by hand, and it is
+    unambiguous:** the two clean documents matched byte-for-byte, and the live
+    site carries every marker this release introduced — `disabled` on the
+    exercise hint button, on the replayer's launch button and transport
+    controls, on all **thirteen** move-list buttons, and on `play-start` with
+    `data-ready="false"`.
+  - ⚠️ **The discriminator did its job.** Proved absent from the old tree before
+    the deploy and present after, inside one of `verify:deploy`'s own three
+    documents — the first release in three where that check could discriminate
+    at all.
+
 ## [0.20.0] — 2026-08-22
 
 **The release in one line:** the engine plays at the strength each level was
@@ -6124,7 +6338,8 @@ Foundation only: no real content, no interactive board yet.
   `url()` references unresolved and the fonts silently 404 into a Georgia
   fallback. `scripts/build-fonts.mjs` self-hosts them instead. See CLAUDE.md.
 
-[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.20.0...HEAD
+[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.21.0...HEAD
+[0.21.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.17.0...v0.18.0
