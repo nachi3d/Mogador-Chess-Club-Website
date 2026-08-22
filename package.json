@@ -1,7 +1,7 @@
 {
   "name": "mogador-chess-club-website",
   "type": "module",
-  "version": "0.19.0",
+  "version": "0.20.0",
   "private": true,
   "license": "GPL-3.0-or-later",
   "repository": {
@@ -12,7 +12,7 @@
   "scripts": {
     "dev": "astro dev",
     "start": "astro dev",
-    "build": "node scripts/check-claude-md.mjs && node scripts/check-contrast.mjs && node scripts/fetch-agenda.mjs && astro check && astro build && node scripts/build-sw.mjs",
+    "build": "node scripts/check-claude-md.mjs && node scripts/check-contrast.mjs && node scripts/fetch-agenda.mjs && astro check && astro build && node scripts/check-island-controls.mjs && node scripts/build-sw.mjs",
     "agenda": "node scripts/fetch-agenda.mjs",
     "db:push": "node scripts/db-push.mjs",
     "preview": "astro preview",

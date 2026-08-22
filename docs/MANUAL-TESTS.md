@@ -1181,6 +1181,55 @@ On any exercise, and on `/jouer/` — **without touching the board at all**:
 - [ ] Moves work by **dragging**, by **tapping**, and from the **keyboard field**
 - [ ] The move list fills in correctly, White and Black in the right columns
 - [ ] While the computer is thinking the board does not accept moves and says so
+
+#### ⚠️ The setup form on a SLOW connection — the press that used to vanish
+
+*Found chasing a test flake, but it is a reader's defect: the form is
+server-rendered, so until the island's JS arrives the button has no handler
+behind it. Pressing it did nothing at all — no start, no error, no
+acknowledgement. Throttle the network in DevTools ("Slow 3G") and reload
+`/jouer/` to see this window.*
+
+- [ ] **While the page is still loading, the "Commencer la partie" button is
+      visibly DISABLED** — not enabled-looking and dead
+- [ ] The colour and level choices are **disabled in the same window**, and do
+      not snap back to "Les blancs" under your hand once the page finishes
+      loading
+- [ ] Once loading finishes, everything becomes usable and a single press
+      starts the game. ⚠️ *If you ever press it and nothing whatsoever happens,
+      that is the regression — say so*
+
+#### ⚠️ AND THE SAME TEST ON A TRAP, A LESSON AND AN EXERCISE — v0.20.0
+
+*The `/jouer/` check above was written when only that one control had been
+fixed. The audit that followed found **560 more, on 132 pages**: the replayer's
+launch button, its transport controls and every move-list button, plus the
+exercise hint button. Same cause, same window, same "Slow 3G" reload — and the
+board here starts below the fold on a phone, so **scroll to it, which is what
+opens the window**.*
+
+On `/pieges/legal/` and on a lesson page with a demonstration board:
+
+- [ ] **"Lancer la démonstration" is visibly DISABLED while the page loads** —
+      greyed, not enabled-looking and dead
+- [ ] **"Coup suivant" and "Position finale" are disabled in the same window**,
+      and so is **every move in the list on the right** — tapping a move must
+      not silently do nothing
+- [ ] Once loading finishes all of them become usable, and one press of
+      "Lancer la démonstration" plays the first move
+- [ ] ⚠️ *Press each one DURING the load. If anything at all responds by doing
+      nothing, that is the regression — say so*
+
+On `/exercices/mat-du-couloir/`:
+
+- [ ] **"Afficher l'indice" is disabled while the board is loading** — this is
+      the one a stuck student reaches for, and a dead press reads as "I am not
+      even allowed to ask"
+- [ ] The move-entry field is disabled in the same window *(it always was —
+      confirm it still is)*
+- [ ] Once the board is ready, the hint button reveals the hint on one press
+
+
 ### Difficulty — the thing that was wrong until v0.6.0
 
 Until v0.6.0 all three levels were effectively **one opponent**, and a club
@@ -1201,8 +1250,16 @@ human has to agree with the numbers.
       real regression, not a taste question
 - [ ] **Intermédiaire**: you should have to play accurately. Beatable, but it
       punishes a hung piece
+- [ ] ⚠️ **Intermédiaire has a TARGET, not just a feel — about one game in
+      three for a student who has finished course 3 and plays accurately.**
+      Retuned 2026-08-21 (blunder 0.25 → **0.20**) because it was losing more
+      than half its games. *If it now feels like a wall, that is the regression;
+      if it hangs a piece most games, so is that. Say which.*
 - [ ] **Avancé**: it should never hand you anything, and should punish a real
       mistake
+- [ ] ⚠️ **Avancé must not make mistakes of its own.** Retuned 2026-08-21
+      (`Skill Level` 14 → **20**) — its old errors were second-best moves, not
+      blunders. *A clean piece drop from Avancé is a real regression*
 - [ ] The three feel **clearly different from each other** — that ordering is
       the fix. If two feel the same, say so
       *(these are win rates against crude reference bots, NOT Elo — the UI

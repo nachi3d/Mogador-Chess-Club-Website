@@ -536,3 +536,51 @@ test.describe('exercise — accessibility', () => {
     });
   }
 });
+
+/**
+ * ⚠️ THE HINT BUTTON MUST NOT BE PRESSABLE BEFORE IT WORKS.
+ *
+ * The audit that followed the `/jouer/` start-button fix found this island in
+ * better shape than the replayer but not clean: `MoveInput` was already
+ * covered (`disabled={!interactive}`, and `interactive` is false until the
+ * engine chunk lands), retry and the solution list are not server-rendered at
+ * all — but the hint button was, enabled, with its handler attached to
+ * nothing.
+ *
+ * ⚠️ IT IS THE WORST ONE TO LOSE. A student presses for a hint precisely when
+ * they are stuck, which is the moment a silent non-response reads as "I am not
+ * even allowed to ask", and `client:visible` puts the window right where they
+ * arrive at the board.
+ */
+test.describe('the hint button is honest about being ready', () => {
+  const HYDRATION_DELAY_MS = 3000;
+
+  const throttleIslandJs = (page: Page) =>
+    page.route('**/_astro/*.js', async (route) => {
+      await new Promise((r) => setTimeout(r, HYDRATION_DELAY_MS));
+      await route.continue();
+    });
+
+  test('before the engine lands it is disabled, not inert', async ({ page }) => {
+    await throttleIslandJs(page);
+    await page.goto(MATE_IN_1.fr, { waitUntil: 'domcontentloaded' });
+    await page.locator('[data-testid="chessboard"]').scrollIntoViewIfNeeded();
+
+    await expect(page.getByTestId('exercise')).toHaveAttribute('data-ready', 'false');
+    await expect(page.getByTestId('exercise-hint-button')).toBeDisabled();
+    // The other door was already guarded; assert it so it stays that way.
+    await expect(page.getByTestId('move-input-field')).toBeDisabled();
+  });
+
+  test('once ready it reveals the hint', async ({ page }) => {
+    await throttleIslandJs(page);
+    await page.goto(MATE_IN_1.fr, { waitUntil: 'domcontentloaded' });
+    await page.locator('[data-testid="chessboard"]').scrollIntoViewIfNeeded();
+
+    await expect(page.getByTestId('exercise')).toHaveAttribute('data-ready', 'true', {
+      timeout: 30_000,
+    });
+    await page.getByTestId('exercise-hint-button').click();
+    await expect(page.getByTestId('exercise-hint')).toBeVisible();
+  });
+});

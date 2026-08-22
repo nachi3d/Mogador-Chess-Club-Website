@@ -358,6 +358,7 @@ unavoidable, do it in Node (`readFileSync(p, 'utf8')` → `writeFileSync(p, s,
 73. **The overbooking margin is a FEATURE, and it will look like a bug.** Capacity 12 + margin 2 accepts **fourteen** bookings. Cancellations are frequent and the venue absorbs the overflow, so nobody is turned away. Seàn's decision — do not "fix" it.
 74. **The database returns a CODE, never a sentence.** Member surfaces are FR/EN and a French string from Postgres cannot be rendered in English. `src/i18n/ui.ts` owns both wordings, keyed by code; an unknown code renders the generic refusal and **never a silent no-op**.
 75. **The baked agenda never claims a remaining count.** Capacity and margin are baked and fingerprinted; the live booking count is not baked at all, because a booking fires no rebuild and a baked count would mark the deployed agenda stale forever. A signed-in member reads the live number; a signed-out one sees capacity and makes **zero requests**.
+76. **No control inside a hydrating island may look usable before it is, and `scripts/check-island-controls.mjs` PROVES it against `dist/`.** Astro server-renders every island, so a control in one is markup with no handler until its chunk lands — a press does nothing at all. Every `<button>`, `<input>`, `<select>` and `<textarea>` inside an `<astro-island>` ships `disabled` (directly or via a disabled `<fieldset>`) and is enabled when the island reports `data-ready`. ⚠️ **This rule existed in prose for a release and was being broken on 132 pages the whole time** — see the section below.
 
 ---
 
@@ -517,11 +518,57 @@ sent anywhere. The rules that bind other work:
   graph. `tests/e2e/play.spec.ts` asserts it against the network log.
 - ⚠️ **Stockfish is NEVER precached** (Critical Feature 6). `globIgnores` keeps it
   out; a runtime `CacheFirst` rule caches it after the first game.
-- ⚠️ **The level presets are MEASURED, not reasoned.** `Skill Level` alone cannot
-  make a beatable opponent — every Stockfish search ends in a quiescence search,
-  so no `(skill, depth)` pair will ever hang a piece. Weakness comes from
-  `blunderChance`, and **0.4 is a ceiling, not a dial to turn up**. Re-measure
-  with `scripts/engine-lab`; do not re-reason.
+- ⚠️ **The level presets are MEASURED, not reasoned.** Current, and every number
+  here is an output of `scripts/engine-lab`, **60 games per pairing**, colours
+  alternating:
+
+  | | skill | depth | movetime | blunder | vs `greedy` | vs `novice` |
+  |---|---|---|---|---|---|---|
+  | Débutant | 0 | 1 | 50ms | **0.4** | 66% | **18%** |
+  | Intermédiaire | 3 | 4 | 500ms | **0.20** | 97% | **66%** |
+  | Avancé | **20** | 12 | 1500ms | **0** | 100% | **100%** |
+
+  Ladder, head to head, 60 games: **Avancé 100% over Intermédiaire, Intermédiaire
+  95% over Débutant, Avancé 100% over Débutant.** Strictly ordered is the
+  property that matters — the bots saturate at the top, so this is what proves it.
+
+- ⚠️⚠️ **WHAT EACH LEVEL IS FOR, WHICH A WIN RATE CANNOT TELL YOU — READ THIS
+  BEFORE RE-TUNING ONE.** A number with no target behind it gets moved by
+  whoever last found the engine annoying.
+  - **Intermédiaire is the level with a stated target: a student who has
+    finished course 3 and plays accurately should win about ONE GAME IN THREE.**
+    Not one in ten — a wall teaches nothing. Not one in two — that is not a step
+    up from Débutant. `novice` (a 2-ply material bot that takes what is free and
+    will not hang a piece to a single capture) is the stand-in for that student,
+    so the target is **`novice` scoring ~33%**, and 0.20 hits it at **34%**.
+    ⚠️ **0.15 was measured and rejected at the target, not at the win rate** —
+    it scores 80%, leaving the student one game in five.
+  - **Avancé's job is to PUNISH REAL MISTAKES, not to make its own.** It is not
+    meant to be beatable by an accurate club player, and 100% against both bots
+    is the intended reading, not a tuning failure.
+  - **Débutant is the one that may look absurd, and it is correct.** It loses to
+    `novice` — it plays a random legal move 40% of the time, which is what a
+    beginner needs to be able to win against.
+
+- ⚠️ **THE TWO LEVERS ARE DIFFERENT AND ARE NOT INTERCHANGEABLE. Getting this
+  wrong is what sent a retune looking in the wrong place.**
+  - **`blunderChance` makes a level WEAK.** It plays a random legal move that
+    often. `Skill Level` alone cannot: every Stockfish search ends in a
+    quiescence search, so no `(skill, depth)` pair will ever hang a piece.
+    **0.4 is a ceiling, not a dial to turn up** — at 0.5 the games stop
+    resembling chess.
+  - ⚠️ **`skill` below 20 makes a level INACCURATE, and that is a separate
+    fault.** Stockfish deliberately picks a worse root move, bounded by
+    `Skill Level Maximum Error` — **default 200 centipawns in this build**.
+    Measured as best-move agreement at matched depth; the table is in
+    [`docs/reference/engine.md`](./docs/reference/engine.md).
+  - **So a level that blunders wants `blunderChance` changed, and a level that
+    plays second-best moves wants `skill` changed.** Avancé's `blunderChance`
+    has always been 0 and a spec pins it there; its old mistakes were skill 14.
+
+  Re-measure with `scripts/engine-lab` — `--verify`, `--ladder --shipped`,
+  `--sweep` for a blunder rate and `--accuracy` for move quality. Do not
+  re-reason.
 - ⚠️ **The engine is just a `MoveProvider`** (`src/lib/chess/opponent.ts`) — a
   position goes in, a move comes out. That interface is the v2 online-play seam,
   and `PlayView` must talk to nothing else.
@@ -1012,13 +1059,6 @@ and always will be. Verified 2026-08-15 by probing the live site: `/connexion/`,
 switched off in production" and reasons from it will get every conclusion about
 the live site wrong — **ask the deployment, not the default.**
 
-✅ **PRODUCTION'S SCHEMA IS CURRENT THROUGH 0013**, verified against the catalog
-at the v0.18.0 gate: `bookings`, `sessions.capacity`, `overbook_margin`,
-`create_booking()` and both booking policies are present. v0.17.0's open item is
-**closed** — `trigger_count = 3` and `request_site_rebuild(text,integer)` exist.
-⚠️ **Re-ask rather than trusting this line** — it is a claim about the outside
-world and it expires.
-
 ⚠️ **ASK THE CATALOG, PER MIGRATION — NEVER `schema_migrations`**, which has
 already given the wrong answer in the dangerous direction. An anon-key probe sees
 **tables and columns and cannot see triggers or functions**, so it answers half
@@ -1035,14 +1075,15 @@ nothing. Nothing is deleted — v2-S3 sets the variable and the feature returns.
 
 - ⚠️ **`getStaticPaths()` returning `[]` is not enough on its own.** Astro
   collects a page's `<script>` blocks from the **module graph**, not from what
-  renders, so the first disabled build shipped 216 KB of unreachable Supabase and
-  precached it. The fix is an **alias** in `astro.config.mjs` cutting the graph at
+  renders. The fix is an **alias** in `astro.config.mjs` cutting the graph at
   the module.
 - ⚠️⚠️ **`import.meta.env.NAME`, NEVER `import.meta.env['NAME']`** (Critical
   Feature 19). Vite statically replaces dot access only; given a computed key it
-  emits **the whole env object**, anon key included. The build meant to prove
-  accounts were disabled contained the production JWT — the guarantee was false
-  while looking true, and only reading `dist/` showed it.
+  emits **the whole env object**, anon key included.
+
+**➡️ What each of those two shipped before it was caught, and the dated record
+of what production's schema holds:
+[`docs/reference/deployment.md`](./docs/reference/deployment.md).**
 
 ### v2 — the locked decisions
 
@@ -1384,8 +1425,33 @@ broken process. ⚠️ **Never pipe the test run into `tail`** — it reports ta
 exit code, so 14 failures read as "196 passed, exit 0". ⚠️ **A browser-crash row
 is a FINDING when it comes from `test:release`.**
 
-**➡️ The full symptom table and the diagnoses behind it:
-[`docs/reference/testing.md`](./docs/reference/testing.md).**
+#### ⚠️⚠️ AND THE CONVERSE IS ALSO TRUE: PASSING SERIALLY IS **NOT** A CLEAN BILL
+
+`play.spec.ts` flaked at **three consecutive gates**, passed every serial re-run,
+and was waved through all three times on the rule above. It was a **real defect
+in the application** the whole time.
+
+- ⚠️ **A HYDRATION RACE HAS EXACTLY THE SIGNATURE OF CONTENTION** — it needs load
+  to widen the window, it moves between tests, and it evaporates under
+  `--workers=1`. The serial re-run cannot distinguish the two, so it must not be
+  the last word.
+- ⚠️ **THE DISCRIMINATOR IS THE FAILURE ARTEFACT, NOT THE RE-RUN.**
+  `error-context.md` carries the page state; **read it before blaming the
+  machine.**
+- ⚠️ **AN ISLAND'S READINESS MUST BE OBSERVABLE, AND `data-ready` IS THE
+  CONVENTION** — every view carries it. A wait on server-rendered markup proves
+  the HTML arrived and **nothing about whether anything is listening**.
+- ⚠️ **A HELPER WAITS ON READINESS, NEVER ON A PROXY FOR IT**: `<cg-board>` is
+  created in `BoardSurface`'s effect, and `BoardSurface` is a **child**, so it
+  appears a render BEFORE the parent view publishes `data-ready`.
+- ⚠️ **AND A PROSE RULE THAT NOTHING CHECKS IS ALREADY BEING BROKEN SOMEWHERE.**
+  "No control inside a hydrating island may look usable before it is" was written
+  down one release before anything enforced it, and was false on **132 pages** at
+  the time. It is now Critical Feature 76 and `check-island-controls.mjs`.
+
+**➡️ The full symptom table, the three-gate diagnosis and the per-island audit:
+[`docs/reference/testing.md`](./docs/reference/testing.md) and
+[`docs/reference/board.md`](./docs/reference/board.md).**
 ### ⚠️ Driving a board from a spec — the four gates
 
 **Scroll it into view** (`block: 'center'`, never `scrollIntoViewIfNeeded`),
@@ -1492,130 +1558,71 @@ catch. An explicit `PUBLIC_AUTH_ENABLED` in the environment still wins.
 SERVES.** It ends with a two-minute accounts-OFF sliver, which is not a second
 matrix — see below.
 
-#### ⚠️⚠️ THE GATE WAS 4.8 HOURS AND IS NOW ~22 MINUTES
+#### ⚠️ THE GATE IS CHROMIUM OVER EVERYTHING, PLUS FOUR LANES
 
-It used to be **five projects × every spec × both flag shapes** — ~6,700 test
-executions, **measured at 115.6 min + 172.1 min = 4.8 hours**. Three
-measurements from the audit ended that, and they are recorded rather than
-recalled:
+Chromium is the **backbone** — it runs the whole suite and proves every spec
+once. The other four projects are **lanes**: a named subset each, defined once
+in `scripts/lanes.mjs`, which `playwright.config.ts` turns into `testMatch` and
+`scripts/check-lanes.mjs` reads. **Never a second copy.**
 
-- ⚠️ **29 of the 41 spec files ran IDENTICALLY in both flag shapes**, proved by
-  run/skip status rather than inferred. The second matrix re-ran ~3,000 tests
-  that **could not answer anything new**.
-- ⚠️ **Four spec files never open a browser at all** — `booking`,
-  `child-profiles`, `engine-levels`, `role-separation` take no `page` fixture.
-  They spawned **255 browser contexts per release** to run `rpc()` calls and
-  arithmetic.
-- ⚠️ **Chromium runs the WHOLE suite in 7.1 minutes** — 42 spec files, 726
-  passed, 20 skipped — and proves every one of them once.
-
-**So chromium became the backbone and the other four projects became LANES.**
-
-#### ⚠️ THE LANES ARE PINNED TO THE ENGINE THAT CAUGHT A REAL DEFECT
-
-`scripts/lanes.mjs` is the **one** definition — `playwright.config.ts` turns it
-into `testMatch` and `scripts/check-lanes.mjs` reads it. Never a second copy.
-
-| lane | earned by |
-|---|---|
-| **webkit** | the **"Créer" click-synthesis bug** (`956b05a`, one release before this): a `change` handler rewrote the submit button between mousedown and mouseup and WebKit declined to synthesise the click. Silent on Safari and every iPhone; invisible in Blink and Gecko. |
-| **firefox** | the **agenda axe violation** Gecko's accessibility tree produced. |
-| **iphone-13** | the **tap-versus-bottom-bar collision**. |
-| **pixel-5** | the same touch surface on the other mobile engine. |
-
-⚠️ **A SPEC JOINS A LANE FOR A NAMED REASON, NEVER "TO BE SAFE."** The default
-is chromium-only, so a new spec costs one run until somebody argues otherwise.
-Write the reason beside it in `lanes.mjs`.
-
-⚠️ **THE COST IS NOT ALLOWED TO DRIFT BACK.** Measured green end to end at
-**21.9 min, 1,277 passed, 0 failed** — on a machine whose troughs were **0.51 to
-2.03 GB free**, i.e. deep in the starvation regime §9a describes, so this is the
-BAD case rather than the good one.
+- ⚠️ **A SPEC JOINS A LANE FOR A NAMED REASON, NEVER "TO BE SAFE."** The default
+  is chromium-only, so a new spec costs one run until somebody argues otherwise.
+  Write the reason beside it in `lanes.mjs`.
+- ⚠️ **THE COST IS NOT ALLOWED TO DRIFT BACK.** ~22 min is the measured figure,
+  and it replaced a **4.8-hour** gate. Re-measure before re-arguing; the numbers
+  are recorded rather than recalled.
+- ⚠️ **THE MATRIX RUNS ONE PROJECT AT A TIME, AT THREE WORKERS.** `--workers=3`
+  **is not a tuning knob**, and ⚠️ **DO NOT "FIX" A RED MATRIX BY RAISING
+  TIMEOUTS** — tried, and the failure count went **up**. The red gates were
+  **memory exhaustion**, not browser bugs and not test bugs.
+- ⚠️ **A TROUGH UNDER ~2 GB MEANS THE BROWSER WAS STARVED** — bare timeouts
+  naming no value. Quiet the machine first
+  (**[`docs/SETUP-NEW-MACHINE.md`](./docs/SETUP-NEW-MACHINE.md) §9a**).
+- ⚠️ **A GATE THAT IS EXPECTED TO BE RED IS WORTH NOTHING** — a red matrix is a
+  finding to chase, never a known flake to wave through.
+- ⚠️ **EVERY RUN KEEPS ITS OWN LOG** — `gate-logs/matrix-<shape>-<stamp>.log`,
+  the shape in the NAME, and **never under `node_modules/`**, which `npm ci`
+  deletes outright.
 
 #### ⚠️ THE ACCOUNTS-OFF SLIVER IS NOT A SECOND MATRIX
 
 Exactly two specs can only be proved by an accounts-**OFF build**, because they
-are claims about the **artefact** that shape produces: `auth-disabled.spec.ts`
-(Critical Feature 18 — no route emitted, no Supabase ref, host or anon key
-anywhere in the bundle) and `admin.spec.ts`'s *"the admin surfaces are NOT
-BUILT"* describe.
-
-⚠️ **THE SECOND BUILD IS IRREDUCIBLE — you cannot inspect an artefact you did
-not produce** — and it is the whole cost: the tests themselves take seconds, on
-chromium alone, because neither is engine-sensitive. `test-release.mjs` runs it
-last, **after a sweep**, because the ON preview server is still listening and
-`reuseExistingServer` would otherwise run the OFF specs against the ON build.
+are claims about the **artefact** that shape produces — `auth-disabled.spec.ts`
+and `admin.spec.ts`'s *"the admin surfaces are NOT BUILT"* describe. The second
+build is **irreducible**: you cannot inspect an artefact you did not produce.
+It runs last, **after a sweep**, or `reuseExistingServer` would run the OFF
+specs against the ON build.
 
 ⚠️ **IF THE SLIVER RUNS ZERO TESTS THE GATE FAILS**, naming Critical Feature 18.
-A gate that quietly stops proving the flag still works is the failure this whole
-change could most easily have introduced.
 
 #### ⚠️ `check-lanes.mjs` ADVISES AND MUST NEVER GATE
 
-It scores each spec for signals a different engine could answer differently and
-reports the chromium-only ones. ⚠️ **It always exits 0, and promoting it to a
-build step would be actively harmful** — `recurring-sessions.spec.ts` **scores
-zero** and is the spec that caught the Créer bug, because the heuristic sees
-what a spec *asserts* and that defect lived in how it *drives* the page. A green
-tick would read as "the lanes are complete".
+It always exits 0, and promoting it to a build step would be **actively
+harmful**: the spec that caught the WebKit "Créer" bug **scores zero**, because
+the heuristic sees what a spec *asserts* and that defect lived in how it
+*drives* the page. A green tick would read as "the lanes are complete".
 
-⚠️ **What DOES gate is `missingLaneSpecs()`**, before a browser starts: a lane
-naming a spec that does not exist makes `testMatch` match **nothing**, so the
-project runs zero tests and the gate goes green having proved less than it
-claims. A fact about the filesystem, checked exactly, and it refuses.
+⚠️ **What DOES gate is `missingLaneSpecs()`** — a lane naming a spec that does
+not exist makes `testMatch` match **nothing**, so the project runs zero tests
+and the gate goes green having proved less than it claims.
 
-**➡️ The full audit — the per-spec costs, the flag-shape table, the four
-browserless specs and why the heuristic's blind spot cannot be tuned away:
-[`docs/reference/testing.md`](./docs/reference/testing.md).**
-
-#### ⚠️ THE MATRIX RUNS ONE PROJECT AT A TIME, UNDER A WORKER CAP
-
-`test:release` runs each project on its own, sequentially, at **three** workers.
-That is slower than one pooled run and it is the reason the gate is green: the
-red gates were **memory exhaustion**, not browser bugs and not test bugs.
-
-⚠️ **`--workers=3` IS NOT A TUNING KNOB**, and ⚠️ **DO NOT "FIX" A RED MATRIX BY
-RAISING TIMEOUTS** — tried, and the failure count went **up**. ⚠️ **A TROUGH
-UNDER ~2 GB MEANS THE BROWSER WAS STARVED**, and the failures will be bare
-timeouts naming no value; quiet the machine first
-(**[`docs/SETUP-NEW-MACHINE.md`](./docs/SETUP-NEW-MACHINE.md) §9a** measures what
-to close). ⚠️ **A GATE THAT IS EXPECTED TO BE RED IS WORTH NOTHING** — a red
-matrix is a finding to chase, never a known flake to wave through. It also
-**proves every project actually ran** — under the lanes that is "nobody ran ZERO
-  and chromium is never the smaller run", because a mistyped lane matches nothing.
-
-⚠️ **EVERY RUN KEEPS ITS OWN LOG** — `matrix-<shape>-<stamp>.log`, never a shared
-`matrix.log`. The shape is in the NAME because the gate ran twice per release
-until the gate audit, and the second run used to erase the first's evidence; it still
-names the shape, because a log that cannot say which build it tested is not
-evidence. ⚠️ **AND THEY LIVE IN `gate-logs/`, NEVER UNDER `node_modules/`**,
-which `npm ci` deletes outright — that cost a ~4.8-hour re-run of both shapes
-once, which is also the run that produced the numbers behind the lanes.
-
-⚠️ **The alternatives were MEASURED** — `scripts/test-release.mjs` →
-MEASUREMENTS. Re-measure before re-arguing.
 #### ⚠️ DO NOT RUN THE MATRIX ON A FEATURE BRANCH. EVER. NOT "TO BE SAFE".
 
-The reasoning is already done, so it is not re-litigated. The matrix answers
-exactly one question — does this work in Firefox and WebKit — and asking it every
-session does not make the answer truer, it just moves the cost from one run per
-release to one per session. **A chromium failure is a failure; a chromium pass is
-enough to merge to `dev`**, and nothing reaches a reader without passing
-`test:release` first.
+The reasoning is already done, so it is not re-litigated. **A chromium failure
+is a failure; a chromium pass is enough to merge to `dev`**, and nothing reaches
+a reader without passing `test:release` first.
 
-#### ⚠️ THE "CRITICAL PATH" TRIGGER IS GONE
-
-The old policy forced the matrix on any branch touching the board island, the
-exercise validator, i18n routing or the service worker. It read as prudence and
-**functioned as a loophole** — almost everything here touches one of those four.
-`scripts/spec-map.mjs` gained precision instead.
-
+⚠️ **THE "CRITICAL PATH" TRIGGER IS GONE** — forcing the matrix on any branch
+touching the board island, the validator, i18n routing or the SW read as
+prudence and **functioned as a loophole**, because almost everything here
+touches one of those four. `scripts/spec-map.mjs` gained precision instead.
 **If you believe you have found the exception:** change this policy in CLAUDE.md
-in the same commit, with the reason. Do not make a one-off exception no future
-session will know about — that is precisely how the last policy eroded.
+in the same commit, with the reason — a one-off exception no future session
+knows about is precisely how the last policy eroded.
 
-**➡️ The measured memory numbers, the four-red-gate diagnosis, the per-session
-cost the removal bought back and the rejected alternatives:
+**➡️ The audit behind every number above — the per-spec costs, the flag-shape
+table, the four browserless specs, what each lane was EARNED by, the
+four-red-gate memory diagnosis and the rejected alternatives:
 [`docs/reference/testing.md`](./docs/reference/testing.md).**
 ### Critical-path tests (never skip)
 

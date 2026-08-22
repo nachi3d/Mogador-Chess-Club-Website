@@ -11,7 +11,280 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
-_Nothing yet._
+## [0.20.0] — 2026-08-22
+
+**The release in one line:** the engine plays at the strength each level was
+*meant* to have, and no board control lies about being ready.
+
+- **Engine retuned.** Intermédiaire `blunderChance` **0.25 → 0.20**; Avancé
+  `Skill Level` **14 → 20**. ⚠️ **The real fault at Avancé was not blundering
+  at all** — its `blunderChance` was already 0 and a spec pins it there. It was
+  `Skill Level`'s **deliberate root-move error**, bounded by `Skill Level
+  Maximum Error` (200 cp in this build): at skill 14 it agreed with a
+  depth-matched reference only **46%** of the time. Two different levers, two
+  different faults; conflating them is what sent the previous look in the wrong
+  direction.
+- **560 pre-hydration controls fixed across 132 pages**, and the rule that was
+  already written down is now **enforced at build time** — Critical Feature 76,
+  `scripts/check-island-controls.mjs`.
+- **The `/jouer/` start-button race diagnosed and regression-tested** after
+  three gates of being written off as machine contention.
+
+### Verification
+
+**`PUBLIC_AUTH_ENABLED=true npm run test:release` — 2026-08-22 13:14, green:
+1,277 passed, 0 failed, 4 flaky, 32.5 min.** Gated on the promoted tree itself,
+not on transferred evidence.
+
+| project | result | trough |
+|---|---|---|
+| chromium | 737 passed, 21 skipped | **1.98 GB** |
+| firefox | 144 passed, 1 flaky | **1.58 GB** |
+| webkit | 157 passed, 3 flaky, 4 skipped | 3.38 GB |
+| pixel-5 | 102 passed | 3.19 GB |
+| iphone-13 | 116 passed | 3.29 GB |
+| chromium (OFF) sliver | 21 passed, 32 run | — |
+
+- ⚠️ **THE SLIVER RAN 32 TESTS, NOT ZERO** — Critical Feature 18 is actually
+  proved, which is the item most easily missed.
+- ✅ **WEBKIT LAUNCHED AND RAN.** The Smart App Control block that forced
+  v0.18.0 onto transferred evidence has not returned, so the lane that caught
+  the "Créer" bug ran on this tree. ⚠️ **The backlog row stays open anyway** —
+  it is a claim about the host and it has reversed mid-session before.
+
+**The four flaky, and why they were chased rather than waved through.**
+`[firefox] agenda:30`, `[webkit] family:355`, `[webkit] onboarding:362`,
+`[webkit] recurring-sessions:419`. ⚠️ **The last is the "Créer"
+click-synthesis spec that earned the webkit lane** — and this release is
+entirely about controls that look live and do not work, which is far too close
+to accept on a retry.
+
+- **Re-run at `--workers=3`** — the same fan-out as the gate, which the backlog
+  names as the discriminator between a concurrency-sensitive defect and a
+  one-off, and a stronger check than a serial pass. **28 passed**, including
+  `recurring-sessions:419` (9.5s), `family:355` (8.7s), `onboarding:362`
+  (18.6s).
+- **And a structural no-path argument, which is what the re-run alone cannot
+  give.** This release changed board-island files only; `/agenda/` contains
+  **zero** `<astro-island>` elements and the account surfaces carry no board.
+  ⚠️ **That is the difference from the `play.spec.ts` case** — there the flakes
+  were inside the very island being changed, and the serial pass was wrong.
+  Here there is no path from the diff to any of the four.
+- **Environment corroborates:** the run took **32.5 min against a 21.9 min
+  baseline** (48% over) with chromium and firefox troughs **under 2 GB**, i.e.
+  inside the starvation regime. ⚠️ **It does not explain webkit**, whose trough
+  was 3.38 GB — which is why the re-run was done rather than assumed.
+
+**`verify:deploy` will discriminate this release, and that is proved, not
+assumed.** The live v0.19.0 tree serves
+`<button type="button" class="mcc-exercise-button" data-testid="exercise-hint-button">`;
+this tree serves the same button carrying `disabled`. It sits inside
+`/exercices/mat-du-couloir/`, one of `verify:deploy`'s own three compared
+documents — so the marker is **proved absent from the old tree** and the check
+is not blind, for the first time in three releases.
+
+**No migrations.** `git diff main HEAD -- supabase/` is empty, so nothing had to
+reach production before the deploy.
+
+### Changed
+
+- **CLAUDE.md split — 124,481 → 119,510 characters (83% → 80% of the guard).**
+  Three blocks moved **verbatim** into existing reference files, each with a
+  **Read when** line and a note saying it was moved rather than reworded:
+  - the **gate audit** — the 4.8-hours-to-22-minutes measurements, what each
+    lane was *earned by*, the accounts-OFF sliver's irreducibility, the
+    `check-lanes.mjs` blind spot and the memory diagnosis → `testing.md`
+    (7,065 chars). The rules stayed: chromium is the backbone, a spec joins a
+    lane for a named reason, `--workers=3` is not a tuning knob, a zero-test
+    sliver fails the gate, `check-lanes` never gates, and never run the matrix
+    on a feature branch.
+  - the **three-gate hydration-race diagnosis** → `testing.md` (2,837 chars).
+    The rules stayed, now as a short list: a hydration race has the signature of
+    contention, the artefact is the discriminator, `data-ready` is the
+    convention, and a helper waits on readiness rather than a proxy for it.
+  - the **dated "production's schema is current through 0013" paragraph** and
+    the two accounts-OFF build-leak incidents → `deployment.md`. ⚠️ A claim
+    about the outside world that **expires** is exactly what should not sit in a
+    file loaded into every session.
+- ⚠️ **`node scripts/check-split.mjs` passes: 1,345 lines stayed, 136 moved,
+  nothing missing.** Run against a copy of the pre-split file, as the ceremony
+  requires.
+- ⚠️ **NOTHING WAS DECLARED OBSOLETE, and that is written into
+  `.split-obsolete.txt` rather than left as an absent section** — "no entries"
+  and "nobody checked" look identical from the outside. Every block was moved
+  verbatim, so no licence to lose a line was needed.
+
+### Notes
+
+- ⚠️ **THE STRUCTURAL QUESTION THE BACKLOG RESERVED FOR SEÀN IS STILL OPEN, AND
+  IT IS WHY THIS LANDED AT 80% RATHER THAN 60%.** What remains is index-shaped:
+  the two largest blocks are **Critical Features (14,877)** and the **routes
+  table (4,860)**, and both are things a session breaks *without going looking*,
+  which is the test for staying. Everything narrative that had a home has now
+  been moved. ⚠️ **A further reduction would be a TRIM, which the rule forbids**
+  — so the next move is the structural one: does the Critical Features list
+  become a linked file carrying only its headlines inline, accepting that a rule
+  one click away is a rule some sessions will not read? **Do not answer it by
+  shaving prose.**
+- At the current rate this buys roughly two or three sessions before it warns
+  again. It is a reprieve, not a fix.
+
+### Fixed
+
+- **Every board island shipped controls that looked live and did nothing until
+  it hydrated — 560 of them, on 132 pages.** Astro server-renders an island, so
+  a control inside one is markup with its handler attached to nothing until the
+  chunk lands; a press in that window does nothing at all — no action, no
+  error, no acknowledgement. `client:visible` puts the window exactly where a
+  reader arrives, because hydration is not requested until the board scrolls
+  into view.
+  - **The replayer was the worst of it.** The launch button, "coup suivant",
+    "position finale" and **every move-list button** — sixteen inert controls
+    on every trap page and every lesson page. ⚠️ **The launch button is the one
+    that stings**: `replayer.css` records that it exists *because* four small
+    glyph buttons did not read as pressable and the site's own author reached
+    for the pieces instead. It was built to attract the eye and be pressed
+    first, which made it the control most likely to be pressed while dead.
+  - **The exercise hint button**, which a student presses precisely when they
+    are stuck — the moment a silent non-response reads as "I am not even
+    allowed to ask". `MoveInput` was already guarded and stays that way.
+  - `ReplayView` gains `data-ready` (it had **no** readiness signal at all) and
+    disables every control until it is true; `ExerciseView`'s hint button hangs
+    off the `engine` flag it already publishes as `data-ready`, so the island
+    keeps one meaning of ready.
+  - ⚠️ **"start" and "prev" were already disabled and were still wrong.** They
+    were disabled because `atStart` happens to be true on arrival — a fact
+    about cursor state, not readiness. Both now carry `atStart || !hydrated`: a
+    guard that is accidentally correct evaporates the first time the
+    surrounding state changes.
+
+### Added
+
+- **`scripts/check-island-controls.mjs`, a build step** — every `<button>`,
+  `<input>`, `<select>` and `<textarea>` inside an `<astro-island>` must ship
+  `disabled`, directly or via a disabled `<fieldset>`. It reads `dist/`, not the
+  source, because the defect exists only in the artefact.
+  - ⚠️ **It was watched to FAIL first** — 560 controls across 132 pages — then
+    pass. A check that has never been seen red is a green tick that proves
+    nothing (the `check-lanes.mjs` trap).
+  - Now **Critical Feature 76**.
+- **Regression tests for both islands**, in `replayer.spec.ts` and
+  `exercise.spec.ts`, on the pattern `play.spec.ts` established: hold the island
+  chunk back 3s with `page.route` to force the window open, assert every control
+  disabled and `data-ready="false"`, then assert it works once ready. All three
+  new "before hydration" tests were watched to fail against the un-fixed
+  components (`Expected: disabled / Received: enabled`).
+
+### Changed
+
+- **`openReplayer` and `readyBoards` now wait on `data-ready`, not on
+  `<cg-board>` alone.** ⚠️ `BoardSurface` is a **child**, and child effects run
+  first, so the board element appears a render BEFORE the parent view publishes
+  readiness. Waiting on the board proved the child had mounted and nothing about
+  the parent.
+
+### Notes
+
+- ⚠️ **THE RULE ALREADY EXISTED IN PROSE AND WAS BEING BROKEN THE WHOLE TIME.**
+  "No control inside a hydrating island may look usable before it is" was
+  written into CLAUDE.md one release ago, when `/jouer/`'s start button was
+  fixed. It was applied to that one control — the one a flaking test happened to
+  point at — and to nothing else, and no test anywhere went red. That is the
+  argument for the build step rather than a longer paragraph.
+- ⚠️ **NO TEST WAS FAILING, AND NONE COULD HAVE BEEN.** Every spec waits for
+  something a reader does not have — `<cg-board>`, `data-ready`, an
+  actionability check. The suite is structurally blind to a control that is
+  inert only before those waits resolve. Two of the three instances were found
+  by accident; this one was found by reading `dist/` on purpose.
+- **`useMoveSource.ts` is clear.** The backlog row that sent three gates looking
+  at focus modality has been rewritten: its `play.spec.ts` half is closed with
+  the real cause (the hydration race), and the webkit `touch-focus.spec.ts:230`
+  half stays open with what is actually known. That half is **not** explained by
+  this fix — it drives the exercise island, whose move field and board were
+  already correctly guarded.
+- ⚠️ **CLAUDE.md is at 83% of the size guard** (124 k / 150 k). Still warning;
+  still the wrong branch to split it on.
+
+### Fixed
+
+- **`/jouer/`: the start button was live-looking and inert until the island
+  hydrated, and a press in that window was swallowed in silence.** No start, no
+  error, no acknowledgement — the reader is simply ignored. The setup form is
+  server-rendered and the island is `client:visible`, so the window is between
+  "the form is readable" and "the form works", and it widens on a slow
+  connection. `PlayView` now exposes `data-ready` (the same convention as the
+  exercise board) and disables the button until it is true.
+- **The colour and level radios were the half nearly missed.** Disabling only
+  the button leaves the choices live, and a colour picked before hydration is
+  discarded when Preact attaches — the control snaps back to "Les blancs" under
+  the reader's hand. Visible rather than silent, so milder, but a form is
+  either working or it is not. Both fieldsets are now disabled until ready.
+- ⚠️ **This is what `play.spec.ts` had been flaking on for THREE CONSECUTIVE
+  GATES**, and it was written off as machine contention all three times. It was
+  a real application defect throughout.
+
+### Changed
+
+- **Engine levels retuned — Intermédiaire and Avancé.** Seàn reported mistakes
+  at both that should not happen there. Débutant is correctly calibrated and
+  does not move.
+  - **Intermédiaire: `blunderChance` 0.25 → 0.20.** At 0.25 it scored **48%**
+    against `novice` — losing more than half to a bot whose only virtue is not
+    hanging pieces.
+  - **Avancé: `Skill Level` 14 → 20.** ⚠️ **Its `blunderChance` was already 0
+    and a spec pins it there**, so the brief could not have been describing the
+    blunder path at all. The fault was `Skill Level 14`: Stockfish picks a
+    deliberately worse root move bounded by `Skill Level Maximum Error`,
+    default 200 centipawns. Best-move agreement against a depth-**matched**
+    reference: skill 14 agreed **46%**, returning 3 different moves in nearly
+    every position; only skill 20 is effectively deterministic.
+- **Measured, 60 games per pairing, colours alternating** — Débutant 66% /
+  **18%**, Intermédiaire 97% / **66%**, Avancé 100% / **100%** against
+  `greedy` / `novice`. Ladder: Avancé **100%** over Intermédiaire,
+  Intermédiaire **95%** over Débutant. Strictly ordered, which is the property
+  that matters.
+- ⚠️ **0.15 was measured and rejected, on the level's PURPOSE rather than its
+  win rate.** It scores 80%, leaving a student one game in five. Intermédiaire
+  is meant to be winnable **one game in three** by someone who has finished
+  course 3 and plays accurately — `novice` is the stand-in for that student and
+  0.20 gives it **34%**. That target is now written next to the numbers in
+  CLAUDE.md, so the next person tuning this knows what the level is *for*.
+
+### Added
+
+- `scripts/engine-lab --accuracy` — best-move agreement against a
+  depth-matched reference, which is what separated Avancé's *inaccuracy* from
+  Débutant's *weakness*. ⚠️ Its first run was confounded (reference at depth 16
+  vs candidates at depth 12) and was thrown away rather than reported.
+
+### Fixed
+
+- Documentation, `docs/reference/engine.md`: the preset table held the
+  **pre-retune** figures. Replaced rather than appended, per the brief.
+
+### Notes
+
+- ⚠️ **40 games cannot separate neighbouring rates.** Two 40-game samples of
+  the *same* configuration came out **76% and 86%** — the engine keeps its hash
+  between games and searches are movetime-bounded, so runs are not
+  reproducible. Tuning was redone at 120 games; the shipped 66% replicated at
+  both 60 and 120, which is why it is trusted.
+- ⚠️ **CLAUDE.md is at 81% of the size guard** (121 k / 150 k) and warning
+  again. Not split in this session — an engine branch is the wrong place for
+  it. Flagged rather than trimmed.
+- ⚠️ **"Passing serially" is no longer accepted as proof that a flake is
+  environmental**, and CLAUDE.md now says so. A hydration race needs load to
+  widen its window and evaporates under `--workers=1`, which is exactly the
+  signature the old rule read as contention. **The discriminator is the failure
+  artefact** — `error-context.md` named the cause at every one of the three
+  gates that waved it through.
+- ⚠️ **The exercise and replay islands were NOT audited** for the same defect.
+  They are the same shape — server-rendered controls inside a `client:visible`
+  island. Assume it until measured.
+- The regression test **throttles the island chunk on purpose** (`page.route`,
+  4 s). At its natural rate the defect reproduced once in sixty runs, which is
+  not something a suite can hold; forced open it fails 100% of the time, and it
+  was watched to fail against the un-fixed component first.
 
 ---
 
@@ -5851,7 +6124,8 @@ Foundation only: no real content, no interactive board yet.
   `url()` references unresolved and the fonts silently 404 into a Georgia
   fallback. `scripts/build-fonts.mjs` self-hosts them instead. See CLAUDE.md.
 
-[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.19.0...HEAD
+[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.20.0...HEAD
+[0.20.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.16.0...v0.17.0

@@ -20,6 +20,16 @@ async function readyBoards(page: Page, path: string) {
     await boards.nth(i).scrollIntoViewIfNeeded();
     await boards.nth(i).locator('cg-board').waitFor({ timeout: 20_000 });
   }
+  /* `<cg-board>` proves the CHILD mounted; the views publish their own
+     readiness a render later, and their controls are disabled until then.
+     Wait on whichever signals this page has — see the note in
+     `replayer.spec.ts`'s `openReplayer`. */
+  for (const view of ['replayer', 'exercise'] as const) {
+    const island = page.getByTestId(view);
+    for (let i = 0, n2 = await island.count(); i < n2; i++) {
+      await expect(island.nth(i)).toHaveAttribute('data-ready', 'true', { timeout: 20_000 });
+    }
+  }
   return boards;
 }
 

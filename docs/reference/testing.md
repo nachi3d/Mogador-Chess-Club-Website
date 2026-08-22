@@ -795,6 +795,102 @@ touching application code.**
 with an assertion naming a value.** WebKit and Firefox carry one local retry;
 chromium has none. A run reporting `N passed, 1 flaky` on WebKit is green.
 
+### ⚠️⚠️ THE HYDRATION RACE — WHERE THAT RULE FAILED, THREE GATES RUNNING (2026-08-21)
+
+The rule above is a filter for false positives. **It has no power against a race
+that load merely WIDENS**, and this is the case that proved it.
+
+**The symptom.** `play.spec.ts` reported one flaky test at each of three
+consecutive gates. A different test each time — `:307` legality across plies,
+`:153` typed focus, `:111` pointer focus — which is this project's own
+definition of non-deterministic. Every serial `--workers=1` re-run passed, once
+in **997 ms** against a 60 s timeout. It was written off as contention three
+times.
+
+⚠️ **THE "AREA" WAS A MIRAGE.** Two of the three failures were not in the
+behaviour their test names describe: they failed inside `startGame()`, at the
+shared wait for `data-phase="playing"`, before reaching any assertion of their
+own. Reading the test NAMES suggested a focus-modality problem in
+`useMoveSource.ts`; reading the STACKS said the tests had nothing in common but
+their helper.
+
+**What it actually was.** The setup form is server-rendered, and the island is
+`client:visible`. Between the HTML arriving and Preact attaching, the start
+button is markup with no handler. A click in that window does **nothing** — no
+start, no error, no acknowledgement.
+
+⚠️ **THE ONE LINE THAT SETTLED IT WAS IN THE ARTEFACT ALL ALONG.** The captured
+page state showed `data-phase="setup"` with the error alert **EMPTY**. The
+load-failure path cannot produce that: it sets `loadError` *before* returning to
+`setup`, and the alert renders text. Empty alert ⇒ `start()` never ran ⇒ the
+click was swallowed. `error-context.md` had said so at every gate.
+
+**Reproduction, and why the first two attempts found nothing.**
+
+| attempt | result | why |
+|---|---|---|
+| 15 rounds, one page reused | 0 failures | the island chunk is cached after round 1; the race needs a cold fetch |
+| 15 rounds, fresh context each | 0 failures | Playwright's own actionability wait (~tens of ms) usually covers a ~500 ms hydration |
+| `play.spec.ts --repeat-each=3` | **1 in 60** | the real thing, at its real rate — too rare to iterate against |
+| **island JS delayed 4 s via `page.route`** | **100%** | the window is forced open; the race becomes an ordinary assertion |
+
+⚠️ **FORCE THE WINDOW OPEN RATHER THAN CHASING THE RATE.** Throttling the chunk
+turned a 1-in-60 ghost into something that fails every time and can be watched
+to fail — which is also what made a regression test possible.
+
+**What the same experiment proved about the helper.** `openPlay()` waited for
+`data-phase="setup"`, which is in the SERVER's HTML — so it proves the document
+arrived and nothing more. With hydration delayed it returned with the island
+still un-hydrated and its click was swallowed too. ⚠️ **THE SEVENTEEN TESTS
+USING IT WERE NOT PROTECTED, ONLY LUCKIER** than the three that called
+`page.goto` directly: a scroll plus one locator round-trip bought a few tens of
+milliseconds, and that accident was the entire difference.
+
+**It is a READER's defect first.** With hydration late, a human pressing
+"Commencer la partie" is ignored, and nothing on screen changes. Only a fast
+local build hides it.
+
+**The fix, both halves.**
+
+- `PlayView` exposes `data-ready`, false until a mount effect sets it — the same
+  convention as the exercise board — and the start button and both radio
+  fieldsets are `disabled` until then. ⚠️ **The radios were the half nearly
+  missed**: disabling only the button leaves the choices live, and a colour
+  picked before hydration is discarded when Preact attaches, snapping back to
+  "Les blancs" under the reader's hand. Visible rather than silent, so milder —
+  but a form is either working or it is not.
+- `openPlay()` waits on `data-ready="true"`, and the three tests that skipped
+  it now use it.
+
+⚠️ **THE REGRESSION TEST THROTTLES THE CHUNK ON PURPOSE.** Without that the
+window is too narrow to observe, which is exactly how this survived three
+gates. It was watched to fail on the un-fixed component first (`Received: ""` —
+no such attribute).
+
+**The lesson, and it is the general one:** *passing serially is not a clean bill
+of health.* A hydration race, a resource race and machine contention share one
+signature. The re-run cannot separate them; **the artefact can**.
+
+⚠️ **NOT AUDITED: the exercise and replay islands.** They are the same shape —
+server-rendered controls inside a `client:visible` island — and were not checked
+in this session. Assume the defect until measured.
+
+> ⚠️ **MEASURED IN v0.20.0, AND THE ASSUMPTION WAS RIGHT: 560 CONTROLS ON 132
+> PAGES.** The replayer's launch button, its transport controls and every
+> move-list button on every trap and lesson, plus the exercise hint button. The
+> rule "no control inside a hydrating island may look usable before it is" was
+> already written down at the time — it had been applied to the one control a
+> flaking test happened to point at, and to nothing else. It is now **Critical
+> Feature 76** and a build step, `scripts/check-island-controls.mjs`, which
+> reads `dist/` and was watched to fail (560/132) before it was allowed to
+> pass. **➡️ The per-island audit:
+> [`board.md`](./board.md#️-island-readiness--the-per-island-audit-v0200).**
+>
+> ⚠️ **AND THE SECOND HALF OF THE LESSON: NO TEST WAS FAILING, AND NONE COULD.**
+> Every spec waits for something a reader does not have. The suite is
+> structurally blind to this class of defect, which is why enforcement is a
+> check against the artefact and not another spec.
+
 ⚠️ **THE TWO BROWSER-CRASH ROWS ARE NOW A FINDING WHEN THEY COME FROM
 `test:release`.** They belong to a raw `npx playwright test`, which still pools
 every project at the default fan-out. The matrix caps its workers and runs one
@@ -835,6 +931,13 @@ divides just as neatly as five of 80.
    genuine hydration signal. `[data-testid="replayer"]` is **not**: Astro
    server-renders it whether or not any JS ran.
 3. **Wait on `data-ready="true"` and `data-busy="false"`** before interacting.
+   ⚠️ **AND `<cg-board>` DOES NOT IMPLY `data-ready`, IN ANY VIEW.**
+   `BoardSurface` is a **child**, and child effects run first, so the board
+   element appears a render BEFORE the parent view publishes its readiness.
+   Since v0.20.0 every view's controls ship `disabled` until that attribute
+   flips (Critical Feature 76), so the gap is now observable rather than
+   theoretical: a spec that waits only on the board can read a control that is
+   still disabled. Wait on the declared signal, never on a proxy for it.
 4. **Tap, and press for a DURATION.** `click()` with no `delay` sends mousedown
    and mouseup in **one animation frame**, and Chessground does its drag
    bookkeeping in a `requestAnimationFrame` loop — measured **1/8 solved at 0ms
@@ -1380,3 +1483,205 @@ only witness is the global log.
 **The generalisation, for the next spec that reaches for a counter:** if an
 assertion reads a table that any other spec file may write, it is not isolated,
 and no `describe` option will make it so. Assert on a row you created.
+
+---
+
+## The gate, in full — the audit that made it ~22 minutes, and the lanes
+
+**Read when:** changing `scripts/test-release.mjs`, `scripts/lanes.mjs`,
+`scripts/check-lanes.mjs` or the worker cap; adding a spec to a lane; arguing
+that the matrix should run more often or differently; or diagnosing a red
+matrix.
+
+> ⚠️ Moved out of CLAUDE.md **verbatim** at the v0.20.0 split — nothing inside
+> this block was reworded. The binding RULES stayed behind, under
+> "⚠️ VERIFICATION POLICY"; what is here is the measurement and the incident
+> behind each of them. A phrase like "see below" may point at a neighbouring
+> section here or at the rule it belongs to in CLAUDE.md.
+
+#### ⚠️⚠️ THE GATE WAS 4.8 HOURS AND IS NOW ~22 MINUTES
+
+It used to be **five projects × every spec × both flag shapes** — ~6,700 test
+executions, **measured at 115.6 min + 172.1 min = 4.8 hours**. Three
+measurements from the audit ended that, and they are recorded rather than
+recalled:
+
+- ⚠️ **29 of the 41 spec files ran IDENTICALLY in both flag shapes**, proved by
+  run/skip status rather than inferred. The second matrix re-ran ~3,000 tests
+  that **could not answer anything new**.
+- ⚠️ **Four spec files never open a browser at all** — `booking`,
+  `child-profiles`, `engine-levels`, `role-separation` take no `page` fixture.
+  They spawned **255 browser contexts per release** to run `rpc()` calls and
+  arithmetic.
+- ⚠️ **Chromium runs the WHOLE suite in 7.1 minutes** — 42 spec files, 726
+  passed, 20 skipped — and proves every one of them once.
+
+**So chromium became the backbone and the other four projects became LANES.**
+
+#### ⚠️ THE LANES ARE PINNED TO THE ENGINE THAT CAUGHT A REAL DEFECT
+
+`scripts/lanes.mjs` is the **one** definition — `playwright.config.ts` turns it
+into `testMatch` and `scripts/check-lanes.mjs` reads it. Never a second copy.
+
+| lane | earned by |
+|---|---|
+| **webkit** | the **"Créer" click-synthesis bug** (`956b05a`, one release before this): a `change` handler rewrote the submit button between mousedown and mouseup and WebKit declined to synthesise the click. Silent on Safari and every iPhone; invisible in Blink and Gecko. |
+| **firefox** | the **agenda axe violation** Gecko's accessibility tree produced. |
+| **iphone-13** | the **tap-versus-bottom-bar collision**. |
+| **pixel-5** | the same touch surface on the other mobile engine. |
+
+⚠️ **A SPEC JOINS A LANE FOR A NAMED REASON, NEVER "TO BE SAFE."** The default
+is chromium-only, so a new spec costs one run until somebody argues otherwise.
+Write the reason beside it in `lanes.mjs`.
+
+⚠️ **THE COST IS NOT ALLOWED TO DRIFT BACK.** Measured green end to end at
+**21.9 min, 1,277 passed, 0 failed** — on a machine whose troughs were **0.51 to
+2.03 GB free**, i.e. deep in the starvation regime §9a describes, so this is the
+BAD case rather than the good one.
+
+#### ⚠️ THE ACCOUNTS-OFF SLIVER IS NOT A SECOND MATRIX
+
+Exactly two specs can only be proved by an accounts-**OFF build**, because they
+are claims about the **artefact** that shape produces: `auth-disabled.spec.ts`
+(Critical Feature 18 — no route emitted, no Supabase ref, host or anon key
+anywhere in the bundle) and `admin.spec.ts`'s *"the admin surfaces are NOT
+BUILT"* describe.
+
+⚠️ **THE SECOND BUILD IS IRREDUCIBLE — you cannot inspect an artefact you did
+not produce** — and it is the whole cost: the tests themselves take seconds, on
+chromium alone, because neither is engine-sensitive. `test-release.mjs` runs it
+last, **after a sweep**, because the ON preview server is still listening and
+`reuseExistingServer` would otherwise run the OFF specs against the ON build.
+
+⚠️ **IF THE SLIVER RUNS ZERO TESTS THE GATE FAILS**, naming Critical Feature 18.
+A gate that quietly stops proving the flag still works is the failure this whole
+change could most easily have introduced.
+
+#### ⚠️ `check-lanes.mjs` ADVISES AND MUST NEVER GATE
+
+It scores each spec for signals a different engine could answer differently and
+reports the chromium-only ones. ⚠️ **It always exits 0, and promoting it to a
+build step would be actively harmful** — `recurring-sessions.spec.ts` **scores
+zero** and is the spec that caught the Créer bug, because the heuristic sees
+what a spec *asserts* and that defect lived in how it *drives* the page. A green
+tick would read as "the lanes are complete".
+
+⚠️ **What DOES gate is `missingLaneSpecs()`**, before a browser starts: a lane
+naming a spec that does not exist makes `testMatch` match **nothing**, so the
+project runs zero tests and the gate goes green having proved less than it
+claims. A fact about the filesystem, checked exactly, and it refuses.
+
+**➡️ The full audit — the per-spec costs, the flag-shape table, the four
+browserless specs and why the heuristic's blind spot cannot be tuned away:
+[`docs/reference/testing.md`](./docs/reference/testing.md).**
+
+#### ⚠️ THE MATRIX RUNS ONE PROJECT AT A TIME, UNDER A WORKER CAP
+
+`test:release` runs each project on its own, sequentially, at **three** workers.
+That is slower than one pooled run and it is the reason the gate is green: the
+red gates were **memory exhaustion**, not browser bugs and not test bugs.
+
+⚠️ **`--workers=3` IS NOT A TUNING KNOB**, and ⚠️ **DO NOT "FIX" A RED MATRIX BY
+RAISING TIMEOUTS** — tried, and the failure count went **up**. ⚠️ **A TROUGH
+UNDER ~2 GB MEANS THE BROWSER WAS STARVED**, and the failures will be bare
+timeouts naming no value; quiet the machine first
+(**[`docs/SETUP-NEW-MACHINE.md`](./docs/SETUP-NEW-MACHINE.md) §9a** measures what
+to close). ⚠️ **A GATE THAT IS EXPECTED TO BE RED IS WORTH NOTHING** — a red
+matrix is a finding to chase, never a known flake to wave through. It also
+**proves every project actually ran** — under the lanes that is "nobody ran ZERO
+  and chromium is never the smaller run", because a mistyped lane matches nothing.
+
+⚠️ **EVERY RUN KEEPS ITS OWN LOG** — `matrix-<shape>-<stamp>.log`, never a shared
+`matrix.log`. The shape is in the NAME because the gate ran twice per release
+until the gate audit, and the second run used to erase the first's evidence; it still
+names the shape, because a log that cannot say which build it tested is not
+evidence. ⚠️ **AND THEY LIVE IN `gate-logs/`, NEVER UNDER `node_modules/`**,
+which `npm ci` deletes outright — that cost a ~4.8-hour re-run of both shapes
+once, which is also the run that produced the numbers behind the lanes.
+
+⚠️ **The alternatives were MEASURED** — `scripts/test-release.mjs` →
+MEASUREMENTS. Re-measure before re-arguing.
+#### ⚠️ DO NOT RUN THE MATRIX ON A FEATURE BRANCH. EVER. NOT "TO BE SAFE".
+
+The reasoning is already done, so it is not re-litigated. The matrix answers
+exactly one question — does this work in Firefox and WebKit — and asking it every
+session does not make the answer truer, it just moves the cost from one run per
+release to one per session. **A chromium failure is a failure; a chromium pass is
+enough to merge to `dev`**, and nothing reaches a reader without passing
+`test:release` first.
+
+#### ⚠️ THE "CRITICAL PATH" TRIGGER IS GONE
+
+The old policy forced the matrix on any branch touching the board island, the
+exercise validator, i18n routing or the service worker. It read as prudence and
+**functioned as a loophole** — almost everything here touches one of those four.
+`scripts/spec-map.mjs` gained precision instead.
+
+**If you believe you have found the exception:** change this policy in CLAUDE.md
+in the same commit, with the reason. Do not make a one-off exception no future
+session will know about — that is precisely how the last policy eroded.
+
+**➡️ The measured memory numbers, the four-red-gate diagnosis, the per-session
+cost the removal bought back and the rejected alternatives:
+[`docs/reference/testing.md`](./docs/reference/testing.md).**
+
+---
+
+## Passing serially is not a clean bill — the hydration-race diagnosis in full
+
+**Read when:** a spec flakes and the serial re-run passes; or before concluding
+that any intermittent failure is machine contention.
+
+> ⚠️ Moved out of CLAUDE.md **verbatim** at the v0.20.0 split — nothing inside
+> was reworded. The rules stayed behind under "⚠️ Symptoms that are the
+> ENVIRONMENT"; this is the incident and the measurement behind them.
+
+#### ⚠️⚠️ AND THE CONVERSE HAS NOW HAPPENED: PASSING SERIALLY IS **NOT** A CLEAN BILL
+
+`play.spec.ts` flaked at **three consecutive gates**, passed every serial
+re-run, and was waved through all three times on the rule above. It was a
+**real defect in the application** the whole time — a
+**server-rendered control that is live-looking and inert until its island
+hydrates**, so a click aimed at it did nothing at all.
+
+⚠️ **A HYDRATION RACE HAS EXACTLY THE SIGNATURE OF CONTENTION** — it needs load
+to widen the window, it moves between tests, and it evaporates under
+`--workers=1`. The serial re-run cannot distinguish the two, so it must not be
+the last word.
+
+⚠️ **THE DISCRIMINATOR IS THE FAILURE ARTEFACT, NOT THE RE-RUN.** `error-context.md`
+carries the page state; read it before blaming the machine. Here the error alert
+was **empty**, which the load-failure path cannot produce — that one line said
+"the handler never ran", and it was sitting in the artefact at every one of the
+three gates.
+
+⚠️ **AN ISLAND'S READINESS MUST BE OBSERVABLE, AND `data-ready` IS THE
+CONVENTION** — every view now carries it. A wait on server-rendered markup —
+`data-phase="setup"`, `[data-testid="replayer"]` — proves the HTML arrived and
+**nothing about whether anything is listening**. ⚠️ **A HELPER WAITS ON
+READINESS, NEVER ON A PROXY FOR IT**: `<cg-board>` is created in
+`BoardSurface`'s effect, and `BoardSurface` is a **child**, so it appears a
+render BEFORE the parent view publishes `data-ready`.
+
+### ⚠️⚠️ AND THE RULE ABOVE WAS TRUE, WRITTEN DOWN, AND BROKEN ON 132 PAGES
+
+"No control inside a hydrating island may look usable before it is" shipped as
+prose one release ago, having fixed exactly the one control that a flaking test
+happened to point at. The audit that followed measured the rest against `dist/`:
+⚠️ **560 controls on 132 pages** — the replayer's launch button, its transport
+controls and **every move-list button** on every trap and every lesson, plus the
+exercise **hint** button, the one a student presses precisely when stuck.
+
+⚠️ **NO TEST WAS FAILING, AND NONE COULD.** Every spec waits for something a
+reader does not have. This is a reader's defect that the suite is structurally
+blind to, and two of the three instances were found only by accident.
+
+⚠️ **SO IT IS NOW CRITICAL FEATURE 76 AND A BUILD STEP** —
+`scripts/check-island-controls.mjs`, run after `astro build`, which reads the
+artefact rather than the source. ⚠️ **It was watched to FAIL first** (560/132),
+then pass. A prose rule that nothing checks is a rule that is already being
+broken somewhere you have not looked.
+
+**➡️ The full symptom table and the diagnoses behind it:
+[`docs/reference/testing.md`](./docs/reference/testing.md). The per-island audit
+and what each view had to change: [`docs/reference/board.md`](./docs/reference/board.md).**

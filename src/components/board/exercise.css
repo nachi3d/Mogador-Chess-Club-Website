@@ -385,9 +385,19 @@
     border-color var(--motion-response) var(--ease-response);
 }
 
-.mcc-exercise-button:active {
+.mcc-exercise-button:active:not(:disabled) {
   transform: translateY(var(--motion-press-y));
   box-shadow: 0 0 0 var(--mcc-press-shadow);
+}
+
+/* Pre-hydration only, and in practice only the hint button — see its comment
+   in ExerciseView.tsx. Without the `:not(:disabled)` above, a press inside
+   the hydration window would animate the button downward and still do
+   nothing, which is worse than an unresponsive control: it ACKNOWLEDGES the
+   press and then ignores it. */
+.mcc-exercise-button:disabled {
+  opacity: 0.6;
+  cursor: progress;
 }
 
 
