@@ -11,6 +11,25 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+## [0.20.0] — 2026-08-22
+
+**The release in one line:** the engine plays at the strength each level was
+*meant* to have, and no board control lies about being ready.
+
+- **Engine retuned.** Intermédiaire `blunderChance` **0.25 → 0.20**; Avancé
+  `Skill Level` **14 → 20**. ⚠️ **The real fault at Avancé was not blundering
+  at all** — its `blunderChance` was already 0 and a spec pins it there. It was
+  `Skill Level`'s **deliberate root-move error**, bounded by `Skill Level
+  Maximum Error` (200 cp in this build): at skill 14 it agreed with a
+  depth-matched reference only **46%** of the time. Two different levers, two
+  different faults; conflating them is what sent the previous look in the wrong
+  direction.
+- **560 pre-hydration controls fixed across 132 pages**, and the rule that was
+  already written down is now **enforced at build time** — Critical Feature 76,
+  `scripts/check-island-controls.mjs`.
+- **The `/jouer/` start-button race diagnosed and regression-tested** after
+  three gates of being written off as machine contention.
+
 ### Changed
 
 - **CLAUDE.md split — 124,481 → 119,510 characters (83% → 80% of the guard).**
@@ -6049,7 +6068,8 @@ Foundation only: no real content, no interactive board yet.
   `url()` references unresolved and the fonts silently 404 into a Georgia
   fallback. `scripts/build-fonts.mjs` self-hosts them instead. See CLAUDE.md.
 
-[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.19.0...HEAD
+[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.20.0...HEAD
+[0.20.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.16.0...v0.17.0
