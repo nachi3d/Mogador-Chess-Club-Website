@@ -107,12 +107,49 @@ const origin =
  * is dropped. See the header for why the hash cannot be trusted across build
  * environments.
  */
+/**
+ * ⚠️ THE HOME PAGE'S NEXT-SESSION BLOCK, WHICH IS BUILD *INPUT* AND NOT TREE.
+ *
+ * `/` prints "Prochaine séance" from the baked agenda. A Cloudflare build reads
+ * the live `sessions` table; a local build cannot — `.env.local` never reaches
+ * `fetch-agenda.mjs` — so it bakes `agenda.fallback.json` instead. The two
+ * therefore disagree about a date and a time whenever the fallback has drifted
+ * from the table, which is most of the time.
+ *
+ * ⚠️ THAT MADE THIS CHECK FAIL ON EVERY CORRECT DEPLOY FROM THIS MACHINE, which
+ * is precisely the failure the header warns about one paragraph up: measured at
+ * the v0.20.0 deploy, where `/` reported "the live build is NOT this tree"
+ * while the other two documents matched byte-for-byte and every marker the
+ * release introduced was confirmed live by hand. **A check that cries wolf is a
+ * check somebody learns to skip**, and this is the one standing between us and
+ * shipping v0.13.0 again.
+ *
+ * ⚠️ WHAT IS DROPPED IS ONLY THE VALUE, NEVER THE STRUCTURE. The surrounding
+ * markup — the label, the classes, the venue span, the `<a>` around it — is
+ * still compared, so a release that changes how the block is BUILT is still
+ * caught. Only the date, the time and the venue text go, and those come from
+ * the database rather than from the tree.
+ */
+const NEXT_SESSION = /(<span class="dash-next-value"[^>]*>)[\s\S]*?(<\/span><\/a>)/g;
+
 function normalise(html) {
   return html
     .replace(/(\/_astro\/[^"'\s)]*?)\.[A-Za-z0-9_-]{8}(\.(?:js|css))/g, '$1$2')
+    .replace(NEXT_SESSION, '$1<!--agenda-derived-->$2')
     .replace(/\r\n/g, '\n')
     .trim();
 }
+
+/**
+ * How many next-session blocks a document contains.
+ *
+ * ⚠️ EXISTS SO THE NORMALISATION ABOVE CANNOT SILENTLY BECOME A NO-OP. If the
+ * dashboard's markup is reworked and the pattern stops matching, the check does
+ * not quietly go back to failing on every deploy (or, worse, quietly start
+ * comparing a value it was told to ignore) — it says so. A normalisation nobody
+ * has seen fire is a normalisation that may not work.
+ */
+const countNextSession = (html) => (html.match(NEXT_SESSION) ?? []).length;
 
 /** The first line that differs, for a report that says something useful. */
 function firstDifference(a, b) {
@@ -146,7 +183,11 @@ async function fetchText(url) {
  * cannot pass by luck.
  */
 const DOCUMENTS = [
-  { path: '/', file: 'dist/index.html' },
+  /* ⚠️ `/` STAYS, and swapping it for a quieter document was considered and
+     rejected: it is the page most releases touch, which makes it the most
+     valuable of the three. Its agenda-derived value is normalised away instead
+     — see NEXT_SESSION above. */
+  { path: '/', file: 'dist/index.html', agendaDerived: true },
   { path: '/exercices/mat-du-couloir/', file: 'dist/exercices/mat-du-couloir/index.html' },
   { path: '/progres/', file: 'dist/progres/index.html' },
 ];
@@ -167,15 +208,41 @@ for (const doc of DOCUMENTS) {
     console.log(yellow(`  ?  ${doc.path.padEnd(34)} not in dist/ — skipped`));
     continue;
   }
-  const local = normalise(readFileSync(localPath, 'utf8'));
+  const localRaw = readFileSync(localPath, 'utf8');
+  const local = normalise(localRaw);
 
-  let live;
+  let liveRaw;
   try {
-    live = normalise(await fetchText(`${origin}${doc.path}`));
+    liveRaw = await fetchText(`${origin}${doc.path}`);
   } catch (error) {
     console.log(red(`  ✗  ${doc.path.padEnd(34)} fetch failed: ${error.message}`));
     failures += 1;
     continue;
+  }
+  const live = normalise(liveRaw);
+
+  /* ⚠️ The normalisation must be seen to WORK, on both sides. A pattern that
+     silently stops matching turns this back into a check that fails on every
+     correct deploy — which is the state this fix exists to end. It warns rather
+     than fails: the document is still compared, and a genuine mismatch is still
+     reported by the comparison itself. */
+  if (doc.agendaDerived) {
+    const here = countNextSession(localRaw);
+    const there = countNextSession(liveRaw);
+    if (here === 0 || there === 0) {
+      console.log(
+        yellow(
+          `  !  ${doc.path.padEnd(34)} the next-session normalisation matched ` +
+            `${here} local / ${there} live — expected 1 of each.`,
+        ),
+      );
+      console.log(
+        dim('       The dashboard markup has probably changed; update NEXT_SESSION'),
+      );
+      console.log(
+        dim('       in this script, or `/` will fail on every correct deploy again.'),
+      );
+    }
   }
 
   compared += 1;

@@ -11,6 +11,65 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`verify:deploy` no longer fails on `/` for every correct deploy.** `/`
+  prints "Prochaine séance" from the baked agenda, and a local build cannot read
+  the `sessions` table — `.env.local` never reaches `fetch-agenda.mjs` — so it
+  bakes `agenda.fallback.json` while Cloudflare bakes the live table. The
+  comparison was structurally unable to pass. The next-session **value** is now
+  normalised away, exactly as `/_astro` fingerprints already are.
+  - ⚠️ **`/` was kept, deliberately.** Swapping it for a quieter document was
+    the obvious fix and is the wrong one: `/` is the page most releases touch,
+    which makes it the most valuable of the three.
+  - ⚠️ **Only the VALUE is dropped, never the structure.** The label, the
+    classes, the venue span and the surrounding `<a>` are still compared, so a
+    release that changes how the block is *built* is still caught.
+  - ⚠️ **The normalisation cannot silently become a no-op.** It counts its own
+    matches on both sides and says so if it ever gets zero — verified by
+    renaming the class and watching the warning fire. A normalisation nobody has
+    seen fire is one that may not work.
+  - Measured before and after against the live v0.20.0 build: `/` went from
+    *"the live build is NOT this tree"* to **66,358 bytes match**, with the
+    other two documents unchanged.
+
+### Added
+
+- **`fetch-agenda.mjs` refuses an EXPIRED fallback agenda.** If the committed
+  fallback is used *and every session in it has passed*, the build **fails**.
+  - ⚠️ **A stale agenda is worse than a blank one, and nothing else catches
+    it.** An empty agenda already fails `smoke:prod`; a fallback whose sessions
+    have all gone by is *not* empty, so `smoke:prod` counts the rows, prints
+    "at least one session listed" and goes green — while the site names a day
+    that has passed, to the families the site exists for.
+  - ⚠️ **It is fatal on the same reasoning that makes an empty agenda fatal**,
+    and the message names both ways out: set the Supabase env (what Cloudflare
+    does), or refresh the fallback.
+  - **It warns for fourteen days first**, so the hard failure is never the first
+    anyone hears of it.
+  - Both paths were watched to fire: expired → **exit 1**; five days out →
+    warning at exit 0.
+
+### Changed
+
+- **`src/data/agenda.fallback.json` refreshed from the live table — 1 session →
+  3.** ⚠️ **It was not WRONG, it was INCOMPLETE**, which is the more misleading
+  failure: its 12 September session is real, but it was missing the two nearer
+  ones, so the dashboard's "Prochaine séance" named **12 September** when the
+  true next session is **29 August**.
+  - ⚠️ **Reconstructed from the DEPLOYED agenda, not from the table directly**,
+    because this machine has no agenda credentials. That is one step removed and
+    the limits are stated rather than glossed: it cannot see a `draft` session
+    (correctly — a draft must never leak) and it is current only as of the
+    v0.20.0 build.
+  - **Two fields are inferences.** `titleFr` is not rendered by the agenda
+    template at all, and `overbookMargin` is not exposed publicly; both are set
+    from the schema default and from the one record whose true values were
+    already committed. ⚠️ **That record is what calibrates the rest** — for the
+    12 September session the page renders a level badge and a note and the known
+    record has both, while the two new cards render neither, which is what makes
+    `level: null` and `noteFr: null` a reading rather than a guess.
+
 ### Notes
 
 - **v0.20.0 was deployed and verified on 2026-08-22.** Recorded here rather than
