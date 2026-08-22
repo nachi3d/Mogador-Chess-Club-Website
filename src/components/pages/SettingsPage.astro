@@ -39,6 +39,8 @@ import { SITE_THEMES } from '@config/site-themes';
 import { useTranslations } from '@i18n/ui';
 import BaseLayout from '@layouts/BaseLayout.astro';
 import PageIntro from '@components/PageIntro.astro';
+import Trail from '@components/nav/Trail.astro';
+import { localizePath } from '@i18n/paths';
 import MiniBoard from '@components/MiniBoard.astro';
 import ThemePreview from '@components/ThemePreview.astro';
 
@@ -73,6 +75,13 @@ const FOLLOW = 'follow';
   description={t('settings.intro')}
   piecePreviews
 >
+  {/* ⚠️ NEW WITH THE SECOND BAR REVISION, AND IT IS NOT DECORATION.
+      Réglages used to be one of the five section landings, and a landing
+      deliberately has NO trail. It is now a page inside Moi, so Critical
+      Feature 62 applies: every page below a landing carries a trail that NAMES
+      ITS PARENT. Without this the settings page became the one screen with no
+      way up and no active bar entry — reachable, and unmoored. */}
+  <Trail locale={locale} href={localizePath('/moi/', locale)} label={t('nav.me')} />
   <PageIntro title={t('settings.title')} intro={t('settings.intro')} />
 
   <noscript>
