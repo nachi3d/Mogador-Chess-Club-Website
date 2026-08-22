@@ -358,6 +358,7 @@ unavoidable, do it in Node (`readFileSync(p, 'utf8')` → `writeFileSync(p, s,
 73. **The overbooking margin is a FEATURE, and it will look like a bug.** Capacity 12 + margin 2 accepts **fourteen** bookings. Cancellations are frequent and the venue absorbs the overflow, so nobody is turned away. Seàn's decision — do not "fix" it.
 74. **The database returns a CODE, never a sentence.** Member surfaces are FR/EN and a French string from Postgres cannot be rendered in English. `src/i18n/ui.ts` owns both wordings, keyed by code; an unknown code renders the generic refusal and **never a silent no-op**.
 75. **The baked agenda never claims a remaining count.** Capacity and margin are baked and fingerprinted; the live booking count is not baked at all, because a booking fires no rebuild and a baked count would mark the deployed agenda stale forever. A signed-in member reads the live number; a signed-out one sees capacity and makes **zero requests**.
+76. **No control inside a hydrating island may look usable before it is, and `scripts/check-island-controls.mjs` PROVES it against `dist/`.** Astro server-renders every island, so a control in one is markup with no handler until its chunk lands — a press does nothing at all. Every `<button>`, `<input>`, `<select>` and `<textarea>` inside an `<astro-island>` ships `disabled` (directly or via a disabled `<fieldset>`) and is enabled when the island reports `data-ready`. ⚠️ **This rule existed in prose for a release and was being broken on 132 pages the whole time** — see the section below.
 
 ---
 
@@ -1450,14 +1451,35 @@ was **empty**, which the load-failure path cannot produce — that one line said
 three gates.
 
 ⚠️ **AN ISLAND'S READINESS MUST BE OBSERVABLE, AND `data-ready` IS THE
-CONVENTION** (the exercise board, now `PlayView` too). A wait on
-server-rendered markup — `data-phase="setup"` — proves the HTML arrived and
-**nothing about whether anything is listening**. ⚠️ **AND NO CONTROL INSIDE A
-HYDRATING ISLAND MAY LOOK USABLE BEFORE IT IS**: disable it until `data-ready`,
-or a reader on a slow connection presses a dead button and is told nothing.
+CONVENTION** — every view now carries it. A wait on server-rendered markup —
+`data-phase="setup"`, `[data-testid="replayer"]` — proves the HTML arrived and
+**nothing about whether anything is listening**. ⚠️ **A HELPER WAITS ON
+READINESS, NEVER ON A PROXY FOR IT**: `<cg-board>` is created in
+`BoardSurface`'s effect, and `BoardSurface` is a **child**, so it appears a
+render BEFORE the parent view publishes `data-ready`.
+
+### ⚠️⚠️ AND THE RULE ABOVE WAS TRUE, WRITTEN DOWN, AND BROKEN ON 132 PAGES
+
+"No control inside a hydrating island may look usable before it is" shipped as
+prose one release ago, having fixed exactly the one control that a flaking test
+happened to point at. The audit that followed measured the rest against `dist/`:
+⚠️ **560 controls on 132 pages** — the replayer's launch button, its transport
+controls and **every move-list button** on every trap and every lesson, plus the
+exercise **hint** button, the one a student presses precisely when stuck.
+
+⚠️ **NO TEST WAS FAILING, AND NONE COULD.** Every spec waits for something a
+reader does not have. This is a reader's defect that the suite is structurally
+blind to, and two of the three instances were found only by accident.
+
+⚠️ **SO IT IS NOW CRITICAL FEATURE 76 AND A BUILD STEP** —
+`scripts/check-island-controls.mjs`, run after `astro build`, which reads the
+artefact rather than the source. ⚠️ **It was watched to FAIL first** (560/132),
+then pass. A prose rule that nothing checks is a rule that is already being
+broken somewhere you have not looked.
 
 **➡️ The full symptom table and the diagnoses behind it:
-[`docs/reference/testing.md`](./docs/reference/testing.md).**
+[`docs/reference/testing.md`](./docs/reference/testing.md). The per-island audit
+and what each view had to change: [`docs/reference/board.md`](./docs/reference/board.md).**
 ### ⚠️ Driving a board from a spec — the four gates
 
 **Scroll it into view** (`block: 'center'`, never `scrollIntoViewIfNeeded`),

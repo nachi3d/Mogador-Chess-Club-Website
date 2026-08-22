@@ -1199,6 +1199,37 @@ acknowledgement. Throttle the network in DevTools ("Slow 3G") and reload
       starts the game. ⚠️ *If you ever press it and nothing whatsoever happens,
       that is the regression — say so*
 
+#### ⚠️ AND THE SAME TEST ON A TRAP, A LESSON AND AN EXERCISE — v0.20.0
+
+*The `/jouer/` check above was written when only that one control had been
+fixed. The audit that followed found **560 more, on 132 pages**: the replayer's
+launch button, its transport controls and every move-list button, plus the
+exercise hint button. Same cause, same window, same "Slow 3G" reload — and the
+board here starts below the fold on a phone, so **scroll to it, which is what
+opens the window**.*
+
+On `/pieges/legal/` and on a lesson page with a demonstration board:
+
+- [ ] **"Lancer la démonstration" is visibly DISABLED while the page loads** —
+      greyed, not enabled-looking and dead
+- [ ] **"Coup suivant" and "Position finale" are disabled in the same window**,
+      and so is **every move in the list on the right** — tapping a move must
+      not silently do nothing
+- [ ] Once loading finishes all of them become usable, and one press of
+      "Lancer la démonstration" plays the first move
+- [ ] ⚠️ *Press each one DURING the load. If anything at all responds by doing
+      nothing, that is the regression — say so*
+
+On `/exercices/mat-du-couloir/`:
+
+- [ ] **"Afficher l'indice" is disabled while the board is loading** — this is
+      the one a stuck student reaches for, and a dead press reads as "I am not
+      even allowed to ask"
+- [ ] The move-entry field is disabled in the same window *(it always was —
+      confirm it still is)*
+- [ ] Once the board is ready, the hint button reveals the hint on one press
+
+
 ### Difficulty — the thing that was wrong until v0.6.0
 
 Until v0.6.0 all three levels were effectively **one opponent**, and a club
