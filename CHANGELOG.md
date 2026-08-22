@@ -36,6 +36,44 @@ that had been lying stopped.
   structurally blind to it: a stale agenda is not an empty one, so it counts the
   rows, sees one, and passes while the site names a day that has gone by.
 
+### Verification
+
+**`PUBLIC_AUTH_ENABLED=true npm run test:release` — 2026-08-22 18:13, green:
+1,297 passed, 0 failed, **0 flaky**, 23.8 min.** Gated on the promoted tree
+itself.
+
+| project | result | trough |
+|---|---|---|
+| chromium | 745 passed, 21 skipped | 1.91 GB |
+| firefox | 145 passed | **0.77 GB** |
+| webkit | 160 passed, 4 skipped | 2.54 GB |
+| pixel-5 | 106 passed | 2.44 GB |
+| iphone-13 | 120 passed | 2.49 GB |
+| chromium (OFF) sliver | 21 passed, 32 run | — |
+
+- ⚠️ **THE SLIVER RAN 32 TESTS, NOT ZERO** — Critical Feature 18 proved.
+- ✅ **WebKit launched and ran**, so the lane that caught the "Créer" bug
+  covered this tree. The Smart App Control row stays open regardless: it is a
+  claim about the host and it has reversed mid-session before.
+- ⚠️ **ZERO FLAKY, ON A MACHINE THAT WAS TIGHTER THAN LAST RELEASE, NOT
+  LOOSER.** Every project ran under the 3 GB advisory line and firefox troughed
+  at **0.77 GB** — deep inside the starvation regime — and still returned
+  145/145. v0.20.0 had four flaky at *higher* troughs. **That is worth
+  recording precisely because it cuts against the memory explanation**: it does
+  not refute it (a trough is a minimum, not a duration), but a clean run in
+  worse conditions is evidence the v0.20.0 flakes were not simply "the machine
+  was busy", and the artefact gap filed in BACKLOG is what would settle it.
+
+**`verify:deploy` will discriminate this release, proved before the deploy.**
+The live v0.20.0 tree serves `data-testid="mobilenav-sliders"` and **zero**
+occurrences of `mobilenav-calendar`; this tree is the reverse. ⚠️ **And because
+`MobileNav` renders from `BaseLayout`, the marker is on ALL THREE compared
+documents** — `/`, `/exercices/mat-du-couloir/` and `/progres/` — rather than
+the single document v0.20.0 had. This is the least blind release of the last
+four.
+
+**No migrations.** `git diff main HEAD -- supabase/` is empty.
+
 ### Changed
 
 - **The mobile bottom bar, second revision — Accueil · Apprendre · Jouer ·
