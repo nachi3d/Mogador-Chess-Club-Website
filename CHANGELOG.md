@@ -30,6 +30,62 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 - **The `/jouer/` start-button race diagnosed and regression-tested** after
   three gates of being written off as machine contention.
 
+### Verification
+
+**`PUBLIC_AUTH_ENABLED=true npm run test:release` — 2026-08-22 13:14, green:
+1,277 passed, 0 failed, 4 flaky, 32.5 min.** Gated on the promoted tree itself,
+not on transferred evidence.
+
+| project | result | trough |
+|---|---|---|
+| chromium | 737 passed, 21 skipped | **1.98 GB** |
+| firefox | 144 passed, 1 flaky | **1.58 GB** |
+| webkit | 157 passed, 3 flaky, 4 skipped | 3.38 GB |
+| pixel-5 | 102 passed | 3.19 GB |
+| iphone-13 | 116 passed | 3.29 GB |
+| chromium (OFF) sliver | 21 passed, 32 run | — |
+
+- ⚠️ **THE SLIVER RAN 32 TESTS, NOT ZERO** — Critical Feature 18 is actually
+  proved, which is the item most easily missed.
+- ✅ **WEBKIT LAUNCHED AND RAN.** The Smart App Control block that forced
+  v0.18.0 onto transferred evidence has not returned, so the lane that caught
+  the "Créer" bug ran on this tree. ⚠️ **The backlog row stays open anyway** —
+  it is a claim about the host and it has reversed mid-session before.
+
+**The four flaky, and why they were chased rather than waved through.**
+`[firefox] agenda:30`, `[webkit] family:355`, `[webkit] onboarding:362`,
+`[webkit] recurring-sessions:419`. ⚠️ **The last is the "Créer"
+click-synthesis spec that earned the webkit lane** — and this release is
+entirely about controls that look live and do not work, which is far too close
+to accept on a retry.
+
+- **Re-run at `--workers=3`** — the same fan-out as the gate, which the backlog
+  names as the discriminator between a concurrency-sensitive defect and a
+  one-off, and a stronger check than a serial pass. **28 passed**, including
+  `recurring-sessions:419` (9.5s), `family:355` (8.7s), `onboarding:362`
+  (18.6s).
+- **And a structural no-path argument, which is what the re-run alone cannot
+  give.** This release changed board-island files only; `/agenda/` contains
+  **zero** `<astro-island>` elements and the account surfaces carry no board.
+  ⚠️ **That is the difference from the `play.spec.ts` case** — there the flakes
+  were inside the very island being changed, and the serial pass was wrong.
+  Here there is no path from the diff to any of the four.
+- **Environment corroborates:** the run took **32.5 min against a 21.9 min
+  baseline** (48% over) with chromium and firefox troughs **under 2 GB**, i.e.
+  inside the starvation regime. ⚠️ **It does not explain webkit**, whose trough
+  was 3.38 GB — which is why the re-run was done rather than assumed.
+
+**`verify:deploy` will discriminate this release, and that is proved, not
+assumed.** The live v0.19.0 tree serves
+`<button type="button" class="mcc-exercise-button" data-testid="exercise-hint-button">`;
+this tree serves the same button carrying `disabled`. It sits inside
+`/exercices/mat-du-couloir/`, one of `verify:deploy`'s own three compared
+documents — so the marker is **proved absent from the old tree** and the check
+is not blind, for the first time in three releases.
+
+**No migrations.** `git diff main HEAD -- supabase/` is empty, so nothing had to
+reach production before the deploy.
+
 ### Changed
 
 - **CLAUDE.md split — 124,481 → 119,510 characters (83% → 80% of the guard).**
