@@ -13,6 +13,82 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ### Fixed
 
+- **Every board island shipped controls that looked live and did nothing until
+  it hydrated — 560 of them, on 132 pages.** Astro server-renders an island, so
+  a control inside one is markup with its handler attached to nothing until the
+  chunk lands; a press in that window does nothing at all — no action, no
+  error, no acknowledgement. `client:visible` puts the window exactly where a
+  reader arrives, because hydration is not requested until the board scrolls
+  into view.
+  - **The replayer was the worst of it.** The launch button, "coup suivant",
+    "position finale" and **every move-list button** — sixteen inert controls
+    on every trap page and every lesson page. ⚠️ **The launch button is the one
+    that stings**: `replayer.css` records that it exists *because* four small
+    glyph buttons did not read as pressable and the site's own author reached
+    for the pieces instead. It was built to attract the eye and be pressed
+    first, which made it the control most likely to be pressed while dead.
+  - **The exercise hint button**, which a student presses precisely when they
+    are stuck — the moment a silent non-response reads as "I am not even
+    allowed to ask". `MoveInput` was already guarded and stays that way.
+  - `ReplayView` gains `data-ready` (it had **no** readiness signal at all) and
+    disables every control until it is true; `ExerciseView`'s hint button hangs
+    off the `engine` flag it already publishes as `data-ready`, so the island
+    keeps one meaning of ready.
+  - ⚠️ **"start" and "prev" were already disabled and were still wrong.** They
+    were disabled because `atStart` happens to be true on arrival — a fact
+    about cursor state, not readiness. Both now carry `atStart || !hydrated`: a
+    guard that is accidentally correct evaporates the first time the
+    surrounding state changes.
+
+### Added
+
+- **`scripts/check-island-controls.mjs`, a build step** — every `<button>`,
+  `<input>`, `<select>` and `<textarea>` inside an `<astro-island>` must ship
+  `disabled`, directly or via a disabled `<fieldset>`. It reads `dist/`, not the
+  source, because the defect exists only in the artefact.
+  - ⚠️ **It was watched to FAIL first** — 560 controls across 132 pages — then
+    pass. A check that has never been seen red is a green tick that proves
+    nothing (the `check-lanes.mjs` trap).
+  - Now **Critical Feature 76**.
+- **Regression tests for both islands**, in `replayer.spec.ts` and
+  `exercise.spec.ts`, on the pattern `play.spec.ts` established: hold the island
+  chunk back 3s with `page.route` to force the window open, assert every control
+  disabled and `data-ready="false"`, then assert it works once ready. All three
+  new "before hydration" tests were watched to fail against the un-fixed
+  components (`Expected: disabled / Received: enabled`).
+
+### Changed
+
+- **`openReplayer` and `readyBoards` now wait on `data-ready`, not on
+  `<cg-board>` alone.** ⚠️ `BoardSurface` is a **child**, and child effects run
+  first, so the board element appears a render BEFORE the parent view publishes
+  readiness. Waiting on the board proved the child had mounted and nothing about
+  the parent.
+
+### Notes
+
+- ⚠️ **THE RULE ALREADY EXISTED IN PROSE AND WAS BEING BROKEN THE WHOLE TIME.**
+  "No control inside a hydrating island may look usable before it is" was
+  written into CLAUDE.md one release ago, when `/jouer/`'s start button was
+  fixed. It was applied to that one control — the one a flaking test happened to
+  point at — and to nothing else, and no test anywhere went red. That is the
+  argument for the build step rather than a longer paragraph.
+- ⚠️ **NO TEST WAS FAILING, AND NONE COULD HAVE BEEN.** Every spec waits for
+  something a reader does not have — `<cg-board>`, `data-ready`, an
+  actionability check. The suite is structurally blind to a control that is
+  inert only before those waits resolve. Two of the three instances were found
+  by accident; this one was found by reading `dist/` on purpose.
+- **`useMoveSource.ts` is clear.** The backlog row that sent three gates looking
+  at focus modality has been rewritten: its `play.spec.ts` half is closed with
+  the real cause (the hydration race), and the webkit `touch-focus.spec.ts:230`
+  half stays open with what is actually known. That half is **not** explained by
+  this fix — it drives the exercise island, whose move field and board were
+  already correctly guarded.
+- ⚠️ **CLAUDE.md is at 83% of the size guard** (124 k / 150 k). Still warning;
+  still the wrong branch to split it on.
+
+### Fixed
+
 - **`/jouer/`: the start button was live-looking and inert until the island
   hydrated, and a press in that window was swallowed in silence.** No start, no
   error, no acknowledgement — the reader is simply ignored. The setup form is

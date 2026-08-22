@@ -301,3 +301,98 @@ two cannot differ in background.
 the feedback telling the reader which move they just made.
 
 ---
+
+---
+
+## ⚠️ Island readiness — the per-island audit (v0.20.0)
+
+**Read when:** adding a control to any island, or writing a helper that drives one.
+
+The binding rule is **Critical Feature 76** in CLAUDE.md. This is what the audit
+behind it found, island by island, measured against `dist/` rather than reasoned
+from the source.
+
+### Why the source is the wrong place to look
+
+Every one of these components *looks* fine: the controls are ordinary JSX with
+ordinary `onClick` handlers. The defect only exists in the **artefact**, because
+Astro server-renders the island and the browser paints that HTML long before the
+chunk that makes it work arrives. So the audit was done by grepping the built
+pages, and the check that now enforces it
+(`scripts/check-island-controls.mjs`) reads `dist/` for the same reason.
+
+### What each island had, before
+
+| island | control | in the pre-hydration HTML | verdict |
+|---|---|---|---|
+| `PlayView` | start button, both fieldsets | `disabled` | ✅ fixed in `821ef9a`, the release before |
+| `ExerciseView` | `MoveInput` field + submit | `disabled` | ✅ already correct — `disabled={!interactive}`, and `interactive` is false until the engine chunk lands |
+| `ExerciseView` | **hint button** | **enabled** | ❌ `hintShown` starts false, so it renders with no handler behind it |
+| `ExerciseView` | retry, solution list, sound offer | not emitted at all | ✅ their conditions are false on the first render |
+| `ReplayView` | **launch button** | **enabled** | ❌ and it is the worst one — see below |
+| `ReplayView` | **next, end** | **enabled** | ❌ `atEnd` is false on arrival |
+| `ReplayView` | start, prev | `disabled` | ⚠️ right state, **wrong reason** — `atStart`, not readiness |
+| `ReplayView` | **every move-list button** | **enabled** | ❌ thirteen per trap page |
+| `ReplayView` | `data-ready` | **absent entirely** | ❌ no readiness signal at all |
+| `BoardSurface` | the board host | an empty `<div>` | ✅ honest — there is nothing to press |
+
+Totals across the built site: **560 controls on 132 pages**.
+
+### ⚠️ The launch button is the one that stings
+
+`replayer.css` carries a comment explaining why it exists at all: four small
+glyph buttons "did not read as press me — the site's author reached for the
+pieces instead", so it was made one named, filled, full-size control
+*specifically to attract the eye and be pressed first*. It was then the control
+most likely to be pressed inside the hydration window, and the one that did
+nothing.
+
+`client:visible` is what makes that concrete rather than theoretical: hydration
+is not requested until the board scrolls into view, so the window opens **at the
+moment the reader arrives at the diagram**, which is also the moment they press.
+
+### ⚠️ `atStart` is not a guard, even when it produces the right HTML
+
+"start" and "prev" shipped `disabled` and were *not* counted as violations by a
+naive read. They were disabled because the cursor happens to begin at the start,
+which is a fact about state, not about readiness. Both now carry
+`atStart || !hydrated`: the guard has to be the thing you mean, or it evaporates
+silently the first time the surrounding state changes.
+
+### ⚠️ Why `ExerciseView` gates on `engine` and `ReplayView` on a mount flag
+
+They are different because the islands publish different things.
+`ExerciseView` already declared `data-ready={engine ? …}` — the engine chunk is
+a strictly later event than hydration, and the page prints "chargement…" beside
+the board for the whole wait — so the hint button hangs off `engine` and the
+island keeps **one** meaning of ready. `ReplayView` had no readiness concept, so
+it gained the same `hydrated` mount-effect flag `PlayView` uses.
+
+⚠️ **`data-keys` did NOT already cover this.** Its comment describes exactly this
+window for the arrow keys, and it was fixed for the keyboard alone; the pointer
+path was left. The two attributes mean different things and neither implies the
+other: `data-ready` says the controls are live, `data-keys` says the document key
+listener is bound.
+
+### ⚠️ A helper must wait on readiness, not on a proxy for it
+
+`<cg-board>` is created in `BoardSurface`'s mount effect, and `BoardSurface` is a
+**child** — child effects run first — so it appears a render *before* the parent
+view sets `data-ready`. Waiting on the board alone therefore leaves a window in
+which every control still carries the `disabled` it shipped with. Playwright's
+actionability checks happen to cover a `click()`, but an immediate
+`toBeEnabled()` read is covered by nothing. `openReplayer` and `readyBoards` now
+wait on the declared signal.
+
+### ⚠️ Why no test was failing, and none could have been
+
+This is the part worth carrying forward. Every spec waits for something a reader
+does not have — `<cg-board>`, `data-ready`, an actionability check. The suite is
+**structurally blind** to a control that is inert only before those waits
+resolve. Two of the three instances were found by accident (a flake with an
+unrelated-looking name), and the third by reading `dist/` on purpose.
+
+That is why the enforcement is a build step against the artefact and not a spec,
+and why the regression tests that *do* exist have to force the window open with
+`page.route` — at natural speed it is roughly 1 in 60, which is not something to
+iterate against.

@@ -875,6 +875,22 @@ signature. The re-run cannot separate them; **the artefact can**.
 server-rendered controls inside a `client:visible` island — and were not checked
 in this session. Assume the defect until measured.
 
+> ⚠️ **MEASURED IN v0.20.0, AND THE ASSUMPTION WAS RIGHT: 560 CONTROLS ON 132
+> PAGES.** The replayer's launch button, its transport controls and every
+> move-list button on every trap and lesson, plus the exercise hint button. The
+> rule "no control inside a hydrating island may look usable before it is" was
+> already written down at the time — it had been applied to the one control a
+> flaking test happened to point at, and to nothing else. It is now **Critical
+> Feature 76** and a build step, `scripts/check-island-controls.mjs`, which
+> reads `dist/` and was watched to fail (560/132) before it was allowed to
+> pass. **➡️ The per-island audit:
+> [`board.md`](./board.md#️-island-readiness--the-per-island-audit-v0200).**
+>
+> ⚠️ **AND THE SECOND HALF OF THE LESSON: NO TEST WAS FAILING, AND NONE COULD.**
+> Every spec waits for something a reader does not have. The suite is
+> structurally blind to this class of defect, which is why enforcement is a
+> check against the artefact and not another spec.
+
 ⚠️ **THE TWO BROWSER-CRASH ROWS ARE NOW A FINDING WHEN THEY COME FROM
 `test:release`.** They belong to a raw `npx playwright test`, which still pools
 every project at the default fan-out. The matrix caps its workers and runs one
@@ -915,6 +931,13 @@ divides just as neatly as five of 80.
    genuine hydration signal. `[data-testid="replayer"]` is **not**: Astro
    server-renders it whether or not any JS ran.
 3. **Wait on `data-ready="true"` and `data-busy="false"`** before interacting.
+   ⚠️ **AND `<cg-board>` DOES NOT IMPLY `data-ready`, IN ANY VIEW.**
+   `BoardSurface` is a **child**, and child effects run first, so the board
+   element appears a render BEFORE the parent view publishes its readiness.
+   Since v0.20.0 every view's controls ship `disabled` until that attribute
+   flips (Critical Feature 76), so the gap is now observable rather than
+   theoretical: a spec that waits only on the board can read a control that is
+   still disabled. Wait on the declared signal, never on a proxy for it.
 4. **Tap, and press for a DURATION.** `click()` with no `delay` sends mousedown
    and mouseup in **one animation frame**, and Chessground does its drag
    bookkeeping in a `requestAnimationFrame` loop — measured **1/8 solved at 0ms

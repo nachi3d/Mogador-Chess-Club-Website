@@ -40,6 +40,23 @@ async function openReplayer(page: Page, path: string) {
   await page.locator('[data-testid="chessboard"]').scrollIntoViewIfNeeded();
   // Hydration + Chessground mount.
   await page.locator('[data-testid="chessboard"] cg-board').waitFor({ timeout: 15_000 });
+  /**
+   * ⚠️ AND THEN THE ISLAND'S OWN SIGNAL, WHICH `<cg-board>` DOES NOT IMPLY.
+   *
+   * `BoardSurface` is a CHILD, so its mount effect — the one that creates
+   * `<cg-board>` — runs BEFORE this component's. `data-ready` is set from a
+   * state update in the parent's mount effect, so it lands a render LATER
+   * than the board does. Waiting on the board alone leaves a window in which
+   * every control is still carrying the `disabled` it shipped with.
+   *
+   * Playwright's actionability checks happen to cover a `click()` here, but
+   * an immediate `toBeDisabled()`/`toBeEnabled()` read is not covered by
+   * anything, and neither is a spec that reads the DOM directly. Wait on the
+   * declared signal rather than on a proxy for it.
+   */
+  await expect(page.getByTestId('replayer').first()).toHaveAttribute('data-ready', 'true', {
+    timeout: 15_000,
+  });
 }
 
 /** The SAN of the currently highlighted move, or null at the starting position. */
@@ -301,4 +318,73 @@ test.describe('replayer — accessibility', () => {
       await expectNoAxeViolations(page);
     });
   }
+});
+
+/**
+ * ⚠️ NO CONTROL IN THIS ISLAND MAY LOOK USABLE BEFORE IT IS.
+ *
+ * Astro server-renders the whole replayer, so until its JS lands the launch
+ * button, the transport controls and every move-list button are markup with
+ * their handlers attached to nothing. Measured on the built page before this
+ * was fixed — `dist/pieges/legal/index.html` carried SIXTEEN enabled buttons
+ * that did nothing: `replay-launch`, `replay-next`, `replay-end` and all
+ * thirteen moves.
+ *
+ * ⚠️ THIS IS A READER'S DEFECT, NOT A TEST'S, and the distinction matters
+ * because the tests were never failing on it: they wait on `<cg-board>`, which
+ * is created in a child effect and so is a genuine hydration signal. A student
+ * has no such wait. `client:visible` puts the window exactly where they arrive
+ * — the board scrolls into view, the big named button invites the press it was
+ * designed to invite, and nothing happens.
+ *
+ * Same shape and same fix as the `/jouer/` start button (see play.spec.ts).
+ * The delay is what makes this a test rather than a hope: at natural speed the
+ * window is too narrow to observe.
+ */
+test.describe('the replayer controls are honest about being ready', () => {
+  const HYDRATION_DELAY_MS = 3000;
+
+  const throttleIslandJs = (page: Page) =>
+    page.route('**/_astro/*.js', async (route) => {
+      await new Promise((r) => setTimeout(r, HYDRATION_DELAY_MS));
+      await route.continue();
+    });
+
+  test('before hydration every control is disabled rather than inert', async ({ page }) => {
+    await throttleIslandJs(page);
+    await page.goto(TRAP_FR, { waitUntil: 'domcontentloaded' });
+    /* Scrolled to, so hydration is genuinely REQUESTED and the only thing
+       holding it back is the chunk. Without this the test would prove that an
+       island which was never asked to hydrate has not hydrated. */
+    await page.locator('[data-testid="chessboard"]').scrollIntoViewIfNeeded();
+
+    const replayer = page.getByTestId('replayer').first();
+    // The diagram is readable — this is not a blank page — but not working.
+    await expect(replayer).toHaveAttribute('data-ready', 'false');
+
+    await expect(page.getByTestId('replay-launch')).toBeDisabled();
+    await expect(page.getByTestId('replay-next')).toBeDisabled();
+    await expect(page.getByTestId('replay-end')).toBeDisabled();
+
+    /* ⚠️ THE MOVE LIST IS THE HALF MOST EASILY MISSED — thirteen buttons,
+       each one a jump to that ply, and the second thing a reader reaches for
+       after the launch button. */
+    const moves = page.locator('[data-testid="move-list"] button.mcc-move');
+    await expect(moves).toHaveCount(MOVES.length);
+    for (let i = 0; i < MOVES.length; i++) await expect(moves.nth(i)).toBeDisabled();
+  });
+
+  test('once hydrated the controls work, and the launch button launches', async ({ page }) => {
+    await throttleIslandJs(page);
+    await page.goto(TRAP_FR, { waitUntil: 'domcontentloaded' });
+    await page.locator('[data-testid="chessboard"]').scrollIntoViewIfNeeded();
+
+    await expect(page.getByTestId('replayer').first()).toHaveAttribute('data-ready', 'true', {
+      timeout: 30_000,
+    });
+    await expect(page.getByTestId('replay-launch')).toBeEnabled();
+
+    await page.getByTestId('replay-launch').click();
+    expect(await currentMove(page)).toBe(MOVES[0]);
+  });
 });
