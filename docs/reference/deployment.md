@@ -1139,3 +1139,35 @@ row can.
 everything between — including 0005's unguarded `drop constraint`. **Registering
 is bookkeeping, not proof.** Backfill SQL in
 [`docs/reference/deployment.md`](./docs/reference/deployment.md). See BACKLOG.
+
+---
+
+## The accounts flag — the dated schema status and the two build-leak incidents
+
+**Read when:** asking what production's schema actually holds, or changing how
+the accounts-OFF build is proved empty.
+
+> ⚠️ Moved out of CLAUDE.md **verbatim** at the v0.20.0 split. The rules stayed
+> behind under "⚠️ ACCOUNTS ARE OFF BY DEFAULT"; the dated status claim and the
+> two incidents are here. ⚠️ **The status paragraph is a claim about the outside
+> world and it EXPIRES** — that is the main reason it no longer belongs in a
+> file loaded into every session.
+
+✅ **PRODUCTION'S SCHEMA IS CURRENT THROUGH 0013**, verified against the catalog
+at the v0.18.0 gate: `bookings`, `sessions.capacity`, `overbook_margin`,
+`create_booking()` and both booking policies are present. v0.17.0's open item is
+**closed** — `trigger_count = 3` and `request_site_rebuild(text,integer)` exist.
+⚠️ **Re-ask rather than trusting this line** — it is a claim about the outside
+world and it expires.
+
+
+- ⚠️ **`getStaticPaths()` returning `[]` is not enough on its own.** Astro
+  collects a page's `<script>` blocks from the **module graph**, not from what
+  renders, so the first disabled build shipped 216 KB of unreachable Supabase and
+  precached it. The fix is an **alias** in `astro.config.mjs` cutting the graph at
+  the module.
+- ⚠️⚠️ **`import.meta.env.NAME`, NEVER `import.meta.env['NAME']`** (Critical
+  Feature 19). Vite statically replaces dot access only; given a computed key it
+  emits **the whole env object**, anon key included. The build meant to prove
+  accounts were disabled contained the production JWT — the guarantee was false
+  while looking true, and only reading `dist/` showed it.
