@@ -309,7 +309,7 @@ unavoidable, do it in Node (`readFileSync(p, 'utf8')` → `writeFileSync(p, s,
 24. **A theme loads only its own heading font and its own piece set.** Asserted against the network log, not against appearance.
 25. **Every piece set is licence-checked individually and credited on `/mentions-legales/`.** For three of the four it is a condition of use, not a courtesy.
 26. **Mobile and desktop diverge at 768px, deliberately.** Bottom bar + one-line header + dashboard below; grouped header + retro menu above. Both sides are pinned by specs.
-27. **The bottom bar has exactly five entries, every one of them a SECTION WITH A LANDING SCREEN**, and it never hides on scroll; no page may hide content behind it. ⚠️ **"Section" is the load-bearing word** — five shortcuts to leaf pages would not be defensible, and that is what "Progrès" was. A new entry needs a landing, not just a slot.
+27. **The bottom bar has exactly five entries — Accueil · Apprendre · Jouer · Club · Moi — every one of them a SECTION WITH A LANDING SCREEN**, and it never hides on scroll; no page may hide content behind it. ⚠️ **"Section" is the load-bearing word** — five shortcuts to leaf pages would not be defensible, and that is what "Progrès" was. A new entry needs a landing, not just a slot. ⚠️ **AND A LANDING IS NOT SUFFICIENT EITHER**: "Réglages" had one and still lost its slot in the second revision, being one rarely-opened page holding a fifth of the bar. **The test is whether a SECTION of the site would otherwise be unreachable on a phone** — which is what "Club" was.
 28. **Below 768px the exercise controls compact; the board never does.** See the M3 section — the board is the thing being taught with.
 29. **There is ONE resume rule, in `ResumeResolver.astro`, and ONE key scheme, in `src/lib/journey.ts`.** Four surfaces read them. A second copy of either is how two pages come to disagree about what a reader has done.
 30. **The progress page never prints a number nothing computed.** Since E3 something computes rank and points, so it prints them — derived, never banked. See the progression section.
@@ -739,6 +739,8 @@ FR at the root, EN under `/en/...`. **Route segments are not translated** (`/en/
 | `/` | `/en/` | Home — the **main menu** (E5) above 768px, the **dashboard** below; descriptive content under the fold |
 | `/apprendre/` | `/en/apprendre/` | **Section landing (M4)** — the Apprendre chooser: Les bases, Leçons, Exercices, Pièges. ⚠️ Distinct from `/apprendre-les-bases/` only by the trailing slash |
 | `/moi/` | `/en/moi/` | **Section landing (M4)** — the personal chooser: Ma progression, Mon compte (accounts on only), Réglages |
+| `/club/` | `/en/club/` | **Section landing (M4, second revision)** — the club chooser: Agenda, Contact, À propos. ⚠️ Took the bar slot Réglages held; before it, the club was unreachable on a phone except from home |
+| `/a-propos/` | `/en/a-propos/` | What the club is, who runs it, how to join. ⚠️ **Not one venue string, handle or number in the component** — all of it from `src/config/site.ts`; the segment is NOT translated |
 | `/cours/` | `/en/cours/` | Course index (cards) |
 | `/pieges/` | `/en/pieges/` | Trap index (cards, ECO + theme chips) — **no board mounted here** |
 | `/pieges/[slug]/` | `/en/pieges/[slug]/` | Trap detail — the replayer, commentary, outbound WhatsApp share |
@@ -841,8 +843,12 @@ explicitly.
 The rules that bind work elsewhere:
 
 - **The bottom bar has exactly FIVE SECTIONS and never hides on scroll** —
-  Accueil, Apprendre, Jouer, Moi, Réglages — and ⚠️ **EVERY ENTRY HAS A LANDING
-  SCREEN** (Critical Feature 27). No page may hide content behind the bar;
+  **Accueil · Apprendre · Jouer · Club · Moi** — and ⚠️ **EVERY ENTRY HAS A
+  LANDING SCREEN** (Critical Feature 27). ⚠️ **Réglages left in the second
+  revision and is NOT gone** — it is inside Moi (plus the desktop gear and the
+  footer), it gained a trail naming Moi, and `/parametres/` now lights **Moi**
+  in the bar. A page that stops being a landing must stop behaving like one.
+  No page may hide content behind the bar;
   `env(safe-area-inset-bottom)` is needed in **two** places. The five-label fit is
   **measured, not guessed** (78×52px per cell at 390px; longest label 56.6px).
   ⚠️ **A LABEL THAT STOPS FITTING IS A COPY PROBLEM, NOT A LAYOUT ONE** — shorten

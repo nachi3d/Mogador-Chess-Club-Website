@@ -1,0 +1,155 @@
+---
+/**
+ * /a-propos — what the club is, who runs it, and how to join.
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️ NOT ONE VENUE STRING, NOT ONE HANDLE, NOT ONE NUMBER IN THIS FILE.
+ *
+ * Venue portability is a hard rule: every venue string lives in `site.venue`
+ * and no component may contain a venue name, an address or a map link. An
+ * about page is the single most tempting place to break that — "the club meets
+ * at Dar Souiri" is exactly the sentence somebody wants to write here, and it
+ * would move the venue out of config and into prose, where changing it stops
+ * being a one-commit change in one file.
+ *
+ * So the association's name, the venue block and the socials all come from
+ * `src/config/site.ts` through this page, and `src/i18n/ui.ts` holds only the
+ * wording around them. ⚠️ `hasVenue()` RETURNS FALSE WHEN THERE IS NOTHING
+ * PUBLISHABLE and the venue block disappears rather than rendering an empty
+ * heading — the same contract the footer and `/contact/` already honour.
+ *
+ * ⚠️ IT ENDS WITH A WAY ONWARD, clear of the fixed bar, from the same i18n
+ * keys the nav uses — the two destinations a reader wants after reading this
+ * are the agenda and contact, and both are one tap away rather than a scroll
+ * back up to the bar.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+import type { Locale } from '@config/site';
+import { site, hasVenue, venueAddress, publishedSocials } from '@config/site';
+import { localizePath } from '@i18n/paths';
+import { useTranslations } from '@i18n/ui';
+import BaseLayout from '@layouts/BaseLayout.astro';
+import PageIntro from '@components/PageIntro.astro';
+import Trail from '@components/nav/Trail.astro';
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const t = useTranslations(locale);
+const address = venueAddress();
+---
+
+<BaseLayout locale={locale} title={t('about.title')} description={t('about.intro')}>
+  {/* ⚠️ NAMES ITS PARENT (Critical Feature 62) — "‹ Le club", never a bare
+      "Retour" and never `history.back()`. This page sits below the Club
+      landing, so that is what the trail says. */}
+  <Trail locale={locale} href={localizePath('/club/', locale)} label={t('club.title')} />
+  <PageIntro title={t('about.title')} intro={t('about.intro')} />
+
+  <div class="about">
+    <section class="about-block">
+      <h2>{t('about.club.heading')}</h2>
+      <p>{t('about.club.body')}</p>
+    </section>
+
+    <section class="about-block">
+      <h2>{t('about.who.heading')}</h2>
+      <p>{t('about.who.body')}</p>
+    </section>
+
+    <section class="about-block">
+      <h2>{t('about.site.heading')}</h2>
+      <p>{t('about.site.body')}</p>
+    </section>
+
+    <section class="about-block">
+      <h2>{t('about.association.heading')}</h2>
+      <p>{t('about.association.body')}</p>
+      {
+        publishedSocials.length > 0 && (
+          <ul class="about-socials">
+            {publishedSocials.map((s) => (
+              <li>
+                <a href={s.url} rel="noopener noreferrer" target="_blank">
+                  {s.label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        )
+      }
+    </section>
+
+    {/* Absent, not empty, when there is nothing publishable — see the header. */}
+    {
+      hasVenue() && (
+        <section class="about-block">
+          <h2>{t('venue.heading')}</h2>
+          <p>{address ?? `${site.venue.city}, ${site.venue.country}`}</p>
+        </section>
+      )
+    }
+
+    <section class="about-block">
+      <h2>{t('about.join.heading')}</h2>
+      <p>{t('about.join.body')}</p>
+      <p class="about-onward">
+        <a class="btn-primary" href={localizePath('/agenda/', locale)}>
+          {t('about.join.agenda')}
+        </a>
+        <a class="about-secondary" href={localizePath('/contact/', locale)}>
+          {t('about.join.contact')}
+        </a>
+      </p>
+    </section>
+  </div>
+</BaseLayout>
+
+<style>
+  .about {
+    display: grid;
+    gap: 1.5rem;
+    max-inline-size: 44rem;
+    margin-block-end: 2rem;
+  }
+
+  .about-block h2 {
+    margin: 0 0 0.4rem;
+    font-size: 1.0625rem;
+  }
+
+  .about-block p {
+    margin: 0;
+    line-height: 1.7;
+  }
+
+  .about-socials {
+    margin: 0.6rem 0 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  /* ⚠️ The way onward is a ROW that wraps, not a stack: at 360px two full-width
+     buttons push the second one under the fixed bar's shadow line, and the
+     secondary action stops looking like part of the same choice. */
+  .about-onward {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem 1.25rem;
+    margin-block-start: 0.9rem !important;
+  }
+
+  .about-secondary {
+    /* ≥44px target without a second filled button competing with the primary
+       one — the containment rule is one primary action per card. */
+    display: inline-flex;
+    align-items: center;
+    min-block-size: 44px;
+  }
+</style>

@@ -315,10 +315,13 @@ Do it on a **real phone**, in French, at arm's length. `npm run demo -- --host`.
 
 ### The bar
 
-- [ ] Five entries: **Accueil · Apprendre · Jouer · Moi · Réglages**
+- [ ] Five entries: **Accueil · Apprendre · Jouer · Club · Moi**
 - [ ] Every one is comfortably thumb-sized. ⚠️ **No label is clipped or
-      ellipsised** — check "Apprendre" and "Réglages" specifically, and check EN
-      where "Settings" is the long one
+      ellipsised** — check "Apprendre" specifically, which is the longest label
+      in either locale (56.6px in a 72px cell at 360px)
+- [ ] ⚠️ **"Réglages" is NOT in the bar any more, and that is deliberate.** If
+      you go looking for it: it is inside **Moi**, plus the gear in the desktop
+      header and the footer link
 - [ ] It does not move or hide when you scroll
 - [ ] Nothing on any page hides behind it, including the last footer line
 - [ ] On a notched phone the bar's background reaches into the gesture area —
@@ -334,7 +337,17 @@ Do it on a **real phone**, in French, at arm's length. `npm run demo -- --host`.
 - [ ] Solve an exercise, come back: the exercises card counts it
 - [ ] **Moi** lands on a chooser: Ma progression, Réglages, and Mon compte when
       accounts are on
-- [ ] **Réglages** lands on the settings page — theme, sound
+- [ ] **Club** lands on a chooser: Agenda, Contact, À propos
+- [ ] The Agenda card states what is announced — "3 séances annoncées", or
+      "Aucune séance annoncée pour l'instant". ⚠️ **It must never read "0
+      séances annoncées"**, which looks like a broken page rather than an empty
+      calendar
+- [ ] **À propos** opens a real page about the club, and ⚠️ **the venue named on
+      it is the one in `src/config/site.ts`** — if you changed the venue in
+      config, this page must have changed with it. A hardcoded "Dar Souiri"
+      here is a venue-portability break
+- [ ] Its two buttons at the bottom go to the agenda and to contact, and both
+      sit clear of the bar at 360px
 - [ ] Every card opens something. ⚠️ **A card that does nothing is worse than an
       absent one**
 
@@ -342,6 +355,12 @@ Do it on a **real phone**, in French, at arm's length. `npm run demo -- --host`.
 
 Walk down and watch the bar, without tapping it:
 
+- [ ] `/club/`, `/agenda/`, `/contact/` and `/a-propos/` → **Club** lit.
+      ⚠️ **Before this revision all four lit nothing at all** — the club had no
+      bar entry, so the agenda was a page with no location signal whatsoever
+- [ ] `/parametres/` → **Moi** lit, and the page now carries a trail reading
+      "‹ Moi". ⚠️ It used to be a section landing, which deliberately has no
+      trail; a page that stops being a landing must stop behaving like one
 - [ ] `/apprendre/` → **Apprendre** lit
 - [ ] Leçons → a course → a lesson inside it → **Apprendre** still lit, three
       levels down

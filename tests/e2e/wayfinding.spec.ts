@@ -45,14 +45,24 @@ const BELOW_A_LANDING = [
   ['/apprendre-les-bases/', 'Apprendre'],
   ['/apprendre-les-bases/la-tour/', 'Les bases'],
   ['/progres/', 'Moi'],
-  ['/agenda/', 'Accueil'],
-  ['/contact/', 'Accueil'],
+  /* ⚠️ RÉGLAGES IS BELOW A LANDING NOW, not one of them. It left the bar in the
+     second revision and lives inside Moi, so it gained a trail — a landing has
+     none, and a page that is no longer a landing must not keep behaving like
+     one. */
+  ['/parametres/', 'Moi'],
+  /* ⚠️ THESE THREE USED TO NAME 'Accueil' BECAUSE THEY HAD NO SECTION. The
+     club now has a landing, so the honest parent is the club — naming home
+     from a page two levels down is the 'bare Retour' failure wearing a
+     different word. */
+  ['/agenda/', 'Le club'],
+  ['/contact/', 'Le club'],
+  ['/a-propos/', 'Le club'],
   ['/mentions-legales/', 'Accueil'],
   ['/politique-confidentialite/', 'Accueil'],
 ] as const;
 
 /** The five section landings plus home — these are the TOP, and have no trail. */
-const LANDINGS = ['/', '/apprendre/', '/jouer/', '/moi/', '/parametres/'] as const;
+const LANDINGS = ['/', '/apprendre/', '/jouer/', '/club/', '/moi/'] as const;
 
 test.describe('the trail — a way up that says where it goes', () => {
   for (const [path, parent] of BELOW_A_LANDING) {
@@ -184,8 +194,45 @@ test.describe('the section landings are choosers, not menus', () => {
     }
   });
 
+  /**
+   * ⚠️ THE CLUB LANDING EXISTS BECAUSE A PHONE COULD NOT REACH THE CLUB AT ALL.
+   *
+   * The agenda, contact and about pages sat under "Le club" in the desktop
+   * header and under nothing below 768px. This is the mirror of the /progres/
+   * defect Critical Feature 36 was written for — not one page missing from
+   * desktop, but a whole section missing from mobile.
+   */
+  test('/club/ offers agenda, contact and about, and all three resolve', async ({ page }) => {
+    await page.goto('/club/');
+
+    for (const id of ['hub-agenda', 'hub-contact', 'hub-about']) {
+      const card = page.getByTestId(id);
+      await expect(card).toBeVisible();
+      /* ⚠️ A CHOOSER, NOT A MENU (Critical Feature 65): a name AND a line
+         saying what is behind it. A stack of bare links is the menu the bar
+         already was, and would not earn the tap this screen costs. */
+      await expect(card.locator('.hub-card-body')).not.toBeEmpty();
+
+      const href = await card.locator('a').getAttribute('href');
+      expect((await page.request.get(href!)).status(), `${id} → ${href}`).toBe(200);
+    }
+  });
+
+  /**
+   * ⚠️ A FACT, NOT A ZERO IT HAS NOT COMPUTED (Critical Features 30 and 61).
+   * The agenda card states how many sessions are ANNOUNCED, because nothing
+   * records which a guest attended and inventing a counter to fill the slot is
+   * how a surface starts lying.
+   */
+  test('the agenda card states what is announced rather than a bare zero', async ({ page }) => {
+    await page.goto('/club/');
+    const fact = page.getByTestId('hub-agenda');
+    await expect(fact).not.toContainText(/^0 /);
+    await expect(fact).toContainText(/séances annoncées|Aucune séance/);
+  });
+
   test('both landings have no axe violations, FR and EN', async ({ page }) => {
-    for (const path of ['/apprendre/', '/moi/', '/en/apprendre/', '/en/moi/']) {
+    for (const path of ['/apprendre/', '/moi/', '/club/', '/en/apprendre/', '/en/moi/', '/en/club/']) {
       await page.goto(path);
       const results = await new AxeBuilder({ page }).analyze();
       const summary = results.violations.map((v) => `${v.id} (${v.nodes.length}×): ${v.help}`);

@@ -11,6 +11,70 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### Changed
+
+- **The mobile bottom bar, second revision — Accueil · Apprendre · Jouer ·
+  Club · Moi.** "Réglages" left the bar; "Club" took the slot.
+  - ⚠️ **RÉGLAGES PASSED THE LETTER OF THE SECTION RULE AND FAILED ITS SPIRIT.**
+    Critical Feature 27 asks that every entry be a section with a landing, and
+    Réglages had one — so the rule as written would have kept it forever. What
+    it actually was: one page, opened rarely, holding a fifth of the most
+    valuable strip on a phone. CF27 now carries the sharper test — **would this
+    section otherwise be unreachable on a phone?**
+  - ⚠️ **AND THAT TEST IS WHY CLUB WON.** The agenda, contact and about pages
+    sat under "Le club" in the desktop header and under **nothing** below
+    768px — a mobile reader could reach them only from the home page. **That is
+    the mirror of the `/progres/` defect Critical Feature 36 exists for:** not
+    one page missing from desktop, but a whole section missing from mobile.
+  - **Réglages is not gone** — it is inside Moi, plus the desktop header gear
+    and the footer. Nothing was lost but the slot.
+- **`/parametres/` stopped being a section landing, and had to stop behaving
+  like one.** It gained a trail reading "‹ Moi" (Critical Feature 62 — a
+  landing deliberately has none), and it now lights **Moi** in the bar. ⚠️
+  **Without the second half it would have lit nothing at all**, which is
+  precisely the defect Critical Feature 63 names.
+- **`/agenda/` and `/contact/` now trail to "‹ Le club", not "‹ Accueil".**
+  They named home because they had no section; naming home from two levels down
+  is the bare-"Retour" failure wearing a different word.
+
+### Added
+
+- **`/club/` and `/en/club/` — the club section landing.** A chooser, not a
+  menu (Critical Feature 65): Agenda, Contact, À propos, each with a line
+  saying what is behind it. ⚠️ **The agenda card states what is ANNOUNCED, not
+  a tally** — nothing records which sessions a guest attended, and inventing a
+  counter to fill the slot is how a surface starts lying. With nothing baked it
+  says so in words rather than printing "0 séances annoncées" (Critical
+  Features 30 and 61).
+- **`/a-propos/` and `/en/a-propos/` — what the club is, who runs it, how to
+  join.** ⚠️ **Not one venue string, handle or number lives in the component.**
+  The association, the venue block and the socials all come from
+  `src/config/site.ts`; `src/i18n/ui.ts` holds only the wording around them. An
+  about page is the single most tempting place to break venue portability —
+  "the club meets at Dar Souiri" is exactly the sentence somebody wants to
+  write here, and it would turn a one-commit venue change into a prose edit.
+  `hasVenue()` still makes the venue block disappear rather than render an
+  empty heading.
+- The desktop header's "Le club" group gained `/club/` (labelled "Vue
+  d'ensemble", as Apprendre does) and `/a-propos/`. ⚠️ **Critical Feature 36
+  forced this**: `mobile-app.spec.ts` reads the destination list **off the
+  bar**, so a bar entry with no desktop home fails the gate rather than
+  shipping quietly. It did fail first.
+
+### Notes
+
+- ⚠️ **MEASURED, AT BOTH WIDTHS AND IN BOTH LOCALES — the revision GAINED
+  headroom rather than spending it.** Cells are **72×52 at 360px** and **78×52
+  at 390px**, so every target clears 48px in both dimensions, and measured
+  overflow is **0 on all ten cells**. "Club" is **24.6px** in both locales,
+  against the "Réglages"/"Settings" it replaced. The worst case is unchanged
+  and is still "Apprendre" at 56.6px — **15.4px clear at 360px**.
+- **The desktop home menu was deliberately left alone.** Its "Le club" entry
+  still points at `/agenda/` rather than the new landing, because the E5 menu's
+  group entries all point at their most-wanted child (`nav.group.learn` →
+  `/cours/`, not `/apprendre/`). Repointing only this one would have broken
+  that pattern to satisfy a symmetry nobody asked for.
+
 ### Fixed
 
 - **`verify:deploy` no longer fails on `/` for every correct deploy.** `/`

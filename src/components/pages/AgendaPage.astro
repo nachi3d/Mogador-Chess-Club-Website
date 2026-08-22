@@ -89,7 +89,7 @@ const bookingStrings = Object.fromEntries(BOOKING_KEYS.map((k) => [k, t(k)]));
 ---
 
 <BaseLayout locale={locale} title={t('agenda.title')} description={t('agenda.intro')} reveals>
-  <Trail locale={locale} href={localizePath('/', locale)} label={t('nav.home')} />
+  <Trail locale={locale} href={localizePath('/club/', locale)} label={t('club.title')} />
   <PageIntro title={t('agenda.title')} intro={t('agenda.intro')} />
 
   {
