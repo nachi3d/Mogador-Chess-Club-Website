@@ -11,6 +11,34 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### Notes
+
+- **v0.20.0 was deployed and verified on 2026-08-22.** Recorded here rather than
+  inside the tagged `[0.20.0]` section, so the tag keeps saying exactly what it
+  said when it was cut.
+  - ✅ **`npm run smoke:prod` green** — every route 200 with its structural
+    sentinel, canonical and og agreeing, both video fixtures **404**, the
+    manifest and `sw.js` correct with the engine not precached, and `/agenda/`
+    listing **3 sessions** rather than blank.
+  - ⚠️ **`npm run verify:deploy` reported a FAILURE on `/`, and it was a FALSE
+    one.** `/exercices/mat-du-couloir/` (54,074 bytes) and `/progres/` (86,356
+    bytes) matched exactly; the entire difference on `/` was the dashboard's
+    next-session block, because a local build bakes `agenda.fallback.json`
+    while Cloudflare bakes the live table. Filed in BACKLOG — ⚠️ **the risk is
+    that a check which cries wolf every release is one somebody learns to
+    skip**, and this is the check that exists because v0.13.0 was merged,
+    tagged and never served.
+  - **The deploy verdict was therefore reached by hand, and it is
+    unambiguous:** the two clean documents matched byte-for-byte, and the live
+    site carries every marker this release introduced — `disabled` on the
+    exercise hint button, on the replayer's launch button and transport
+    controls, on all **thirteen** move-list buttons, and on `play-start` with
+    `data-ready="false"`.
+  - ⚠️ **The discriminator did its job.** Proved absent from the old tree before
+    the deploy and present after, inside one of `verify:deploy`'s own three
+    documents — the first release in three where that check could discriminate
+    at all.
+
 ## [0.20.0] — 2026-08-22
 
 **The release in one line:** the engine plays at the strength each level was
