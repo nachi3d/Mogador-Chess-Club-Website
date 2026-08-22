@@ -11,6 +11,49 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### Changed
+
+- **CLAUDE.md split — 124,481 → 119,510 characters (83% → 80% of the guard).**
+  Three blocks moved **verbatim** into existing reference files, each with a
+  **Read when** line and a note saying it was moved rather than reworded:
+  - the **gate audit** — the 4.8-hours-to-22-minutes measurements, what each
+    lane was *earned by*, the accounts-OFF sliver's irreducibility, the
+    `check-lanes.mjs` blind spot and the memory diagnosis → `testing.md`
+    (7,065 chars). The rules stayed: chromium is the backbone, a spec joins a
+    lane for a named reason, `--workers=3` is not a tuning knob, a zero-test
+    sliver fails the gate, `check-lanes` never gates, and never run the matrix
+    on a feature branch.
+  - the **three-gate hydration-race diagnosis** → `testing.md` (2,837 chars).
+    The rules stayed, now as a short list: a hydration race has the signature of
+    contention, the artefact is the discriminator, `data-ready` is the
+    convention, and a helper waits on readiness rather than a proxy for it.
+  - the **dated "production's schema is current through 0013" paragraph** and
+    the two accounts-OFF build-leak incidents → `deployment.md`. ⚠️ A claim
+    about the outside world that **expires** is exactly what should not sit in a
+    file loaded into every session.
+- ⚠️ **`node scripts/check-split.mjs` passes: 1,345 lines stayed, 136 moved,
+  nothing missing.** Run against a copy of the pre-split file, as the ceremony
+  requires.
+- ⚠️ **NOTHING WAS DECLARED OBSOLETE, and that is written into
+  `.split-obsolete.txt` rather than left as an absent section** — "no entries"
+  and "nobody checked" look identical from the outside. Every block was moved
+  verbatim, so no licence to lose a line was needed.
+
+### Notes
+
+- ⚠️ **THE STRUCTURAL QUESTION THE BACKLOG RESERVED FOR SEÀN IS STILL OPEN, AND
+  IT IS WHY THIS LANDED AT 80% RATHER THAN 60%.** What remains is index-shaped:
+  the two largest blocks are **Critical Features (14,877)** and the **routes
+  table (4,860)**, and both are things a session breaks *without going looking*,
+  which is the test for staying. Everything narrative that had a home has now
+  been moved. ⚠️ **A further reduction would be a TRIM, which the rule forbids**
+  — so the next move is the structural one: does the Critical Features list
+  become a linked file carrying only its headlines inline, accepting that a rule
+  one click away is a rule some sessions will not read? **Do not answer it by
+  shaving prose.**
+- At the current rate this buys roughly two or three sessions before it warns
+  again. It is a reprieve, not a fix.
+
 ### Fixed
 
 - **Every board island shipped controls that looked live and did nothing until
