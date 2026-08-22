@@ -1,8 +1,36 @@
 {
   "source": "committed-fallback",
-  "fetchedAt": "2026-08-13T00:00:00.000Z",
+  "fetchedAt": "2026-08-22T14:20:00.000Z",
   "timezone": "Africa/Casablanca",
   "sessions": [
+    {
+      "id": "dcb1ca80-80b2-4e30-835c-4072b6434d79",
+      "startsAt": "2026-08-29T14:00:00.000Z",
+      "date": "2026-08-29",
+      "time": "15:00",
+      "status": "published",
+      "level": null,
+      "venue": null,
+      "titleFr": null,
+      "noteFr": null,
+      "noteEn": null,
+      "capacity": 12,
+      "overbookMargin": 2
+    },
+    {
+      "id": "52936fdc-0c8d-435c-9d84-c9f9b12f2934",
+      "startsAt": "2026-09-02T14:00:00.000Z",
+      "date": "2026-09-02",
+      "time": "15:00",
+      "status": "published",
+      "level": null,
+      "venue": null,
+      "titleFr": null,
+      "noteFr": null,
+      "noteEn": null,
+      "capacity": 12,
+      "overbookMargin": 2
+    },
     {
       "id": "5e5e0912-0000-4000-8000-000000000912",
       "startsAt": "2026-09-12T15:00:00.000Z",
