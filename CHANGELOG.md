@@ -13,6 +13,61 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ### Added
 
+- **Google sign-in on `/connexion/`, behind `PUBLIC_GOOGLE_AUTH_ENABLED`
+  (default OFF).** Part of backlog row v2-S2, and the half that needed no
+  decision reversed — it is the locked plan (*"magic-link + Google"*).
+  - ⚠️⚠️ **THE CODE LANDS BEFORE THE CONFIGURATION, ON PURPOSE.** Google
+    sign-in needs the provider switched on in the Supabase dashboard **and** an
+    OAuth client in Google Cloud with this origin in its redirect list. Neither
+    lives in this repository, so **no build here can check either**. Shipping
+    the button ahead of them gives a reader a control that is present, looks
+    live, and fails when pressed — Critical Feature 76 wearing a different hat,
+    and **worse than the hydration case it was written for**, because that one
+    resolves by itself after a second and this one never would.
+  - ⚠️ **ABSENT, NOT DISABLED.** `disabled` says "not yet"; without the
+    configuration there is no "yet", so the button is not rendered at all.
+  - **`signInWithGoogle()` resolves only on FAILURE** — on success the tab has
+    already left, and the session arrives on the next load through
+    `completeSignIn()`. The handler restores the button on the failure path and
+    has deliberately no success branch.
+  - **Implicit flow, same as the magic link.** OAuth returns to the same
+    browser so PKCE would work here, but the client is configured once for
+    both, and `detectSessionInUrl` already parses the fragment on
+    `/auth/callback/`. Two flows in one client is a second path to keep correct
+    for nothing a reader can perceive.
+  - **The spec asserts BOTH shapes**, gated on the same flag the build reads.
+    ⚠️ The first version asserted absence unconditionally and was watched to
+    fail correctly against a flag-on build (`Expected: 0 / Received: 1`) — which
+    is exactly the problem: it would have gone red the day somebody enabled the
+    feature, training a person to edit the test rather than read it.
+  - ⚠️ **And that the magic link SURVIVES it**, which is the failure this would
+    most plausibly ship: a Google button that quietly replaces the email form
+    rather than joining it would lock out every reader without a Google account.
+
+### Notes
+
+- ⚠️⚠️ **PASSWORDS WERE RE-EXAMINED AND RE-REJECTED — the reasoning is in
+  BACKLOG so it is not re-litigated.** "Identifier + password" was raised as a
+  way in for readers with no email. Three specific grounds, not "it was already
+  decided": **Supabase has no username auth** (`signInWithPassword` takes an
+  email or a phone, so an identifier needs a synthetic unroutable address, and
+  phone routes recovery through the SMS the same decision rejects); **a
+  synthetic address collides with Critical Feature 53**, which derives a child's
+  placeholder name from the email local part and would put it on the attendance
+  sheet; and **the account cannot recover itself** — no address, no reset, in a
+  volunteer club with no support desk, for users who are children.
+  - **What covers the real cases instead:** children are already covered by the
+    parent/child model; the **autonomous teenager** is an account holding
+    exactly one child and graduation is one FK update (CF40/41), so they can sit
+    on a parent's account until they have an address; and someone with neither
+    belongs to **prof-created accounts**, in the same backlog row as Google.
+- **For Seàn, before the flag can be flipped:** configure the Google provider in
+  the Supabase dashboard, create the OAuth client in Google Cloud with
+  `https://mogadorchess.nachi3dlabs.com/auth/callback` in its redirect list,
+  complete one real sign-in, and only then set the build variable.
+
+### Added
+
 - **The browser is told not to offer a machine translation.**
   `<meta name="google" content="notranslate">` in the head and
   `class="notranslate"` on `<html>`, on all **224** pages.
