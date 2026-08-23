@@ -30,6 +30,67 @@ browser stops offering to rewrite the chess notation.
   structurally blind to.
 - **`verify:deploy` no longer false-fails on `/`.**
 
+### Verification
+
+**`PUBLIC_AUTH_ENABLED=true npm run test:release` — 2026-08-23 14:46, green:
+1,302 passed, 0 failed, 1 flaky, 21.7 min.** Gated on the promoted tree itself.
+
+| project | result | trough |
+|---|---|---|
+| chromium | 749 passed, 21 skipped | 1.68 GB |
+| firefox | 145 passed | 0.90 GB |
+| webkit | 161 passed, 1 flaky, 4 skipped | 2.55 GB |
+| pixel-5 | 106 passed | 2.81 GB |
+| iphone-13 | 120 passed | 2.42 GB |
+| chromium (OFF) sliver | 21 passed, 32 run | — |
+
+- ⚠️ **The sliver ran 32 tests, not zero** — Critical Feature 18 proved.
+- ✅ WebKit launched and ran.
+
+**⚠️ WHAT THE GATE DOES *NOT* PROVE, STATED SO "GREEN" IS NOT READ AS MORE THAN
+IT IS.** The gate runs the shape production serves, which for this release means
+`PUBLIC_GOOGLE_AUTH_ENABLED` **off** — so it exercises the *absent* branch of
+the Google flag spec and never the present one. The present branch was proved
+twice by hand against a flag-on build, and end to end on the test project
+including the cancel-at-Google path. **There is no automated coverage of the
+flag-on artefact in the gate**, by the same argument that makes the accounts-OFF
+sliver irreducible: you cannot inspect an artefact you did not produce. If the
+flag is ever turned on in production, that gap should be closed the way the
+sliver closed its own.
+
+**The one flaky — `[webkit] account-deletion.spec.ts:112`.**
+
+- ⚠️⚠️ **THE FIRST RE-RUN WAS SERIAL AND PROVED LITTLE, WHICH IS WORTH RECORDING
+  BECAUSE IT LOOKED LIKE IT PROVED A LOT.** Passing the single spec file with
+  `--workers=3` still ran on **one** worker: `playwright.config.ts` sets
+  `fullyParallel: false` on webkit and iphone-13, so tests *within a file* run
+  in sequence and only FILES run concurrently. A one-file re-run therefore
+  cannot reproduce the gate's contention no matter what `--workers` says — and
+  a serial pass is exactly the arbiter this project has already learned not to
+  trust.
+- **Re-run faithfully instead:** four webkit spec files together
+  (`account-deletion`, `family`, `onboarding`, `auth`) — **53 passed**.
+- **And the structural argument, which is the half no re-run can give.** In the
+  gate's flag shape the Google button is not rendered, so `LoginPage` and the
+  flag files are inert. What remains in the diff is two static attributes in
+  `BaseLayout`, three strings in `ui.ts`, and a **new, uncalled** export in
+  `supabase.ts` plus its stub. Account deletion touches none of it. **There is
+  no path from this release to that spec.**
+- ⚠️ **No 429 appears in the gate log**, so the standing auth-rate-limit
+  hypothesis is a hypothesis and is not claimed as the cause. ⚠️ **This is the
+  third consecutive gate whose flaky artefact was destroyed before it could be
+  read** — the BACKLOG entry about `test-results/` being cleared per project is
+  what would settle this class of question, and it is now the highest-value one
+  open.
+
+**`verify:deploy` will discriminate, proved before the deploy.** The live
+v0.21.0 tree serves `<html lang="fr" data-astro-cid-…>` with **zero**
+occurrences of `notranslate` and **zero** of `translate="no"`; this tree carries
+both. `BaseLayout` renders on every page, so the marker is on **all three**
+compared documents.
+
+**No migrations.** `git diff main HEAD -- supabase/` is empty.
+
 ### Added
 
 - **Google sign-in on `/connexion/`, behind `PUBLIC_GOOGLE_AUTH_ENABLED`
