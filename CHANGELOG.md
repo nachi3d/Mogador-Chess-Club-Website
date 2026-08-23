@@ -11,6 +11,25 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+## [0.22.0] — 2026-08-23
+
+**The release in one line:** a second way in, built but not switched on, and the
+browser stops offering to rewrite the chess notation.
+
+- **Google sign-in, behind `PUBLIC_GOOGLE_AUTH_ENABLED`.** ⚠️⚠️ **THE FLAG
+  STAYS OFF IN PRODUCTION IN THIS RELEASE** — the Google provider is configured
+  on the **test project only**, and the button is **absent rather than
+  disabled** where it is not configured. So this ships the code, not the
+  feature: `/connexion/` in production is unchanged, still email magic link.
+  Verified end to end on the test project, including the cancel-at-Google path.
+- **The browser no longer offers to machine-translate the site** — three
+  signals, because each reaches a different browser and none reaches all.
+- **Passwords re-examined and re-rejected**, with the three reasons recorded so
+  the question is not re-litigated from scratch.
+- **A stale fallback agenda now fails the build**, which `smoke:prod` is
+  structurally blind to.
+- **`verify:deploy` no longer false-fails on `/`.**
+
 ### Added
 
 - **Google sign-in on `/connexion/`, behind `PUBLIC_GOOGLE_AUTH_ENABLED`
@@ -6443,7 +6462,8 @@ Foundation only: no real content, no interactive board yet.
   `url()` references unresolved and the fonts silently 404 into a Georgia
   fallback. `scripts/build-fonts.mjs` self-hosts them instead. See CLAUDE.md.
 
-[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.21.0...HEAD
+[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.22.0...HEAD
+[0.22.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.18.0...v0.19.0
