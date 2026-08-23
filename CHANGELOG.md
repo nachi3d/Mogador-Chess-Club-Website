@@ -48,12 +48,18 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
   it: the first version of the spec shipped **two literal backspace characters**
   inside its regex, which the fast path's narrower spec selection could plausibly
   have carried through.
-- ⚠️ **BOTH SIGNALS ARE GOOGLE-SPECIFIC, AND THAT IS A REAL LIMIT.** They cover
-  Chrome and the Google Translate widget, which is the large majority of the
-  case. The standards-based counterpart is `translate="no"` on `<html>`, which
-  other browsers are likelier to honour. **Not added** — the change was
-  specified as these two attributes, and this is a one-attribute follow-up
-  rather than something to widen into silently.
+- ⚠️ **THE GOOGLE SIGNALS DO NOT REACH EVERY BROWSER, SO A THIRD WAS ADDED.**
+  `class="notranslate"` and `<meta name="google">` cover Chrome and the Google
+  Translate widget and nothing else; Safari and Edge honour the HTML standard
+  attribute, `translate="no"`. All three now ship on all 224 pages, and the
+  spec asserts all three together with `lang`.
+  - ⚠️⚠️ **THEY ARE NOT REDUNDANT AND MUST NOT BE "CONSOLIDATED".** Each reaches
+    something the others do not, and ⚠️ **no engine in this suite can tell them
+    apart** — so deleting any one of them leaves every test green while
+    silently dropping a browser's worth of readers. The assertion is about the
+    CONTRACT, not an observable behaviour, and that is stated beside it.
+  - The three-signal version was watched to fail first: with `translate="no"`
+    removed the spec reports `Expected: "no" / Received: ""` on both locales.
 
 ## [0.21.0] — 2026-08-22
 

@@ -66,16 +66,32 @@ test.describe('home page renders in both locales', () => {
    * to translate"; `lang` says "this is what it is written in", which a screen
    * reader picks its voice from. Suppressing translation by weakening `lang`
    * would be a real accessibility regression, so this asserts both together.
+   *
+   * ⚠️ THREE SIGNALS, ASSERTED TOGETHER BECAUSE EACH REACHES A DIFFERENT
+   * BROWSER — `class="notranslate"` (the Google Translate widget),
+   * `<meta name="google">` (Chrome's own offer) and `translate="no"` (the HTML
+   * standard, and the only one Safari and Edge are likely to honour).
+   *
+   * ⚠️⚠️ THIS SPEC CANNOT SEE THE DIFFERENCE BETWEEN THEM, AND THAT IS EXACTLY
+   * WHY IT ASSERTS ALL THREE. No engine in this suite behaves differently
+   * across the three, so deleting any one of them would leave every test green
+   * while silently dropping a browser's worth of readers. The assertion is
+   * therefore about the CONTRACT — all three present — not about an observable
+   * behaviour, and it must not be "simplified" to whichever one looks
+   * canonical.
    */
   for (const [label, path, lang] of [
     ['FR', '/', 'fr'],
     ['EN', '/en/', 'en'],
   ] as const) {
-    test(`${label}: the browser is told not to translate, and lang survives`, async ({ page }) => {
+    test(`${label}: all three no-translate signals are set, and lang survives`, async ({ page }) => {
       await page.goto(path);
 
       const html = page.locator('html');
       await expect(html).toHaveAttribute('lang', lang);
+      /* The HTML standard attribute — the one that reaches Safari and Edge,
+         which neither Google signal does. */
+      await expect(html).toHaveAttribute('translate', 'no');
       /* ⚠️ A TOKEN CHECK, NOT AN EQUALS ONE AND NOT A SUBSTRING ONE.
          The theme head script adds `js` and `theme-*` to <html> before first
          paint, so the attribute is never just "notranslate" in a real browser:
