@@ -1,10 +1,20 @@
 ---
 /**
- * /connexion — email magic link, and nothing else.
+ * /connexion — email magic link, plus Google when it is configured.
  *
- * No passwords exist anywhere in this system, so there is no reset flow, no
- * strength meter and no credential to leak. Google OAuth and prof-created
- * accounts arrive in v2-S2.
+ * ⚠️ STILL NO PASSWORDS, AND THAT WAS RE-EXAMINED RATHER THAN INHERITED.
+ * "Identifier + password" was raised as a way in for people without an email
+ * address and was rejected again, on three grounds: Supabase's password grant
+ * only accepts an email or a phone, so a username needs a synthetic
+ * unroutable address; that address then feeds the placeholder-name rule
+ * (Critical Feature 53), which derives a child's name from the email local
+ * part and would put it on the attendance sheet; and an account whose only
+ * credential is a password, with no address to send a reset to, cannot be
+ * recovered by anyone — in a volunteer club with no support desk, for users
+ * who are children. The no-email case belongs to prof-created accounts, and
+ * the autonomous teenager is already served by graduation (CF41). See BACKLOG.
+ *
+ * So there is no reset flow, no strength meter and no credential to leak.
  *
  * ⚠️ NOT AN ISLAND. The one-hydrated-component rule still holds — the board is
  * the only Preact island on the site. This is a plain form plus a module script,
@@ -12,6 +22,7 @@
  * chunk graph.
  */
 import type { Locale } from '@config/site';
+import { GOOGLE_AUTH_ENABLED } from '@config/auth';
 import { localizePath } from '@i18n/paths';
 import { useTranslations } from '@i18n/ui';
 import BaseLayout from '@layouts/BaseLayout.astro';
@@ -31,6 +42,43 @@ const t = useTranslations(locale);
   <PageIntro title={t('login.title')} intro={t('login.intro')} />
 
   <div class="auth-card">
+    {/* ⚠️ BEHIND ITS OWN FLAG, AND ABSENT RATHER THAN DISABLED WHEN IT IS OFF.
+        Google sign-in needs the provider configured in Supabase and an OAuth
+        client in Google Cloud; neither lives in this repository, so nothing
+        here can check them. A button that is present and fails on press is the
+        defect Critical Feature 76 exists for — and unlike a hydration race
+        this one would never resolve on its own, so DISABLED would be a lie
+        too. It is not rendered at all until the configuration exists.
+        See GOOGLE_AUTH_ENABLED in src/config/auth.ts. */}
+    {
+      GOOGLE_AUTH_ENABLED && (
+        <>
+          <button
+            type="button"
+            class="btn-block google-button"
+            data-testid="login-google"
+            data-msg-error={t('login.googleError')}
+            data-callback-path="/auth/callback"
+          >
+            {/* Google's mark, inline: no request, and it inherits nothing —
+                the four brand colours are fixed by their guidelines and are
+                the one place on this site a colour is not a token. */}
+            <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+              <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z" />
+              <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z" />
+              <path fill="#FBBC05" d="M3.97 10.72a5.4 5.4 0 0 1 0-3.44V4.95H.96a9 9 0 0 0 0 8.1l3.01-2.33z" />
+              <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.9 11.43 0 9 0A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z" />
+            </svg>
+            <span>{t('login.google')}</span>
+          </button>
+
+          {/* ⚠️ A REAL SEPARATOR, NOT A HEADING. Two ways in need to read as
+              alternatives; stacked flush they read as steps. */}
+          <p class="auth-or" data-testid="login-or"><span>{t('login.or')}</span></p>
+        </>
+      )
+    }
+
     {/* Translated strings ride on the element rather than through a global or
         `define:vars`: a bundled module script cannot take `define:vars`, and an
         `is:inline` one cannot `import` a bare specifier. Data attributes are
@@ -149,6 +197,52 @@ const t = useTranslations(locale);
       errorEl.hidden = false;
     }
 
+    /**
+     * ⚠️ GOOGLE: THE TAB LEAVES, SO NOTHING AFTER THE CALL IS A SUCCESS PATH.
+     *
+     * `signInWithGoogle` resolves only when the redirect could NOT be started;
+     * on success the browser has already navigated away and this handler is
+     * gone with the page. So the button is restored on failure only, and there
+     * is deliberately no "signed in" branch here — the session arrives on the
+     * next load, through `completeSignIn()` on /auth/callback.
+     *
+     * ⚠️ The button is only in the DOM when GOOGLE_AUTH_ENABLED is on, so this
+     * whole block is inert rather than absent in the default build. That is
+     * the cheap half of the flag; the load-bearing half is that no reader sees
+     * a control that cannot work.
+     */
+    const google = document.querySelector('[data-testid="login-google"]') as HTMLButtonElement | null;
+
+    google?.addEventListener('click', async () => {
+      if (errorEl) errorEl.hidden = true;
+      const label = google.textContent;
+      google.disabled = true;
+
+      try {
+        const { isConfigured, signInWithGoogle } = await import('@lib/supabase');
+        if (!isConfigured()) {
+          showError(msg.unconfigured);
+          return;
+        }
+        const redirectTo = new URL(
+          google.dataset.callbackPath ?? '/auth/callback',
+          window.location.origin,
+        ).toString();
+
+        /* Resolves ONLY on failure — see above. */
+        const result = await signInWithGoogle(redirectTo);
+        showError(google.dataset.msgError ?? msg.error);
+        if (import.meta.env.DEV) console.error('[google sign-in]', result.message);
+      } catch {
+        showError(google.dataset.msgError ?? msg.error);
+      } finally {
+        /* Reached on every failure path, and never on the success one, because
+           the tab is gone by then. */
+        google.disabled = false;
+        if (label !== null) google.textContent = label;
+      }
+    });
+
     form?.addEventListener('submit', async (event) => {
       event.preventDefault();
       if (!email || !submit) return;
@@ -222,6 +316,60 @@ const t = useTranslations(locale);
     display: block;
     margin-bottom: 0.35rem;
     font-weight: 500;
+  }
+
+  /* ⚠️ THE ONE PLACE A COLOUR IS NOT A TOKEN. Google's mark has fixed brand
+     colours in its guidelines, and the surface it sits on is ours — so the
+     BUTTON is themed and only the glyph is not. check-contrast.mjs audits
+     token pairs and cannot see the SVG, which is why the label is a real text
+     node in --mcc-text-primary rather than part of the artwork. */
+  .google-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    min-block-size: 48px;
+    padding: 0.7rem 1.1rem;
+    background-color: var(--mcc-surface-raised);
+    color: var(--mcc-text-primary);
+    border: 1px solid var(--mcc-border-strong);
+    border-radius: var(--radius-card);
+    font: inherit;
+    font-size: 0.9375rem;
+    font-weight: 500;
+    cursor: pointer;
+  }
+
+  .google-button:hover:not(:disabled) {
+    background-color: var(--mcc-surface-sunken);
+  }
+
+  .google-button:disabled {
+    opacity: 0.6;
+    cursor: progress;
+  }
+
+  .google-button:focus-visible {
+    outline: 2px solid var(--mcc-focus-ring);
+    outline-offset: 2px;
+  }
+
+  /* A rule with the word sitting in it, rather than a bare word above a form. */
+  .auth-or {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin: 1.1rem 0;
+    color: var(--mcc-text-secondary);
+    font-size: 0.8125rem;
+  }
+
+  .auth-or::before,
+  .auth-or::after {
+    content: '';
+    flex: 1;
+    block-size: 1px;
+    background-color: var(--mcc-border-subtle);
   }
 
   input[type='email'] {

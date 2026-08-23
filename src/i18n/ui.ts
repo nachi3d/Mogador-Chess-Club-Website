@@ -632,6 +632,15 @@ const fr = {
      jamais. */
   'login.hpLabel': 'Laissez ce champ vide',
   'login.retry': 'Vérification impossible. Appuyez à nouveau sur le bouton.',
+  /* ── Google (v2-S2) ─────────────────────────────────────────────────────
+     ⚠️ "Continuer avec", not "Se connecter avec" — the same button creates the
+     account the first time and signs in every time after, and Google's own
+     guidelines say the label must not promise one or the other. */
+  'login.google': 'Continuer avec Google',
+  'login.or': 'ou',
+  /* Its own message rather than reusing `login.error`: that one says the link
+     could not be sent, which is about email and would be nonsense here. */
+  'login.googleError': "La connexion avec Google n'a pas pu démarrer. Réessayez, ou utilisez le lien par e-mail.",
   'callback.title': 'Connexion…',
   'callback.working': 'Connexion en cours…',
   'callback.failed': "Ce lien n'est plus valide. Demandez-en un nouveau.",
@@ -1453,6 +1462,10 @@ const en: Record<keyof typeof fr, string> = {
   /* ⚠️ Noise reduction, NOT security — the anon key is public. See the FR note. */
   'login.hpLabel': 'Leave this field empty',
   'login.retry': 'Could not verify. Press the button again.',
+  /* ── Google (v2-S2). See the FR note. ────────────────────────────────── */
+  'login.google': 'Continue with Google',
+  'login.or': 'or',
+  'login.googleError': 'Google sign-in could not start. Try again, or use the email link.',
   'callback.title': 'Signing in…',
   'callback.working': 'Signing you in…',
   'callback.failed': 'This link is no longer valid. Request a new one.',

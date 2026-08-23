@@ -107,3 +107,16 @@ export async function deleteOwnAccount(): Promise<{ ok: false; message: string }
 export async function markOnboarded(_shape?: string | null): Promise<{ ok: boolean }> {
   return { ok: false };
 }
+
+/**
+ * ⚠️ PRESENT BECAUSE THE ALIAS REPLACES THE WHOLE MODULE. `LoginPage`'s script
+ * imports this name, so its absence fails the accounts-OFF build outright —
+ * see the note above `deleteOwnAccount`. It reports failure rather than
+ * pretending to redirect: a stub that resolved as if sign-in had started would
+ * leave the reader on a page waiting for a navigation that never comes.
+ */
+export async function signInWithGoogle(
+  _redirectTo: string,
+): Promise<{ ok: false; message: string }> {
+  return { ok: false, message: 'accounts are disabled in this build' };
+}
