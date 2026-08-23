@@ -641,6 +641,17 @@ const fr = {
   /* Its own message rather than reusing `login.error`: that one says the link
      could not be sent, which is about email and would be nonsense here. */
   'login.googleError': "La connexion avec Google n'a pas pu démarrer. Réessayez, ou utilisez le lien par e-mail.",
+  /* ⚠️ THE ONE LINE THAT PREVENTS A SILENT SECOND ACCOUNT — see the note in
+     LoginPage.astro. Automatic linking keys on the ADDRESS, so a reader who
+     signed up as one address and presses Google while signed into another gets
+     a new account with an empty ledger, while their real progress sits intact
+     and invisible on the first. It looks like data loss and is not, which is
+     the worst combination. This says the one thing that avoids it.
+     ⚠️ It names the CONSEQUENCE, not the mechanism: "sinon vous créerez un
+     second compte" is what a parent can act on; "l'identité ne sera pas liée"
+     is true and useless. */
+  'login.googleSameAddress':
+    'Utilisez la même adresse que votre lien e-mail — sinon vous créerez un second compte, vide.',
   'callback.title': 'Connexion…',
   'callback.working': 'Connexion en cours…',
   'callback.failed': "Ce lien n'est plus valide. Demandez-en un nouveau.",
@@ -1466,6 +1477,9 @@ const en: Record<keyof typeof fr, string> = {
   'login.google': 'Continue with Google',
   'login.or': 'or',
   'login.googleError': 'Google sign-in could not start. Try again, or use the email link.',
+  /* See the FR note — it names the consequence, not the mechanism. */
+  'login.googleSameAddress':
+    'Use the same address as your email link — otherwise you will create a second, empty account.',
   'callback.title': 'Signing in…',
   'callback.working': 'Signing you in…',
   'callback.failed': 'This link is no longer valid. Request a new one.',

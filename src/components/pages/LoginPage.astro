@@ -72,6 +72,28 @@ const t = useTranslations(locale);
             <span>{t('login.google')}</span>
           </button>
 
+          {/* ⚠️⚠️ THE ONE LINE THAT PREVENTS A SILENT SECOND ACCOUNT.
+              Automatic linking keys on the EMAIL ADDRESS: Supabase attaches a
+              Google identity to an existing user only when the address matches
+              and is confirmed. A reader who signed up as one address and
+              presses this while signed into a different Google account gets a
+              NEW auth user, a NEW child profile, and a ledger of zero — with
+              their real progress intact and invisible on an account they cannot
+              see from where they are standing.
+
+              ⚠️ IT LOOKS LIKE DATA LOSS AND IT IS NOT, which is the worst
+              combination: nothing errors, nothing is broken, and the reader has
+              no way to tell what happened. Here that progress is a child's —
+              points, rank and attendance earned over weeks.
+
+              ⚠️ BEFORE THE PRESS, NOT AFTER. A message shown once the fork has
+              happened is an explanation; this is a prevention, and it is the
+              cheap half of the fix. The detection and manual-linking options
+              are in BACKLOG and are not a reason to withhold this line. */}
+          <p class="google-note" data-testid="login-google-note">
+            {t('login.googleSameAddress')}
+          </p>
+
           {/* ⚠️ A REAL SEPARATOR, NOT A HEADING. Two ways in need to read as
               alternatives; stacked flush they read as steps. */}
           <p class="auth-or" data-testid="login-or"><span>{t('login.or')}</span></p>
@@ -352,6 +374,21 @@ const t = useTranslations(locale);
   .google-button:focus-visible {
     outline: 2px solid var(--mcc-focus-ring);
     outline-offset: 2px;
+  }
+
+  /* ⚠️ SECONDARY TEXT, NOT A WARNING BANNER. It has to be read before the
+     press, but it is guidance rather than an error — styling it as an alert
+     would make the ordinary path look dangerous, and a reader who is told
+     everything is alarming stops reading any of it.
+     ⚠️ NO `opacity` — --mcc-text-secondary is an audited token, and an alpha
+     on top of it is invisible to check-contrast.mjs (the rule in CLAUDE.md
+     that cost a Lighthouse regression the whole suite passed). */
+  .google-note {
+    margin: 0.5rem 0 0;
+    color: var(--mcc-text-secondary);
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    max-inline-size: 42ch;
   }
 
   /* A rule with the word sitting in it, rather than a bare word above a form. */

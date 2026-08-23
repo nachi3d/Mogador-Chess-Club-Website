@@ -458,17 +458,39 @@ test.describe('Google sign-in is behind its own flag', () => {
 
     const button = page.getByTestId('login-google');
     const separator = page.getByTestId('login-or');
+    const note = page.getByTestId('login-google-note');
 
     if (GOOGLE_AUTH_ENABLED) {
       await expect(button).toBeVisible();
       await expect(button).toBeEnabled();
       /* Two ways in must read as alternatives, not as steps. */
       await expect(separator).toBeVisible();
+
+      /**
+       * ⚠️ THE SAME-ADDRESS NOTE TRAVELS WITH THE BUTTON, AND IT IS NOT
+       * DECORATION.
+       *
+       * Automatic linking keys on the email address. Without this line a
+       * reader who signed up as one address and presses Google while signed
+       * into another silently gets a second account with an empty ledger,
+       * while their real progress — a child's points and attendance — sits
+       * intact and invisible on the first. It looks like data loss and is not,
+       * which is precisely why nothing else on the page would tell them.
+       *
+       * ⚠️ ASSERTED VISIBLE, NOT MERELY PRESENT: a note the reader cannot see
+       * before pressing prevents nothing, and it is the only thing standing
+       * between the button and the fork until the detection work lands.
+       */
+      await expect(note).toBeVisible();
+      await expect(note).not.toBeEmpty();
     } else {
       /* Absent, not hidden: a hidden control is still in the DOM for a script
          or a determined reader to reach, and this one cannot work. */
       await expect(button).toHaveCount(0);
       await expect(separator).toHaveCount(0);
+      /* And the note goes with it — a warning about a button that is not there
+         is noise on the page every reader actually sees today. */
+      await expect(note).toHaveCount(0);
     }
   });
 
