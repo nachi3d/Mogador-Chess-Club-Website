@@ -252,8 +252,23 @@ const pageDescription = description ?? site.description[locale];
   adds `js` and `theme-*` to <html> before first paint; `add` preserves whatever
   is already in the attribute, so this class survives and so do those. A script
   that assigned `className` would silently drop it — do not "tidy" it into one.
+
+  ⚠️ THREE SIGNALS, AND THEY ARE NOT REDUNDANT — EACH REACHES SOMETHING THE
+  OTHERS DO NOT. This looks like belt and braces and is not:
+
+    - `class="notranslate"`            the Google Translate widget's convention
+    - `<meta name="google" …>`         Chrome's own offer to translate the page
+    - `translate="no"`                 the HTML STANDARD attribute — the only
+                                       one Safari and Edge are likely to honour
+
+  The first two are Google-specific. Shipping only those covers the majority
+  case and leaves every Safari and Edge reader with the prompt still appearing,
+  which was the state this site was in for exactly one commit. ⚠️ **Do not
+  "consolidate" these into whichever one looks canonical** — deleting any of
+  the three silently drops a browser, and no test on this machine would notice,
+  because the suite's engines are not the ones that differ here.
 */}
-<html lang={locale} class="notranslate" data-board={board ? '' : undefined}>
+<html lang={locale} class="notranslate" translate="no" data-board={board ? '' : undefined}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />

@@ -437,6 +437,10 @@ language it never would, so testing there proves nothing.
 
 - [ ] Open `/pieges/legal/` — no "Translate this page?" prompt, and no
       translate icon offered in the address bar
+- [ ] ⚠️ **Repeat it in Safari and/or Edge if you have one to hand.** They
+      ignore both Google signals and honour `translate="no"` instead — and
+      **no test in the suite can tell the three apart**, so this manual check
+      is the only thing that covers those two browsers at all
 - [ ] Right-click the page — ⚠️ **"Translate to English" may still be offered
       there**; that is the reader asking explicitly, which we do not block. What
       must not happen is the site *offering* it unprompted
