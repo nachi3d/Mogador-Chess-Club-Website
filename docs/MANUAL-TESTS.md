@@ -450,6 +450,59 @@ language it never would, so testing there proves nothing.
       translation by weakening `lang` would be a real regression traded for a
       small annoyance
 
+### ⚠️⚠️ BEFORE FLIPPING `PUBLIC_GOOGLE_AUTH_ENABLED` ON: the OAuth client's PUBLISHING STATUS
+
+*This is the check most likely to be skipped and most likely to bite, because a
+client in **Testing** works perfectly for the person who set it up and fails for
+everyone else. It cannot be checked from this repository or from Supabase — only
+from Google Cloud.*
+
+**Where to look, exactly:**
+
+1. Go to **console.cloud.google.com** and select the project that owns the OAuth
+   client. ⚠️ **Check the project picker at the top** — an account with several
+   projects lands in the last one used, not necessarily this one.
+2. Left menu → **APIs & Services** → **OAuth consent screen**
+   *(newer console: **APIs & Services** → **Branding**, with publishing status
+   under **Audience**).*
+3. Read **Publishing status**. It says either **Testing** or **In production**.
+
+**What each means for a reader on `mogadorchess.nachi3dlabs.com`:**
+
+| Status | What happens to a parent pressing "Continuer avec Google" |
+|---|---|
+| **Testing** | ⚠️ **Only addresses on the Test users list can sign in.** Everyone else is refused at Google's own screen with "app has not completed verification" or "access blocked" — **before** they ever return to the site, so nothing we log or render can soften it. The list is capped at 100 addresses. |
+| **In production** | Anyone with a Google account can sign in. |
+
+- [ ] **Publishing status is "In production"** — not "Testing"
+- [ ] If it is in Testing and you are keeping it that way for now, ⚠️ **do NOT
+      flip the flag**: the button would work for you and fail for the club
+- [ ] **User type** is **External** (Internal only exists for Workspace
+      organisations and would refuse every parent)
+
+**⚠️ AND THE SAME CLIENT SERVES BOTH PROJECTS.** Measured 2026-08-23: production
+and the test project return the **same `client_id`** from
+`/auth/v1/authorize?provider=google`. So there is one consent screen, one
+publishing status and one redirect-URI list covering both — a change made for
+testing lands on production too.
+
+- [ ] **Authorised redirect URIs** contains **both** callbacks:
+      - [ ] `https://vtestpaufxmrvdhgrrsy.supabase.co/auth/v1/callback` (production)
+      - [ ] `https://puhhrqbgcobblowengii.supabase.co/auth/v1/callback` (test)
+- [ ] ⚠️ **These are the SUPABASE callbacks, not the site's.** Google redirects
+      to Supabase, and Supabase then redirects to `…/auth/callback` on the site.
+      Putting the site URL here instead is the classic misconfiguration, and it
+      fails with `redirect_uri_mismatch` at Google.
+- [ ] Supabase → **Authentication → URL Configuration → Redirect URLs** lists
+      `https://mogadorchess.nachi3dlabs.com/auth/callback`. ⚠️ **If it does not,
+      Supabase falls back to SITE_URL silently** and the reader lands on the
+      wrong page having apparently signed in.
+
+**⚠️ Consider a separate OAuth client for the test project** rather than sharing
+one. It is free, it stops a test-time change reaching production, and it means
+the consent screen a parent sees can be named for the club rather than for
+whatever the shared client is called.
+
 ### ⚠️ Google sign-in — ONLY AFTER THE PROVIDER IS CONFIGURED
 
 *The button is not rendered at all unless `PUBLIC_GOOGLE_AUTH_ENABLED=true`,
@@ -469,8 +522,11 @@ Before flipping the flag:
 
 After flipping it, on the real site:
 
-- [ ] `/connexion/` shows "Continuer avec Google" above a rule reading "ou",
-      and the email form is **still there underneath**. ⚠️ **If the email form
+- [ ] `/connexion/` shows "Continuer avec Google", then the line **"Utilisez
+      la même adresse que votre lien e-mail"**, then a rule reading "ou", and
+      the email form is **still there underneath**. ⚠️ **If that line is
+      missing, stop** — it is the only thing preventing a reader from silently
+      creating a second, empty account. ⚠️ **If the email form
       is gone, stop** — that locks out every reader without a Google account
 - [ ] Pressing it reaches Google, and coming back lands you signed in
 - [ ] `/en/connexion/` reads "Continue with Google" and behaves the same

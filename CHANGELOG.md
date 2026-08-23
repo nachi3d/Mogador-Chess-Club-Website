@@ -13,6 +13,50 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ### Added
 
+- **The same-address line beside the Google button** — option (a) from the
+  fork filing, implemented on its own rather than waiting for the rest.
+  *"Utilisez la même adresse que votre lien e-mail — sinon vous créerez un
+  second compte, vide."*
+  - ⚠️ **BEFORE THE PRESS, NOT AFTER.** A message shown once the fork has
+    happened is an explanation; this is a prevention, and it is the whole of the
+    cheap half.
+  - ⚠️ **It names the CONSEQUENCE, not the mechanism.** "Vous créerez un second
+    compte" is something a parent can act on; "l'identité ne sera pas liée" is
+    true and useless.
+  - **Secondary text, not a warning banner** — it must be read, but styling
+    guidance as an alert makes the ordinary path look dangerous and teaches
+    readers to skip everything. No `opacity` on it either: the colour is an
+    audited token and an alpha on top is invisible to `check-contrast.mjs`.
+  - **The spec asserts it travels with the button** in both flag shapes —
+    **visible** when on, because a note nobody can see prevents nothing, and
+    **absent** when off, because a warning about a button that is not there is
+    noise on the page every reader actually sees today.
+
+### Fixed
+
+- ⚠️⚠️ **The v0.22.0 entry was FALSE and is corrected in place.** It said the
+  Google provider was *"configured on the test project only"*. It is not:
+  production reports `external.google: true` and
+  `/auth/v1/authorize?provider=google` returns **302 to Google**. The flag hides
+  the **button, not the endpoint**. Corrected inside the `[0.22.0]` section,
+  marked as a post-tag correction with the date and the measurement — rather
+  than only appended here, because a reader checking what that release did would
+  otherwise find the false version and stop reading.
+
+### Notes
+
+- **`docs/MANUAL-TESTS.md` gained the Google Cloud pre-flight**, which is the
+  check most likely to be skipped and most likely to bite: **APIs & Services →
+  OAuth consent screen → Publishing status**. ⚠️ **A client in "Testing" works
+  perfectly for whoever set it up and refuses everyone else**, at Google's own
+  screen, before the reader ever returns to the site — so nothing this codebase
+  renders can soften it. Also recorded there: the redirect URIs are the
+  **Supabase** callbacks and not the site's, and ⚠️ **one OAuth client currently
+  serves BOTH projects**, so its publishing status and URI list cover production
+  and test together. A separate client for test is suggested.
+
+### Added
+
 - **`scripts/check-identity-linking.mjs`** — does a Google sign-in LINK onto an
   existing magic-link account, or fork a second one? Test project only, through
   the same interlock as the e2e suite, failing closed; unrecognised flags are
@@ -65,11 +109,30 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 browser stops offering to rewrite the chess notation.
 
 - **Google sign-in, behind `PUBLIC_GOOGLE_AUTH_ENABLED`.** ⚠️⚠️ **THE FLAG
-  STAYS OFF IN PRODUCTION IN THIS RELEASE** — the Google provider is configured
-  on the **test project only**, and the button is **absent rather than
-  disabled** where it is not configured. So this ships the code, not the
+  STAYS OFF IN PRODUCTION IN THIS RELEASE**, and the button is **absent rather
+  than disabled** where it is not configured. So this ships the code, not the
   feature: `/connexion/` in production is unchanged, still email magic link.
   Verified end to end on the test project, including the cancel-at-Google path.
+
+  > ⚠️⚠️ **CORRECTED 2026-08-23, AFTER THIS RELEASE WAS TAGGED AND DEPLOYED.**
+  > This entry originally said *"the Google provider is configured on the test
+  > project only"*. **That was false**, and it was written from an assumption
+  > rather than a measurement. Checked read-only against production
+  > (`vtestpaufxmrvdhgrrsy`): `GET /auth/v1/settings` reports
+  > `external.google: true`, and `GET /auth/v1/authorize?provider=google`
+  > returns **302 to `accounts.google.com`**. The provider answers on
+  > production and did so throughout this release.
+  >
+  > ⚠️ **THE FLAG HIDES THE BUTTON, NOT THE ENDPOINT.** Everything else in this
+  > entry stands — no button is rendered, `/connexion/` is unchanged — but the
+  > authorize endpoint is reachable by anyone who constructs the URL. That is
+  > **not a new capability** (sign-up is already open via magic link,
+  > `disable_signup: false`), and it is **not what the record said**.
+  >
+  > The claim is corrected here rather than only appended to a later release,
+  > because a reader checking what v0.22.0 did would otherwise find the false
+  > version and stop. The open decisions it raises — including that production
+  > and test share one Google `client_id` — are in BACKLOG.
 - **The browser no longer offers to machine-translate the site** — three
   signals, because each reaches a different browser and none reaches all.
 - **Passwords re-examined and re-rejected**, with the three reasons recorded so
