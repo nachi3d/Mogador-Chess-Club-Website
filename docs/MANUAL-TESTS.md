@@ -425,6 +425,61 @@ Walk down and watch the bar, without tapping it:
 
 ---
 
+### ⚠️ The browser must not offer to translate the page
+
+*Chess notation is single letters that read as ordinary words to a translator —
+a French `Fc4` or `Cxe5` is exactly what one rewrites, and the moves stop
+matching the board beside them.*
+
+⚠️ **Do this in Chrome with English as your browser language, on a FRENCH page.**
+That mismatch is when the prompt appears; on the page that matches your own
+language it never would, so testing there proves nothing.
+
+- [ ] Open `/pieges/legal/` — no "Translate this page?" prompt, and no
+      translate icon offered in the address bar
+- [ ] ⚠️ **Repeat it in Safari and/or Edge if you have one to hand.** They
+      ignore both Google signals and honour `translate="no"` instead — and
+      **no test in the suite can tell the three apart**, so this manual check
+      is the only thing that covers those two browsers at all
+- [ ] Right-click the page — ⚠️ **"Translate to English" may still be offered
+      there**; that is the reader asking explicitly, which we do not block. What
+      must not happen is the site *offering* it unprompted
+- [ ] The language switcher still works and still swaps FR ↔ EN
+- [ ] ⚠️ **Check a screen reader still reads French in a French voice** on
+      `/pieges/legal/` — `lang="fr"` must have survived. Suppressing
+      translation by weakening `lang` would be a real regression traded for a
+      small annoyance
+
+### ⚠️ Google sign-in — ONLY AFTER THE PROVIDER IS CONFIGURED
+
+*The button is not rendered at all unless `PUBLIC_GOOGLE_AUTH_ENABLED=true`,
+and it must not be turned on until the Supabase provider and the Google Cloud
+OAuth client both exist. Nothing in the build can check them — this checklist
+is the only thing that can.*
+
+Before flipping the flag:
+
+- [ ] Supabase → Authentication → Providers → **Google** is enabled, with the
+      client ID and secret filled in
+- [ ] Google Cloud → the OAuth client lists
+      `https://mogadorchess.nachi3dlabs.com/auth/callback` as a redirect URI
+- [ ] Supabase → Authentication → URL Configuration lists the same callback in
+      **Redirect URLs**. ⚠️ If it does not, Supabase falls back to SITE_URL
+      **silently** and the reader lands on the wrong locale
+
+After flipping it, on the real site:
+
+- [ ] `/connexion/` shows "Continuer avec Google" above a rule reading "ou",
+      and the email form is **still there underneath**. ⚠️ **If the email form
+      is gone, stop** — that locks out every reader without a Google account
+- [ ] Pressing it reaches Google, and coming back lands you signed in
+- [ ] `/en/connexion/` reads "Continue with Google" and behaves the same
+- [ ] ⚠️ **Cancel at the Google screen and come back.** You should land on
+      `/connexion/` able to try again — not on a dead page, and not signed in
+- [ ] The first Google sign-in creates the account, and `/bienvenue/` appears
+      once. ⚠️ Check the child profile is **not** named from the Google
+      address's local part (Critical Feature 53)
+
 ## 1b. Navigation menu and board coordinates
 
 ### The menu — ⚠️ on a REAL phone, not a narrow desktop window

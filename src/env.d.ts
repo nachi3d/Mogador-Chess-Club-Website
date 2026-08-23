@@ -37,6 +37,18 @@ interface ImportMetaEnv {
    */
   readonly PUBLIC_AUTH_ENABLED?: string;
   /**
+   * `'true'` renders the "Continue with Google" button on `/connexion/`.
+   *
+   * ⚠️ SEPARATE FROM `PUBLIC_AUTH_ENABLED` ON PURPOSE, AND IT DEFAULTS OFF.
+   * The button only works once the Google provider is configured in the
+   * Supabase dashboard AND an OAuth client exists in Google Cloud — neither of
+   * which lives in this repository, so nothing here can check them. Shipping
+   * the button before that gives a reader a live-looking control that fails
+   * when pressed, which is Critical Feature 76 wearing a different hat.
+   * The flag is how the code lands before the configuration does.
+   */
+  readonly PUBLIC_GOOGLE_AUTH_ENABLED?: string;
+  /**
    * `'true'` emits the test-fixture routes. Anything else omits them, which is
    * what production ships. Set by `playwright.config.ts` for the build it
    * tests, and by nothing else. See `src/config/fixtures.ts`.

@@ -182,6 +182,49 @@ export async function signInWithMagicLink(
 }
 
 /**
+ * Start a Google sign-in.
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️ IT REDIRECTS THE WHOLE TAB AND DOES NOT RETURN. Everything after the
+ * call is unreachable on the success path, which is why this resolves only to
+ * report a FAILURE — a caller that awaits it expecting a session will wait
+ * forever, because the session arrives on the next page load through
+ * `completeSignIn()`.
+ *
+ * ⚠️ SAME IMPLICIT FLOW AS THE MAGIC LINK, AND FOR A DIFFERENT REASON.
+ * The magic link is implicit because email is routinely opened in another
+ * browser, so a PKCE verifier stranded in the requesting one would break it.
+ * OAuth comes back to the same browser, so PKCE would work here — but the
+ * client is configured once, for both, and `detectSessionInUrl` already
+ * parses the fragment on `/auth/callback/`. Two flows in one client is a
+ * second code path to keep correct for no gain a reader can perceive.
+ *
+ * ⚠️ THE PROVIDER MUST BE CONFIGURED IN SUPABASE **AND** IN GOOGLE CLOUD, and
+ * nothing in this repository can check either. See `GOOGLE_AUTH_ENABLED` in
+ * `src/config/auth.ts` for why the button is behind its own flag.
+ *
+ * `redirectTo` must be an absolute URL listed in the project's allowed
+ * redirect URLs, exactly as for the magic link, or Supabase silently falls
+ * back to SITE_URL and the reader lands on the wrong locale.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+export async function signInWithGoogle(
+  redirectTo: string,
+): Promise<{ ok: false; message: string }> {
+  try {
+    const sb = await getSupabase();
+    const { error } = await sb.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo },
+    });
+    /* Reached only when the redirect could not be started at all. */
+    return { ok: false, message: error?.message ?? 'redirect did not start' };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/**
  * Finish a magic-link landing. Supabase has already parsed the fragment by the
  * time this resolves (`detectSessionInUrl`); this records the flag and removes
  * the tokens from the address bar.

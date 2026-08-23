@@ -11,6 +11,191 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+## [0.22.0] — 2026-08-23
+
+**The release in one line:** a second way in, built but not switched on, and the
+browser stops offering to rewrite the chess notation.
+
+- **Google sign-in, behind `PUBLIC_GOOGLE_AUTH_ENABLED`.** ⚠️⚠️ **THE FLAG
+  STAYS OFF IN PRODUCTION IN THIS RELEASE** — the Google provider is configured
+  on the **test project only**, and the button is **absent rather than
+  disabled** where it is not configured. So this ships the code, not the
+  feature: `/connexion/` in production is unchanged, still email magic link.
+  Verified end to end on the test project, including the cancel-at-Google path.
+- **The browser no longer offers to machine-translate the site** — three
+  signals, because each reaches a different browser and none reaches all.
+- **Passwords re-examined and re-rejected**, with the three reasons recorded so
+  the question is not re-litigated from scratch.
+- **A stale fallback agenda now fails the build**, which `smoke:prod` is
+  structurally blind to.
+- **`verify:deploy` no longer false-fails on `/`.**
+
+### Verification
+
+**`PUBLIC_AUTH_ENABLED=true npm run test:release` — 2026-08-23 14:46, green:
+1,302 passed, 0 failed, 1 flaky, 21.7 min.** Gated on the promoted tree itself.
+
+| project | result | trough |
+|---|---|---|
+| chromium | 749 passed, 21 skipped | 1.68 GB |
+| firefox | 145 passed | 0.90 GB |
+| webkit | 161 passed, 1 flaky, 4 skipped | 2.55 GB |
+| pixel-5 | 106 passed | 2.81 GB |
+| iphone-13 | 120 passed | 2.42 GB |
+| chromium (OFF) sliver | 21 passed, 32 run | — |
+
+- ⚠️ **The sliver ran 32 tests, not zero** — Critical Feature 18 proved.
+- ✅ WebKit launched and ran.
+
+**⚠️ WHAT THE GATE DOES *NOT* PROVE, STATED SO "GREEN" IS NOT READ AS MORE THAN
+IT IS.** The gate runs the shape production serves, which for this release means
+`PUBLIC_GOOGLE_AUTH_ENABLED` **off** — so it exercises the *absent* branch of
+the Google flag spec and never the present one. The present branch was proved
+twice by hand against a flag-on build, and end to end on the test project
+including the cancel-at-Google path. **There is no automated coverage of the
+flag-on artefact in the gate**, by the same argument that makes the accounts-OFF
+sliver irreducible: you cannot inspect an artefact you did not produce. If the
+flag is ever turned on in production, that gap should be closed the way the
+sliver closed its own.
+
+**The one flaky — `[webkit] account-deletion.spec.ts:112`.**
+
+- ⚠️⚠️ **THE FIRST RE-RUN WAS SERIAL AND PROVED LITTLE, WHICH IS WORTH RECORDING
+  BECAUSE IT LOOKED LIKE IT PROVED A LOT.** Passing the single spec file with
+  `--workers=3` still ran on **one** worker: `playwright.config.ts` sets
+  `fullyParallel: false` on webkit and iphone-13, so tests *within a file* run
+  in sequence and only FILES run concurrently. A one-file re-run therefore
+  cannot reproduce the gate's contention no matter what `--workers` says — and
+  a serial pass is exactly the arbiter this project has already learned not to
+  trust.
+- **Re-run faithfully instead:** four webkit spec files together
+  (`account-deletion`, `family`, `onboarding`, `auth`) — **53 passed**.
+- **And the structural argument, which is the half no re-run can give.** In the
+  gate's flag shape the Google button is not rendered, so `LoginPage` and the
+  flag files are inert. What remains in the diff is two static attributes in
+  `BaseLayout`, three strings in `ui.ts`, and a **new, uncalled** export in
+  `supabase.ts` plus its stub. Account deletion touches none of it. **There is
+  no path from this release to that spec.**
+- ⚠️ **No 429 appears in the gate log**, so the standing auth-rate-limit
+  hypothesis is a hypothesis and is not claimed as the cause. ⚠️ **This is the
+  third consecutive gate whose flaky artefact was destroyed before it could be
+  read** — the BACKLOG entry about `test-results/` being cleared per project is
+  what would settle this class of question, and it is now the highest-value one
+  open.
+
+**`verify:deploy` will discriminate, proved before the deploy.** The live
+v0.21.0 tree serves `<html lang="fr" data-astro-cid-…>` with **zero**
+occurrences of `notranslate` and **zero** of `translate="no"`; this tree carries
+both. `BaseLayout` renders on every page, so the marker is on **all three**
+compared documents.
+
+**No migrations.** `git diff main HEAD -- supabase/` is empty.
+
+### Added
+
+- **Google sign-in on `/connexion/`, behind `PUBLIC_GOOGLE_AUTH_ENABLED`
+  (default OFF).** Part of backlog row v2-S2, and the half that needed no
+  decision reversed — it is the locked plan (*"magic-link + Google"*).
+  - ⚠️⚠️ **THE CODE LANDS BEFORE THE CONFIGURATION, ON PURPOSE.** Google
+    sign-in needs the provider switched on in the Supabase dashboard **and** an
+    OAuth client in Google Cloud with this origin in its redirect list. Neither
+    lives in this repository, so **no build here can check either**. Shipping
+    the button ahead of them gives a reader a control that is present, looks
+    live, and fails when pressed — Critical Feature 76 wearing a different hat,
+    and **worse than the hydration case it was written for**, because that one
+    resolves by itself after a second and this one never would.
+  - ⚠️ **ABSENT, NOT DISABLED.** `disabled` says "not yet"; without the
+    configuration there is no "yet", so the button is not rendered at all.
+  - **`signInWithGoogle()` resolves only on FAILURE** — on success the tab has
+    already left, and the session arrives on the next load through
+    `completeSignIn()`. The handler restores the button on the failure path and
+    has deliberately no success branch.
+  - **Implicit flow, same as the magic link.** OAuth returns to the same
+    browser so PKCE would work here, but the client is configured once for
+    both, and `detectSessionInUrl` already parses the fragment on
+    `/auth/callback/`. Two flows in one client is a second path to keep correct
+    for nothing a reader can perceive.
+  - **The spec asserts BOTH shapes**, gated on the same flag the build reads.
+    ⚠️ The first version asserted absence unconditionally and was watched to
+    fail correctly against a flag-on build (`Expected: 0 / Received: 1`) — which
+    is exactly the problem: it would have gone red the day somebody enabled the
+    feature, training a person to edit the test rather than read it.
+  - ⚠️ **And that the magic link SURVIVES it**, which is the failure this would
+    most plausibly ship: a Google button that quietly replaces the email form
+    rather than joining it would lock out every reader without a Google account.
+
+### Notes
+
+- ⚠️⚠️ **PASSWORDS WERE RE-EXAMINED AND RE-REJECTED — the reasoning is in
+  BACKLOG so it is not re-litigated.** "Identifier + password" was raised as a
+  way in for readers with no email. Three specific grounds, not "it was already
+  decided": **Supabase has no username auth** (`signInWithPassword` takes an
+  email or a phone, so an identifier needs a synthetic unroutable address, and
+  phone routes recovery through the SMS the same decision rejects); **a
+  synthetic address collides with Critical Feature 53**, which derives a child's
+  placeholder name from the email local part and would put it on the attendance
+  sheet; and **the account cannot recover itself** — no address, no reset, in a
+  volunteer club with no support desk, for users who are children.
+  - **What covers the real cases instead:** children are already covered by the
+    parent/child model; the **autonomous teenager** is an account holding
+    exactly one child and graduation is one FK update (CF40/41), so they can sit
+    on a parent's account until they have an address; and someone with neither
+    belongs to **prof-created accounts**, in the same backlog row as Google.
+- **For Seàn, before the flag can be flipped:** configure the Google provider in
+  the Supabase dashboard, create the OAuth client in Google Cloud with
+  `https://mogadorchess.nachi3dlabs.com/auth/callback` in its redirect list,
+  complete one real sign-in, and only then set the build variable.
+
+### Added
+
+- **The browser is told not to offer a machine translation.**
+  `<meta name="google" content="notranslate">` in the head and
+  `class="notranslate"` on `<html>`, on all **224** pages.
+  - ⚠️ **THE REASON IS THE NOTATION, NOT TIDINESS.** The site is already
+    properly bilingual with its own switcher, so a translation layer on top is
+    noise — and it is worse than noise on the content that matters most here.
+    Chess notation is single letters that read as ordinary words to a
+    translator: `e4` survives, but a French `Fc4` (fou) or `Cxe5` (cavalier) is
+    exactly the token a translator rewrites. A reader who accepts the prompt
+    gets a page whose moves no longer refer to the position on the board beside
+    them.
+  - ⚠️ **`lang` IS UNTOUCHED AND THE SPEC ASSERTS BOTH TOGETHER.** `notranslate`
+    says "do not offer to translate"; `lang` says "this is what it is written
+    in", which is what a screen reader picks its voice from and what the
+    hreflang alternates agree with. Suppressing the prompt by weakening `lang`
+    would trade a small annoyance for a real accessibility regression.
+  - **Verified on both locales**, because ⚠️ **the prompt appears when `lang`
+    disagrees with the reader's own language** — the FR page served to an
+    English speaker is the actual case, so testing only the default would test
+    the wrong one.
+  - ⚠️ **The class is safe next to the theme script** because that script uses
+    `classList.add`, which preserves what is already there — measured live, the
+    attribute reads `notranslate js theme-bois board-bois pieces-merida`. A
+    script assigning `className` would silently drop it.
+
+### Notes
+
+- ⚠️ **THE QUICK PATH REFUSED THIS, AND THE REFUSAL WAS RIGHT.** It was asked
+  for as a quick change; `scripts/quick.mjs` exited non-zero naming
+  `src/layouts/` — *"the page shell, including the anti-FOUC theme script"*. The
+  full branch gate was run instead. Two attributes in the file every page is
+  built from is exactly the shape the exclusion exists for, and the run proved
+  it: the first version of the spec shipped **two literal backspace characters**
+  inside its regex, which the fast path's narrower spec selection could plausibly
+  have carried through.
+- ⚠️ **THE GOOGLE SIGNALS DO NOT REACH EVERY BROWSER, SO A THIRD WAS ADDED.**
+  `class="notranslate"` and `<meta name="google">` cover Chrome and the Google
+  Translate widget and nothing else; Safari and Edge honour the HTML standard
+  attribute, `translate="no"`. All three now ship on all 224 pages, and the
+  spec asserts all three together with `lang`.
+  - ⚠️⚠️ **THEY ARE NOT REDUNDANT AND MUST NOT BE "CONSOLIDATED".** Each reaches
+    something the others do not, and ⚠️ **no engine in this suite can tell them
+    apart** — so deleting any one of them leaves every test green while
+    silently dropping a browser's worth of readers. The assertion is about the
+    CONTRACT, not an observable behaviour, and that is stated beside it.
+  - The three-signal version was watched to fail first: with `translate="no"`
+    removed the spec reports `Expected: "no" / Received: ""` on both locales.
+
 ## [0.21.0] — 2026-08-22
 
 **The release in one line:** the club is reachable on a phone, and two checks
@@ -6338,7 +6523,8 @@ Foundation only: no real content, no interactive board yet.
   `url()` references unresolved and the fonts silently 404 into a Georgia
   fallback. `scripts/build-fonts.mjs` self-hosts them instead. See CLAUDE.md.
 
-[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.21.0...HEAD
+[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.22.0...HEAD
+[0.22.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.18.0...v0.19.0
