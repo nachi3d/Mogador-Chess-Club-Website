@@ -48,6 +48,55 @@ test.describe('home page renders in both locales', () => {
     await page.setViewportSize(DESKTOP);
   });
 
+  /**
+   * ⚠️ THE BROWSER MUST NOT OFFER TO MACHINE-TRANSLATE THIS SITE.
+   *
+   * It is already properly bilingual with its own switcher, so a translation
+   * layer on top is noise — and on the content that matters most here it is
+   * worse than noise. Chess notation is single letters that read as ordinary
+   * words: a French `Fc4` (fou) or `Cxe5` (cavalier) is exactly the token a
+   * translator rewrites, and the moves stop referring to the position on the
+   * board beside them.
+   *
+   * ⚠️ THE PROMPT APPEARS WHEN `lang` DISAGREES WITH THE READER'S OWN
+   * LANGUAGE, so the FR page served to an English speaker is the real case —
+   * which is why both locales are asserted rather than just the default.
+   *
+   * ⚠️ AND `lang` MUST SURVIVE ALONGSIDE IT. `notranslate` says "do not offer
+   * to translate"; `lang` says "this is what it is written in", which a screen
+   * reader picks its voice from. Suppressing translation by weakening `lang`
+   * would be a real accessibility regression, so this asserts both together.
+   */
+  for (const [label, path, lang] of [
+    ['FR', '/', 'fr'],
+    ['EN', '/en/', 'en'],
+  ] as const) {
+    test(`${label}: the browser is told not to translate, and lang survives`, async ({ page }) => {
+      await page.goto(path);
+
+      const html = page.locator('html');
+      await expect(html).toHaveAttribute('lang', lang);
+      /* ⚠️ A TOKEN CHECK, NOT AN EQUALS ONE AND NOT A SUBSTRING ONE.
+         The theme head script adds `js` and `theme-*` to <html> before first
+         paint, so the attribute is never just "notranslate" in a real browser:
+         measured, it is "notranslate js theme-bois board-bois pieces-merida".
+         Asserting equality would pass against the built HTML and fail the
+         moment a page actually runs.
+         `classList.contains` is exact about the TOKEN — a substring match would
+         also accept a hypothetical `notranslate-off` class — and it cannot be
+         mangled by regex escaping, which is how the first version of this line
+         shipped two literal backspace characters. */
+      expect(
+        await html.evaluate((el) => el.classList.contains('notranslate')),
+        'the <html> class list must carry notranslate alongside js and theme-*',
+      ).toBe(true);
+      await expect(page.locator('head meta[name="google"]')).toHaveAttribute(
+        'content',
+        'notranslate',
+      );
+    });
+  }
+
   test('FR at the root', async ({ page }) => {
     await page.goto('/');
 

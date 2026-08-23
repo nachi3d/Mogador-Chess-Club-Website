@@ -425,6 +425,27 @@ Walk down and watch the bar, without tapping it:
 
 ---
 
+### ⚠️ The browser must not offer to translate the page
+
+*Chess notation is single letters that read as ordinary words to a translator —
+a French `Fc4` or `Cxe5` is exactly what one rewrites, and the moves stop
+matching the board beside them.*
+
+⚠️ **Do this in Chrome with English as your browser language, on a FRENCH page.**
+That mismatch is when the prompt appears; on the page that matches your own
+language it never would, so testing there proves nothing.
+
+- [ ] Open `/pieges/legal/` — no "Translate this page?" prompt, and no
+      translate icon offered in the address bar
+- [ ] Right-click the page — ⚠️ **"Translate to English" may still be offered
+      there**; that is the reader asking explicitly, which we do not block. What
+      must not happen is the site *offering* it unprompted
+- [ ] The language switcher still works and still swaps FR ↔ EN
+- [ ] ⚠️ **Check a screen reader still reads French in a French voice** on
+      `/pieges/legal/` — `lang="fr"` must have survived. Suppressing
+      translation by weakening `lang` would be a real regression traded for a
+      small annoyance
+
 ## 1b. Navigation menu and board coordinates
 
 ### The menu — ⚠️ on a REAL phone, not a narrow desktop window

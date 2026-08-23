@@ -11,6 +11,50 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### Added
+
+- **The browser is told not to offer a machine translation.**
+  `<meta name="google" content="notranslate">` in the head and
+  `class="notranslate"` on `<html>`, on all **224** pages.
+  - ⚠️ **THE REASON IS THE NOTATION, NOT TIDINESS.** The site is already
+    properly bilingual with its own switcher, so a translation layer on top is
+    noise — and it is worse than noise on the content that matters most here.
+    Chess notation is single letters that read as ordinary words to a
+    translator: `e4` survives, but a French `Fc4` (fou) or `Cxe5` (cavalier) is
+    exactly the token a translator rewrites. A reader who accepts the prompt
+    gets a page whose moves no longer refer to the position on the board beside
+    them.
+  - ⚠️ **`lang` IS UNTOUCHED AND THE SPEC ASSERTS BOTH TOGETHER.** `notranslate`
+    says "do not offer to translate"; `lang` says "this is what it is written
+    in", which is what a screen reader picks its voice from and what the
+    hreflang alternates agree with. Suppressing the prompt by weakening `lang`
+    would trade a small annoyance for a real accessibility regression.
+  - **Verified on both locales**, because ⚠️ **the prompt appears when `lang`
+    disagrees with the reader's own language** — the FR page served to an
+    English speaker is the actual case, so testing only the default would test
+    the wrong one.
+  - ⚠️ **The class is safe next to the theme script** because that script uses
+    `classList.add`, which preserves what is already there — measured live, the
+    attribute reads `notranslate js theme-bois board-bois pieces-merida`. A
+    script assigning `className` would silently drop it.
+
+### Notes
+
+- ⚠️ **THE QUICK PATH REFUSED THIS, AND THE REFUSAL WAS RIGHT.** It was asked
+  for as a quick change; `scripts/quick.mjs` exited non-zero naming
+  `src/layouts/` — *"the page shell, including the anti-FOUC theme script"*. The
+  full branch gate was run instead. Two attributes in the file every page is
+  built from is exactly the shape the exclusion exists for, and the run proved
+  it: the first version of the spec shipped **two literal backspace characters**
+  inside its regex, which the fast path's narrower spec selection could plausibly
+  have carried through.
+- ⚠️ **BOTH SIGNALS ARE GOOGLE-SPECIFIC, AND THAT IS A REAL LIMIT.** They cover
+  Chrome and the Google Translate widget, which is the large majority of the
+  case. The standards-based counterpart is `translate="no"` on `<html>`, which
+  other browsers are likelier to honour. **Not added** — the change was
+  specified as these two attributes, and this is a one-attribute follow-up
+  rather than something to widen into silently.
+
 ## [0.21.0] — 2026-08-22
 
 **The release in one line:** the club is reachable on a phone, and two checks
