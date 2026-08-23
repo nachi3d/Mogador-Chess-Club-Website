@@ -11,6 +11,54 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### Added
+
+- **`scripts/check-identity-linking.mjs`** — does a Google sign-in LINK onto an
+  existing magic-link account, or fork a second one? Test project only, through
+  the same interlock as the e2e suite, failing closed; unrecognised flags are
+  fatal.
+  - ⚠️ **IT INSPECTS, IT DOES NOT SIMULATE.** Nothing can complete a real Google
+    consent screen from a script, so the Google half is done by a human and this
+    reports what the database ended up holding. A script that faked the OAuth
+    half would be testing its own fake.
+  - ⚠️⚠️ **ITS FIRST VERSION WAS WRONG IN THE WORST POSSIBLE DIRECTION, AND ONLY
+    TESTING THE INSTRUMENT FOUND IT.** The admin **list** endpoint returns
+    `identities: []` for every user, always. Measured on one user created with a
+    password, which unambiguously has an `email` identity: the create response
+    says `["email"]`, `GET /admin/users/{id}` says `["email"]`, and the list says
+    `[]`. A verdict computed from the list could **never** have reported LINKED
+    and would have called a correctly-linked account **FORKED** — the exact
+    wrong answer on the only question the script exists to answer, while looking
+    like it worked. It now uses the list to find candidates by address and
+    hydrates each by id.
+  - ⚠️ **`--seed` is plumbing, not the faithful test**, and says so on screen:
+    admin-creating a user with only an address yields `identities: []` — no
+    `email` identity at all until it actually signs in. The faithful run is a
+    real magic-link sign-in in the browser, then Google, then this script.
+
+### Notes
+
+- ✅ **"Confirm email" is ON on the production project.** `GET
+  /auth/v1/settings` reports `mailer_autoconfirm: false` — read-only, anon key.
+  That is the precondition automatic linking hangs off, and there is no separate
+  toggle for linking itself.
+- ⚠️⚠️ **AND GOOGLE IS ALREADY LIVE ON PRODUCTION, which contradicts what
+  v0.22.0 was promoted believing.** That release's CHANGELOG says the provider
+  is configured on the test project only. Measured: production reports
+  `external.google: true` and `/auth/v1/authorize?provider=google` returns
+  **302 to accounts.google.com**. `PUBLIC_GOOGLE_AUTH_ENABLED=false` hides the
+  **button, not the endpoint**. Not a new capability — sign-up is already open —
+  but it is not what the record said. ⚠️ **Both projects also share one Google
+  `client_id`**, so they are not isolated at the Google layer, and a client
+  still in Testing mode in Google Cloud would fail silently for everyone not on
+  its test-user list. Filed for decision.
+- ⚠️ **The different-address case is filed as the thing to fix BEFORE the flag
+  is flipped.** A reader whose Google address differs from their magic-link one
+  silently gets a second account with an empty ledger, while their real progress
+  sits intact and invisible on the first. It looks like data loss and is not,
+  which is the worst combination. One line of copy beside the button prevents
+  most of it; the detection and manual-linking options are recorded beside it.
+
 ## [0.22.0] — 2026-08-23
 
 **The release in one line:** a second way in, built but not switched on, and the
