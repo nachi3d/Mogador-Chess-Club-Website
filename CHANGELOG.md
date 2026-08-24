@@ -11,6 +11,52 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### Fixed
+
+- ⚠️⚠️ **The gate no longer destroys the failure artefacts it tells you to
+  read.** Playwright clears `test-results/` at the start of every run and the
+  gate runs six times, so only the LAST run's artefacts survived — measured at
+  the v0.20.0 gate, which ended with **0 entries** after four flaky tests.
+  **Three consecutive gates then ended in "probably environmental" with nothing
+  left to check.** `test-release.mjs` now copies each project's artefacts into
+  `gate-logs/artefacts-<shape>-<stamp>/<project>/` immediately after that
+  project runs.
+  - ⚠️ **`preserveOutput` alone was not the fix**, and it is the obvious one: it
+    governs output for PASSING tests and does not stop the next run clearing the
+    directory. The artefacts have to LEAVE `test-results/` between runs.
+  - ⚠️ **The sweep was checked rather than assumed** — the backlog row warned it
+    might delete the copy. `demo.mjs --sweep-only` kills processes and touches no
+    files.
+  - ⚠️ **Watched to work against a deliberate failure**: an `error-context.md`
+    and its screenshot preserved and read back, and the green path confirmed to
+    report "no failure artefacts".
+  - ⚠️⚠️ **AND THE FIRST VERSION PRINTED THE POINTER ONLY ON THE GREEN PATH** —
+    exactly backwards, since the gate exits before it when something fails, so
+    the path was missing precisely when somebody needed it. Found by running the
+    real script against a failure rather than by reading it.
+  - It **never fails the gate**: a copy that throws is reported and the run
+    continues. Evidence-keeping must not turn a green matrix red.
+- **`verify:deploy` now names the edge-cache status on a mismatch.**
+  ⚠️⚠️ **BOTH CURES THIS PROJECT HAD FILED WERE TRIED AND MEASURED FAILING,
+  INCLUDING THE RECOMMENDED ONE.** The backlog said "prefer the nonce": a
+  cache-busting query nonce was measured still returning **`CF-Cache-Status:
+  HIT`** on a never-before-seen query, because Workers static assets normalise
+  the query away. The request `Cache-Control: no-cache` was already being sent
+  and Cloudflare ignores client cache directives by design. **The cache cannot
+  be busted from the client**, so the script reports what it saw instead of
+  pretending to defeat it — and ⚠️ **it still fails**, with no retry, because a
+  retry would mask a genuinely half-propagated deploy.
+
+### Notes
+
+- ⚠️⚠️ **A ONE-FILE WEBKIT RE-RUN CANNOT REPRODUCE THE GATE'S CONTENTION**, and
+  it has already produced a wrong conclusion once. `fullyParallel: false` on
+  `webkit` and `iphone-13` means tests **within a file** run in sequence and
+  only FILES run concurrently — so one spec file is **one worker** whatever
+  `--workers` says, and the re-run is serial. At the v0.22.0 gate that was very
+  nearly reported as strong evidence a flaky row was environmental. Recorded in
+  `docs/reference/testing.md` with the multi-file command that does reproduce it.
+
 ### Added
 
 - **The same-address line beside the Google button** — option (a) from the

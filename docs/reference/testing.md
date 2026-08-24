@@ -1685,3 +1685,78 @@ broken somewhere you have not looked.
 **➡️ The full symptom table and the diagnoses behind it:
 [`docs/reference/testing.md`](./docs/reference/testing.md). The per-island audit
 and what each view had to change: [`docs/reference/board.md`](./docs/reference/board.md).**
+
+---
+
+## The gate keeps its failure artefacts, and a webkit re-run needs more than one file
+
+**Read when:** adjudicating a failing or flaky gate row, or re-running one spec
+to decide whether it is real.
+
+### ⚠️⚠️ THE ARTEFACTS SURVIVE NOW — `gate-logs/artefacts-<shape>-<stamp>/<project>/`
+
+Playwright clears `test-results/` at the START of every run, and the gate runs
+six times (five projects plus the sliver). So only the LAST run's artefacts used
+to exist. Measured at the v0.20.0 gate: `test-results/` held **0 entries** after
+four flaky tests across firefox and webkit.
+
+⚠️ **That directly defeated this project's own rule.** CLAUDE.md says *"THE
+DISCRIMINATOR IS THE FAILURE ARTEFACT, NOT THE RE-RUN"* — a rule adopted after
+`error-context.md` was the thing that finally separated a real hydration race
+from machine contention, three gates late. The gate made it impossible to follow
+for every project but one, and **three consecutive gates then ended in "probably
+environmental" with nothing left to check**.
+
+`test-release.mjs` now copies each project's artefacts out of `test-results/`
+immediately after that project's run, before the next one clears it.
+
+- ⚠️ **`preserveOutput` alone is NOT the fix**, and it is the obvious one. It
+  governs whether Playwright keeps output for PASSING tests; it does not stop
+  the next run clearing the directory, and six runs share one directory. The
+  artefacts have to LEAVE `test-results/` between runs.
+- ⚠️ **The sweep was checked, not assumed.** `demo.mjs --sweep-only` runs
+  between projects and the concern was that it might remove the copy. It does
+  not — it kills processes and touches no files. A copy into a directory the
+  next sweep deletes would be no better than what it replaced.
+- ⚠️ **Namespaced by `RUN_ID`**, exactly like the logs and the memory traces,
+  for the identical reason: a second run must never erase the first's evidence.
+- ⚠️ **It never fails the gate.** A copy that throws — locked file, full disk —
+  is reported and the run continues. Evidence-keeping must not turn a green
+  matrix red or mask a real result.
+- ⚠️ **THE POINTER PRINTS ON THE FAILURE PATH, and that took two goes.** The
+  first version printed it only on the green path — which is exactly backwards,
+  because the gate exits before it when something fails, so the path was missing
+  precisely when somebody needed it. Caught by running the real script against a
+  deliberate failure rather than by reading it.
+
+### ⚠️⚠️ A ONE-FILE WEBKIT RE-RUN CANNOT REPRODUCE THE GATE'S CONTENTION
+
+This one has already produced a wrong conclusion, at the v0.22.0 gate, and it
+looks completely convincing.
+
+`playwright.config.ts` sets **`fullyParallel: false`** on `webkit` and
+`iphone-13`. That means tests **within a file** run in sequence; only FILES run
+concurrently. So:
+
+```
+npx playwright test --project=webkit --workers=3 tests/e2e/one-file.spec.ts
+   -> "Running 6 tests using 1 worker"
+```
+
+⚠️ **`--workers=3` is silently irrelevant there.** One file is one worker no
+matter what the flag says, so the re-run is SERIAL — which is the arbiter this
+project has already learned not to trust on its own ("passing serially is not a
+clean bill"). At the v0.22.0 gate that re-run was very nearly reported as strong
+evidence that a flaky row was environmental.
+
+**To reproduce the gate's conditions on webkit, pass SEVERAL spec files:**
+
+```
+PUBLIC_AUTH_ENABLED=true npx playwright test --project=webkit --workers=3 \
+  tests/e2e/account-deletion.spec.ts tests/e2e/family.spec.ts \
+  tests/e2e/onboarding.spec.ts tests/e2e/auth.spec.ts
+```
+
+⚠️ **And read the artefact first regardless.** Since the fix above, the evidence
+is in `gate-logs/artefacts-*/`, and it answers the question a re-run only
+circles around.
