@@ -487,6 +487,75 @@ export function awards(): readonly AwardRecord[] {
 }
 
 /**
+ * The ISO week a timestamp falls in, as `2026-W34`.
+ *
+ * ⚠️ ISO WEEKS, WHICH START ON MONDAY, and that is the right choice here rather
+ * than a pedantic one: the club meets at the weekend, so a Sunday session and
+ * the Saturday before it must land in the SAME week. A Sunday-start week would
+ * split a single weekend across two marks and make one visit look like two.
+ *
+ * ⚠️ COMPUTED FROM THE DEVICE'S OWN CLOCK, like every other date on this page.
+ * A wrong clock costs a mark in the wrong column; nothing scores off it.
+ */
+function isoWeek(date: Date): string {
+  /* Thursday decides the year — the ISO rule, and the reason a 1 January can
+     belong to the previous year's week 52. */
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const day = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const week = Math.ceil(((d.getTime() - yearStart.getTime()) / 86_400_000 + 1) / 7);
+  return `${d.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
+}
+
+/** The ISO week containing today, on this device. */
+export function currentWeek(): string {
+  return isoWeek(new Date());
+}
+
+/**
+ * Every week in which this reader did SOMETHING — newest first.
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️ DERIVED, NOT BANKED, AND THAT IS WHY IT NEEDED NO NEW STORAGE. The
+ * timestamps already exist: `solvedAt` on every solved exercise and tutorial
+ * step, `at` on every logged game. A stored "weeks active" counter would be a
+ * number a console can edit and a number that can disagree with the records
+ * behind it — the same reasoning as Critical Feature 33.
+ *
+ * ⚠️ IT IS A COUNT OF PRESENCES AND NEVER A STREAK. There is deliberately no
+ * "consecutive weeks" here and there must not be: the club meets weekly, and a
+ * consecutive-week counter punishes a missed holiday exactly the way Critical
+ * Feature 34 forbids a daily one from punishing a normal Tuesday. A missed week
+ * is simply a week that is not in this list — it costs a mark, not a run.
+ *
+ * ⚠️ WHAT IT CANNOT SEE, STATED RATHER THAN HIDDEN: `solvedAt` keeps the FIRST
+ * solve, so a week spent re-solving old exercises leaves no trace, and the game
+ * log is bounded (`GAME_LOG_MAX`), so weeks fall off the far end eventually.
+ * Both make this an UNDERCOUNT. That is the safe direction — it can fail to
+ * credit a week, and it can never invent one.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+export function activeWeeks(): readonly string[] {
+  const progress = readProgress();
+  const weeks = new Set<string>();
+
+  const add = (iso: string | null) => {
+    if (!iso) return;
+    const stamp = Date.parse(iso);
+    if (Number.isNaN(stamp)) return;
+    weeks.add(isoWeek(new Date(stamp)));
+  };
+
+  for (const entry of Object.values(progress.exercises)) add(entry.solvedAt);
+  for (const game of progress.log) add(game.at);
+
+  /* Lexicographic sort is chronological for `YYYY-Www`, which is the whole
+     reason the key is shaped that way. */
+  return [...weeks].sort((a, b) => b.localeCompare(a));
+}
+
+/**
  * The finished games, newest first — what `/progres/` draws its history from.
  *
  * ⚠️ ALREADY IN ORDER, because `recordGame` prepends. Sorting on read would

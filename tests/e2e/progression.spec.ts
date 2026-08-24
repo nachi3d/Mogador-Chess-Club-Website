@@ -674,3 +674,152 @@ test.describe('the game history', () => {
     await expect(page.locator('[data-game-log] .game-row')).toHaveCount(2);
   });
 });
+
+/* ═══ The weekly habit mark ═════════════════════════════════════════════ */
+
+/**
+ * ⚠️ IT COUNTS PRESENCES AND MUST NEVER COUNT ABSENCES.
+ *
+ * Critical Feature 34 rules out a daily streak because the club meets weekly
+ * and a daily counter punishes the normal rhythm. A consecutive-WEEK counter
+ * would reintroduce exactly that one rhythm up — miss a holiday, lose a run —
+ * so this counts weeks that HAPPENED and nothing else. The win-streak
+ * alternative was rejected on the same grounds: a mechanic that breaks on a
+ * loss is what Critical Feature 35 exists to prevent.
+ *
+ * ⚠️ DERIVED, NOT STORED. `activeWeeks()` reads the timestamps that already
+ * exist — `solvedAt` and the game log — so these tests seed those and never a
+ * "weeks" counter, because there is not one to seed.
+ */
+test.describe('the weekly habit mark', () => {
+  const KEY = 'mcc:progress:v1';
+
+  async function seed(page: Page, store: Record<string, unknown>) {
+    await page.addInitScript(
+      ([key, value]) => {
+        try {
+          window.localStorage.setItem(key as string, value as string);
+        } catch {
+          /* the page must work anyway */
+        }
+      },
+      [KEY, JSON.stringify({ exercises: {}, games: {}, announced: [], awards: [], log: [], ...store })],
+    );
+  }
+
+  test('with nothing done it invites rather than reporting a zero', async ({ page }) => {
+    await page.goto('/progres/');
+
+    await expect(page.locator('[data-habit-block]')).toBeHidden();
+    const empty = page.locator('[data-habit-empty]');
+    await expect(empty).toBeVisible();
+    /* ⚠️ NOT "0 semaines". A zero is a score; this is a first step. */
+    await expect(empty).not.toContainText('0');
+  });
+
+  test('a solved exercise and a game in the same week count as ONE week', async ({ page }) => {
+    /* Saturday and the Sunday after it — a single club weekend. ⚠️ THIS IS THE
+       CASE ISO WEEKS EXIST FOR HERE: a Sunday-start week would split one visit
+       across two marks and flatter the count. */
+    await seed(page, {
+      exercises: {
+        'mat-du-couloir': {
+          solved: true,
+          attempts: 0,
+          hintUsed: false,
+          solvedAt: '2026-08-22T10:00:00.000Z',
+        },
+      },
+      log: [{ at: '2026-08-23T10:00:00.000Z', level: 'debutant', outcome: 'loss' }],
+    });
+    await page.goto('/progres/');
+
+    await expect(page.locator('[data-habit-block]')).toBeVisible();
+    await expect(page.locator('[data-habit-count]')).toContainText('1');
+  });
+
+  test('two different weeks count as two', async ({ page }) => {
+    await seed(page, {
+      log: [
+        { at: '2026-08-24T10:00:00.000Z', level: 'debutant', outcome: 'win' },
+        { at: '2026-08-23T10:00:00.000Z', level: 'debutant', outcome: 'win' },
+      ],
+    });
+    await page.goto('/progres/');
+
+    await expect(page.locator('[data-habit-count]')).toContainText('2');
+  });
+
+  /**
+   * ⚠️ THE UNMARKED WEEK IS THE WHOLE RISK, AND IT IS ASSERTED BY MEANING
+   * RATHER THAN BY WORDING.
+   *
+   * A student who has not played this week must be offered something to do,
+   * never told what they failed to do. `data-marked` carries the state so this
+   * can check it without pinning prose — and the text is checked for the words
+   * a scold would use.
+   */
+  test('an unmarked week offers an action and never reports a loss', async ({ page }) => {
+    /* Long ago, so "this week" is certainly not marked. */
+    await seed(page, {
+      log: [{ at: '2024-01-10T10:00:00.000Z', level: 'debutant', outcome: 'win' }],
+    });
+    await page.goto('/progres/');
+
+    const line = page.locator('[data-habit-this]');
+    await expect(line).toHaveAttribute('data-marked', 'false');
+    await expect(line).not.toBeEmpty();
+    /* No "perdu", no "série", no "raté" — nothing that frames an absence as a
+       failure. If this ever fails, read the new wording before changing it. */
+    await expect(line).not.toContainText(/perdu|série|raté|lost|streak|missed/i);
+  });
+
+  test('a marked week says so, and looks the same as an unmarked one', async ({ page }) => {
+    const now = new Date().toISOString();
+    await seed(page, { log: [{ at: now, level: 'avance', outcome: 'win' }] });
+    await page.goto('/progres/');
+
+    const line = page.locator('[data-habit-this]');
+    await expect(line).toHaveAttribute('data-marked', 'true');
+
+    /* ⚠️ NO COLOUR DIFFERENCE BETWEEN MARKED AND UNMARKED. An unmarked week has
+       not happened YET; styling it as absent is how a count of presences turns
+       into a record of failures. */
+    const marked = await line.evaluate((el) => getComputedStyle(el).color);
+
+    await page.addInitScript(() => {
+      try {
+        window.localStorage.removeItem('mcc:progress:v1');
+      } catch {
+        /* nothing to do */
+      }
+    });
+    await seed(page, {
+      log: [{ at: '2024-01-10T10:00:00.000Z', level: 'debutant', outcome: 'win' }],
+    });
+    await page.goto('/progres/');
+    const unmarked = await page
+      .locator('[data-habit-this]')
+      .evaluate((el) => getComputedStyle(el).color);
+
+    expect(marked, 'a marked and an unmarked week must not differ by colour').toBe(unmarked);
+  });
+
+  /**
+   * ⚠️ THE MECHANIC MUST NOT HAVE SMUGGLED A STREAK IN. There is no
+   * "consecutive weeks" anywhere, and a gap between two active weeks must cost
+   * nothing — both still count.
+   */
+  test('a gap between two active weeks costs neither of them', async ({ page }) => {
+    await seed(page, {
+      log: [
+        { at: '2026-08-24T10:00:00.000Z', level: 'debutant', outcome: 'win' },
+        /* six weeks earlier — a holiday */
+        { at: '2026-07-13T10:00:00.000Z', level: 'debutant', outcome: 'win' },
+      ],
+    });
+    await page.goto('/progres/');
+
+    await expect(page.locator('[data-habit-count]')).toContainText('2');
+  });
+});

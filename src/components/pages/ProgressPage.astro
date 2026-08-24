@@ -412,6 +412,44 @@ function achievementLabel(id: string): string {
         a list of failures. Locked entries are named rather than hidden behind
         "???" — this is a teaching site, and a student should be able to see
         that finishing a course is a thing worth doing. */}
+    {/* ── The weekly habit mark ─────────────────────────────────────────────
+        ⚠️ A COUNT OF PRESENCES, NEVER A STREAK. The club meets weekly, so the
+        unit is the week — and Critical Feature 34 rules out a daily streak
+        precisely because it would punish the club's normal rhythm. A
+        consecutive-WEEK counter would reintroduce that same punishment one
+        rhythm up: miss a holiday, lose a run. So this counts weeks that
+        HAPPENED and never weeks that did not.
+
+        ⚠️ THE WIN STREAK WAS THE OTHER CANDIDATE AND WAS REJECTED, on Seàn's
+        call: a mechanic that breaks on a loss is the one thing Critical
+        Feature 35 exists to prevent.
+
+        ⚠️ NOTHING IS STORED FOR THIS. `activeWeeks()` derives it from the
+        timestamps that already exist — `solvedAt` and the game log — for the
+        same reason points are derived: a stored counter is a number that can
+        disagree with the records behind it. */}
+    <section
+      class="progress-block"
+      aria-labelledby="progress-habit"
+      data-habit-block
+      hidden
+      data-count-pattern={t('habit.count')}
+      data-count-one={t('habit.countOne')}
+      data-this-done={t('habit.thisWeek.done')}
+      data-this-open={t('habit.thisWeek.open')}
+    >
+      <h2 class="progress-block-title" id="progress-habit">
+        {t('habit.title')}
+        <span class="score-tally" data-habit-count></span>
+      </h2>
+      <p class="progress-block-intro">{t('habit.intro')}</p>
+      {/* ⚠️ `role="status"`, not an alert: this is information a reader may
+          notice, never something demanding attention. */}
+      <p class="habit-this-week" data-habit-this role="status"></p>
+    </section>
+
+    <p class="progress-empty" data-habit-empty hidden>{t('habit.none')}</p>
+
     {/* ── The game history ──────────────────────────────────────────────────
         ⚠️ GAMES WERE RECORDED AND NEVER SHOWN. `game_results` has had a row per
         game since v2-S3 and the local record has had counters since E3, and a
@@ -515,7 +553,57 @@ function achievementLabel(id: string): string {
   /* ⚠️ THROUGH `progress.ts` ONLY, as everywhere else. This page does not know
      that awards come from Supabase, and must not: `progress.ts` is the single
      reader and the sync layer is what decides where the rows came from. */
-  import { awards, gameLog, GAME_LOG_MAX, startSync, syncState, SYNC_EVENT } from '@lib/progress';
+  import {
+    activeWeeks,
+    awards,
+    currentWeek,
+    gameLog,
+    GAME_LOG_MAX,
+    startSync,
+    syncState,
+    SYNC_EVENT,
+  } from '@lib/progress';
+
+  /**
+   * The weekly habit mark.
+   *
+   * ⚠️ IT SAYS WHAT IS TRUE AND OFFERS WHAT IS NEXT — never what was missed.
+   * The unmarked case names the action ("un exercice ou une partie") rather
+   * than the absence, which is the difference between an invitation and a
+   * nag. There is no place in this block where a week can be described as
+   * lost, because there is no run to lose.
+   */
+  const habitBlock = document.querySelector('[data-habit-block]') as HTMLElement | null;
+  const habitEmpty = document.querySelector('[data-habit-empty]') as HTMLElement | null;
+
+  if (habitBlock) {
+    const weeks = activeWeeks();
+
+    if (weeks.length === 0) {
+      /* Nothing yet: one warm line, and no heading over an empty count. */
+      if (habitEmpty) habitEmpty.hidden = false;
+    } else {
+      habitBlock.hidden = false;
+      const h = habitBlock.dataset;
+
+      const countEl = document.querySelector('[data-habit-count]') as HTMLElement | null;
+      if (countEl) {
+        countEl.textContent =
+          weeks.length === 1
+            ? (h.countOne ?? '')
+            : (h.countPattern ?? '').replace('%s', String(weeks.length));
+      }
+
+      const thisEl = document.querySelector('[data-habit-this]') as HTMLElement | null;
+      if (thisEl) {
+        const marked = weeks.includes(currentWeek());
+        thisEl.textContent = marked ? (h.thisDone ?? '') : (h.thisOpen ?? '');
+        /* Exposed so a spec can assert the STATE without matching prose, and
+           so the two cases can never be told apart by colour alone. */
+        thisEl.dataset['marked'] = marked ? 'true' : 'false';
+      }
+    }
+  }
 
   /**
    * The game history.
@@ -1055,5 +1143,15 @@ function achievementLabel(id: string): string {
   .progress-empty {
     margin: 0 0 2rem;
     color: var(--mcc-text-secondary);
+  }
+
+  /* ⚠️ THE MARKED AND UNMARKED WEEK LOOK THE SAME. No green tick, no grey
+     nothing: an unmarked week is a week that has not happened YET, and
+     styling it as absent is how a count of presences turns into a record of
+     failures. The words differ; the styling does not. */
+  .habit-this-week {
+    margin: 0;
+    color: var(--mcc-text-secondary);
+    font-size: 0.9375rem;
   }
 </style>
