@@ -4,15 +4,32 @@
 import { getCollection } from 'astro:content';
 import type { GetStaticPaths } from 'astro';
 import ExercicePage from '@components/pages/ExercicePage.astro';
+import { sortExercises } from '@lib/exercise-filters';
 
 export const getStaticPaths = (async () => {
-  const exercises = await getCollection('exercices', ({ data }) => !data.draft);
+  /**
+   * ⚠️ SORTED THROUGH THE SAME FUNCTION THE INDEX USES, so "next" always means
+   * the next one on the list the reader was just looking at. See the order note
+   * in `src/lib/exercise-filters.ts` — one order, not two.
+   *
+   * ⚠️ NEIGHBOURS ARE COMPUTED AT BUILD TIME, like the lessons' pager. There is
+   * no runtime lookup and no client-side list of every exercise: each page is
+   * handed the two entries it needs and knows nothing about the rest.
+   */
+  const exercises = sortExercises(await getCollection('exercices', ({ data }) => !data.draft));
   // The URL slug comes from the `slug` FIELD, not the filename, so renaming a
   // file can never silently move a published URL.
-  return exercises.map((entry) => ({ params: { slug: entry.data.slug }, props: { entry } }));
+  return exercises.map((entry, i) => ({
+    params: { slug: entry.data.slug },
+    props: {
+      entry,
+      prev: exercises[i - 1] ?? null,
+      next: exercises[i + 1] ?? null,
+    },
+  }));
 }) satisfies GetStaticPaths;
 
-const { entry } = Astro.props;
+const { entry, prev, next } = Astro.props;
 ---
 
-<ExercicePage locale="fr" entry={entry} />
+<ExercicePage locale="fr" entry={entry} prev={prev} next={next} />

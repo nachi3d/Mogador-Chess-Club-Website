@@ -550,3 +550,127 @@ test.describe('E3 renders on desktop in every theme', () => {
     }
   }
 });
+
+/* ═══ The game history on /progres/ ═════════════════════════════════════ */
+
+/**
+ * ⚠️ GAMES WERE RECORDED AND NEVER SHOWN.
+ *
+ * `game_results` has carried a row per game since v2-S3 and the local record
+ * has carried counters since E3 — and a student could see none of it. The
+ * ledger knew they had won twice at Intermédiaire; the page never said when,
+ * against which level, or that they had played at all.
+ *
+ * ⚠️ AND IT MUST NOT BECOME A REPORT CARD. Critical Feature 35: a loss costs
+ * nothing and is read by no scoring rule. A history that hid losses, or shaded
+ * them red, would make them cost something after all — so the spec asserts that
+ * a loss is PRESENT and styled the same as a win, which is the half that would
+ * quietly rot the first time somebody "improved" the list.
+ */
+test.describe('the game history', () => {
+  const LOG_KEY = 'mcc:progress:v1';
+
+  async function seedGames(page: Page, log: unknown[]) {
+    await page.addInitScript(
+      ([key, value]) => {
+        try {
+          window.localStorage.setItem(key as string, value as string);
+        } catch {
+          /* the page must work anyway; other specs assert that */
+        }
+      },
+      [
+        LOG_KEY,
+        JSON.stringify({ exercises: {}, games: {}, announced: [], awards: [], log }),
+      ],
+    );
+  }
+
+  test('with no games it says so, and shows no empty heading', async ({ page }) => {
+    await page.goto('/progres/');
+
+    /* ⚠️ A HEADING OVER NOTHING IS THE FAILURE HERE. The block is hidden and a
+       single line explains — rather than an empty list under "Tes parties",
+       which reads as broken rather than as new. */
+    await expect(page.locator('[data-games-block]')).toBeHidden();
+    await expect(page.locator('[data-games-empty]')).toBeVisible();
+  });
+
+  test('it lists what was played, newest first, with the level named', async ({ page }) => {
+    await seedGames(page, [
+      { at: '2026-03-02T10:00:00.000Z', level: 'avance', outcome: 'win' },
+      { at: '2026-03-01T10:00:00.000Z', level: 'debutant', outcome: 'loss' },
+      { at: '2026-02-28T10:00:00.000Z', level: 'intermediaire', outcome: 'draw' },
+    ]);
+    await page.goto('/progres/');
+
+    const block = page.locator('[data-games-block]');
+    await expect(block).toBeVisible();
+    await expect(page.locator('[data-games-empty]')).toBeHidden();
+
+    const rows = page.locator('[data-game-log] .game-row');
+    await expect(rows).toHaveCount(3);
+
+    /* Insertion order is the order — see `gameLog()`. The newest seeded row is
+       first, and the level is NAMED rather than printed as its id. */
+    await expect(rows.nth(0)).toContainText(/Avanc|Advanced/i);
+    await expect(rows.nth(0)).toContainText(/Gagn|Won/i);
+
+    /* ⚠️ THE LOSS IS HERE. Not hidden, not last, not apologised for. */
+    await expect(rows.nth(1)).toContainText(/Perdue|Lost/i);
+    await expect(rows.nth(2)).toContainText(/Nulle|Drawn/i);
+
+    await expect(page.locator('[data-games-count]')).toContainText('3');
+  });
+
+  /**
+   * ⚠️ ALL THREE OUTCOMES LOOK THE SAME, AND THAT IS ASSERTED RATHER THAN
+   * TRUSTED TO A COMMENT.
+   *
+   * The obvious "improvement" to this list is to tint a loss red. On a site
+   * whose rules say a loss costs nothing, that is how it starts costing
+   * something. Comparing the computed colour is what makes the rule survive
+   * somebody's good intentions.
+   */
+  test('a loss is not styled differently from a win', async ({ page }) => {
+    await seedGames(page, [
+      { at: '2026-03-02T10:00:00.000Z', level: 'avance', outcome: 'win' },
+      { at: '2026-03-01T10:00:00.000Z', level: 'avance', outcome: 'loss' },
+    ]);
+    await page.goto('/progres/');
+
+    const colours = await page
+      .locator('[data-game-log] .game-outcome')
+      .evaluateAll((els) => els.map((el) => getComputedStyle(el).color));
+
+    expect(colours).toHaveLength(2);
+    expect(colours[0], 'a loss must not be a different colour from a win').toBe(colours[1]);
+  });
+
+  test('a row with no timestamp still renders, without an invalid date', async ({ page }) => {
+    /* A record written before timestamps existed, or by a device with no
+       usable clock. The game happened; only the date is unknown. */
+    await seedGames(page, [{ at: null, level: 'debutant', outcome: 'win' }]);
+    await page.goto('/progres/');
+
+    const row = page.locator('[data-game-log] .game-row').first();
+    await expect(row).toBeVisible();
+    await expect(row).not.toContainText(/Invalid Date/i);
+    await expect(row.locator('.award-when')).toHaveCount(0);
+  });
+
+  test('a garbage row is dropped and the rest still render', async ({ page }) => {
+    await seedGames(page, [
+      { at: '2026-03-02T10:00:00.000Z', level: 'avance', outcome: 'win' },
+      { outcome: 'not-an-outcome', level: 'avance' },
+      'nonsense',
+      { at: '2026-03-01T10:00:00.000Z', level: 'debutant', outcome: 'loss' },
+    ]);
+    await page.goto('/progres/');
+
+    /* ⚠️ TWO, NOT FOUR AND NOT ZERO. `progress.ts` normalises field by field
+       and never lets one bad row cost the reader the others — the same rule
+       every other record on this page follows. */
+    await expect(page.locator('[data-game-log] .game-row')).toHaveCount(2);
+  });
+});

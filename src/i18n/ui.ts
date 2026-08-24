@@ -268,6 +268,24 @@ const fr = {
      number is not a record being kept about them, which is exactly why there
      is no daily streak — see progress.ts. */
   'score.streak.value': '%s exercices d’affilée dans cette session',
+  /* ── The game history (/progres/) ───────────────────────────────────────
+     ⚠️ IT NAMES THE OUTCOME PLAINLY AND DOES NOT DRESS UP A LOSS. Critical
+     Feature 35: a loss costs nothing and is read by no scoring rule. A history
+     that said "défaite" in red, or hid losses, would turn a record of play into
+     a record of failure — which is the one thing this site's progression rules
+     exist to prevent. Wins are not congratulated here either; the points block
+     above already does that. */
+  'games.title': 'Tes parties',
+  'games.intro': 'Les parties jouées contre l’ordinateur, la plus récente en premier.',
+  'games.none': 'Aucune partie pour l’instant. Une partie contre l’ordinateur, et elle apparaîtra ici.',
+  'games.win': 'Gagnée',
+  'games.draw': 'Nulle',
+  'games.loss': 'Perdue',
+  /* "%s parties" — the count above the list. */
+  'games.count': '%s parties',
+  'games.countOne': '1 partie',
+  /* Shown when the log is full and older games have fallen off the end. */
+  'games.trimmed': 'Les %s dernières.',
   'score.achievements': 'Accomplissements',
   'score.achievements.count': '%s sur %s',
   'score.achievements.locked': 'Pas encore',
@@ -1171,6 +1189,16 @@ const en: Record<keyof typeof fr, string> = {
   'score.earnedTitle': 'Points earned',
   'score.streak.title': 'Current run',
   'score.streak.value': '%s exercises in a row this session',
+  /* ── The game history (/progres/). See the FR note. ─────────────────── */
+  'games.title': 'Your games',
+  'games.intro': 'Games played against the computer, most recent first.',
+  'games.none': 'No games yet. Play one against the computer and it will appear here.',
+  'games.win': 'Won',
+  'games.draw': 'Drawn',
+  'games.loss': 'Lost',
+  'games.count': '%s games',
+  'games.countOne': '1 game',
+  'games.trimmed': 'The last %s.',
   'score.achievements': 'Achievements',
   'score.achievements.count': '%s of %s',
   'score.achievements.locked': 'Not yet',

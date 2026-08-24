@@ -3,13 +3,21 @@
 import { getCollection } from 'astro:content';
 import type { GetStaticPaths } from 'astro';
 import ExercicePage from '@components/pages/ExercicePage.astro';
+import { sortExercises } from '@lib/exercise-filters';
 
 export const getStaticPaths = (async () => {
-  const exercises = await getCollection('exercices', ({ data }) => !data.draft);
-  return exercises.map((entry) => ({ params: { slug: entry.data.slug }, props: { entry } }));
+  const exercises = sortExercises(await getCollection('exercices', ({ data }) => !data.draft));
+  return exercises.map((entry, i) => ({
+    params: { slug: entry.data.slug },
+    props: {
+      entry,
+      prev: exercises[i - 1] ?? null,
+      next: exercises[i + 1] ?? null,
+    },
+  }));
 }) satisfies GetStaticPaths;
 
-const { entry } = Astro.props;
+const { entry, prev, next } = Astro.props;
 ---
 
-<ExercicePage locale="en" entry={entry} />
+<ExercicePage locale="en" entry={entry} prev={prev} next={next} />
