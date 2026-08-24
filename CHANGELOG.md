@@ -11,6 +11,97 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### Added
+
+- **Prev / next between exercises**, at the end of every exercise, naming the
+  destination rather than saying "suivant" — same shape as the lesson and
+  tutorial pagers (Critical Feature 62). Finishing an exercise used to mean
+  going back to the index and picking again, on the one surface where a student
+  does several in a row.
+  - ⚠️ **THE ORDER IS DECIDED AND WRITTEN DOWN: LEVEL, THEN PRIMARY THEME, THEN
+    SLUG.** It used to be slug-alphabetical, which put an *intermediate*
+    queen-sacrifice combination first on the index and interleaved the two
+    levels all the way down.
+  - ⚠️ **ONE ORDER, NOT TWO.** The pager walks the same `sortExercises` the
+    index lists with — a pager that walked a different sequence from the list
+    the reader just chose from would take them somewhere the list did not
+    imply. The comment on that function already asked for this.
+  - ⚠️ **"Primary theme" is `themes[0]`, and that is a real convention in the
+    content** — checked across all 27, the first theme is always the motif.
+    Reordering a `themes` array therefore moves an exercise in the sequence.
+  - Alphabetical-by-motif is **deterministic, not pedagogical**; a curated motif
+    sequence is the upgrade and is deliberately not done, because an uncurated
+    order that is stable beats a curated one that rots when a theme is added and
+    nobody updates the list.
+- **A game history on `/progres/`** — date, level, outcome, newest first.
+  ⚠️ **Games have been recorded since E3 and shown nowhere**: the ledger knew a
+  student had won twice at Intermédiaire and the page never said when, against
+  which level, or that they had played at all.
+  - **A new bounded per-game log in `progress.ts`** (`GAME_LOG_MAX = 50`).
+    ⚠️ **The counters could not produce a history** — folding a game into
+    `{wins, draws, losses}` destroys its date. The counter stays the thing that
+    SCORES; nothing in `points.ts` reads the log, and it must stay that way.
+  - ⚠️ **IT IS A RECORD, NOT A REPORT CARD.** Losses and draws render exactly as
+    wins do, same weight, same colour — Critical Feature 35 says a loss costs
+    nothing, and a red loss is how it starts costing something. **A spec compares
+    the computed colour**, because "tint the losses" is the obvious next edit.
+  - Renders from `localStorage`, so a guest has one too.
+
+### Changed
+
+- **The rank thresholds are re-spaced: 0 / 75 / 220 / 480 / 800.**
+  ⚠️ **MEASURED, NOT ESTIMATED — full marks today is 965** (845 learning + 120
+  games), read off the built catalogue: 13 tutorial steps, 19 lessons, 27
+  exercises. They were set at E3 against a ceiling of **350**, so **Dame sat at
+  23% of the site** — the top rank was reachable without two thirds of the
+  teaching, which is precisely what the E3 note said it must never be.
+  - **What each rank is FOR** is now written beside its number: Pion, you turned
+    up; Cavalier, you have the rules; Fou, you have started properly; Tour, you
+    are a serious student; Dame, you have done very nearly all of it.
+  - ⚠️ **Dame still does NOT require games** — 845 > 800, so a student who only
+    studies can reach it. The 45-point gap is the slack for four or five hinted
+    exercises, and play can cover it instead. That is what "more play" means
+    here: the natural way to close the gap, never a requirement.
+  - ⚠️⚠️ **THIS DEMOTES EXISTING READERS, AND THAT IS THE ACCEPTED COST.** The
+    rule that stood said thresholds may only rise "alongside a `v2` progress
+    key" — but a `v2` key **deletes every reader's records** to protect a badge.
+    Demotion is the lesser harm. A reader on 250 was Tour and is Fou; **nothing
+    they did is lost**, because points are derived (Critical Feature 33).
+- **The 50-point cap on a teacher award is removed** (migration 0014, Seàn's
+  call). Positive-only and reason-required both stay, in the database.
+  - The cap's reasoning was sound and is not what was disputed. What changed is
+    **who decides**: the size of an award is a teaching judgement about a
+    particular student, and a schema constant took that from the person in the
+    room. What replaces it is **attribution** — `awarded_by` and a required
+    `reason`, both visible on the student's own page.
+  - ⚠️⚠️ **REMOVING IT MEANT REMOVING IT IN THREE PLACES, AND TWO WOULD HAVE
+    EATEN A REAL AWARD SILENTLY.** `normalizeAwards` in `progress.ts` and the
+    summation in `ScoreResolver.astro` both DISCARDED rows over 50 on read: the
+    first award above the old ceiling would have been accepted by the database,
+    mirrored down, and then vanished from the page.
+  - ⚠️ **`computeLedger()` was already uncapped**, so those two summations would
+    have disagreed the moment the migration landed — a prof and a student
+    reading different totals, which is exactly what Critical Feature 47 exists
+    to prevent.
+
+### Notes
+
+- **The 27 exercises were audited for duplicates and NOTHING was cut** — the
+  brief was to report first. Found by two methods, because ⚠️ **neither is
+  sufficient alone**: comparing FEN piece placements mechanically, and reading
+  the solution sequences for shared mechanisms. Three exercises share one jig
+  (`decouverte-simple` / `decouverte-qui-gagne-la-dame` / `echec-double`), two
+  share an identical black position (`mat-du-couloir` / `mat-du-couloir-dame`),
+  and two share a mechanism the position check does **not** flag
+  (`fourchette-de-cavalier` / `fourchette-roi-tour`, both N→f6 then N×d7). Full
+  findings, including the pairs checked and CLEARED, are in BACKLOG for Seàn.
+- **Three retention mechanics are proposed and none is built**, as asked. All
+  weekly-shaped, because Critical Feature 34 rules out daily streaks: a win
+  streak (cheapest, and the only one that can punish), a weekly habit mark (the
+  one I would build — it cannot punish and matches the club's rhythm), and a
+  named "come back for this" (least game-like, most useful, works on the first
+  visit back). In BACKLOG with costs and risks.
+
 ### Fixed
 
 - ⚠️⚠️ **The gate no longer destroys the failure artefacts it tells you to

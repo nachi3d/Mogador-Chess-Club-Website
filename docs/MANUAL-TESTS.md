@@ -536,6 +536,48 @@ After flipping it, on the real site:
       once. ⚠️ Check the child profile is **not** named from the Google
       address's local part (Critical Feature 53)
 
+### ⚠️ Exercises: prev / next, and the order
+
+- [ ] Open any exercise. At the bottom, below the share/back links, there is a
+      prev / next pair that **NAMES the destination** — "Mat en 1 — le couloir,
+      avec la dame", never a bare "Suivant"
+- [ ] The FIRST exercise has no "previous" and the LAST has no "next", and in
+      both cases the remaining link stays on its own side. ⚠️ **If "next" jumps
+      to the left on the first exercise**, the empty cell has been removed
+- [ ] ⚠️ **The index order and the pager order AGREE.** Open `/exercices/`,
+      note the order, then walk it with "next". Beginner exercises come first,
+      grouped by motif — the five forks, then the mates
+- [ ] Both work in EN
+
+### ⚠️ Ranks moved — a student may see their rank DROP
+
+*Thresholds were re-spaced against today's content (full marks is 965; Dame was
+sitting at 23% of the site). This is expected and was Seàn's call — but it is
+the kind of change a student notices and nobody explains.*
+
+- [ ] `/progres/` shows a rank consistent with the points beside it
+- [ ] ⚠️ **If a student says their rank went down, that is this change** — their
+      work is intact; points are derived, so nothing was deleted
+
+### ⚠️ The game history
+
+- [ ] Play a game at `/jouer/` to the end (win, lose or draw), then open
+      `/progres/` — the game is listed with its level and the date
+- [ ] ⚠️ **A LOSS APPEARS, in the same colour and weight as a win.** If losses
+      are hidden, or red, that is a regression: a loss costs nothing here
+- [ ] Before any game has been played the block is **absent**, with one line
+      saying so — not an empty list under a heading
+- [ ] Play several; the newest is at the top
+
+### ⚠️ Teacher awards above 50
+
+- [ ] In `/admin/eleve/?id=…`, award **80 points** with a reason. It is
+      accepted — the 50 cap was removed in migration 0014
+- [ ] ⚠️ **The student's `/progres/` shows all 80**, and the total includes
+      them. If the award appears in the admin list but not in the student's
+      total, a read-side cap has survived somewhere
+- [ ] A **negative** number is still refused, and a blank reason is still refused
+
 ## 1b. Navigation menu and board coordinates
 
 ### The menu — ⚠️ on a REAL phone, not a narrow desktop window

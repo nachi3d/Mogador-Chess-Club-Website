@@ -797,9 +797,21 @@ Ranks are **Pion → Cavalier → Fou → Tour → Dame**.
   **never presented as a loss**.
 - ⚠️ **A loss costs nothing** (Critical Feature 35). Losses and draws are recorded
   and read by no scoring rule at all.
-- ⚠️ Thresholds are absolute numbers and the content will grow, so re-tuning is
-  expected — but it may only move in the direction that does **not demote**
-  anyone who already holds a rank.
+- ⚠️ **Thresholds are absolute numbers against a MOVING ceiling, and they were
+  re-spaced at v0.23.0** — 0 / 75 / 220 / 480 / 800 against a measured **965**.
+  They had been set at E3 against a ceiling of 350, so Dame sat at **23% of the
+  site**: the top rank was reachable without two thirds of the teaching.
+  ⚠️ **RECOMPUTE AGAINST `ceilingOf()` WHENEVER CONTENT GROWS**, and say what
+  full marks totals — the numbers are meaningless without it.
+- ⚠️⚠️ **THE OLD "NEVER DEMOTE" RULE IS GONE, AND ITS REMEDY WAS THE PROBLEM.**
+  It said thresholds may only move in the direction that does not demote a
+  holder, "in practice raising them only alongside a `v2` progress key". But a
+  `v2` key **deletes every reader's records** to protect a badge — trading a
+  visible demotion for actual data loss. Raising demotes and that is now the
+  accepted cost (Seàn's call): a reader on 250 was Tour and is Fou, and **their
+  work is untouched**, because points are DERIVED (Critical Feature 33).
+  ⚠️ **Say so in the CHANGELOG when it happens** — a rank that moves without
+  explanation is the part a student notices.
 - ⚠️ **When accounts land, the balance must be computed SERVER-SIDE.** No endpoint
   may take a total, a rank or an achievement list as input. The client may send
   *what it solved*; the server decides what that is worth. Nothing in `points.ts`
