@@ -275,6 +275,24 @@ const fr = {
      a record of failure — which is the one thing this site's progression rules
      exist to prevent. Wins are not congratulated here either; the points block
      above already does that. */
+  /* ── The weekly habit mark (/progres/) ───────────────────────────────────
+     ⚠️ IT COUNTS PRESENCES AND NEVER A STREAK, and the wording is where that
+     is either kept or thrown away. There is no "vous avez perdu votre série",
+     because there is no série: a missed week is a week not in the list, and
+     costs one mark rather than a run. Critical Feature 34 rules out a daily
+     streak for exactly this reason and a consecutive-WEEK counter would
+     reintroduce it in the club's own rhythm.
+
+     ⚠️ THE UNMARKED WEEK IS AN INVITATION WITH AN ACTION IN IT, not a scold and
+     not a blank. "Un exercice ou une partie" tells a student precisely what
+     would mark it, which is the difference between encouragement and nagging. */
+  'habit.title': 'Tes semaines',
+  'habit.intro': 'Une semaine est marquée dès que tu résous un exercice ou joues une partie.',
+  'habit.count': '%s semaines',
+  'habit.countOne': '1 semaine',
+  'habit.thisWeek.done': 'Cette semaine est marquée.',
+  'habit.thisWeek.open': 'Un exercice ou une partie, et cette semaine est marquée.',
+  'habit.none': 'Aucune semaine marquée pour l’instant — la première t’attend.',
   'games.title': 'Tes parties',
   'games.intro': 'Les parties jouées contre l’ordinateur, la plus récente en premier.',
   'games.none': 'Aucune partie pour l’instant. Une partie contre l’ordinateur, et elle apparaîtra ici.',
@@ -1190,6 +1208,14 @@ const en: Record<keyof typeof fr, string> = {
   'score.streak.title': 'Current run',
   'score.streak.value': '%s exercises in a row this session',
   /* ── The game history (/progres/). See the FR note. ─────────────────── */
+  /* ── The weekly habit mark (/progres/). See the FR note. ────────────── */
+  'habit.title': 'Your weeks',
+  'habit.intro': 'A week is marked as soon as you solve an exercise or play a game.',
+  'habit.count': '%s weeks',
+  'habit.countOne': '1 week',
+  'habit.thisWeek.done': 'This week is marked.',
+  'habit.thisWeek.open': 'One exercise or one game, and this week is marked.',
+  'habit.none': 'No weeks marked yet — the first one is waiting.',
   'games.title': 'Your games',
   'games.intro': 'Games played against the computer, most recent first.',
   'games.none': 'No games yet. Play one against the computer and it will appear here.',

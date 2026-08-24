@@ -11,6 +11,89 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### Removed
+
+- **Three duplicate exercises cut**, on Seàn's decision from the audit:
+  `mat-du-couloir-dame` (two back-rank mates-in-one already teach it),
+  `decouverte-qui-gagne-la-dame` (identical jig to `decouverte-simple`;
+  `echec-double` earns its place because double check is a distinct rule), and
+  `mat-etouffe-cavalier` (it is the final position of `attraction-puis-mat`, so
+  a student meets it twice). **24 exercises remain.** Kept deliberately: both
+  surviving couloir siblings, all the forks and both deflection-mates — same
+  tactic, different geometry, and drilling a motif twice is the point.
+  - ⚠️ **The cut broke a spec that was working perfectly.**
+    `exercise-filters.spec.ts` pinned `>= 27` as a floor, written so that
+    ADDING an exercise would not fail an unrelated test — a one-way ratchet
+    that had never considered a cut. Now a named `EXERCISE_FLOOR` with the
+    two-directional reasoning beside it.
+
+### Changed
+
+- ⚠️⚠️ **THE RANK THRESHOLDS MOVED AGAIN, IN THE SAME RELEASE, AND THAT IS THE
+  POINT RATHER THAN CHURN.** Cutting 65 points of content dropped full marks
+  from 965 to **900** (780 learning + 120 games) — which pushed Dame (then 800)
+  **above the learning ceiling of 780**, quietly making the top rank
+  unreachable without games. That is the one property the table is not allowed
+  to lose, and it was lost by deleting three JSON files.
+  - Now **0 / 75 / 200 / 450 / 740**. Dame at 740 against 780 restores the
+    40-point slack for hinted exercises, and studying everything is enough
+    again.
+  - **Cavalier stays at 75** — the tutorial did not change, and a threshold
+    pinned to a specific body of work should not drift when unrelated content
+    moves.
+  - ⚠️ **The rule now says to check Dame against the LEARNING ceiling**, not
+    just to recompute the total. That single comparison is what this
+    re-spacing existed to restore, and recomputing alone would not have caught
+    it.
+
+### Added
+
+- **The weekly habit mark on `/progres/`** — the retention mechanic, chosen by
+  Seàn from the three proposed. ⚠️ **The win streak was explicitly rejected**:
+  a mechanic that breaks on a loss is what Critical Feature 35 exists to
+  prevent.
+  - **It counts weeks that HAPPENED and never weeks that did not.** There is no
+    "consecutive weeks" and there must not be: Critical Feature 34 rules out a
+    daily streak because the club meets weekly, and a consecutive-WEEK counter
+    reintroduces the same punishment one rhythm up. A missed week costs a mark,
+    not a run — asserted by a spec that seeds a six-week gap and checks both
+    weeks still count.
+  - ⚠️ **NOTHING IS STORED FOR IT.** `activeWeeks()` derives from timestamps
+    that already exist — `solvedAt` and the game log — for the same reason
+    points are derived: a stored counter can disagree with the records behind
+    it.
+  - ⚠️ **ISO WEEKS, WHICH START ON MONDAY, AND THAT IS LOAD-BEARING HERE.** The
+    club meets at the weekend, so a Saturday session and the Sunday after it
+    must be ONE mark. Verified against six known dates including that pair, the
+    2026-W01 boundary and a 1 January that belongs to the previous year.
+  - ⚠️ **THE UNMARKED WEEK NAMES AN ACTION, NOT AN ABSENCE** — "un exercice ou
+    une partie, et cette semaine est marquée". A spec asserts the line never
+    contains *perdu*, *série*, *raté*, *streak* or *missed*, and that a marked
+    and an unmarked week are **the same colour**.
+  - ⚠️ **It is an UNDERCOUNT by construction**, and that is the safe direction:
+    `solvedAt` keeps the first solve, so a week spent re-solving leaves no
+    trace, and the game log is bounded. It can fail to credit a week; it can
+    never invent one.
+
+### Fixed
+
+- **`test:branch` preserves its failure artefacts too**, into
+  `gate-logs/branch-<stamp>/`, and **names the path before the advice** on a red
+  run. ⚠️ **It needed this more than the gate did**, which is not where the fix
+  landed first: the branch runner runs one project, so nothing clears
+  `test-results/` mid-run — which made it look safe. The artefacts survive only
+  until the NEXT run, and the next run is the most natural response to a red
+  branch gate.
+  - ⚠️ **This was not hypothetical.** In the session that shipped the gate fix,
+    a branch run failed two `tutorial.spec.ts` axe checks and the very next
+    command was another `test:branch` — the evidence was gone before anyone
+    read it, and the failure was written up as a theory rather than a finding.
+  - ⚠️ **Watched to work**, and it immediately earned itself: forcing a failure
+    preserved **four** artefact directories, three of which turned out to be
+    the `exercise-filters` breakage above rather than the deliberate probe — a
+    real regression that would otherwise have been discovered later, or blamed
+    on something else.
+
 ### Added
 
 - **Prev / next between exercises**, at the end of every exercise, naming the

@@ -36,12 +36,59 @@
  * everything. Still one browser.
  */
 import { spawnSync } from 'node:child_process';
+import { existsSync, readdirSync, mkdirSync, cpSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { specsFor } from './spec-map.mjs';
 import { NEEDS_ACCOUNTS_ON, NEEDS_ACCOUNTS_OFF } from './lanes.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const LOG_DIR = join(ROOT, 'gate-logs');
+
+/* ⚠️ STAMPED, so a second red run does not erase the first's evidence — the
+   same lesson matrix-<shape>-<stamp>.log learned at the v0.17.0 gate. */
+const RUN_ID = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
+
+/**
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️⚠️ KEEP THE FAILURE ARTEFACTS — AND THIS RUNNER NEEDED IT MORE THAN THE
+ * GATE DID, WHICH IS NOT WHERE THE FIX LANDED FIRST.
+ *
+ * `test-release.mjs` got this because it runs six times and clears
+ * `test-results/` between projects. This runner runs ONE project, so nothing
+ * clears the directory mid-run — and that made it look safe. It is not: the
+ * artefacts survive only until the NEXT run, and the next run is the most
+ * natural thing anybody does after a red branch gate.
+ *
+ * ⚠️ THAT HAPPENED IN THE SESSION THAT SHIPPED THE GATE FIX. A branch run
+ * failed two `tutorial.spec.ts` axe checks; the very next command was another
+ * `test:branch`, and the `error-context.md` naming the violation was gone
+ * before anyone read it. Two later runs passed, so the failure was written up
+ * as a theory rather than a finding — which is precisely the outcome this
+ * whole line of work exists to stop.
+ *
+ * ⚠️ IT NEVER FAILS THE RUN. A copy that throws is reported and the exit code
+ * is whatever Playwright decided; evidence-keeping must not change a verdict.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+function preserveArtefacts() {
+  const from = join(ROOT, 'test-results');
+  if (!existsSync(from)) return 0;
+  /* A clean run leaves the directory with no failure subdirectories in it. */
+  const dirs = readdirSync(from, { withFileTypes: true }).filter((e) => e.isDirectory());
+  if (dirs.length === 0) return 0;
+
+  const to = join(LOG_DIR, `branch-${RUN_ID}`);
+  try {
+    mkdirSync(to, { recursive: true });
+    for (const d of dirs) cpSync(join(from, d.name), join(to, d.name), { recursive: true });
+  } catch (error) {
+    console.error(dim(`  (could not preserve artefacts: ${error.message})`));
+    return 0;
+  }
+  return dirs.length;
+}
+
 const BASE = process.env.BRANCH_BASE ?? 'dev';
 
 const bold = (s) => `[1m${s}[0m`;
@@ -182,10 +229,21 @@ const result = spawnSync(command, {
 
 if (result.status !== 0) {
   console.error(red('\n  ✗ test:branch FAILED.\n'));
+  /* ⚠️ THE ARTEFACTS FIRST, BEFORE THE ADVICE. The next thing anybody does
+     after a red branch run is run it again — which is what destroys them. */
+  const kept = preserveArtefacts();
   console.error(
     '  Fix it here. Do NOT reach for the matrix to see whether it is\n' +
       '  "really" broken — a chromium failure is a failure.\n',
   );
+  if (kept > 0) {
+    console.error(
+      yellow(`  ⚠️ ${kept} failure artefact dir(s) kept — READ THESE BEFORE RE-RUNNING:`) +
+        `\n  ${join(LOG_DIR, `branch-${RUN_ID}`)}\n` +
+        '  error-context.md there carries the page state at the moment it failed.\n' +
+        '  Re-running first is what deleted the last three gates\' evidence.\n',
+    );
+  }
   process.exit(result.status ?? 1);
 }
 

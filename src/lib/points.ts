@@ -167,33 +167,37 @@ export interface Rank {
 }
 
 /**
- * ⚠️ RE-SPACED 2026-08-24, AGAINST THE CONTENT THAT EXISTS TODAY. The previous
- * numbers were set at E3 against a 350-point ceiling and the site has since
- * grown to 965 — every threshold had silently become about a quarter as hard.
+ * ⚠️ RE-SPACED AGAINST THE CONTENT THAT EXISTS TODAY. The E3 numbers were set
+ * against a 350-point ceiling and the site had grown to 965 — every threshold
+ * had silently become about a quarter as hard.
+ *
+ * ⚠️⚠️ AND THEN RE-SPACED AGAIN, IN THE SAME RELEASE, WHEN THREE DUPLICATE
+ * EXERCISES WERE CUT. That is not churn; it is the liability at the bottom of
+ * this block firing immediately, in the SHRINK direction nobody thinks about.
+ * Removing 65 points of content pushed Dame (then 800) ABOVE the learning
+ * ceiling (then 780) — quietly making the top rank unreachable without games,
+ * which is the one property this table is not allowed to lose. **Cutting
+ * content moves these numbers exactly as adding it does.**
  *
  * ⚠️ MEASURED, NOT ESTIMATED. Read off the built catalogue, not counted by
  * hand:
  *
  *   13 tutorial steps      × 5   =  65
  *   19 lessons with boards × 10  = 190
- *   27 standalone exercises      = 590   (incl. the +5 mate bonuses)
+ *   24 standalone exercises      = 525   (incl. the +5 mate bonuses)
  *   ─────────────────────────────────
- *   everything there is to learn   845
+ *   everything there is to learn   780
  *   games, both wins at all three  120   (2×5 + 2×15 + 2×40)
  *   ─────────────────────────────────
- *   FULL MARKS TODAY               965
+ *   FULL MARKS TODAY               900
  *
- * ⚠️ WHAT THAT MEANT BEFORE THIS CHANGE: Dame sat at 220, i.e. **23% of the
- * site**. The top rank was reachable without touching two thirds of the
- * teaching, which is precisely what the E3 note said it must never be.
- *
- * | Rank     | Points | % of 965 | What it actually takes |
+ * | Rank     | Points | % of 900 | What it actually takes |
  * |----------|--------|----------|------------------------|
  * | Pion     |      0 |       0% | arriving |
  * | Cavalier |     75 |       8% | the whole tutorial, or most of it plus an exercise |
- * | Fou      |    220 |      23% | the basics, a full course, and a handful of exercises |
- * | Tour     |    480 |      50% | half of everything — realistically the teaching plus some play |
- * | Dame     |    800 |      83% | very nearly all the teaching, or most of it plus real games |
+ * | Fou      |    200 |      22% | the basics, a full course, and a handful of exercises |
+ * | Tour     |    450 |      50% | half of everything — realistically the teaching plus some play |
+ * | Dame     |    740 |      82% | very nearly all the teaching, or most of it plus real games |
  *
  * ⚠️ WHAT EACH RANK IS *FOR* — the part a number cannot say, and the reason the
  * next person to re-tune these has something to argue with:
@@ -201,59 +205,62 @@ export interface Rank {
  * - **Pion — you turned up.** It exists so nobody is rankless. It is not
  *   earned and must never require anything.
  *
- * - **Cavalier — you have the rules.** This is the "achievable in one sitting"
- *   rank, and it is aimed at a child who had never played before today. 75 is
- *   the finished tutorial (65) plus a little, so it lands *just after* the
- *   basics rather than during them: finishing the tutorial should feel like
- *   completing something and being given something, in that order.
+ * - **Cavalier — you have the rules.** The "achievable in one sitting" rank,
+ *   aimed at a child who had never played before today. 75 is the finished
+ *   tutorial (65) plus a little, so it lands *just after* the basics rather
+ *   than during them: finishing should feel like completing something and then
+ *   being given something, in that order. ⚠️ **Unmoved by the cuts**, because
+ *   the tutorial did not change — a threshold pinned to a specific body of work
+ *   should not drift when unrelated content moves.
  *
  * - **Fou — you have started properly.** The basics plus a whole course plus a
- *   few exercises. It is the first rank that cannot be reached in one sitting,
- *   and that is the point: it marks the difference between having seen the
- *   site and having used it.
+ *   few exercises. The first rank that cannot be reached in one sitting, which
+ *   is the point: it marks the difference between having seen the site and
+ *   having used it.
  *
- * - **Tour — you are a serious student.** Half of everything on the site. At
- *   this level hints have usually cost some points, so in practice Tour is
- *   where PLAY starts carrying part of the load — which is what "more play"
- *   means here: not required, but the natural way to cover the gap.
+ * - **Tour — you are a serious student.** Half of everything. By here hints
+ *   have usually cost some points, so Tour is where PLAY starts carrying part
+ *   of the load — which is what "more play" means: never required, but the
+ *   natural way to cover the gap.
  *
- * - **Dame — you have done very nearly all of it.** 800 against a learning
- *   ceiling of 845. This is the direction doc's non-negotiable — *un rang gagné
- *   en cliquant ne dure pas deux minutes face à un ado* — restored to what it
- *   was designed to mean. ⚠️ **Dame still does NOT require games**: 845 > 800,
- *   so a student who only ever studies can reach it. The 45-point gap is the
- *   slack for four or five hinted exercises, and games can cover it instead.
+ * - **Dame — you have done very nearly all of it.** 740 against a learning
+ *   ceiling of 780. This is the direction doc's non-negotiable — *un rang gagné
+ *   en cliquant ne dure pas deux minutes face à un ado*. ⚠️ **Dame still does
+ *   NOT require games**: 780 > 740, so a student who only ever studies reaches
+ *   it. The 40-point gap is the slack for four hinted exercises, and games can
+ *   cover it instead.
  *
- * ⚠️⚠️ THIS RAISE DEMOTES EXISTING READERS, AND THAT IS A KNOWN, ACCEPTED COST
- * — SEÀN'S CALL, NOT AN OVERSIGHT.
+ * ⚠️⚠️ RAISING THESE DEMOTES EXISTING READERS, AND THAT IS A KNOWN, ACCEPTED
+ * COST — SEÀN'S CALL, NOT AN OVERSIGHT.
  *
  * The rule that stood here said thresholds "may only ever move in the direction
- * that does NOT demote a reader who already holds a rank... in practice that
- * means raising thresholds only alongside a `v2` progress key, or not at all."
- * That rule was right about the harm and wrong about the remedy: bumping the
- * key to `v2` would DELETE every reader's records to protect their rank badge,
- * which trades a visible demotion for actual data loss. Demotion is the lesser
- * harm and it is the one taken.
+ * that does NOT demote a reader who already holds a rank... in practice raising
+ * them only alongside a `v2` progress key, or not at all." That rule was right
+ * about the harm and wrong about the remedy: bumping the key to `v2` would
+ * DELETE every reader's records to protect their rank badge, trading a visible
+ * demotion for actual data loss. Demotion is the lesser harm and it is the one
+ * taken.
  *
- * Concretely: a reader on 250 points was Tour and is now Fou. A reader who had
- * just reached Dame at 220 is now Fou. Nothing they did is lost — points are
- * DERIVED (Critical Feature 33), every record is intact, and the same work now
- * measures against a site four times the size.
+ * Concretely: a reader on 250 points was Tour and is now Fou. Nothing they did
+ * is lost — points are DERIVED (Critical Feature 33), every record is intact,
+ * and the same work now measures against a site three times the size.
  *
- * ⚠️ THE NEXT PERSON TO GROW THE CONTENT INHERITS THIS PROBLEM AGAIN. These are
- * absolute numbers against a moving ceiling; add another twenty exercises and
- * they drift again. The durable fix is to express thresholds as a FRACTION of
- * `ceilingOf()` — deliberately not done here, because it changes what a rank
- * means from "this much work" to "this much of what exists", and a reader whose
- * rank falls because somebody else published an exercise is a worse surprise
- * than this one. Recorded so the choice is visible rather than re-derived.
+ * ⚠️ THE NEXT PERSON TO CHANGE THE CONTENT INHERITS THIS AGAIN, IN EITHER
+ * DIRECTION. These are absolute numbers against a moving ceiling. **Recompute
+ * against `ceilingOf()` and check Dame is still below the LEARNING ceiling** —
+ * that single comparison is what the second re-spacing above existed to
+ * restore. The durable fix is to express thresholds as a FRACTION of the
+ * ceiling, deliberately not done here: it changes what a rank means from "this
+ * much work" to "this much of what exists", and a reader whose rank falls
+ * because somebody else published an exercise is a worse surprise than this
+ * one.
  */
 export const RANKS: readonly Rank[] = [
   { id: 'pion', min: 0 },
   { id: 'cavalier', min: 75 },
-  { id: 'fou', min: 220 },
-  { id: 'tour', min: 480 },
-  { id: 'dame', min: 800 },
+  { id: 'fou', min: 200 },
+  { id: 'tour', min: 450 },
+  { id: 'dame', min: 740 },
 ];
 
 /** The rank held at a given total, and how far the next one is. */

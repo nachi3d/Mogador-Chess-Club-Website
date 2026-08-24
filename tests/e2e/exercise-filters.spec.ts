@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
 /**
- * THE EXERCISE INDEX'S FILTERS — 27 entries, narrowed without JavaScript.
+ * THE EXERCISE INDEX'S FILTERS — narrowed without JavaScript.
  *
  * ═════════════════════════════════════════════════════════════════════════
  * ⚠️ THE FILTERS ARE STATIC ROUTES, NOT `?niveau=`, AND THAT IS FORCED.
@@ -15,6 +15,21 @@ import AxeBuilder from '@axe-core/playwright';
  * taking: **the filters work with JavaScript disabled.**
  * ═════════════════════════════════════════════════════════════════════════
  */
+
+/**
+ * The smallest number of exercise cards the index must draw.
+ *
+ * ⚠️ A FLOOR THAT MOVES IN BOTH DIRECTIONS, WHICH THE FIRST VERSION DID NOT
+ * ANTICIPATE. It was written as "27, so adding an exercise does not fail an
+ * unrelated test" — a one-way ratchet against GROWTH. Three duplicates were
+ * cut at v0.23.0 and the floor failed three tests that were working perfectly.
+ *
+ * ⚠️ IT IS STILL WORTH HAVING: its job is to catch a filter accidentally
+ * applied to the unfiltered index, which would show a handful of cards rather
+ * than all of them. Keep it a little under the real count, and move it when
+ * the collection changes SIZE in either direction.
+ */
+const EXERCISE_FLOOR = 24;
 
 const INDEX = '/exercices/';
 const INDEX_EN = '/en/exercices/';
@@ -37,10 +52,10 @@ test('the index lists every exercise and offers both filter axes', async ({ page
   await page.goto(INDEX);
 
   const hrefs = await cardHrefs(page);
-  /* Batch 5 took the collection to 27. Asserted as a floor rather than an
-     exact number so adding an exercise does not fail an unrelated test — but
-     high enough that a filter accidentally applied to the index would trip. */
-  expect(hrefs.length, `the index drew ${hrefs.length} exercise cards`).toBeGreaterThanOrEqual(27);
+  /* A FLOOR, not an exact count, so adding an exercise does not fail an
+     unrelated test — but high enough that a filter accidentally applied to the
+     index would trip. */
+  expect(hrefs.length, `the index drew ${hrefs.length} exercise cards`).toBeGreaterThanOrEqual(EXERCISE_FLOOR);
 
   await expect(page.locator('[data-exercise-filters]')).toHaveCount(1);
   expect(await chips(page).count(), 'no filter chips rendered').toBeGreaterThan(5);
@@ -98,7 +113,7 @@ test.describe('with JavaScript disabled', () => {
   test('the chips are real links and the filter still filters', async ({ page }) => {
     await page.goto(INDEX);
     const total = (await cardHrefs(page)).length;
-    expect(total, 'no cards without JS').toBeGreaterThanOrEqual(27);
+    expect(total, 'no cards without JS').toBeGreaterThanOrEqual(EXERCISE_FLOOR);
 
     /* Every chip is an anchor with a real href — not a button, not a span. */
     const hrefs = await chips(page).evaluateAll((els) =>
@@ -132,7 +147,7 @@ test('a filtered page marks its own chip and offers a way back to everything', a
   await expect(clear).toBeVisible();
   await clear.click();
   await expect(page).toHaveURL(/\/exercices\/$/);
-  expect((await cardHrefs(page)).length).toBeGreaterThanOrEqual(27);
+  expect((await cardHrefs(page)).length).toBeGreaterThanOrEqual(EXERCISE_FLOOR);
 });
 
 test('the index marks no chip as current', async ({ page }) => {
