@@ -118,7 +118,15 @@
  * ═════════════════════════════════════════════════════════════════════════
  */
 import { spawn, spawnSync } from 'node:child_process';
-import { readFileSync, writeFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
+import {
+  readFileSync,
+  writeFileSync,
+  mkdirSync,
+  rmSync,
+  existsSync,
+  readdirSync,
+  cpSync,
+} from 'node:fs';
 import { totalmem } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -312,6 +320,103 @@ function stopMemorySampler(handle) {
   return { min: Math.min(...samples), max: Math.max(...samples), samples: samples.length };
 }
 
+/**
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️⚠️ KEEP THE FAILURE ARTEFACTS. THE GATE USED TO DESTROY THE ONE THING IT
+ * TELLS YOU TO READ.
+ *
+ * Playwright clears `test-results/` at the START of every run, and this gate
+ * runs six times (five projects plus the sliver). So by the time it finished,
+ * only the LAST run's artefacts existed — measured at the v0.20.0 gate, which
+ * ended with `test-results/` holding **0 entries** after four flaky tests
+ * across firefox and webkit.
+ *
+ * ⚠️ THAT DIRECTLY DEFEATS THE PROJECT'S OWN RULE. CLAUDE.md says "THE
+ * DISCRIMINATOR IS THE FAILURE ARTEFACT, NOT THE RE-RUN" — established after
+ * `error-context.md` was what finally separated a real hydration race from
+ * machine contention, three gates late. The gate made that impossible to
+ * follow for every project but one, and THREE CONSECUTIVE GATES then ended in
+ * "probably environmental" with nothing left to check.
+ *
+ * ⚠️ `preserveOutput` ALONE IS NOT THE FIX, and it is the obvious one. It
+ * governs whether Playwright keeps output for PASSING tests; it does not stop
+ * the next run clearing the directory, and six runs share one directory. The
+ * artefacts have to LEAVE `test-results/` between runs, which is what this
+ * does.
+ *
+ * ⚠️ VERIFIED, NOT ASSUMED, that the sweep is not also eating them: the
+ * backlog row warned that `demo.mjs --sweep-only` runs between projects and
+ * might remove an artefact directory. It does not — it kills processes and
+ * touches no files. Checked before relying on it, because a copy into a
+ * directory that the next sweep deletes would be no better than what it
+ * replaced.
+ *
+ * Namespaced by RUN_ID exactly like the logs and the memory traces, for the
+ * identical reason: a second run must never erase the first's evidence, and
+ * "which run was this?" is asked months later from a filename.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+function preserveArtefacts(label) {
+  const from = join(ROOT, 'test-results');
+  if (!existsSync(from)) return 0;
+
+  /* Playwright leaves the directory in place with only a `.last-run.json` in
+     it after a clean run. Copying that is noise; the point is failures. */
+  const entries = readdirSync(from, { withFileTypes: true }).filter((e) => e.isDirectory());
+  if (entries.length === 0) return 0;
+
+  const to = join(LOG_DIR, `artefacts-${RUN_ID}`, label);
+  try {
+    mkdirSync(to, { recursive: true });
+    for (const e of entries) cpSync(join(from, e.name), join(to, e.name), { recursive: true });
+  } catch (error) {
+    /* ⚠️ NEVER FAIL THE GATE OVER EVIDENCE-KEEPING. A copy that throws — a
+       locked file, a full disk — must not turn a green matrix red or mask a
+       real result. It is reported and the run continues. */
+    appendLog(`\n--- could not preserve ${label} artefacts: ${error.message} ---\n`);
+    return 0;
+  }
+
+  appendLog(`\n--- kept ${entries.length} artefact dir(s) for ${label} -> ${to} ---\n`);
+  return entries.length;
+}
+
+/** Per-project artefact counts, so the summary can point at real evidence. */
+const artefacts = new Map();
+
+/**
+ * ⚠️⚠️ NAMED IN THE SUMMARY, ON BOTH PATHS, AND THE FAILURE PATH IS THE ONE
+ * THAT MATTERS.
+ *
+ * The artefacts exist to be READ at the moment a failing or flaky row is being
+ * adjudicated — which is right here, minutes after the run, by whoever is
+ * deciding whether to promote. A directory nobody is told about is only
+ * marginally better than one that was deleted: three consecutive gates were
+ * waved through as "probably environmental" while the evidence would have sat
+ * unread anyway.
+ *
+ * ⚠️ THE FIRST VERSION OF THIS PRINTED ONLY ON THE GREEN PATH, which is
+ * exactly backwards — the gate exits before it when something fails, so the
+ * pointer was missing precisely when it was needed. Caught by running the real
+ * script against a deliberate failure rather than by reading it.
+ */
+function reportArtefacts() {
+  const keptTotal = [...artefacts.values()].reduce((a, b) => a + b, 0);
+  if (keptTotal === 0) {
+    console.log(dim('  no failure artefacts — nothing failed or retried.\n'));
+    return;
+  }
+  const per = [...artefacts]
+    .filter(([, n]) => n > 0)
+    .map(([name, n]) => `${name} ${n}`)
+    .join(', ');
+  console.log(dim(`  ${keptTotal} failure artefact dir(s) kept — ${per}`));
+  console.log(dim(`  ${join(LOG_DIR, `artefacts-${RUN_ID}`)}`));
+  console.log(
+    yellow('  ⚠️ Read error-context.md there BEFORE calling a row environmental.\n'),
+  );
+}
+
 const PROJECTS = ['chromium', 'firefox', 'webkit', 'pixel-5', 'iphone-13'];
 
 /** The OFF-shape run is reported beside the projects, never mixed into one. */
@@ -451,6 +556,10 @@ if (MODE === 'pooled') {
     sweepMachine(project);
     const sampler = startMemorySampler(project);
     const run = runPlaywright(`--project=${project} --workers=${WORKERS}`, project);
+    /* ⚠️ IMMEDIATELY, AND BEFORE THE NEXT PROJECT RUNS. The next
+       `runPlaywright` clears `test-results/` as it starts; anything still in
+       there at that moment is gone. This is the whole fix. */
+    artefacts.set(project, preserveArtefacts(project));
     const trough = stopMemorySampler(sampler);
     memory.set(project, trough);
     appendLog(
@@ -508,6 +617,10 @@ if (SHAPE === 'on' && process.env['MCC_SKIP_OFF_SLIVER'] !== 'true') {
        passes it to the build, so an empty string IS the OFF shape. */
     { PUBLIC_AUTH_ENABLED: '' },
   );
+  /* The sliver is last, so nothing would clear its artefacts — but it is kept
+     for the same reason anyway: evidence that lives somewhere other than the
+     rest of the evidence is the one nobody finds. */
+  artefacts.set(SLIVER_LABEL, preserveArtefacts('off-sliver'));
   if (run.status !== 0) worstStatus = run.status;
   const entry = run.tally.get('chromium') ?? { passed: 0, failed: 0, flaky: 0, skipped: 0 };
   totals.set(SLIVER_LABEL, entry);
@@ -663,10 +776,17 @@ if (worstStatus !== 0 || failed > 0) {
         '  explanation is RULED OUT and the failure needs a real diagnosis.\n',
     ),
   );
+  console.log(dim(`  accounts ${SHAPE.toUpperCase()} — evidence kept at ${LOG}`));
+  /* ⚠️ ON THE FAILURE PATH FIRST. This is the branch where somebody is about
+     to decide whether a row is real, and the artefacts are the thing that
+     answers it. See the note on the function. */
+  reportArtefacts();
   process.exit(worstStatus || 1);
 }
 
 console.log(green(`\n  ✓ Matrix green — ${passed} passed${flaky ? `, ${flaky} flaky` : ''}, ${minutes} min.\n`));
 /* ⚠️ NAMED ON THE GREEN PATH TOO. A promotion records which two runs it rested
    on, and "matrix.log" was never enough to identify either of them. */
-console.log(dim(`  accounts ${SHAPE.toUpperCase()} — evidence kept at ${LOG}\n`));
+console.log(dim(`  accounts ${SHAPE.toUpperCase()} — evidence kept at ${LOG}`));
+
+reportArtefacts();
