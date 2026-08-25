@@ -37,32 +37,72 @@ that had been lying stopped.
 
 ### Verification
 
-**`PUBLIC_AUTH_ENABLED=true npm run test:release`** — recorded below.
+⚠️⚠️ **PROMOTED ON PARTIALLY TRANSFERRED EVIDENCE. THIS IS A DECLARED EXCEPTION
+AND IT IS THE SECOND OCCURRENCE.** v0.18.0 was the first.
 
-**Production catalog, asked per migration, read-only with the anon key:**
-every anon-visible migration is present — `profiles`, `exercise_progress`,
-`game_results`, `point_awards` (with `child_id`), `child_profiles`,
-`profiles.onboarded_at`, `profiles.account_shape`, `sessions.series_id`,
-`bookings`, `sessions.overbook_margin`.
+**What ran on THIS tree** — `PUBLIC_AUTH_ENABLED=true`, 2026-08-25 07:54 and
+after:
 
-- ⚠️ **WHAT AN ANON KEY STRUCTURALLY CANNOT SEE, STATED RATHER THAN GLOSSED:**
-  0002 (grants), 0006 (a policy widening), 0007 (a function), 0008 (revoked
-  defaults), 0011 (a trigger) and — **the one that matters for this release** —
-  **0014, which is a CHECK constraint removal**. Seàn confirmed 0014 is applied
-  and registered; that is taken on his word, because the only read-only probe
-  available here cannot reach a constraint, and the only probe that could is a
-  WRITE against production.
-- ⚠️ **The first probe reported `exercise_progress.id` MISSING and the probe was
-  wrong, not production** — that table has a composite primary key
-  `(profile_id, exercise_slug)` and no `id` column at all. Worth recording: a
-  catalog check that cries wolf blocks a correct deploy, which is the same
-  failure class as `verify:deploy` doing it.
+| project | result | evidence |
+|---|---|---|
+| chromium | **760 passed** | this tree |
+| firefox | **145 passed** | this tree |
+| pixel-5 | **106 passed** | this tree, run separately |
+| chromium (OFF) sliver | **21 passed, 32 run** | this tree, run separately — Critical Feature 18 proved |
+| webkit | 160 passed, 4 skipped | ⚠️ **v0.22.0's tree** |
+| iphone-13 | 120 passed | ⚠️ **v0.22.0's tree** |
 
-**`verify:deploy` will discriminate this release, proved before the deploy.**
-The live v0.22.0 tree carries **zero** occurrences of `exercise-nav`,
-`data-habit-block` and `data-game-log`; this tree carries all three, and they
-land on **two of the three compared documents** —
-`/exercices/mat-du-couloir/` and `/progres/`.
+⚠️ **THE GAP IS THE TWO WEBKIT-BASED PROJECTS AND NOTHING ELSE.** `pixel-5` is
+Chromium and was never blocked — it simply never got its turn, because the
+matrix aborted at webkit. It and the sliver were run on their own afterwards,
+so the transferred half is as small as it can be made rather than "the matrix
+did not finish".
+
+**Why the matrix aborted: Smart App Control, again.** `VerifiedAndReputable­PolicyState = 1`,
+and **302** `browserType.launch: Target page, context or browser has been closed`
+on webkit — the browser failing to START. `playwright install --force webkit`
+reports `icuuc77.dll`, `icutu77.dll` and `jxl_cms.dll` as missing host
+dependencies while **all three are present on disk** (1.8 MB, 222 KB, 115 KB in
+`webkit-2336`). Present and unloadable: the block is on **loading**, not on the
+files. ⚠️ **The v0.19.0 remedy — delete and re-download — no longer works.**
+
+**Why the webkit evidence transfers, established rather than assumed:**
+
+- ⚠️ **`playwright.config.ts` and `scripts/lanes.mjs` are BYTE-IDENTICAL** to
+  the tree that last passed a full webkit lane (v0.22.0). The lane is the same
+  twelve spec files it was when it passed 160.
+- ⚠️ **Eleven of those twelve spec files are byte-identical.** The only one that
+  changed is `auth.spec.ts`, and only by ADDITIVE assertions on the
+  same-address note. In the gate's flag shape the single new assertion that
+  executes is `toHaveCount(0)` — that an element is ABSENT.
+- **Two lane specs load a page this release changed, and both are accounted
+  for:** `auth` visits `/connexion/`, where the Google button and its note are
+  both absent with the flag off, so the rendered HTML matches v0.22.0; and
+  `sound` visits `/progres/`, where its only assertion is that an inline script
+  still contains `mcc:achievement` — `ScoreResolver`'s event name, which this
+  release did not touch, and which passed on chromium AND firefox on this tree.
+- **No change touches a mechanism the webkit lane exists for.** No
+  click-synthesis-during-`change`, no pointer geometry, no Web Audio, no
+  iframe. The new date handling parses ISO-8601 only.
+
+⚠️ **THIS IS WEAKER THAN v0.18.0's TRANSFER AND SHOULD BE READ AS SUCH.** There
+the diff against the passing tree was EMPTY — the same bytes. Here it is a whole
+release, and what carries the argument is that the LANE's inputs are unchanged,
+not that the tree is. That is an argument, not a measurement.
+
+⚠️⚠️ **DO NOT PROMOTE PAST A THIRD OCCURRENCE WITHOUT MOVING THE MATRIX OFF
+THIS MACHINE.** Seàn's condition, recorded here so it binds the next release
+rather than living in one person's memory. The costing is in BACKLOG.
+
+**`verify:deploy` will discriminate**, proved before the deploy: the live
+v0.22.0 tree carries **zero** occurrences of `exercise-nav`, `data-habit-block`
+and `data-game-log`; this tree carries all three, on **two of the three**
+compared documents.
+
+**Production catalog**, asked per migration, read-only with the anon key: every
+anon-visible migration present. ⚠️ **0014 is a CHECK-constraint removal and an
+anon key cannot see constraints** — Seàn confirmed it is applied and registered,
+and that is taken on his word rather than verified here.
 
 ### Removed
 
