@@ -12,9 +12,18 @@
  * are what a visitor actually sees.
  *
  * The matrix answers ONE question: does this work in Firefox and WebKit. That
- * question is asked ONCE, at promotion to main, by `npm run test:release`.
- * Asking it on every branch does not make the answer truer — it just moves the
- * cost from one run per release to one run per session.
+ * question is asked ONCE, at promotion to main, by the `gate` workflow on
+ * GitHub Actions (`.github/workflows/gate.yml`).
+ *
+ * ⚠️ CI IS THE GATE OF RECORD SINCE v0.24.0, NOT A LOCAL RUN. Smart App
+ * Control blocked WebKit on the only machine that could run the matrix here —
+ * twice — and both releases shipped on transferred evidence. A Linux runner
+ * has no such policy. `npm run test:release` still runs the whole matrix
+ * locally and is still the right thing for a developer who wants it; it is
+ * simply no longer what a promotion is allowed to rest on.
+ *
+ * Asking the question on every branch does not make the answer truer — it just
+ * moves the cost from one run per release to one run per session.
  *
  * ⚠️ THERE IS NO "CRITICAL PATH" ESCAPE HATCH ANY MORE, DELIBERATELY.
  * The old rule said the board island, the exercise validator, i18n routing and
@@ -124,8 +133,9 @@ console.log(`\n${bold('▸ test:branch')}  ${dim(`— chromium only, branch ${br
 if (branch === 'main') {
   console.log(
     yellow(
-      '\n  You are on main. Promotion is verified by `npm run test:release`,\n' +
-        '  which runs the matrix. This command is for feature branches.\n',
+      '\n  You are on main. Promotion is verified by the `gate` workflow on\n' +
+        '  GitHub Actions, which runs the matrix and is the gate of record.\n' +
+        '  This command is for feature branches.\n',
     ),
   );
 }
@@ -251,6 +261,8 @@ console.log(green('\n  ✓ test:branch passed — enough to merge to dev.\n'));
 console.log(
   dim(
     '  The matrix is NOT run here and is not needed here. It runs once, at\n' +
-      '  promotion, via `npm run test:release`.\n',
+      '  promotion, as the `gate` workflow on GitHub Actions — that is the\n' +
+      '  gate of record, not a local run. It starts on a push to dev or main,\n' +
+      '  or on a pull request into either.\n',
   ),
 );
