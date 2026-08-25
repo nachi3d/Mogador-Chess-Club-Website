@@ -11,6 +11,59 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+## [0.23.0] — 2026-08-25
+
+**The release in one line:** the exercises became a sequence you can walk, the
+progress page finally shows what a student has actually done, and two checks
+that had been lying stopped.
+
+- **Prev / next between exercises**, naming the destination. The order is
+  decided and written down — level, then primary theme, then slug — and the
+  index and the pager share it.
+- **Three duplicate exercises cut** (24 remain), from an audit that reported
+  before it changed anything.
+- **Rank thresholds re-spaced: 0 / 75 / 200 / 450 / 740.** ⚠️ **AGAINST A
+  MEASURED CEILING OF 900**, not the 965 quoted mid-session: 965 was the figure
+  *before* the three cuts, and removing 65 points of content moved it. The
+  thresholds were re-spaced **twice in this release** for exactly that reason —
+  see the note below.
+- **A game history on `/progres/`**, and **the weekly habit mark** beside it.
+- **The 50-point cap on a teacher award removed** (migration 0014).
+- **`test:branch` preserves its failure artefacts too**, after the gate fix
+  covered only `test:release`.
+- **The browser no longer offers to machine-translate the site** (three
+  signals), and **Google sign-in is built behind its own flag** — still OFF in
+  production.
+
+### Verification
+
+**`PUBLIC_AUTH_ENABLED=true npm run test:release`** — recorded below.
+
+**Production catalog, asked per migration, read-only with the anon key:**
+every anon-visible migration is present — `profiles`, `exercise_progress`,
+`game_results`, `point_awards` (with `child_id`), `child_profiles`,
+`profiles.onboarded_at`, `profiles.account_shape`, `sessions.series_id`,
+`bookings`, `sessions.overbook_margin`.
+
+- ⚠️ **WHAT AN ANON KEY STRUCTURALLY CANNOT SEE, STATED RATHER THAN GLOSSED:**
+  0002 (grants), 0006 (a policy widening), 0007 (a function), 0008 (revoked
+  defaults), 0011 (a trigger) and — **the one that matters for this release** —
+  **0014, which is a CHECK constraint removal**. Seàn confirmed 0014 is applied
+  and registered; that is taken on his word, because the only read-only probe
+  available here cannot reach a constraint, and the only probe that could is a
+  WRITE against production.
+- ⚠️ **The first probe reported `exercise_progress.id` MISSING and the probe was
+  wrong, not production** — that table has a composite primary key
+  `(profile_id, exercise_slug)` and no `id` column at all. Worth recording: a
+  catalog check that cries wolf blocks a correct deploy, which is the same
+  failure class as `verify:deploy` doing it.
+
+**`verify:deploy` will discriminate this release, proved before the deploy.**
+The live v0.22.0 tree carries **zero** occurrences of `exercise-nav`,
+`data-habit-block` and `data-game-log`; this tree carries all three, and they
+land on **two of the three compared documents** —
+`/exercices/mat-du-couloir/` and `/progres/`.
+
 ### Removed
 
 - **Three duplicate exercises cut**, on Seàn's decision from the audit:
@@ -6854,7 +6907,8 @@ Foundation only: no real content, no interactive board yet.
   `url()` references unresolved and the fonts silently 404 into a Georgia
   fallback. `scripts/build-fonts.mjs` self-hosts them instead. See CLAUDE.md.
 
-[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.22.0...HEAD
+[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.23.0...HEAD
+[0.23.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.22.0...v0.23.0
 [0.22.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.19.0...v0.20.0
