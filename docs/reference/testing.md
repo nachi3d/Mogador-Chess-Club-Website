@@ -1760,3 +1760,110 @@ PUBLIC_AUTH_ENABLED=true npx playwright test --project=webkit --workers=3 \
 ⚠️ **And read the artefact first regardless.** Since the fix above, the evidence
 is in `gate-logs/artefacts-*/`, and it answers the question a re-run only
 circles around.
+
+---
+
+## ⚠️⚠️ THE SHARED TEST PROJECT NEEDS SERIALISED ACCESS — AND NOTHING SAID SO
+
+**Read when:** parallelising ANY test run, adding a CI job, or removing the
+per-project serialisation in `test-release.mjs`. Also when a suite fails
+instantly with a purge or residue error.
+
+### The guarantee, stated at last
+
+**There is exactly ONE test Supabase project, and the suite assumes it has that
+project to itself for the whole run.** Two things enforce that assumption and
+both are destructive:
+
+- `tests/e2e/global-setup.ts` purges e2e data **before** the suite, and treats
+  residue as a **hard failure** — "a suite that starts from unknown state
+  proves nothing about the state it ends in".
+- `tests/e2e/global-teardown.ts` purges **after**.
+
+So two concurrent runs against that project do this to each other: A's setup
+deletes B's in-flight users; B's teardown deletes A's; and whichever starts
+second sees the first's users as *residue* and dies **before a single test
+runs**.
+
+### ⚠️ WHY NOBODY KNEW: `test-release.mjs` PROVIDED IT BY ACCIDENT
+
+The local matrix runs the five projects **one at a time**, and every line of
+reasoning written about that says **memory** — 80 processes, 6.68 GB, four red
+gates, the measured worker cap. All true, and all beside this point.
+
+Running them one at a time also meant **only one run ever touched the Supabase
+project at a time**. That was never the reason for the serialisation, was never
+written down, and was load-bearing anyway. It is the classic shape of an
+invisible dependency: a constraint satisfied as a side effect of a decision
+taken for something else entirely.
+
+⚠️ **It became visible the moment CI parallelised the projects**, which was
+correct on the memory argument — each GitHub runner has its own RAM, so the
+reason for serialising is genuinely absent there — and wrong on a guarantee
+nobody had recorded. Measured, at gate run #2: `webkit` failed in **32 seconds**,
+before any test, while `iphone-13` — **the same browser** — passed in 310s. Not
+a browser problem; a landlord problem.
+
+### The fix, and why it needed no code
+
+`helpers/purge.ts` matches users by an **exact email domain**
+(`u.email.endsWith('@' + env.emailDomain)`), and `e2eEmail()` mints addresses on
+that same domain. So a **per-job `E2E_EMAIL_DOMAIN`** partitions the project:
+each run only ever sees, and only ever deletes, its own users.
+
+`.github/workflows/gate.yml` writes `E2E_EMAIL_DOMAIN=<job>.mcc-e2e.test` into
+the `.env.test` it generates. These are `.test` addresses that nothing delivers
+to — users are created and magic links minted through the admin API — so a
+subdomain costs nothing and needs to resolve nowhere.
+
+### ⚠️ THE RULE FOR THE NEXT PERSON
+
+**Anything that runs the suite concurrently must either serialise access to the
+test project or give each concurrent run its own `E2E_EMAIL_DOMAIN`.** There is
+no third option, and the failure mode if you forget is not subtle — it is an
+instant, confusing death in whichever run started second.
+
+---
+
+## ⚠️ THE AUTH RATE LIMIT IS PER PROJECT, NOT PER DOMAIN
+
+**Read when:** auth specs fail across several jobs or several files at once,
+especially with bare navigation timeouts and a different set each run.
+
+Per-job email domains fix the PURGE collision above. They do **nothing** for
+this, and the two are easy to confuse because both appear when runs go parallel.
+
+**The ceiling, measured against the test project:** `/auth/v1/verify` returns
+`{"code":429,"error_code":"over_request_rate_limit"}` at **22 verifications in
+7 seconds**, with **no `Retry-After`**, and clears again a couple of minutes
+later. It is enforced **per IP and per project** — a new email domain is not a
+new bucket.
+
+**Every signed-in spec mints its own account and verifies its own magic link**,
+so the verification rate is roughly the number of concurrent workers across
+every runner pointed at that project.
+
+### How to recognise it
+
+⚠️ **It does not look like a rate limit.** It looks like plain navigation
+timeouts, on a **different set of tests every run**, all of which pass when the
+file is run on its own. `ERR_CONNECTION_REFUSED` is read by its HOST:
+`localhost:4321` is a dead preview server, `*.supabase.co` is this.
+
+### What is already done, and what to do next
+
+- **Locally:** `test-branch.mjs` caps auth-heavy selections at `--workers=2` —
+  about a third of the verification rate six workers produce, which is the
+  difference between green and red.
+- **In CI:** `playwright.config.ts` sets `workers: 1` when `process.env.CI` is
+  set, which keeps each job far below the ceiling on its own.
+- ⚠️ **The remaining exposure is jobs running at the same time.** Four or five
+  CI jobs each at one worker is well inside the ceiling today; it is not a
+  guarantee, and it scales with however many jobs are added later.
+- **If it fires: SERIALISE THE AUTH-HEAVY JOBS.** In the workflow that means a
+  `max-parallel` on the matrix, or moving `SCRIPTED_FORMS`-carrying projects
+  into a dependent stage. ⚠️ **Do NOT widen the email domains further** — that
+  addresses the other problem and will look like it is not working.
+- ⚠️ **The real fix is a bigger rate limit on the TEST project**, which is a
+  dashboard setting and is already an open backlog item. Mitigation is not
+  headroom.
