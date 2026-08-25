@@ -41,19 +41,21 @@ env:
   # Node 22.12 is the floor in package.json `engines`.
   NODE_VERSION: '22'
 
-# ⚠️ KNOWN INTERACTION, RECORDED BEFORE IT SURPRISES SOMEBODY: the build here
-# has no Supabase build variables, so `fetch-agenda.mjs` bakes
-# `src/data/agenda.fallback.json` — and v0.23.0 gave that a guard which FAILS
-# the build once every session in the fallback has passed. The committed
-# fallback's newest session is 2026-09-12, so this gate starts WARNING around
-# 2026-08-29 and starts FAILING after 2026-09-12, for a reason that has nothing
-# to do with the change under test.
+# ⚠️ THE AGENDA IS NOT AN EXPIRY TRAP HERE, AND AN EARLIER VERSION OF THIS
+# COMMENT SAID IT WAS. Recorded because the wrong version was more plausible
+# than the right one.
 #
-# That is the guard working, not a bug — but in CI it blocks the gate. The fix
-# is to refresh the fallback from the live table (already a backlog item), or
-# to give this workflow read-only agenda credentials so it bakes the real one.
-# Do not "fix" it by removing the guard: a stale agenda is worse than an empty
-# one, and `smoke:prod` is structurally blind to it.
+# `playwright.config.ts` passes the TEST project's `PUBLIC_SUPABASE_URL` and
+# `PUBLIC_SUPABASE_ANON_KEY` into the build it starts, so `fetch-agenda.mjs`
+# reads the real `sessions` table and never touches `agenda.fallback.json`.
+# Measured with the gate's own env: 3 sessions baked, newest 2027-01-08. The
+# fallback's expiry guard (v0.23.0) therefore never fires in a job that has
+# `.env.test` — which, since the sliver was fixed below, is every job.
+#
+# ⚠️ THE CONDITION IS "HAS `.env.test`", NOT "IS CI". A job without it builds
+# with no Supabase config at all, falls back, and WOULD hit the guard after
+# 2026-09-12. That is the guard working; do not remove it — a stale agenda is
+# worse than an empty one and `smoke:prod` is structurally blind to it.
 
 jobs:
   # ──────────────────────────────────────────────────────────────────────────
@@ -226,10 +228,43 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
 
-      # ⚠️ NO .env.test HERE, AND THAT IS CORRECT RATHER THAN AN OMISSION. This
-      # shape has no account routes at all, so there is nothing to sign in to;
-      # `env.ts` treats an absent file as safe (no reachable project of any
-      # kind) and the auth specs are not in this selection anyway.
+      # ⚠️⚠️ THE SLIVER GETS CREDENTIALS TOO, AND OMITTING THEM WAS A REAL BUG
+      # IN THE FIRST VERSION OF THIS WORKFLOW.
+      #
+      # The reasoning for leaving them out was that this shape has no account
+      # routes, so there is nothing to sign in to. True, and it misses what the
+      # sliver is FOR: `auth-disabled.spec.ts` proves no Supabase ref survives
+      # anywhere in `dist/`. With no credentials in the build there is nothing
+      # that COULD leak, so the proof is trivially true — it passes because the
+      # ref never existed, not because the flag kept it out. With credentials
+      # present and the flag off, it proves the thing Critical Feature 18
+      # actually claims.
+      #
+      # ⚠️ It also removes an expiry trap. `playwright.config.ts` passes the
+      # test project's URL and key into the BUILD, so `fetch-agenda.mjs` reads
+      # the real sessions table. Without `.env.test` it falls back to
+      # `agenda.fallback.json` — whose expiry guard would have failed this job's
+      # build after 2026-09-12, for a reason with nothing to do with the change
+      # under test.
+      - name: Write .env.test from secrets
+        env:
+          TEST_PUBLIC_SUPABASE_URL: ${{ secrets.TEST_PUBLIC_SUPABASE_URL }}
+          TEST_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.TEST_PUBLIC_SUPABASE_ANON_KEY }}
+          TEST_SUPABASE_SERVICE_ROLE: ${{ secrets.TEST_SUPABASE_SERVICE_ROLE }}
+          TEST_SUPABASE_PASSWORD: ${{ secrets.TEST_SUPABASE_PASSWORD }}
+          SUPABASE_PRODUCTION_REF: ${{ secrets.SUPABASE_PRODUCTION_REF }}
+        run: |
+          umask 077
+          {
+            printf 'TEST_PUBLIC_SUPABASE_URL=%s\n' "$TEST_PUBLIC_SUPABASE_URL"
+            printf 'TEST_PUBLIC_SUPABASE_ANON_KEY=%s\n' "$TEST_PUBLIC_SUPABASE_ANON_KEY"
+            printf 'TEST_SUPABASE_SERVICE_ROLE=%s\n' "$TEST_SUPABASE_SERVICE_ROLE"
+            printf 'TEST_SUPABASE_PASSWORD=%s\n' "$TEST_SUPABASE_PASSWORD"
+            printf 'SUPABASE_PRODUCTION_REF=%s\n' "$SUPABASE_PRODUCTION_REF"
+          } > .env.test
+
+      - name: Preflight — credentials present, and NOT production
+        run: node scripts/ci-preflight.mjs
 
       # ⚠️ PUBLIC_AUTH_ENABLED is EMPTY, not unset-by-deletion —
       # `playwright.config.ts` reads it with `?? ''` and passes it to the
