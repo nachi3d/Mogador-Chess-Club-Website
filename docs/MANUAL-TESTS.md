@@ -450,6 +450,59 @@ language it never would, so testing there proves nothing.
       translation by weakening `lang` would be a real regression traded for a
       small annoyance
 
+### ⚠️⚠️ BEFORE FLIPPING `PUBLIC_GOOGLE_AUTH_ENABLED` ON: the OAuth client's PUBLISHING STATUS
+
+*This is the check most likely to be skipped and most likely to bite, because a
+client in **Testing** works perfectly for the person who set it up and fails for
+everyone else. It cannot be checked from this repository or from Supabase — only
+from Google Cloud.*
+
+**Where to look, exactly:**
+
+1. Go to **console.cloud.google.com** and select the project that owns the OAuth
+   client. ⚠️ **Check the project picker at the top** — an account with several
+   projects lands in the last one used, not necessarily this one.
+2. Left menu → **APIs & Services** → **OAuth consent screen**
+   *(newer console: **APIs & Services** → **Branding**, with publishing status
+   under **Audience**).*
+3. Read **Publishing status**. It says either **Testing** or **In production**.
+
+**What each means for a reader on `mogadorchess.nachi3dlabs.com`:**
+
+| Status | What happens to a parent pressing "Continuer avec Google" |
+|---|---|
+| **Testing** | ⚠️ **Only addresses on the Test users list can sign in.** Everyone else is refused at Google's own screen with "app has not completed verification" or "access blocked" — **before** they ever return to the site, so nothing we log or render can soften it. The list is capped at 100 addresses. |
+| **In production** | Anyone with a Google account can sign in. |
+
+- [ ] **Publishing status is "In production"** — not "Testing"
+- [ ] If it is in Testing and you are keeping it that way for now, ⚠️ **do NOT
+      flip the flag**: the button would work for you and fail for the club
+- [ ] **User type** is **External** (Internal only exists for Workspace
+      organisations and would refuse every parent)
+
+**⚠️ AND THE SAME CLIENT SERVES BOTH PROJECTS.** Measured 2026-08-23: production
+and the test project return the **same `client_id`** from
+`/auth/v1/authorize?provider=google`. So there is one consent screen, one
+publishing status and one redirect-URI list covering both — a change made for
+testing lands on production too.
+
+- [ ] **Authorised redirect URIs** contains **both** callbacks:
+      - [ ] `https://vtestpaufxmrvdhgrrsy.supabase.co/auth/v1/callback` (production)
+      - [ ] `https://puhhrqbgcobblowengii.supabase.co/auth/v1/callback` (test)
+- [ ] ⚠️ **These are the SUPABASE callbacks, not the site's.** Google redirects
+      to Supabase, and Supabase then redirects to `…/auth/callback` on the site.
+      Putting the site URL here instead is the classic misconfiguration, and it
+      fails with `redirect_uri_mismatch` at Google.
+- [ ] Supabase → **Authentication → URL Configuration → Redirect URLs** lists
+      `https://mogadorchess.nachi3dlabs.com/auth/callback`. ⚠️ **If it does not,
+      Supabase falls back to SITE_URL silently** and the reader lands on the
+      wrong page having apparently signed in.
+
+**⚠️ Consider a separate OAuth client for the test project** rather than sharing
+one. It is free, it stops a test-time change reaching production, and it means
+the consent screen a parent sees can be named for the club rather than for
+whatever the shared client is called.
+
 ### ⚠️ Google sign-in — ONLY AFTER THE PROVIDER IS CONFIGURED
 
 *The button is not rendered at all unless `PUBLIC_GOOGLE_AUTH_ENABLED=true`,
@@ -469,8 +522,11 @@ Before flipping the flag:
 
 After flipping it, on the real site:
 
-- [ ] `/connexion/` shows "Continuer avec Google" above a rule reading "ou",
-      and the email form is **still there underneath**. ⚠️ **If the email form
+- [ ] `/connexion/` shows "Continuer avec Google", then the line **"Utilisez
+      la même adresse que votre lien e-mail"**, then a rule reading "ou", and
+      the email form is **still there underneath**. ⚠️ **If that line is
+      missing, stop** — it is the only thing preventing a reader from silently
+      creating a second, empty account. ⚠️ **If the email form
       is gone, stop** — that locks out every reader without a Google account
 - [ ] Pressing it reaches Google, and coming back lands you signed in
 - [ ] `/en/connexion/` reads "Continue with Google" and behaves the same
@@ -479,6 +535,48 @@ After flipping it, on the real site:
 - [ ] The first Google sign-in creates the account, and `/bienvenue/` appears
       once. ⚠️ Check the child profile is **not** named from the Google
       address's local part (Critical Feature 53)
+
+### ⚠️ Exercises: prev / next, and the order
+
+- [ ] Open any exercise. At the bottom, below the share/back links, there is a
+      prev / next pair that **NAMES the destination** — "Mat en 1 — le couloir,
+      avec la dame", never a bare "Suivant"
+- [ ] The FIRST exercise has no "previous" and the LAST has no "next", and in
+      both cases the remaining link stays on its own side. ⚠️ **If "next" jumps
+      to the left on the first exercise**, the empty cell has been removed
+- [ ] ⚠️ **The index order and the pager order AGREE.** Open `/exercices/`,
+      note the order, then walk it with "next". Beginner exercises come first,
+      grouped by motif — the five forks, then the mates
+- [ ] Both work in EN
+
+### ⚠️ Ranks moved — a student may see their rank DROP
+
+*Thresholds were re-spaced against today's content (full marks is 965; Dame was
+sitting at 23% of the site). This is expected and was Seàn's call — but it is
+the kind of change a student notices and nobody explains.*
+
+- [ ] `/progres/` shows a rank consistent with the points beside it
+- [ ] ⚠️ **If a student says their rank went down, that is this change** — their
+      work is intact; points are derived, so nothing was deleted
+
+### ⚠️ The game history
+
+- [ ] Play a game at `/jouer/` to the end (win, lose or draw), then open
+      `/progres/` — the game is listed with its level and the date
+- [ ] ⚠️ **A LOSS APPEARS, in the same colour and weight as a win.** If losses
+      are hidden, or red, that is a regression: a loss costs nothing here
+- [ ] Before any game has been played the block is **absent**, with one line
+      saying so — not an empty list under a heading
+- [ ] Play several; the newest is at the top
+
+### ⚠️ Teacher awards above 50
+
+- [ ] In `/admin/eleve/?id=…`, award **80 points** with a reason. It is
+      accepted — the 50 cap was removed in migration 0014
+- [ ] ⚠️ **The student's `/progres/` shows all 80**, and the total includes
+      them. If the award appears in the admin list but not in the student's
+      total, a read-side cap has survived somewhere
+- [ ] A **negative** number is still refused, and a blank reason is still refused
 
 ## 1b. Navigation menu and board coordinates
 

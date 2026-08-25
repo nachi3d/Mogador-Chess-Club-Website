@@ -17,7 +17,7 @@
  * which is safe HERE and would not be from a content route — see the guest
  * zero-request rule. Do not import it from anything a reader can reach.
  *
- * ⚠️ NO WRITE IN THIS FILE INVENTS A RULE. `points > 0 and points <= 50`, the
+ * ⚠️ NO WRITE IN THIS FILE INVENTS A RULE. `points > 0`, the
  * required reason and the attendance statuses are CHECK constraints in
  * migrations 0004 and 0001. What is here is a mirror so the form can say no
  * before a round trip; the database is what actually refuses, and the spec
@@ -26,7 +26,6 @@
  */
 
 import { getProfile, getSupabase } from '@lib/supabase';
-import { AWARD_MAX } from '@lib/progress';
 
 export type SessionStatus = 'draft' | 'published' | 'cancelled';
 export type AttendanceStatus = 'present' | 'absent' | 'excuse';
@@ -700,8 +699,8 @@ export async function markAttendance(
 /**
  * What the FORM may refuse before a round trip.
  *
- * ⚠️ THIS IS A MIRROR OF THE DATABASE, NOT THE RULE ITSELF. Migration 0004
- * carries `points > 0 and points <= 50` and `length(btrim(reason)) >= 3` as
+ * ⚠️ THIS IS A MIRROR OF THE DATABASE, NOT THE RULE ITSELF. Migrations 0004
+ * and 0014 carry `points > 0` and `length(btrim(reason)) >= 3` as
  * CHECK constraints, and `role-separation.spec.ts` proves the database refuses
  * a blank reason when this function is not involved at all. Client-side
  * validation exists so a prof gets a useful message instantly; it is the half
@@ -711,7 +710,9 @@ export async function markAttendance(
 export function validateAward(points: number, reason: string): string | null {
   if (!Number.isFinite(points) || Math.floor(points) !== points) return 'Un nombre entier de points.';
   if (points < 1) return 'Les points attribués sont positifs.';
-  if (points > AWARD_MAX) return `Maximum ${AWARD_MAX} points par attribution.`;
+  /* ⚠️ NO CEILING SINCE 0014. Deliberately not replaced with a large one —
+     a number nobody chose is a number nobody can defend, and the reason field
+     plus `awarded_by` are what make a big award accountable. */
   if (reason.trim().length < 3) return 'Une raison est obligatoire — l’élève la verra.';
   return null;
 }

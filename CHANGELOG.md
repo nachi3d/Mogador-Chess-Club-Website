@@ -11,17 +11,441 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+## [0.23.0] — 2026-08-25
+
+**The release in one line:** the exercises became a sequence you can walk, the
+progress page finally shows what a student has actually done, and two checks
+that had been lying stopped.
+
+- **Prev / next between exercises**, naming the destination. The order is
+  decided and written down — level, then primary theme, then slug — and the
+  index and the pager share it.
+- **Three duplicate exercises cut** (24 remain), from an audit that reported
+  before it changed anything.
+- **Rank thresholds re-spaced: 0 / 75 / 200 / 450 / 740.** ⚠️ **AGAINST A
+  MEASURED CEILING OF 900**, not the 965 quoted mid-session: 965 was the figure
+  *before* the three cuts, and removing 65 points of content moved it. The
+  thresholds were re-spaced **twice in this release** for exactly that reason —
+  see the note below.
+- **A game history on `/progres/`**, and **the weekly habit mark** beside it.
+- **The 50-point cap on a teacher award removed** (migration 0014).
+- **`test:branch` preserves its failure artefacts too**, after the gate fix
+  covered only `test:release`.
+- **The browser no longer offers to machine-translate the site** (three
+  signals), and **Google sign-in is built behind its own flag** — still OFF in
+  production.
+
+### Verification
+
+⚠️⚠️ **PROMOTED ON PARTIALLY TRANSFERRED EVIDENCE. THIS IS A DECLARED EXCEPTION
+AND IT IS THE SECOND OCCURRENCE.** v0.18.0 was the first.
+
+**What ran on THIS tree** — `PUBLIC_AUTH_ENABLED=true`, 2026-08-25 07:54 and
+after:
+
+| project | result | evidence |
+|---|---|---|
+| chromium | **760 passed** | this tree |
+| firefox | **145 passed** | this tree |
+| pixel-5 | **106 passed** | this tree, run separately |
+| chromium (OFF) sliver | **21 passed, 32 run** | this tree, run separately — Critical Feature 18 proved |
+| webkit | 160 passed, 4 skipped | ⚠️ **v0.22.0's tree** |
+| iphone-13 | 120 passed | ⚠️ **v0.22.0's tree** |
+
+⚠️ **THE GAP IS THE TWO WEBKIT-BASED PROJECTS AND NOTHING ELSE.** `pixel-5` is
+Chromium and was never blocked — it simply never got its turn, because the
+matrix aborted at webkit. It and the sliver were run on their own afterwards,
+so the transferred half is as small as it can be made rather than "the matrix
+did not finish".
+
+**Why the matrix aborted: Smart App Control, again.** `VerifiedAndReputable­PolicyState = 1`,
+and **302** `browserType.launch: Target page, context or browser has been closed`
+on webkit — the browser failing to START. `playwright install --force webkit`
+reports `icuuc77.dll`, `icutu77.dll` and `jxl_cms.dll` as missing host
+dependencies while **all three are present on disk** (1.8 MB, 222 KB, 115 KB in
+`webkit-2336`). Present and unloadable: the block is on **loading**, not on the
+files. ⚠️ **The v0.19.0 remedy — delete and re-download — no longer works.**
+
+**Why the webkit evidence transfers, established rather than assumed:**
+
+- ⚠️ **`playwright.config.ts` and `scripts/lanes.mjs` are BYTE-IDENTICAL** to
+  the tree that last passed a full webkit lane (v0.22.0). The lane is the same
+  twelve spec files it was when it passed 160.
+- ⚠️ **Eleven of those twelve spec files are byte-identical.** The only one that
+  changed is `auth.spec.ts`, and only by ADDITIVE assertions on the
+  same-address note. In the gate's flag shape the single new assertion that
+  executes is `toHaveCount(0)` — that an element is ABSENT.
+- **Two lane specs load a page this release changed, and both are accounted
+  for:** `auth` visits `/connexion/`, where the Google button and its note are
+  both absent with the flag off, so the rendered HTML matches v0.22.0; and
+  `sound` visits `/progres/`, where its only assertion is that an inline script
+  still contains `mcc:achievement` — `ScoreResolver`'s event name, which this
+  release did not touch, and which passed on chromium AND firefox on this tree.
+- **No change touches a mechanism the webkit lane exists for.** No
+  click-synthesis-during-`change`, no pointer geometry, no Web Audio, no
+  iframe. The new date handling parses ISO-8601 only.
+
+⚠️ **THIS IS WEAKER THAN v0.18.0's TRANSFER AND SHOULD BE READ AS SUCH.** There
+the diff against the passing tree was EMPTY — the same bytes. Here it is a whole
+release, and what carries the argument is that the LANE's inputs are unchanged,
+not that the tree is. That is an argument, not a measurement.
+
+⚠️⚠️ **DO NOT PROMOTE PAST A THIRD OCCURRENCE WITHOUT MOVING THE MATRIX OFF
+THIS MACHINE.** Seàn's condition, recorded here so it binds the next release
+rather than living in one person's memory. The costing is in BACKLOG.
+
+**`verify:deploy` will discriminate**, proved before the deploy: the live
+v0.22.0 tree carries **zero** occurrences of `exercise-nav`, `data-habit-block`
+and `data-game-log`; this tree carries all three, on **two of the three**
+compared documents.
+
+**Production catalog**, asked per migration, read-only with the anon key: every
+anon-visible migration present. ⚠️ **0014 is a CHECK-constraint removal and an
+anon key cannot see constraints** — Seàn confirmed it is applied and registered,
+and that is taken on his word rather than verified here.
+
+### Removed
+
+- **Three duplicate exercises cut**, on Seàn's decision from the audit:
+  `mat-du-couloir-dame` (two back-rank mates-in-one already teach it),
+  `decouverte-qui-gagne-la-dame` (identical jig to `decouverte-simple`;
+  `echec-double` earns its place because double check is a distinct rule), and
+  `mat-etouffe-cavalier` (it is the final position of `attraction-puis-mat`, so
+  a student meets it twice). **24 exercises remain.** Kept deliberately: both
+  surviving couloir siblings, all the forks and both deflection-mates — same
+  tactic, different geometry, and drilling a motif twice is the point.
+  - ⚠️ **The cut broke a spec that was working perfectly.**
+    `exercise-filters.spec.ts` pinned `>= 27` as a floor, written so that
+    ADDING an exercise would not fail an unrelated test — a one-way ratchet
+    that had never considered a cut. Now a named `EXERCISE_FLOOR` with the
+    two-directional reasoning beside it.
+
+### Changed
+
+- ⚠️⚠️ **THE RANK THRESHOLDS MOVED AGAIN, IN THE SAME RELEASE, AND THAT IS THE
+  POINT RATHER THAN CHURN.** Cutting 65 points of content dropped full marks
+  from 965 to **900** (780 learning + 120 games) — which pushed Dame (then 800)
+  **above the learning ceiling of 780**, quietly making the top rank
+  unreachable without games. That is the one property the table is not allowed
+  to lose, and it was lost by deleting three JSON files.
+  - Now **0 / 75 / 200 / 450 / 740**. Dame at 740 against 780 restores the
+    40-point slack for hinted exercises, and studying everything is enough
+    again.
+  - **Cavalier stays at 75** — the tutorial did not change, and a threshold
+    pinned to a specific body of work should not drift when unrelated content
+    moves.
+  - ⚠️ **The rule now says to check Dame against the LEARNING ceiling**, not
+    just to recompute the total. That single comparison is what this
+    re-spacing existed to restore, and recomputing alone would not have caught
+    it.
+
+### Added
+
+- **The weekly habit mark on `/progres/`** — the retention mechanic, chosen by
+  Seàn from the three proposed. ⚠️ **The win streak was explicitly rejected**:
+  a mechanic that breaks on a loss is what Critical Feature 35 exists to
+  prevent.
+  - **It counts weeks that HAPPENED and never weeks that did not.** There is no
+    "consecutive weeks" and there must not be: Critical Feature 34 rules out a
+    daily streak because the club meets weekly, and a consecutive-WEEK counter
+    reintroduces the same punishment one rhythm up. A missed week costs a mark,
+    not a run — asserted by a spec that seeds a six-week gap and checks both
+    weeks still count.
+  - ⚠️ **NOTHING IS STORED FOR IT.** `activeWeeks()` derives from timestamps
+    that already exist — `solvedAt` and the game log — for the same reason
+    points are derived: a stored counter can disagree with the records behind
+    it.
+  - ⚠️ **ISO WEEKS, WHICH START ON MONDAY, AND THAT IS LOAD-BEARING HERE.** The
+    club meets at the weekend, so a Saturday session and the Sunday after it
+    must be ONE mark. Verified against six known dates including that pair, the
+    2026-W01 boundary and a 1 January that belongs to the previous year.
+  - ⚠️ **THE UNMARKED WEEK NAMES AN ACTION, NOT AN ABSENCE** — "un exercice ou
+    une partie, et cette semaine est marquée". A spec asserts the line never
+    contains *perdu*, *série*, *raté*, *streak* or *missed*, and that a marked
+    and an unmarked week are **the same colour**.
+  - ⚠️ **It is an UNDERCOUNT by construction**, and that is the safe direction:
+    `solvedAt` keeps the first solve, so a week spent re-solving leaves no
+    trace, and the game log is bounded. It can fail to credit a week; it can
+    never invent one.
+
+### Fixed
+
+- **`test:branch` preserves its failure artefacts too**, into
+  `gate-logs/branch-<stamp>/`, and **names the path before the advice** on a red
+  run. ⚠️ **It needed this more than the gate did**, which is not where the fix
+  landed first: the branch runner runs one project, so nothing clears
+  `test-results/` mid-run — which made it look safe. The artefacts survive only
+  until the NEXT run, and the next run is the most natural response to a red
+  branch gate.
+  - ⚠️ **This was not hypothetical.** In the session that shipped the gate fix,
+    a branch run failed two `tutorial.spec.ts` axe checks and the very next
+    command was another `test:branch` — the evidence was gone before anyone
+    read it, and the failure was written up as a theory rather than a finding.
+  - ⚠️ **Watched to work**, and it immediately earned itself: forcing a failure
+    preserved **four** artefact directories, three of which turned out to be
+    the `exercise-filters` breakage above rather than the deliberate probe — a
+    real regression that would otherwise have been discovered later, or blamed
+    on something else.
+
+### Added
+
+- **Prev / next between exercises**, at the end of every exercise, naming the
+  destination rather than saying "suivant" — same shape as the lesson and
+  tutorial pagers (Critical Feature 62). Finishing an exercise used to mean
+  going back to the index and picking again, on the one surface where a student
+  does several in a row.
+  - ⚠️ **THE ORDER IS DECIDED AND WRITTEN DOWN: LEVEL, THEN PRIMARY THEME, THEN
+    SLUG.** It used to be slug-alphabetical, which put an *intermediate*
+    queen-sacrifice combination first on the index and interleaved the two
+    levels all the way down.
+  - ⚠️ **ONE ORDER, NOT TWO.** The pager walks the same `sortExercises` the
+    index lists with — a pager that walked a different sequence from the list
+    the reader just chose from would take them somewhere the list did not
+    imply. The comment on that function already asked for this.
+  - ⚠️ **"Primary theme" is `themes[0]`, and that is a real convention in the
+    content** — checked across all 27, the first theme is always the motif.
+    Reordering a `themes` array therefore moves an exercise in the sequence.
+  - Alphabetical-by-motif is **deterministic, not pedagogical**; a curated motif
+    sequence is the upgrade and is deliberately not done, because an uncurated
+    order that is stable beats a curated one that rots when a theme is added and
+    nobody updates the list.
+- **A game history on `/progres/`** — date, level, outcome, newest first.
+  ⚠️ **Games have been recorded since E3 and shown nowhere**: the ledger knew a
+  student had won twice at Intermédiaire and the page never said when, against
+  which level, or that they had played at all.
+  - **A new bounded per-game log in `progress.ts`** (`GAME_LOG_MAX = 50`).
+    ⚠️ **The counters could not produce a history** — folding a game into
+    `{wins, draws, losses}` destroys its date. The counter stays the thing that
+    SCORES; nothing in `points.ts` reads the log, and it must stay that way.
+  - ⚠️ **IT IS A RECORD, NOT A REPORT CARD.** Losses and draws render exactly as
+    wins do, same weight, same colour — Critical Feature 35 says a loss costs
+    nothing, and a red loss is how it starts costing something. **A spec compares
+    the computed colour**, because "tint the losses" is the obvious next edit.
+  - Renders from `localStorage`, so a guest has one too.
+
+### Changed
+
+- **The rank thresholds are re-spaced: 0 / 75 / 220 / 480 / 800.**
+  ⚠️ **MEASURED, NOT ESTIMATED — full marks today is 965** (845 learning + 120
+  games), read off the built catalogue: 13 tutorial steps, 19 lessons, 27
+  exercises. They were set at E3 against a ceiling of **350**, so **Dame sat at
+  23% of the site** — the top rank was reachable without two thirds of the
+  teaching, which is precisely what the E3 note said it must never be.
+  - **What each rank is FOR** is now written beside its number: Pion, you turned
+    up; Cavalier, you have the rules; Fou, you have started properly; Tour, you
+    are a serious student; Dame, you have done very nearly all of it.
+  - ⚠️ **Dame still does NOT require games** — 845 > 800, so a student who only
+    studies can reach it. The 45-point gap is the slack for four or five hinted
+    exercises, and play can cover it instead. That is what "more play" means
+    here: the natural way to close the gap, never a requirement.
+  - ⚠️⚠️ **THIS DEMOTES EXISTING READERS, AND THAT IS THE ACCEPTED COST.** The
+    rule that stood said thresholds may only rise "alongside a `v2` progress
+    key" — but a `v2` key **deletes every reader's records** to protect a badge.
+    Demotion is the lesser harm. A reader on 250 was Tour and is Fou; **nothing
+    they did is lost**, because points are derived (Critical Feature 33).
+- **The 50-point cap on a teacher award is removed** (migration 0014, Seàn's
+  call). Positive-only and reason-required both stay, in the database.
+  - The cap's reasoning was sound and is not what was disputed. What changed is
+    **who decides**: the size of an award is a teaching judgement about a
+    particular student, and a schema constant took that from the person in the
+    room. What replaces it is **attribution** — `awarded_by` and a required
+    `reason`, both visible on the student's own page.
+  - ⚠️⚠️ **REMOVING IT MEANT REMOVING IT IN THREE PLACES, AND TWO WOULD HAVE
+    EATEN A REAL AWARD SILENTLY.** `normalizeAwards` in `progress.ts` and the
+    summation in `ScoreResolver.astro` both DISCARDED rows over 50 on read: the
+    first award above the old ceiling would have been accepted by the database,
+    mirrored down, and then vanished from the page.
+  - ⚠️ **`computeLedger()` was already uncapped**, so those two summations would
+    have disagreed the moment the migration landed — a prof and a student
+    reading different totals, which is exactly what Critical Feature 47 exists
+    to prevent.
+
+### Notes
+
+- **The 27 exercises were audited for duplicates and NOTHING was cut** — the
+  brief was to report first. Found by two methods, because ⚠️ **neither is
+  sufficient alone**: comparing FEN piece placements mechanically, and reading
+  the solution sequences for shared mechanisms. Three exercises share one jig
+  (`decouverte-simple` / `decouverte-qui-gagne-la-dame` / `echec-double`), two
+  share an identical black position (`mat-du-couloir` / `mat-du-couloir-dame`),
+  and two share a mechanism the position check does **not** flag
+  (`fourchette-de-cavalier` / `fourchette-roi-tour`, both N→f6 then N×d7). Full
+  findings, including the pairs checked and CLEARED, are in BACKLOG for Seàn.
+- **Three retention mechanics are proposed and none is built**, as asked. All
+  weekly-shaped, because Critical Feature 34 rules out daily streaks: a win
+  streak (cheapest, and the only one that can punish), a weekly habit mark (the
+  one I would build — it cannot punish and matches the club's rhythm), and a
+  named "come back for this" (least game-like, most useful, works on the first
+  visit back). In BACKLOG with costs and risks.
+
+### Fixed
+
+- ⚠️⚠️ **The gate no longer destroys the failure artefacts it tells you to
+  read.** Playwright clears `test-results/` at the start of every run and the
+  gate runs six times, so only the LAST run's artefacts survived — measured at
+  the v0.20.0 gate, which ended with **0 entries** after four flaky tests.
+  **Three consecutive gates then ended in "probably environmental" with nothing
+  left to check.** `test-release.mjs` now copies each project's artefacts into
+  `gate-logs/artefacts-<shape>-<stamp>/<project>/` immediately after that
+  project runs.
+  - ⚠️ **`preserveOutput` alone was not the fix**, and it is the obvious one: it
+    governs output for PASSING tests and does not stop the next run clearing the
+    directory. The artefacts have to LEAVE `test-results/` between runs.
+  - ⚠️ **The sweep was checked rather than assumed** — the backlog row warned it
+    might delete the copy. `demo.mjs --sweep-only` kills processes and touches no
+    files.
+  - ⚠️ **Watched to work against a deliberate failure**: an `error-context.md`
+    and its screenshot preserved and read back, and the green path confirmed to
+    report "no failure artefacts".
+  - ⚠️⚠️ **AND THE FIRST VERSION PRINTED THE POINTER ONLY ON THE GREEN PATH** —
+    exactly backwards, since the gate exits before it when something fails, so
+    the path was missing precisely when somebody needed it. Found by running the
+    real script against a failure rather than by reading it.
+  - It **never fails the gate**: a copy that throws is reported and the run
+    continues. Evidence-keeping must not turn a green matrix red.
+- **`verify:deploy` now names the edge-cache status on a mismatch.**
+  ⚠️⚠️ **BOTH CURES THIS PROJECT HAD FILED WERE TRIED AND MEASURED FAILING,
+  INCLUDING THE RECOMMENDED ONE.** The backlog said "prefer the nonce": a
+  cache-busting query nonce was measured still returning **`CF-Cache-Status:
+  HIT`** on a never-before-seen query, because Workers static assets normalise
+  the query away. The request `Cache-Control: no-cache` was already being sent
+  and Cloudflare ignores client cache directives by design. **The cache cannot
+  be busted from the client**, so the script reports what it saw instead of
+  pretending to defeat it — and ⚠️ **it still fails**, with no retry, because a
+  retry would mask a genuinely half-propagated deploy.
+
+### Notes
+
+- ⚠️⚠️ **A ONE-FILE WEBKIT RE-RUN CANNOT REPRODUCE THE GATE'S CONTENTION**, and
+  it has already produced a wrong conclusion once. `fullyParallel: false` on
+  `webkit` and `iphone-13` means tests **within a file** run in sequence and
+  only FILES run concurrently — so one spec file is **one worker** whatever
+  `--workers` says, and the re-run is serial. At the v0.22.0 gate that was very
+  nearly reported as strong evidence a flaky row was environmental. Recorded in
+  `docs/reference/testing.md` with the multi-file command that does reproduce it.
+
+### Added
+
+- **The same-address line beside the Google button** — option (a) from the
+  fork filing, implemented on its own rather than waiting for the rest.
+  *"Utilisez la même adresse que votre lien e-mail — sinon vous créerez un
+  second compte, vide."*
+  - ⚠️ **BEFORE THE PRESS, NOT AFTER.** A message shown once the fork has
+    happened is an explanation; this is a prevention, and it is the whole of the
+    cheap half.
+  - ⚠️ **It names the CONSEQUENCE, not the mechanism.** "Vous créerez un second
+    compte" is something a parent can act on; "l'identité ne sera pas liée" is
+    true and useless.
+  - **Secondary text, not a warning banner** — it must be read, but styling
+    guidance as an alert makes the ordinary path look dangerous and teaches
+    readers to skip everything. No `opacity` on it either: the colour is an
+    audited token and an alpha on top is invisible to `check-contrast.mjs`.
+  - **The spec asserts it travels with the button** in both flag shapes —
+    **visible** when on, because a note nobody can see prevents nothing, and
+    **absent** when off, because a warning about a button that is not there is
+    noise on the page every reader actually sees today.
+
+### Fixed
+
+- ⚠️⚠️ **The v0.22.0 entry was FALSE and is corrected in place.** It said the
+  Google provider was *"configured on the test project only"*. It is not:
+  production reports `external.google: true` and
+  `/auth/v1/authorize?provider=google` returns **302 to Google**. The flag hides
+  the **button, not the endpoint**. Corrected inside the `[0.22.0]` section,
+  marked as a post-tag correction with the date and the measurement — rather
+  than only appended here, because a reader checking what that release did would
+  otherwise find the false version and stop reading.
+
+### Notes
+
+- **`docs/MANUAL-TESTS.md` gained the Google Cloud pre-flight**, which is the
+  check most likely to be skipped and most likely to bite: **APIs & Services →
+  OAuth consent screen → Publishing status**. ⚠️ **A client in "Testing" works
+  perfectly for whoever set it up and refuses everyone else**, at Google's own
+  screen, before the reader ever returns to the site — so nothing this codebase
+  renders can soften it. Also recorded there: the redirect URIs are the
+  **Supabase** callbacks and not the site's, and ⚠️ **one OAuth client currently
+  serves BOTH projects**, so its publishing status and URI list cover production
+  and test together. A separate client for test is suggested.
+
+### Added
+
+- **`scripts/check-identity-linking.mjs`** — does a Google sign-in LINK onto an
+  existing magic-link account, or fork a second one? Test project only, through
+  the same interlock as the e2e suite, failing closed; unrecognised flags are
+  fatal.
+  - ⚠️ **IT INSPECTS, IT DOES NOT SIMULATE.** Nothing can complete a real Google
+    consent screen from a script, so the Google half is done by a human and this
+    reports what the database ended up holding. A script that faked the OAuth
+    half would be testing its own fake.
+  - ⚠️⚠️ **ITS FIRST VERSION WAS WRONG IN THE WORST POSSIBLE DIRECTION, AND ONLY
+    TESTING THE INSTRUMENT FOUND IT.** The admin **list** endpoint returns
+    `identities: []` for every user, always. Measured on one user created with a
+    password, which unambiguously has an `email` identity: the create response
+    says `["email"]`, `GET /admin/users/{id}` says `["email"]`, and the list says
+    `[]`. A verdict computed from the list could **never** have reported LINKED
+    and would have called a correctly-linked account **FORKED** — the exact
+    wrong answer on the only question the script exists to answer, while looking
+    like it worked. It now uses the list to find candidates by address and
+    hydrates each by id.
+  - ⚠️ **`--seed` is plumbing, not the faithful test**, and says so on screen:
+    admin-creating a user with only an address yields `identities: []` — no
+    `email` identity at all until it actually signs in. The faithful run is a
+    real magic-link sign-in in the browser, then Google, then this script.
+
+### Notes
+
+- ✅ **"Confirm email" is ON on the production project.** `GET
+  /auth/v1/settings` reports `mailer_autoconfirm: false` — read-only, anon key.
+  That is the precondition automatic linking hangs off, and there is no separate
+  toggle for linking itself.
+- ⚠️⚠️ **AND GOOGLE IS ALREADY LIVE ON PRODUCTION, which contradicts what
+  v0.22.0 was promoted believing.** That release's CHANGELOG says the provider
+  is configured on the test project only. Measured: production reports
+  `external.google: true` and `/auth/v1/authorize?provider=google` returns
+  **302 to accounts.google.com**. `PUBLIC_GOOGLE_AUTH_ENABLED=false` hides the
+  **button, not the endpoint**. Not a new capability — sign-up is already open —
+  but it is not what the record said. ⚠️ **Both projects also share one Google
+  `client_id`**, so they are not isolated at the Google layer, and a client
+  still in Testing mode in Google Cloud would fail silently for everyone not on
+  its test-user list. Filed for decision.
+- ⚠️ **The different-address case is filed as the thing to fix BEFORE the flag
+  is flipped.** A reader whose Google address differs from their magic-link one
+  silently gets a second account with an empty ledger, while their real progress
+  sits intact and invisible on the first. It looks like data loss and is not,
+  which is the worst combination. One line of copy beside the button prevents
+  most of it; the detection and manual-linking options are recorded beside it.
+
 ## [0.22.0] — 2026-08-23
 
 **The release in one line:** a second way in, built but not switched on, and the
 browser stops offering to rewrite the chess notation.
 
 - **Google sign-in, behind `PUBLIC_GOOGLE_AUTH_ENABLED`.** ⚠️⚠️ **THE FLAG
-  STAYS OFF IN PRODUCTION IN THIS RELEASE** — the Google provider is configured
-  on the **test project only**, and the button is **absent rather than
-  disabled** where it is not configured. So this ships the code, not the
+  STAYS OFF IN PRODUCTION IN THIS RELEASE**, and the button is **absent rather
+  than disabled** where it is not configured. So this ships the code, not the
   feature: `/connexion/` in production is unchanged, still email magic link.
   Verified end to end on the test project, including the cancel-at-Google path.
+
+  > ⚠️⚠️ **CORRECTED 2026-08-23, AFTER THIS RELEASE WAS TAGGED AND DEPLOYED.**
+  > This entry originally said *"the Google provider is configured on the test
+  > project only"*. **That was false**, and it was written from an assumption
+  > rather than a measurement. Checked read-only against production
+  > (`vtestpaufxmrvdhgrrsy`): `GET /auth/v1/settings` reports
+  > `external.google: true`, and `GET /auth/v1/authorize?provider=google`
+  > returns **302 to `accounts.google.com`**. The provider answers on
+  > production and did so throughout this release.
+  >
+  > ⚠️ **THE FLAG HIDES THE BUTTON, NOT THE ENDPOINT.** Everything else in this
+  > entry stands — no button is rendered, `/connexion/` is unchanged — but the
+  > authorize endpoint is reachable by anyone who constructs the URL. That is
+  > **not a new capability** (sign-up is already open via magic link,
+  > `disable_signup: false`), and it is **not what the record said**.
+  >
+  > The claim is corrected here rather than only appended to a later release,
+  > because a reader checking what v0.22.0 did would otherwise find the false
+  > version and stop. The open decisions it raises — including that production
+  > and test share one Google `client_id` — are in BACKLOG.
 - **The browser no longer offers to machine-translate the site** — three
   signals, because each reaches a different browser and none reaches all.
 - **Passwords re-examined and re-rejected**, with the three reasons recorded so
@@ -6523,7 +6947,8 @@ Foundation only: no real content, no interactive board yet.
   `url()` references unresolved and the fonts silently 404 into a Georgia
   fallback. `scripts/build-fonts.mjs` self-hosts them instead. See CLAUDE.md.
 
-[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.22.0...HEAD
+[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.23.0...HEAD
+[0.23.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.22.0...v0.23.0
 [0.22.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.19.0...v0.20.0

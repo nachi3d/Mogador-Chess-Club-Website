@@ -268,6 +268,42 @@ const fr = {
      number is not a record being kept about them, which is exactly why there
      is no daily streak — see progress.ts. */
   'score.streak.value': '%s exercices d’affilée dans cette session',
+  /* ── The game history (/progres/) ───────────────────────────────────────
+     ⚠️ IT NAMES THE OUTCOME PLAINLY AND DOES NOT DRESS UP A LOSS. Critical
+     Feature 35: a loss costs nothing and is read by no scoring rule. A history
+     that said "défaite" in red, or hid losses, would turn a record of play into
+     a record of failure — which is the one thing this site's progression rules
+     exist to prevent. Wins are not congratulated here either; the points block
+     above already does that. */
+  /* ── The weekly habit mark (/progres/) ───────────────────────────────────
+     ⚠️ IT COUNTS PRESENCES AND NEVER A STREAK, and the wording is where that
+     is either kept or thrown away. There is no "vous avez perdu votre série",
+     because there is no série: a missed week is a week not in the list, and
+     costs one mark rather than a run. Critical Feature 34 rules out a daily
+     streak for exactly this reason and a consecutive-WEEK counter would
+     reintroduce it in the club's own rhythm.
+
+     ⚠️ THE UNMARKED WEEK IS AN INVITATION WITH AN ACTION IN IT, not a scold and
+     not a blank. "Un exercice ou une partie" tells a student precisely what
+     would mark it, which is the difference between encouragement and nagging. */
+  'habit.title': 'Tes semaines',
+  'habit.intro': 'Une semaine est marquée dès que tu résous un exercice ou joues une partie.',
+  'habit.count': '%s semaines',
+  'habit.countOne': '1 semaine',
+  'habit.thisWeek.done': 'Cette semaine est marquée.',
+  'habit.thisWeek.open': 'Un exercice ou une partie, et cette semaine est marquée.',
+  'habit.none': 'Aucune semaine marquée pour l’instant — la première t’attend.',
+  'games.title': 'Tes parties',
+  'games.intro': 'Les parties jouées contre l’ordinateur, la plus récente en premier.',
+  'games.none': 'Aucune partie pour l’instant. Une partie contre l’ordinateur, et elle apparaîtra ici.',
+  'games.win': 'Gagnée',
+  'games.draw': 'Nulle',
+  'games.loss': 'Perdue',
+  /* "%s parties" — the count above the list. */
+  'games.count': '%s parties',
+  'games.countOne': '1 partie',
+  /* Shown when the log is full and older games have fallen off the end. */
+  'games.trimmed': 'Les %s dernières.',
   'score.achievements': 'Accomplissements',
   'score.achievements.count': '%s sur %s',
   'score.achievements.locked': 'Pas encore',
@@ -641,6 +677,17 @@ const fr = {
   /* Its own message rather than reusing `login.error`: that one says the link
      could not be sent, which is about email and would be nonsense here. */
   'login.googleError': "La connexion avec Google n'a pas pu démarrer. Réessayez, ou utilisez le lien par e-mail.",
+  /* ⚠️ THE ONE LINE THAT PREVENTS A SILENT SECOND ACCOUNT — see the note in
+     LoginPage.astro. Automatic linking keys on the ADDRESS, so a reader who
+     signed up as one address and presses Google while signed into another gets
+     a new account with an empty ledger, while their real progress sits intact
+     and invisible on the first. It looks like data loss and is not, which is
+     the worst combination. This says the one thing that avoids it.
+     ⚠️ It names the CONSEQUENCE, not the mechanism: "sinon vous créerez un
+     second compte" is what a parent can act on; "l'identité ne sera pas liée"
+     is true and useless. */
+  'login.googleSameAddress':
+    'Utilisez la même adresse que votre lien e-mail — sinon vous créerez un second compte, vide.',
   'callback.title': 'Connexion…',
   'callback.working': 'Connexion en cours…',
   'callback.failed': "Ce lien n'est plus valide. Demandez-en un nouveau.",
@@ -1160,6 +1207,24 @@ const en: Record<keyof typeof fr, string> = {
   'score.earnedTitle': 'Points earned',
   'score.streak.title': 'Current run',
   'score.streak.value': '%s exercises in a row this session',
+  /* ── The game history (/progres/). See the FR note. ─────────────────── */
+  /* ── The weekly habit mark (/progres/). See the FR note. ────────────── */
+  'habit.title': 'Your weeks',
+  'habit.intro': 'A week is marked as soon as you solve an exercise or play a game.',
+  'habit.count': '%s weeks',
+  'habit.countOne': '1 week',
+  'habit.thisWeek.done': 'This week is marked.',
+  'habit.thisWeek.open': 'One exercise or one game, and this week is marked.',
+  'habit.none': 'No weeks marked yet — the first one is waiting.',
+  'games.title': 'Your games',
+  'games.intro': 'Games played against the computer, most recent first.',
+  'games.none': 'No games yet. Play one against the computer and it will appear here.',
+  'games.win': 'Won',
+  'games.draw': 'Drawn',
+  'games.loss': 'Lost',
+  'games.count': '%s games',
+  'games.countOne': '1 game',
+  'games.trimmed': 'The last %s.',
   'score.achievements': 'Achievements',
   'score.achievements.count': '%s of %s',
   'score.achievements.locked': 'Not yet',
@@ -1466,6 +1531,9 @@ const en: Record<keyof typeof fr, string> = {
   'login.google': 'Continue with Google',
   'login.or': 'or',
   'login.googleError': 'Google sign-in could not start. Try again, or use the email link.',
+  /* See the FR note — it names the consequence, not the mechanism. */
+  'login.googleSameAddress':
+    'Use the same address as your email link — otherwise you will create a second, empty account.',
   'callback.title': 'Signing in…',
   'callback.working': 'Signing you in…',
   'callback.failed': 'This link is no longer valid. Request a new one.',

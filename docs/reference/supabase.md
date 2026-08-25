@@ -308,10 +308,27 @@ half a future admin script skips:
 - ⚠️ **`reason` is REQUIRED**, checked on the trimmed length. Points that appear
   with no explanation destroy trust faster than no points at all: a student who
   cannot tell why a number moved learns the number is arbitrary.
-- ⚠️ **Points are POSITIVE and capped at 50.** Not a typo guard, a policy. This
-  site records losses and charges nothing for them; a prof who could award −50
-  would turn the ledger into a disciplinary instrument. The cap sits under the
-  tutorial's own 65 so no single award can outweigh the work.
+- ⚠️ **Points are POSITIVE. The 50 cap was REMOVED in migration 0014** (Seàn's
+  call). Positive-only stays and is not a typo guard but a policy: this site
+  records losses and charges nothing for them, and a prof who could award −50
+  would turn the ledger into a disciplinary instrument.
+  - The ceiling's original reasoning — 50 sits under the tutorial's own 65, so
+    no single award can outweigh the work — was sound and is not what was
+    disputed. What changed is **who decides**: the size of an award is a
+    teaching judgement about a particular student on a particular day, and a
+    schema constant took that away from the person in the room.
+  - ⚠️ **What replaces it is ATTRIBUTION.** `awarded_by` and a required
+    `reason` both survive, and every award is visible on the student's own
+    page. A prof who awards 5,000 has not found a hole; they have signed their
+    name to it.
+  - ⚠️⚠️ **REMOVING THE CAP MEANT REMOVING IT IN THREE PLACES, AND TWO OF THEM
+    WOULD HAVE EATEN A REAL AWARD SILENTLY.** `normalizeAwards` in
+    `progress.ts` and the summation in `ScoreResolver.astro` both DISCARDED
+    rows over 50 on read. Left in place, the first award above the old ceiling
+    would have been accepted by the database, mirrored down, and then vanished
+    from the page. ⚠️ **`computeLedger()` was already uncapped**, so the two
+    summations would have disagreed — which is exactly what Critical Feature 47
+    exists to prevent.
 - ⚠️ **A student has no INSERT policy at all.** This is the one table where a
   client-side write would mint points directly, so the refusal is at the
   database — verified by a real student token getting `42501`.

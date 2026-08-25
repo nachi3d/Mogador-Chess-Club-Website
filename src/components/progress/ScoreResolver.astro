@@ -232,7 +232,14 @@ const rankLabels: Record<string, string> = {
       var aw = s.awards || [];
       for (var t = 0; t < aw.length; t++) {
         var pts = aw[t] && typeof aw[t].points === 'number' ? Math.floor(aw[t].points) : 0;
-        if (pts > 0 && pts <= 50) sources.teacher += pts;
+        /* ⚠️ NO UPPER BOUND SINCE MIGRATION 0014. This read `pts <= 50` and was
+           the SECOND place the old ceiling would have silently eaten a real
+           award — the first was normalizeAwards in progress.ts. A prof awarding
+           80 would have had it accepted by the database, mirrored down, and
+           then excluded from the student's own total with nothing to show it
+           had happened. The floor stays: negative awards are not a thing this
+           site has (Critical Feature 35). */
+        if (pts > 0) sources.teacher += pts;
       }
 
       var points =

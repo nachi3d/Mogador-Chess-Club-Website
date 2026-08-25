@@ -89,6 +89,21 @@ function bucket(slugs: readonly string[]): JourneyStep[] {
   return slugs.map((slug) => ({ u: '', t: '', k: [slug] }));
 }
 
+/**
+ * Engine level id → its translated name, for the game history.
+ *
+ * ⚠️ NOT `levels` BELOW, WHICH IS A DIFFERENT THING WEARING THE SAME WORD.
+ * That one prefixes its ids (`level-debutant`) and is filtered to the levels
+ * that have EXERCISES; a game is played at an engine preset, and a student who
+ * has played Avancé must see it named even if no exercise carries that level.
+ */
+const engineLevelLabels = Object.fromEntries(
+  (Object.keys(LEVEL_KEYS) as (keyof typeof LEVEL_KEYS)[]).map((level) => [
+    level,
+    t(LEVEL_KEYS[level]),
+  ]),
+);
+
 const levels = (Object.keys(LEVEL_KEYS) as (keyof typeof LEVEL_KEYS)[])
   .map((level) => ({
     id: `level-${level}`,
@@ -397,6 +412,89 @@ function achievementLabel(id: string): string {
         a list of failures. Locked entries are named rather than hidden behind
         "???" — this is a teaching site, and a student should be able to see
         that finishing a course is a thing worth doing. */}
+    {/* ── The weekly habit mark ─────────────────────────────────────────────
+        ⚠️ A COUNT OF PRESENCES, NEVER A STREAK. The club meets weekly, so the
+        unit is the week — and Critical Feature 34 rules out a daily streak
+        precisely because it would punish the club's normal rhythm. A
+        consecutive-WEEK counter would reintroduce that same punishment one
+        rhythm up: miss a holiday, lose a run. So this counts weeks that
+        HAPPENED and never weeks that did not.
+
+        ⚠️ THE WIN STREAK WAS THE OTHER CANDIDATE AND WAS REJECTED, on Seàn's
+        call: a mechanic that breaks on a loss is the one thing Critical
+        Feature 35 exists to prevent.
+
+        ⚠️ NOTHING IS STORED FOR THIS. `activeWeeks()` derives it from the
+        timestamps that already exist — `solvedAt` and the game log — for the
+        same reason points are derived: a stored counter is a number that can
+        disagree with the records behind it. */}
+    <section
+      class="progress-block"
+      aria-labelledby="progress-habit"
+      data-habit-block
+      hidden
+      data-count-pattern={t('habit.count')}
+      data-count-one={t('habit.countOne')}
+      data-this-done={t('habit.thisWeek.done')}
+      data-this-open={t('habit.thisWeek.open')}
+    >
+      <h2 class="progress-block-title" id="progress-habit">
+        {t('habit.title')}
+        <span class="score-tally" data-habit-count></span>
+      </h2>
+      <p class="progress-block-intro">{t('habit.intro')}</p>
+      {/* ⚠️ `role="status"`, not an alert: this is information a reader may
+          notice, never something demanding attention. */}
+      <p class="habit-this-week" data-habit-this role="status"></p>
+    </section>
+
+    <p class="progress-empty" data-habit-empty hidden>{t('habit.none')}</p>
+
+    {/* ── The game history ──────────────────────────────────────────────────
+        ⚠️ GAMES WERE RECORDED AND NEVER SHOWN. `game_results` has had a row per
+        game since v2-S3 and the local record has had counters since E3, and a
+        student could not see a single one of them: the ledger knew they had won
+        twice at Intermédiaire and the page never said when, or against which
+        level, or that they had played at all.
+
+        ⚠️ IT IS A RECORD, NOT A SCOREBOARD. Losses and draws appear exactly as
+        wins do, in the same weight and the same colour — Critical Feature 35
+        says a loss costs nothing, and a history that shaded them red would make
+        it cost something after all. Nothing here is summed; the points block
+        above owns the arithmetic.
+
+        ⚠️ IT RENDERS FROM `localStorage`, so a guest has one too. That is the
+        guest-first rule, and it is also why the list is bounded — see
+        GAME_LOG_MAX in progress.ts. */}
+    {/* Strings ride on the element, like the awards block above: a bundled
+        module script cannot call `t()`, and the i18n layer stays server-side. */}
+    <section
+      class="progress-block"
+      aria-labelledby="progress-games"
+      data-games-block
+      hidden
+      data-label-win={t('games.win')}
+      data-label-draw={t('games.draw')}
+      data-label-loss={t('games.loss')}
+      data-count-pattern={t('games.count')}
+      data-count-one={t('games.countOne')}
+      data-trimmed-pattern={t('games.trimmed')}
+      data-level-labels={JSON.stringify(engineLevelLabels)}
+    >
+      <h2 class="progress-block-title" id="progress-games">
+        {t('games.title')}
+        <span class="score-tally" data-games-count></span>
+      </h2>
+      <p class="progress-block-intro">{t('games.intro')}</p>
+      <ol class="game-log" data-game-log></ol>
+      <p class="game-log-trimmed" data-games-trimmed hidden></p>
+    </section>
+
+    {/* Shown instead of the block above when nothing has been played. Separate
+        rather than an empty list, so the page never renders a heading over
+        nothing — the same rule the awards block follows. */}
+    <p class="progress-empty" data-games-empty hidden>{t('games.none')}</p>
+
     <section class="progress-block" aria-labelledby="progress-achievements">
       <h2 class="progress-block-title" id="progress-achievements">
         {t('score.achievements')}
@@ -455,7 +553,156 @@ function achievementLabel(id: string): string {
   /* ⚠️ THROUGH `progress.ts` ONLY, as everywhere else. This page does not know
      that awards come from Supabase, and must not: `progress.ts` is the single
      reader and the sync layer is what decides where the rows came from. */
-  import { awards, startSync, syncState, SYNC_EVENT } from '@lib/progress';
+  import {
+    activeWeeks,
+    awards,
+    currentWeek,
+    gameLog,
+    GAME_LOG_MAX,
+    startSync,
+    syncState,
+    SYNC_EVENT,
+  } from '@lib/progress';
+
+  /**
+   * The weekly habit mark.
+   *
+   * ⚠️ IT SAYS WHAT IS TRUE AND OFFERS WHAT IS NEXT — never what was missed.
+   * The unmarked case names the action ("un exercice ou une partie") rather
+   * than the absence, which is the difference between an invitation and a
+   * nag. There is no place in this block where a week can be described as
+   * lost, because there is no run to lose.
+   */
+  const habitBlock = document.querySelector('[data-habit-block]') as HTMLElement | null;
+  const habitEmpty = document.querySelector('[data-habit-empty]') as HTMLElement | null;
+
+  if (habitBlock) {
+    const weeks = activeWeeks();
+
+    if (weeks.length === 0) {
+      /* Nothing yet: one warm line, and no heading over an empty count. */
+      if (habitEmpty) habitEmpty.hidden = false;
+    } else {
+      habitBlock.hidden = false;
+      const h = habitBlock.dataset;
+
+      const countEl = document.querySelector('[data-habit-count]') as HTMLElement | null;
+      if (countEl) {
+        countEl.textContent =
+          weeks.length === 1
+            ? (h.countOne ?? '')
+            : (h.countPattern ?? '').replace('%s', String(weeks.length));
+      }
+
+      const thisEl = document.querySelector('[data-habit-this]') as HTMLElement | null;
+      if (thisEl) {
+        const marked = weeks.includes(currentWeek());
+        thisEl.textContent = marked ? (h.thisDone ?? '') : (h.thisOpen ?? '');
+        /* Exposed so a spec can assert the STATE without matching prose, and
+           so the two cases can never be told apart by colour alone. */
+        thisEl.dataset['marked'] = marked ? 'true' : 'false';
+      }
+    }
+  }
+
+  /**
+   * The game history.
+   *
+   * ⚠️ BUILT WITH `createElement`, NOT `innerHTML` — same rule as the awards
+   * list beside it. The level string comes off disk and could be anything a
+   * hand-edited record contains.
+   *
+   * ⚠️ THE BLOCK IS HIDDEN UNTIL THERE IS SOMETHING IN IT, and the empty line
+   * is a separate element rather than an empty list, so the page never renders
+   * a heading over nothing.
+   */
+  const gamesBlock = document.querySelector('[data-games-block]') as HTMLElement | null;
+  const gamesEmpty = document.querySelector('[data-games-empty]') as HTMLElement | null;
+  const gameList = document.querySelector('[data-game-log]') as HTMLElement | null;
+
+  if (gamesBlock && gameList) {
+    const entries = gameLog();
+
+    if (entries.length === 0) {
+      /* Nothing played: the block stays hidden and the one line shows. */
+      if (gamesEmpty) gamesEmpty.hidden = false;
+    } else {
+      gamesBlock.hidden = false;
+
+      const d = gamesBlock.dataset;
+      const outcomeLabel: Record<string, string> = {
+        win: d.labelWin ?? '',
+        draw: d.labelDraw ?? '',
+        loss: d.labelLoss ?? '',
+      };
+      let levelLabel: Record<string, string> = {};
+      try {
+        levelLabel = JSON.parse(d.levelLabels ?? '{}') as Record<string, string>;
+      } catch {
+        /* A malformed attribute must not cost the reader the list; the raw
+           level id is a worse label and still a true one. */
+      }
+
+      const locale = document.documentElement.lang === 'en' ? 'en-GB' : 'fr-FR';
+      const dayFmt = new Intl.DateTimeFormat(locale, {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      });
+
+      const countEl = document.querySelector('[data-games-count]') as HTMLElement | null;
+      if (countEl) {
+        countEl.textContent =
+          entries.length === 1
+            ? (d.countOne ?? '')
+            : (d.countPattern ?? '').replace('%s', String(entries.length));
+      }
+
+      for (const game of entries) {
+        const row = document.createElement('li');
+        row.className = 'progress-row game-row';
+        row.dataset['outcome'] = game.outcome;
+
+        const label = document.createElement('span');
+        label.className = 'progress-row-label';
+        /* The LEVEL is the label, because "which opponent" is the thing a
+           student remembers a game by. */
+        label.textContent = levelLabel[game.level] ?? game.level;
+
+        /* A date when the row carries a usable one, and simply nothing when it
+           does not — the same rule as the awards list. A game with no
+           timestamp is still a game that happened; "Invalid Date" beside it
+           would be worse than silence. */
+        if (game.at) {
+          const stamp = Date.parse(game.at);
+          if (!Number.isNaN(stamp)) {
+            const when = document.createElement('span');
+            when.className = 'award-when';
+            when.textContent = dayFmt.format(new Date(stamp));
+            label.appendChild(when);
+          }
+        }
+
+        const outcome = document.createElement('span');
+        /* ⚠️ ONE CLASS FOR ALL THREE OUTCOMES. A `.game-loss` in red would make
+           a loss cost something on a site whose rules say it costs nothing
+           (Critical Feature 35). The word is the signal. */
+        outcome.className = 'progress-row-count game-outcome';
+        outcome.textContent = outcomeLabel[game.outcome] ?? game.outcome;
+
+        row.append(label, outcome);
+        gameList.appendChild(row);
+      }
+
+      /* Said out loud when the log is full, rather than letting a student
+         wonder where their first games went. */
+      const trimmed = document.querySelector('[data-games-trimmed]') as HTMLElement | null;
+      if (trimmed && entries.length >= GAME_LOG_MAX) {
+        trimmed.textContent = (d.trimmedPattern ?? '').replace('%s', String(GAME_LOG_MAX));
+        trimmed.hidden = false;
+      }
+    }
+  }
 
   /**
    * The awards list — the reasons, which are the whole point of the block.
@@ -857,5 +1104,54 @@ function achievementLabel(id: string): string {
     .progress-fill {
       transition: none;
     }
+  }
+
+  /* ── The game history ───────────────────────────────────────────────────
+     ⚠️ ALL THREE OUTCOMES LOOK THE SAME. There is deliberately no
+     `[data-outcome='loss']` rule tinting anything red: Critical Feature 35
+     says a loss costs nothing, and a colour is how a list of games quietly
+     becomes a report card. The word carries the meaning.
+
+     `data-outcome` is still on the row, because a future feature (a win
+     streak, say) may want to find them — but styling on it is the thing to
+     think twice about, not a free hook. */
+  .game-log {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .progress-block-intro {
+    margin: 0 0 0.75rem;
+    color: var(--mcc-text-secondary);
+    font-size: 0.875rem;
+  }
+
+  .game-outcome {
+    /* Notation-ish, so the three words line up down the right edge the way the
+       award points do. */
+    font-family: var(--font-notation);
+    white-space: nowrap;
+  }
+
+  .game-log-trimmed {
+    margin: 0.75rem 0 0;
+    color: var(--mcc-text-secondary);
+    font-size: 0.8125rem;
+  }
+
+  .progress-empty {
+    margin: 0 0 2rem;
+    color: var(--mcc-text-secondary);
+  }
+
+  /* ⚠️ THE MARKED AND UNMARKED WEEK LOOK THE SAME. No green tick, no grey
+     nothing: an unmarked week is a week that has not happened YET, and
+     styling it as absent is how a count of presences turns into a record of
+     failures. The words differ; the styling does not. */
+  .habit-this-week {
+    margin: 0;
+    color: var(--mcc-text-secondary);
+    font-size: 0.9375rem;
   }
 </style>

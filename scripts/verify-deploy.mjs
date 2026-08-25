@@ -167,10 +167,42 @@ function firstDifference(a, b) {
   return null;
 }
 
+/**
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️⚠️ THE EDGE CACHE CAN MAKE A CORRECT DEPLOY LOOK LIKE A WRONG ONE, AND
+ * NEITHER OBVIOUS CURE WORKS.
+ *
+ * Measured at the v0.22.0 deploy: the marker was confirmed live, this script
+ * ran seconds later and reported ALL THREE documents as "NOT this tree",
+ * showing the OLD markup. Five follow-up probes returned the NEW markup with
+ * `CF-Cache-Status: HIT`, and a re-run of the unchanged tree passed. The first
+ * run had read a stale edge entry in the window right after deploying.
+ *
+ * ⚠️ BOTH FIXES THAT SUGGEST THEMSELVES WERE TRIED AND MEASURED FAILING:
+ *
+ *   - `Cache-Control: no-cache` on the REQUEST — already sent below, and
+ *     Cloudflare ignores client cache directives by design.
+ *   - a cache-busting query nonce — measured `CF-Cache-Status: HIT` on a
+ *     never-before-seen query string, because Workers static assets normalise
+ *     the query away. It does not produce a different cache key.
+ *
+ * ⚠️ SO THE CACHE STATUS IS REPORTED RATHER THAN DEFEATED. A mismatch served
+ * from a HIT is *probably* staleness; a mismatch served from a MISS or DYNAMIC
+ * is *probably* a wrong build. This script cannot tell them apart with
+ * certainty and must not pretend to — so it says which it saw and lets the
+ * operator judge, rather than silently retrying until it likes the answer.
+ *
+ * ⚠️ AND IT STILL FAILS. Nothing here converts a mismatch into a pass. The
+ * point is only that "the live build is NOT this tree" stops being the first
+ * and last word when the real story is a thirty-second cache — because a check
+ * that cries wolf is the check somebody learns to skip, and this is the one
+ * standing between us and shipping v0.13.0 again.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
 async function fetchText(url) {
   const res = await fetch(url, { redirect: 'follow', headers: { 'cache-control': 'no-cache' } });
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-  return res.text();
+  return { body: await res.text(), cache: res.headers.get('cf-cache-status') ?? 'unknown' };
 }
 
 /**
@@ -201,6 +233,8 @@ if (!existsSync(join(ROOT, 'dist', 'index.html'))) {
 
 let failures = 0;
 let compared = 0;
+/** Per-document `cf-cache-status`, so a mismatch can name WHY it may be wrong. */
+const cacheStatuses = new Map();
 
 for (const doc of DOCUMENTS) {
   const localPath = join(ROOT, doc.file);
@@ -212,14 +246,18 @@ for (const doc of DOCUMENTS) {
   const local = normalise(localRaw);
 
   let liveRaw;
+  let cacheStatus = 'unknown';
   try {
-    liveRaw = await fetchText(`${origin}${doc.path}`);
+    const got = await fetchText(`${origin}${doc.path}`);
+    liveRaw = got.body;
+    cacheStatus = got.cache;
   } catch (error) {
     console.log(red(`  ✗  ${doc.path.padEnd(34)} fetch failed: ${error.message}`));
     failures += 1;
     continue;
   }
   const live = normalise(liveRaw);
+  cacheStatuses.set(doc.path, cacheStatus);
 
   /* ⚠️ The normalisation must be seen to WORK, on both sides. A pattern that
      silently stops matching turns this back into a check that fails on every
@@ -272,6 +310,20 @@ if (failures > 0) {
     red(`\n  ✗ ${origin} is serving a DIFFERENT build from your dist/.\n`) +
       dim(
         '  This is the v0.13.0 failure: merged, tagged, and never served.\n' +
+          '\n' +
+          `  Edge cache on the compared documents: ${
+            [...cacheStatuses].map(([p, c]) => `${p} ${c}`).join(', ') || 'not read'
+          }\n` +
+          '  ⚠️ IF THOSE SAY "HIT" AND YOU DEPLOYED IN THE LAST FEW MINUTES, SUSPECT\n' +
+          '     THE CACHE BEFORE THE DEPLOY. Measured at the v0.22.0 deploy: this\n' +
+          '     script reported all three documents wrong, seconds after a deploy\n' +
+          '     that had already landed, because it read a stale edge entry. Probe\n' +
+          '     the page by hand and re-run before concluding anything.\n' +
+          '     ⚠️ Neither obvious cure works — a request `Cache-Control: no-cache`\n' +
+          '     is ignored by Cloudflare, and a query nonce was MEASURED still\n' +
+          '     returning HIT, because Workers static assets normalise the query\n' +
+          '     away. Waiting is the remedy; this line is the warning.\n' +
+          '\n' +
           '  ⚠️ Do NOT reach for `wrangler deployments list` — a recent deployment\n' +
           '     can be an older tree, and `Source: Unknown` does not tell the two\n' +
           '     paths apart. Check which build actually won:\n' +
