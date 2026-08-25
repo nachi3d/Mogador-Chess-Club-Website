@@ -11,6 +11,37 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### Fixed
+
+- ⚠️⚠️ **THE SLIVER JOB RAN WITHOUT CREDENTIALS, WHICH MADE CRITICAL FEATURE 18
+  TRIVIALLY TRUE RATHER THAN PROVEN.** The first version of the workflow left
+  `.env.test` out of the accounts-OFF job, reasoning that a shape with no
+  account routes has nothing to sign in to. True, and it misses what the sliver
+  is for: `auth-disabled.spec.ts` proves **no Supabase ref survives anywhere in
+  `dist/`**, and with no credentials in the build there is nothing that COULD
+  leak — it passes because the ref never existed, not because the flag kept it
+  out. The sliver now writes `.env.test` and runs the preflight like every
+  other job, so the guarantee is tested with something real to keep out.
+- **That also removed an expiry trap in the same change**, which is the half
+  that was asked for: without `.env.test` the sliver's build fell back to
+  `agenda.fallback.json`, whose v0.23.0 expiry guard would have failed it after
+  **2026-09-12**.
+
+### Notes
+
+- ⚠️ **A WARNING FROM THE PREVIOUS ENTRY WAS WRONG AND IS CORRECTED HERE.** It
+  said the CI build has no Supabase build variables and therefore bakes the
+  fallback, so the gate would start failing after 12 September.
+  **`playwright.config.ts` passes the TEST project's `PUBLIC_SUPABASE_URL` and
+  `PUBLIC_SUPABASE_ANON_KEY` into the build it starts**, so `fetch-agenda.mjs`
+  reads the real `sessions` table. Measured with the gate's own env: **3
+  sessions baked, newest 2027-01-08**, fallback untouched.
+  - The wrong version came from testing `npm run build` standalone, which does
+    use the fallback, and assuming the gate built the same way. It does not.
+  - ⚠️ **The real condition is "has `.env.test`", not "is CI"** — which is
+    exactly why the sliver was affected and nothing else was. The guard stays;
+    a stale agenda is worse than an empty one.
+
 ### Added
 
 - ⚠️⚠️ **THE RELEASE GATE MOVED TO GITHUB ACTIONS, AND CI IS NOW THE GATE OF
