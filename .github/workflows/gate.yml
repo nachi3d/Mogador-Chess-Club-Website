@@ -41,6 +41,31 @@ env:
   # Node 22.12 is the floor in package.json `engines`.
   NODE_VERSION: '22'
 
+# ⚠️⚠️ EVERY JOB GETS ITS OWN `E2E_EMAIL_DOMAIN`, AND THE GATE DOES NOT WORK
+# WITHOUT IT. Learned from run #2, which failed in 32 seconds.
+#
+# `globalSetup` PURGES the shared test project before every suite and treats
+# leftover users as a HARD FAILURE; `globalTeardown` purges again after. Six
+# jobs against one Supabase project therefore fight: A's purge deletes B's
+# in-flight users, and a job starting while another is running sees the other's
+# users as residue and dies before a single test.
+#
+# ⚠️ THE LOCAL MATRIX HID THIS. `test-release.mjs` runs projects ONE AT A TIME —
+# for memory reasons — which incidentally serialised access to the shared
+# project. Parallelising for CI removed a guarantee nothing had written down.
+#
+# The purge matches on an EXACT email domain (`purge.ts`) and `e2eEmail()`
+# mints on that same domain, so a per-job domain isolates them completely with
+# no code change. ⚠️ These are `.test` addresses that are never delivered to —
+# users are created and links minted through the admin API — so a subdomain
+# costs nothing and needs to resolve nowhere.
+#
+# ⚠️ WHAT THIS DOES NOT FIX: the auth RATE LIMIT is per project, not per domain.
+# `workers: 1` under CI keeps it far below the measured 22-verifications-in-7s
+# ceiling, but if auth specs start failing across jobs at once, that is the
+# cause, and the answer is to serialise the auth-heavy jobs rather than to
+# widen the domains further.
+#
 # ⚠️ THE AGENDA IS NOT AN EXPIRY TRAP HERE, AND AN EARLIER VERSION OF THIS
 # COMMENT SAID IT WAS. Recorded because the wrong version was more plausible
 # than the right one.
@@ -94,6 +119,7 @@ jobs:
           TEST_SUPABASE_SERVICE_ROLE: ${{ secrets.TEST_SUPABASE_SERVICE_ROLE }}
           TEST_SUPABASE_PASSWORD: ${{ secrets.TEST_SUPABASE_PASSWORD }}
           SUPABASE_PRODUCTION_REF: ${{ secrets.SUPABASE_PRODUCTION_REF }}
+          E2E_EMAIL_DOMAIN: preflight.mcc-e2e.test
         run: |
           umask 077
           {
@@ -102,6 +128,7 @@ jobs:
             printf 'TEST_SUPABASE_SERVICE_ROLE=%s\n' "$TEST_SUPABASE_SERVICE_ROLE"
             printf 'TEST_SUPABASE_PASSWORD=%s\n' "$TEST_SUPABASE_PASSWORD"
             printf 'SUPABASE_PRODUCTION_REF=%s\n' "$SUPABASE_PRODUCTION_REF"
+            printf 'E2E_EMAIL_DOMAIN=%s\n' "$E2E_EMAIL_DOMAIN"
           } > .env.test
 
       # ⚠️ THE INTERLOCK, CALLED RATHER THAN REIMPLEMENTED. Fails the whole
@@ -162,6 +189,7 @@ jobs:
           TEST_SUPABASE_SERVICE_ROLE: ${{ secrets.TEST_SUPABASE_SERVICE_ROLE }}
           TEST_SUPABASE_PASSWORD: ${{ secrets.TEST_SUPABASE_PASSWORD }}
           SUPABASE_PRODUCTION_REF: ${{ secrets.SUPABASE_PRODUCTION_REF }}
+          E2E_EMAIL_DOMAIN: ${{ matrix.project }}.mcc-e2e.test
         run: |
           umask 077
           {
@@ -170,6 +198,7 @@ jobs:
             printf 'TEST_SUPABASE_SERVICE_ROLE=%s\n' "$TEST_SUPABASE_SERVICE_ROLE"
             printf 'TEST_SUPABASE_PASSWORD=%s\n' "$TEST_SUPABASE_PASSWORD"
             printf 'SUPABASE_PRODUCTION_REF=%s\n' "$SUPABASE_PRODUCTION_REF"
+            printf 'E2E_EMAIL_DOMAIN=%s\n' "$E2E_EMAIL_DOMAIN"
           } > .env.test
 
       # ⚠️ EVERY JOB RE-ASSERTS IT. The preflight job proved the secrets were
@@ -253,6 +282,7 @@ jobs:
           TEST_SUPABASE_SERVICE_ROLE: ${{ secrets.TEST_SUPABASE_SERVICE_ROLE }}
           TEST_SUPABASE_PASSWORD: ${{ secrets.TEST_SUPABASE_PASSWORD }}
           SUPABASE_PRODUCTION_REF: ${{ secrets.SUPABASE_PRODUCTION_REF }}
+          E2E_EMAIL_DOMAIN: sliver.mcc-e2e.test
         run: |
           umask 077
           {
@@ -261,6 +291,7 @@ jobs:
             printf 'TEST_SUPABASE_SERVICE_ROLE=%s\n' "$TEST_SUPABASE_SERVICE_ROLE"
             printf 'TEST_SUPABASE_PASSWORD=%s\n' "$TEST_SUPABASE_PASSWORD"
             printf 'SUPABASE_PRODUCTION_REF=%s\n' "$SUPABASE_PRODUCTION_REF"
+            printf 'E2E_EMAIL_DOMAIN=%s\n' "$E2E_EMAIL_DOMAIN"
           } > .env.test
 
       - name: Preflight — credentials present, and NOT production
