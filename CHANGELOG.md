@@ -13,6 +13,28 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ### Fixed
 
+- ⚠️ **BOTH TEST SCRIPTS STILL TOLD YOU A LOCAL RUN WAS THE RELEASE GATE.**
+  Moving the matrix to CI changed what a promotion rests on and changed no
+  message anywhere, so `test:branch` signed off every run with *"It runs once,
+  at promotion, via `npm run test:release`"* and `test-release.mjs` opened with
+  *"the release gate"* and *"THIS IS THE ONLY PLACE THE GATE BELONGS"*.
+  - **Both now name the `gate` workflow and the file it lives in.**
+    `test:branch` also says what starts it — a push to `dev` or `main`, or a
+    pull request into either — because "CI runs it" is not actionable if you do
+    not know what triggers it.
+  - ⚠️ **`test-release.mjs` is described as still correct and still maintained**,
+    not deprecated. It is the right thing for a developer who wants the matrix
+    on their own machine; it is simply not what a promotion may rest on.
+  - ⚠️ **Its header now records why serialising there does not contradict
+    parallelising in CI** — memory, per-runner — **and that the serialisation
+    also handed the shared test Supabase project one run at a time**, pointing
+    at `docs/reference/testing.md`. That is where somebody parallelising the
+    next thing will actually be reading.
+  - **Not a quick change:** `scripts/(lanes|test-release|test-branch|spec-map)`
+    is on `quick.mjs`'s FORBIDDEN list as *"what the release gate runs"*. The
+    pattern cannot tell a message string from a spec-selection edit, which is
+    the point — the fast path must never be able to shorten the gate that
+    polices it. Normal branch, full `test:branch`.
 - ⚠️⚠️ **SIX PARALLEL CI JOBS PURGED EACH OTHER'S USERS, AND THE GUARANTEE THEY
   BROKE HAD NEVER BEEN WRITTEN DOWN.** `global-setup.ts` purges the shared test
   Supabase project before every suite and treats residue as a **hard failure**;

@@ -1,9 +1,22 @@
 #!/usr/bin/env node
 /**
- * `npm run test:release` — the release gate. Run ONCE, when promoting to main.
+ * `npm run test:release` — the WHOLE matrix, locally, in one command.
  *
  * ─────────────────────────────────────────────────────────────────────────
- * ⚠️ THIS IS THE ONLY PLACE THE GATE BELONGS.
+ * ⚠️⚠️ THIS IS NO LONGER THE GATE OF RECORD — THE `gate` WORKFLOW ON GITHUB
+ * ACTIONS IS, SINCE v0.24.0. Smart App Control blocked WebKit on this machine
+ * twice, and both releases shipped on transferred evidence; a Linux runner has
+ * no such policy. A promotion rests on `.github/workflows/gate.yml`.
+ *
+ * ⚠️ THIS SCRIPT IS STILL CORRECT AND STILL MAINTAINED. It is the right thing
+ * for a developer who wants the matrix on their own machine — it is simply not
+ * what a promotion is allowed to rest on any more.
+ *
+ * ⚠️ IT SERIALISES THE FIVE PROJECTS FOR MEMORY, and that is why CI can run
+ * them in parallel without contradicting it: each runner has its own RAM.
+ * ⚠️ THE SERIALISATION ALSO GAVE THE SHARED TEST SUPABASE PROJECT ONE RUN AT A
+ * TIME — never the reason, never written down, and load-bearing anyway. See
+ * `docs/reference/testing.md` before parallelising anything that runs the suite.
  *
  * Chromium over the WHOLE suite, then four LANES on the other four projects,
  * then a two-minute accounts-OFF sliver. One flag shape. Feature branches run
