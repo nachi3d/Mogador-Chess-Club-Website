@@ -13,6 +13,33 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ### Fixed
 
+- ⚠️⚠️ **SIX PARALLEL CI JOBS PURGED EACH OTHER'S USERS, AND THE GUARANTEE THEY
+  BROKE HAD NEVER BEEN WRITTEN DOWN.** `global-setup.ts` purges the shared test
+  Supabase project before every suite and treats residue as a **hard failure**;
+  `global-teardown.ts` purges after. Two concurrent runs therefore delete each
+  other's in-flight users, and whichever starts second dies before a single
+  test. Gate run #2: `webkit` failed in **32 seconds** with no test having run,
+  while `iphone-13` — **the same browser engine** — passed in 310s.
+  - ⚠️ **`test-release.mjs` had been providing that serialisation BY ACCIDENT.**
+    It runs one project at a time for **memory** — 80 processes, 6.68 GB, four
+    red gates — and every word written about it says memory. It also happened
+    to mean only one run ever touched Supabase at a time. Never the reason,
+    never recorded, load-bearing anyway.
+  - **The fix needed no code.** `purge.ts` matches an **exact** email domain and
+    `e2eEmail()` mints on it, so a per-job `E2E_EMAIL_DOMAIN`
+    (`<job>.mcc-e2e.test`) partitions the project: each run only ever sees, and
+    only ever deletes, its own users.
+  - ⚠️ **The rule is now in `docs/reference/testing.md`:** anything running the
+    suite concurrently must either serialise access or give each run its own
+    domain. There is no third option.
+- **The auth rate limit is recorded beside it, because the two look alike and
+  the cures are opposite.** Measured against the test project: `/auth/v1/verify`
+  returns `429 over_request_rate_limit` at **22 verifications in 7 seconds**,
+  with **no `Retry-After`**, clearing a couple of minutes later, enforced **per
+  IP and per project — a new email domain is not a new bucket**. It presents as
+  bare navigation timeouts on a different set of tests each run. The answer is
+  to **serialise the auth-heavy jobs**; widening domains fixes the other problem
+  and will look like it is not working.
 - ⚠️⚠️ **THE SLIVER JOB RAN WITHOUT CREDENTIALS, WHICH MADE CRITICAL FEATURE 18
   TRIVIALLY TRUE RATHER THAN PROVEN.** The first version of the workflow left
   `.env.test` out of the accounts-OFF job, reasoning that a shape with no
@@ -87,10 +114,19 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
   … IS the production ref. Refusing."* — exit 1, before a browser starts. With
   the file removed entirely, the preflight fails naming all five secrets. With
   the real credentials, it passes and reports that auth specs will RUN.
-- ⚠️ **NOT MEASURED ON CI, AND THAT IS A REAL GAP IN THIS ENTRY.** There is no
-  `gh` CLI on this machine, so the workflow cannot be triggered, watched or
-  timed from here. The ~10-15 min estimate is an estimate. The first run, and
-  the first measurement, are Seàn's.
+- ⚠️ **MEASURED ON CI AT LAST — 15m 25s, GREEN, ALL SEVEN JOBS.** Gate run #3
+  (`507e2b2`). The estimate was ~10-15 min; it landed just outside it. Compare
+  the local matrix at **21.9 min** on a quiet machine, and 4.8 hours before the
+  lane audit.
+  - ⚠️ **The wall-clock is set by the SLOWEST JOB, not the sum**, because the
+    projects run in parallel — chromium runs the whole suite and is the long
+    pole. Adding a lane is close to free in time; adding specs to chromium is
+    not.
+  - ⚠️ **THE FIRST TWO RUNS FAILED, AND NEITHER WAS THE APPLICATION.** Run #1
+    was the sliver's missing credentials; run #2 was the shared test project
+    being purged out from under six parallel jobs. Both are recorded in
+    `docs/reference/testing.md` — the second as a guarantee nobody had written
+    down.
 - ⚠️ **THE FIRST RUN WILL FAIL AT PREFLIGHT** until the five repository secrets
   are set, naming each one that is missing. That is the intended first signal
   rather than a defect — the alternative, skipping quietly when credentials are
