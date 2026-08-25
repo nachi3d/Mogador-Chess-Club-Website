@@ -11,6 +11,67 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### Added
+
+- ⚠️⚠️ **THE RELEASE GATE MOVED TO GITHUB ACTIONS, AND CI IS NOW THE GATE OF
+  RECORD.** `.github/workflows/gate.yml` runs the five projects **in parallel**
+  plus the accounts-OFF sliver on `ubuntu-latest`, where Smart App Control does
+  not exist.
+  - **Why:** SAC blocked WebKit on the only machine that could run the matrix,
+    **twice** — v0.18.0 and v0.23.0 both shipped on transferred evidence. The
+    v0.19.0 remedy (re-download) stopped working, and disabling SAC is
+    documented as one-way.
+  - ⚠️ **`npm run test:release` still works and is unchanged.** It remains the
+    right thing for a developer who wants the whole matrix locally; it is
+    simply no longer what a promotion rests on.
+  - ⚠️ **Parallel here does NOT contradict the local serialisation.**
+    `test-release.mjs` runs one project at a time under a worker cap because
+    this machine runs out of RAM — measured, and the cause of four red gates.
+    Every CI job is its own runner with its own memory.
+  - **Artefacts upload on failure**, 30-day retention, per project. That is the
+    whole reason this release's artefact work exists: three consecutive gates
+    ended in "probably environmental" with the evidence already deleted.
+
+- **`scripts/ci-preflight.mjs`** — asserts, in **every** job, that the
+  credentials are present and are **not** production.
+  - ⚠️⚠️ **IT EXISTS BECAUSE A MISSING `.env.test` IS DELIBERATELY NOT AN
+    ABORT.** `assertNotProduction()` treats an absent file as safe, and that is
+    correct locally: with no file there is no reachable project of any kind, and
+    aborting would brick ~750 specs for every checkout without a test project.
+    In CI the same behaviour is a silent hole — a mistyped secret produces no
+    file, every auth spec SKIPS, and the gate reports success. Same class as a
+    zero-test sliver, which the gate already treats as fatal.
+  - ⚠️ **It does not widen `env.ts`.** CLAUDE.md forbids letting the loader fall
+    back to `process.env` — that edit is what would let production credentials
+    into a suite that purges by pattern. The workflow **writes `.env.test`** from
+    secrets instead and this checks the result; the loader is untouched.
+  - It calls `assertNotProduction()` rather than reimplementing it, so it cannot
+    drift from what Playwright's config actually enforces.
+
+### Notes
+
+- ⚠️ **THE INTERLOCK WAS VERIFIED BY MAKING IT FAIL, on the same code path CI
+  runs.** With `SUPABASE_PRODUCTION_REF` set equal to the test ref, both the
+  preflight **and** Playwright's config load abort with *"the test project ref
+  … IS the production ref. Refusing."* — exit 1, before a browser starts. With
+  the file removed entirely, the preflight fails naming all five secrets. With
+  the real credentials, it passes and reports that auth specs will RUN.
+- ⚠️ **NOT MEASURED ON CI, AND THAT IS A REAL GAP IN THIS ENTRY.** There is no
+  `gh` CLI on this machine, so the workflow cannot be triggered, watched or
+  timed from here. The ~10-15 min estimate is an estimate. The first run, and
+  the first measurement, are Seàn's.
+- ⚠️ **THE FIRST RUN WILL FAIL AT PREFLIGHT** until the five repository secrets
+  are set, naming each one that is missing. That is the intended first signal
+  rather than a defect — the alternative, skipping quietly when credentials are
+  absent, is precisely the hole the preflight closes.
+- ⚠️ **KNOWN INTERACTION WITH THIS RELEASE'S OWN AGENDA GUARD:** the CI build
+  has no Supabase build variables, so it bakes `agenda.fallback.json` — whose
+  expiry guard starts warning around **2026-08-29** and **fails the build after
+  2026-09-12**. That is the guard working, and in CI it blocks the gate for a
+  reason unrelated to the change under test. Refresh the fallback, or give the
+  workflow read-only agenda credentials. **Do not remove the guard** — a stale
+  agenda is worse than an empty one and `smoke:prod` cannot see it.
+
 ## [0.23.0] — 2026-08-25
 
 **The release in one line:** the exercises became a sequence you can walk, the
