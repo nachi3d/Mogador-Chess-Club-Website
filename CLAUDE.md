@@ -1559,7 +1559,34 @@ from what changed.
 | | Command | When | Cost |
 |---|---|---|---|
 | **Every feature branch** | `npm run test:branch` | every session, before merging to `dev` | ~1-3 min |
-| **Promotion** | `PUBLIC_AUTH_ENABLED=true npm run test:release` | once, promoting `dev` → `main` | **~22 min** |
+| **Promotion** | the **`gate` workflow on GitHub Actions** | once, promoting `dev` → `main` | ~10-15 min |
+| *(local, optional)* | `PUBLIC_AUTH_ENABLED=true npm run test:release` | when a developer wants the matrix in one go | ~22 min |
+
+⚠️⚠️ **CI IS THE GATE OF RECORD SINCE v0.24.0. A PROMOTION RESTS ON THE `gate`
+WORKFLOW, NOT ON A LOCAL RUN.** Smart App Control blocked WebKit on the only
+machine that could run the matrix — **twice** (v0.18.0, v0.23.0) — and both
+releases shipped on transferred evidence. A Linux runner has no such policy.
+`npm run test:release` still works and is still right for a developer who wants
+the whole matrix locally; it is simply no longer what a promotion is allowed to
+rest on.
+
+⚠️ **THE FIVE PROJECTS RUN IN PARALLEL THERE, AND THAT DOES NOT CONTRADICT
+`test-release.mjs`.** That script serialises them under a worker cap because
+the local machine runs out of RAM — measured, and the cause of four red gates.
+Each CI job is its own runner with its own memory, so the constraint the
+serialisation exists for is absent.
+
+⚠️ **THE SECRETS ARE THE TEST PROJECT'S, NEVER PRODUCTION'S**, and the workflow
+WRITES `.env.test` from them rather than exporting them. ⚠️ **Never widen
+`tests/e2e/env.ts` to read `process.env`** — that edit is what would let
+production credentials into a suite that purges by pattern, and writing the
+file is what makes CI work without it. `scripts/ci-preflight.mjs` then asserts
+the credentials are present and NOT production, in **every** job.
+
+⚠️ **A MISSING SECRET MUST FAIL, NOT SKIP.** `assertNotProduction()` treats an
+absent `.env.test` as safe — correct locally, a silent hole in CI, where it
+would skip every auth spec and still go green. That is what the preflight
+closes, on the same reasoning that makes a zero-test sliver fatal.
 
 `npm run test:branch` is **chromium only** and runs the specs mapped from what
 actually changed (`scripts/spec-map.mjs`). `--all` runs every chromium spec for
