@@ -71,8 +71,19 @@ export default defineConfig({
      which is what the CI gate does and what debugging a single spec does — and
      stands down when a wrapper has already handled them. Removing it from the
      local shape re-opens the hole in the place it was actually lost. */
+  /* ⚠️ `github` IS NOT DECORATION — IT IS THE ONLY FAILURE DETAIL READABLE
+     WITHOUT A TOKEN. It emits ::error:: annotations carrying the test title and
+     the assertion, and those surface on the PUBLIC check-runs annotations API.
+     Uploaded artefacts and job logs both need authentication, so a gate that
+     goes red is otherwise opaque to anyone without repo credentials — which is
+     exactly the position a diagnosis was stuck in at run #8. */
   reporter: process.env['CI']
-    ? [['list'], ['html', { open: 'never' }], ['./tests/e2e/reporters/preserve-artefacts.ts']]
+    ? [
+        ['list'],
+        ['github'],
+        ['html', { open: 'never' }],
+        ['./tests/e2e/reporters/preserve-artefacts.ts'],
+      ]
     : [['list'], ['./tests/e2e/reporters/preserve-artefacts.ts']],
 
   use: {
