@@ -1,5 +1,6 @@
 # ════════════════════════════════════════════════════════════════════════════
-# THE RELEASE GATE — five projects plus the accounts-OFF sliver, on Linux.
+# THE RELEASE GATE — five projects in four jobs, plus the accounts-OFF
+# sliver, on Linux.
 #
 # ⚠️ THIS EXISTS BECAUSE SMART APP CONTROL BLOCKED WEBKIT TWICE ON THE ONLY
 # MACHINE THAT COULD RUN THE MATRIX.
@@ -16,11 +17,18 @@
 # still the right thing for a developer who wants the whole matrix in one go;
 # it is no longer what a promotion rests on.
 #
-# ⚠️ THE PROJECTS RUN IN PARALLEL HERE, AND THAT IS NOT A DISAGREEMENT WITH
-# `test-release.mjs`. That script runs them ONE AT A TIME under a worker cap
-# because the local machine runs out of RAM — measured, and the reason four
+# ⚠️ THE JOBS RUN IN PARALLEL HERE, AND THAT IS NOT A DISAGREEMENT WITH
+# `test-release.mjs`. That script runs the projects ONE AT A TIME under a worker
+# cap because the local machine runs out of RAM — measured, and the reason four
 # gates went red. Every job below is its own runner with its own memory, so the
-# constraint the serialisation exists for does not exist here.
+# constraint the local serialisation exists for does not exist here.
+#
+# ⚠️⚠️ BUT ONE CONSTRAINT IS *NOT* PER-RUNNER: THE TEST SUPABASE PROJECT.
+# There is one of it, every runner shares it, and its auth rate limit is a
+# property of the project rather than of any machine. So chromium and webkit —
+# the only two lanes carrying auth specs — share a single job and run one after
+# the other. See the matrix below, and docs/reference/testing.md for the
+# measurement. Splitting them back out re-creates gate run #5.
 # ════════════════════════════════════════════════════════════════════════════
 name: gate
 
@@ -147,10 +155,12 @@ jobs:
   # THE MATRIX — accounts ON, because that is what production serves.
   # ──────────────────────────────────────────────────────────────────────────
   matrix:
-    name: ${{ matrix.project }}
+    name: ${{ matrix.name }}
     needs: preflight
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # ⚠️ 45, NOT 30. chromium and webkit now share one job and run one after
+    # the other, so this job's ceiling is the SUM of the two, not the max.
+    timeout-minutes: 45
     strategy:
       # ⚠️ NOT fail-fast. One project dying must not cancel the other four:
       # the whole point of the lanes is that they answer different questions,
@@ -158,16 +168,37 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - project: chromium
-            browser: chromium
-          - project: firefox
-            browser: firefox
-          - project: webkit
-            browser: webkit
-          - project: pixel-5
-            browser: chromium
-          - project: iphone-13
-            browser: webkit
+          # ⚠️⚠️ chromium AND webkit IN ONE JOB, ON PURPOSE — THEY ARE THE ONLY
+          # TWO LANES THAT RUN AUTH SPECS (chromium 168 auth tests, webkit 89),
+          # and running them concurrently put ~257 magic-link verifications
+          # through ONE Supabase project inside 14 minutes. Gate run #5 died on
+          # 429 over_request_rate_limit; runs #3 and #4 survived the same load,
+          # which is what a threshold looks like from underneath.
+          #
+          # ⚠️ ONE PLAYWRIGHT INVOCATION IS THE MECHANISM, NOT max-parallel.
+          # A scheduler hint asks GitHub not to overlap them; one process at
+          # --workers=1 makes overlap impossible. It also builds the site once
+          # instead of twice and purges the test project once instead of twice.
+          #
+          # ⚠️ THE OTHER THREE RUN ZERO AUTH SPECS (firefox, pixel-5, iphone-13
+          # — check LANES in scripts/lanes.mjs before moving any spec into them)
+          # so they stay fully parallel and cost nothing extra.
+          - name: chromium+webkit
+            slug: auth-heavy
+            projects: --project=chromium --project=webkit
+            browsers: chromium webkit
+          - name: firefox
+            slug: firefox
+            projects: --project=firefox
+            browsers: firefox
+          - name: pixel-5
+            slug: pixel-5
+            projects: --project=pixel-5
+            browsers: chromium
+          - name: iphone-13
+            slug: iphone-13
+            projects: --project=iphone-13
+            browsers: webkit
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -179,8 +210,8 @@ jobs:
       # Only the browser this project needs. `--with-deps` is what installs the
       # system libraries WebKit needs on Linux — the step that has no analogue
       # on the Windows machine, and the reason this works here.
-      - name: Install ${{ matrix.browser }}
-        run: npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Install ${{ matrix.browsers }}
+        run: npx playwright install --with-deps ${{ matrix.browsers }}
 
       - name: Write .env.test from secrets
         env:
@@ -189,7 +220,7 @@ jobs:
           TEST_SUPABASE_SERVICE_ROLE: ${{ secrets.TEST_SUPABASE_SERVICE_ROLE }}
           TEST_SUPABASE_PASSWORD: ${{ secrets.TEST_SUPABASE_PASSWORD }}
           SUPABASE_PRODUCTION_REF: ${{ secrets.SUPABASE_PRODUCTION_REF }}
-          E2E_EMAIL_DOMAIN: ${{ matrix.project }}.mcc-e2e.test
+          E2E_EMAIL_DOMAIN: ${{ matrix.slug }}.mcc-e2e.test
         run: |
           umask 077
           {
@@ -209,11 +240,16 @@ jobs:
 
       # Playwright's `webServer` builds and serves; PUBLIC_AUTH_ENABLED reaches
       # the build through it.
-      - name: ${{ matrix.project }} — accounts ON
+      # ⚠️ --workers=1 IS WRITTEN OUT HERE EVEN THOUGH playwright.config.ts
+      # ALREADY SETS IT UNDER CI. For this job it is not a performance setting,
+      # it is the thing that stops chromium and webkit overlapping — and a
+      # guarantee that lives only in another file is the exact shape of the
+      # dependency that broke gate run #2. See docs/reference/testing.md.
+      - name: ${{ matrix.name }} — accounts ON
         env:
           CI: 'true'
           PUBLIC_AUTH_ENABLED: 'true'
-        run: npx playwright test --project=${{ matrix.project }}
+        run: npx playwright test ${{ matrix.projects }} --workers=1
 
       # ⚠️ ON FAILURE ONLY, AND THIS IS THE WHOLE REASON THE ARTEFACT WORK
       # EXISTS. Three consecutive gates ended in "probably environmental" with
@@ -224,7 +260,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: artefacts-${{ matrix.project }}
+          name: artefacts-${{ matrix.slug }}
           path: test-results/
           retention-days: 30
           if-no-files-found: ignore

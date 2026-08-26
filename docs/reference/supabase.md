@@ -1091,9 +1091,10 @@ anybody screenshotted the page, which showed:
 Probed directly against the test project:
 
 ```
-22 verifications in 7s → 429
+22 verifications in 7s → 429      (ONSET, from cold — not the window)
 no Retry-After header
-clear again within ~2 minutes
+clear again within ~2 minutes     (an ISOLATED probe; a full suite does not —
+                                   a 40s backoff exhausts still limited)
 ```
 
 So it is a **burst** limit, not a quota — which is why `followMagicLink()` in

@@ -157,9 +157,9 @@ const target = all ? '' : specs.map((s) => `tests/e2e/${s}`).join(' ');
  * MEMORY LIMIT.
  *
  * Every signed-in spec mints its own account and verifies its own magic link,
- * and `/auth/v1/verify` is rate limited per IP in a short rolling window —
- * measured against the test project at **22 verifications in 7 seconds**, clear
- * again a couple of minutes later. At the default six workers a selection that
+ * and `/auth/v1/verify` is rate limited — ~22 verifications in 7 seconds trips
+ * it from cold, which is the ONSET and not the window: under real suite load a
+ * 40s backoff exhausts still limited. At the default six workers a selection that
  * happens to include several auth files goes over, Supabase serves a bare
  * `{"code":429,"error_code":"over_request_rate_limit"}`, and the browsers park
  * on it: the report then shows plain navigation timeouts on a DIFFERENT set of
@@ -234,7 +234,14 @@ const result = spawnSync(command, {
   cwd: ROOT,
   stdio: 'inherit',
   shell: true,
-  env: { ...process.env, PUBLIC_AUTH_ENABLED: shapeOn ? 'true' : '' },
+  /* ⚠️ THE HANDSHAKE WITH `preserve-artefacts.ts`. This script copies the
+     artefacts itself, with a better label than the reporter can build, so the
+     reporter stands down. Drop this and every red run is preserved twice. */
+  env: {
+    ...process.env,
+    PUBLIC_AUTH_ENABLED: shapeOn ? 'true' : '',
+    MCC_ARTEFACTS_HANDLED: '1',
+  },
 });
 
 if (result.status !== 0) {

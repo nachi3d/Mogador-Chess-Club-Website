@@ -1110,7 +1110,8 @@ is, and the debugging it cost — is in the reference file; these are the tells:
 - WebKit "target page… closed", or Firefox `RenderCompositorSWGL failed` on a
   **different test each run** → **the Windows browser dying under fan-out**;
 - auth specs timing out on a **different set each run** → **Supabase's auth rate
-  limit**, measured at ~22 verifications in 7s;
+  limit** (~22 verifications in 7s trips it from cold; the window is longer than
+  a 40s backoff);
 - `ERR_CONNECTION_REFUSED` → **read the HOST in the error**: `localhost:4321`
   is a dead preview server, `*.supabase.co` is sustained rate-limit abuse.
 
@@ -1153,7 +1154,8 @@ touching application code.** These are the tells:
 - WebKit "target page… closed", or Firefox `RenderCompositorSWGL failed` on a
   **different test each run** → **the Windows browser dying under fan-out**;
 - auth specs timing out on a **different set each run** → **Supabase's auth rate
-  limit**, measured at ~22 verifications in 7s;
+  limit** (~22 verifications in 7s trips it from cold; the window is longer than
+  a 40s backoff);
 - `ERR_CONNECTION_REFUSED` → **read the HOST in the error**: `localhost:4321`
   is a dead preview server, `*.supabase.co` is sustained rate-limit abuse.
 
@@ -1833,11 +1835,40 @@ especially with bare navigation timeouts and a different set each run.
 Per-job email domains fix the PURGE collision above. They do **nothing** for
 this, and the two are easy to confuse because both appear when runs go parallel.
 
-**The ceiling, measured against the test project:** `/auth/v1/verify` returns
-`{"code":429,"error_code":"over_request_rate_limit"}` at **22 verifications in
-7 seconds**, with **no `Retry-After`**, and clears again a couple of minutes
-later. It is enforced **per IP and per project** — a new email domain is not a
-new bucket.
+### ⚠️ WHAT IS MEASURED — AND WHAT THE FIRST VERSION OF THIS SECTION GOT WRONG
+
+The first version said the ceiling was **"22 verifications in 7 seconds,
+clearing a couple of minutes later, enforced per IP and per project"**, as if
+that one figure described the whole limit. **It describes the ONSET of a cold
+burst and nothing else**, and gate run #5 disproved the rest of the sentence
+within a day.
+
+**MEASURED:**
+
+- **ONSET** — ~22 verifications in ~7s returns
+  `{"code":429,"error_code":"over_request_rate_limit"}`, with **no
+  `Retry-After`**. An isolated probe cleared in ~2 minutes.
+- **RECOVERY IS LONGER THAN 40s UNDER SUITE LOAD** — `followMagicLink()` backs
+  off 0/10s/30s and **exhausts with the project still limited**. Observed at
+  gate run #5 and reproduced locally twice on 2026-08-25.
+- **THE SUSTAINED LOAD THAT CROSSED IT** — chromium runs **168** auth tests and
+  webkit **89**. Concurrently that is **~257 verifications in ~14 minutes
+  (~18/min)**. It failed at run #5 and survived at runs #3 and #4, which is what
+  a threshold looks like from underneath.
+
+**NOT MEASURED — do not restate any of these as fact:**
+
+- the **window length** and the **budget per window**;
+- the **scope**. "Per IP and per project" was asserted, never tested. Two
+  runners on different IPs failed inside one window, which is *consistent with*
+  a per-project limit and does **not** prove it — each could have exhausted a
+  per-IP budget of its own.
+- the **highest sustained rate that is safe**. The repo's answer is to keep the
+  two auth-carrying lanes from overlapping at all, not to aim at a number.
+
+⚠️ **A number with a method beside it survives; a number on its own gets
+restated until it is load-bearing.** This one reached **six files** before
+anybody tested the half of the sentence that was wrong.
 
 **Every signed-in spec mints its own account and verifies its own magic link**,
 so the verification rate is roughly the number of concurrent workers across

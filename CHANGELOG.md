@@ -13,6 +13,32 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ### Fixed
 
+- ⚠️⚠️ **ARTEFACT PRESERVATION LIVED IN THE WRAPPERS, AND THE GATE DOES NOT USE
+  THE WRAPPERS.** `test-branch.mjs` and `test-release.mjs` each copy
+  `test-results/` into `gate-logs/` when they go red — which covers the two
+  commands a session is *told* to run, and covers nothing at all when Playwright
+  is invoked directly. `.github/workflows/gate.yml` invokes it directly
+  (`npx playwright test --project=…`), and so does anybody debugging one spec.
+  - ⚠️ **Playwright clears `test-results/` at the START of every run**, so on
+    that path the evidence survives exactly until the next invocation — and
+    re-running is the first instinct after a red run. It destroyed the
+    diagnosis of gate run #5 **twice in one session**, by the same person who
+    had just built the wrapper-side preservation.
+  - **`tests/e2e/reporters/preserve-artefacts.ts`** is a reporter, which is the
+    one place a run cannot bypass: it is part of the run rather than part of
+    what started it. Wired into `playwright.config.ts` in **both** shapes.
+  - ⚠️ **ONE MECHANISM PER RUN.** The wrappers label their copies better, so
+    they set `MCC_ARTEFACTS_HANDLED=1` and the reporter stands down. Proved by
+    running all three cases: preserved on the direct path, **survived a
+    re-run**, silent under the handshake.
+  - ⚠️⚠️ **AND A TRAP FOUND BY WATCHING IT FAIL: `--reporter=` ON THE COMMAND
+    LINE REPLACES THE CONFIG'S REPORTERS ENTIRELY.** The first probe passed
+    `--reporter=line` and kept nothing, silently. That is also why
+    `test-release.mjs` still needs its own copy — it passes `--reporter=line,json`,
+    so the config's reporters never load there at all.
+  - ⚠️ **`config.rootDir` IS THE TEST ROOT, NOT THE REPO ROOT.** The first
+    version wrote `tests/e2e/gate-logs/`. It now walks up to the directory that
+    owns `package.json`.
 - ⚠️ **BOTH TEST SCRIPTS STILL TOLD YOU A LOCAL RUN WAS THE RELEASE GATE.**
   Moving the matrix to CI changed what a promotion rests on and changed no
   message anywhere, so `test:branch` signed off every run with *"It runs once,
@@ -54,14 +80,30 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
   - ⚠️ **The rule is now in `docs/reference/testing.md`:** anything running the
     suite concurrently must either serialise access or give each run its own
     domain. There is no third option.
-- **The auth rate limit is recorded beside it, because the two look alike and
-  the cures are opposite.** Measured against the test project: `/auth/v1/verify`
-  returns `429 over_request_rate_limit` at **22 verifications in 7 seconds**,
-  with **no `Retry-After`**, clearing a couple of minutes later, enforced **per
-  IP and per project — a new email domain is not a new bucket**. It presents as
-  bare navigation timeouts on a different set of tests each run. The answer is
-  to **serialise the auth-heavy jobs**; widening domains fixes the other problem
-  and will look like it is not working.
+- ⚠️⚠️ **THE AUTH-HEAVY LANES NO LONGER OVERLAP — chromium AND webkit SHARE ONE
+  JOB.** They are the only two lanes carrying auth specs (**168** and **89**
+  tests), and run concurrently they put **~257 magic-link verifications through
+  one Supabase project in ~14 minutes**. Gate run #5 died on
+  `429 over_request_rate_limit`; runs #3 and #4 survived identical load, which
+  is a threshold seen from underneath.
+  - ⚠️ **ONE PLAYWRIGHT INVOCATION, NOT `max-parallel`.** A scheduler hint asks
+    GitHub not to overlap them; `npx playwright test --project=chromium
+    --project=webkit --workers=1` makes overlapping impossible. It also builds
+    the site once instead of twice and purges the test project once.
+  - ⚠️ **`--workers=1` IS WRITTEN IN THE WORKFLOW even though the config already
+    sets it under CI**, because for this job it is the guarantee rather than a
+    performance setting — and a guarantee living only in another file is the
+    exact shape of the dependency that broke run #2.
+  - **The other three lanes carry zero auth specs and stay fully parallel.**
+- ⚠️⚠️ **THE RECORDED RATE-LIMIT FIGURE WAS HALF WRONG, AND IT HAD REACHED SIX
+  FILES.** "22 verifications in 7 seconds, clearing a couple of minutes later,
+  enforced per IP and per project" was written as though one number described
+  the limit. **It describes the ONSET of a cold burst.** Gate run #5 disproved
+  the rest within a day: `followMagicLink()` backs off 0/10s/30s and **exhausts
+  with the project still limited**, so the window is longer than 40s under real
+  load; and the **scope was asserted, never tested**. Every copy now states the
+  method beside the number and lists what is still **unmeasured** — the window,
+  the budget, the scope, and the highest safe sustained rate.
 - ⚠️⚠️ **THE SLIVER JOB RAN WITHOUT CREDENTIALS, WHICH MADE CRITICAL FEATURE 18
   TRIVIALLY TRUE RATHER THAN PROVEN.** The first version of the workflow left
   `.env.test` out of the accounts-OFF job, reasoning that a shape with no

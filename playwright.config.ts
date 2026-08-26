@@ -66,7 +66,14 @@ export default defineConfig({
   forbidOnly: Boolean(process.env['CI']),
   retries: process.env['CI'] ? 2 : 0,
   workers: process.env['CI'] ? 1 : undefined,
-  reporter: process.env['CI'] ? [['list'], ['html', { open: 'never' }]] : [['list']],
+  /* ⚠️ `preserve-artefacts` IS ON BOTH SHAPES AND MUST STAY ON BOTH. It keeps
+     failure artefacts for runs started directly with `npx playwright test` —
+     which is what the CI gate does and what debugging a single spec does — and
+     stands down when a wrapper has already handled them. Removing it from the
+     local shape re-opens the hole in the place it was actually lost. */
+  reporter: process.env['CI']
+    ? [['list'], ['html', { open: 'never' }], ['./tests/e2e/reporters/preserve-artefacts.ts']]
+    : [['list'], ['./tests/e2e/reporters/preserve-artefacts.ts']],
 
   use: {
     baseURL: BASE_URL,
