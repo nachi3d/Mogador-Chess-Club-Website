@@ -1110,8 +1110,8 @@ is, and the debugging it cost — is in the reference file; these are the tells:
 - WebKit "target page… closed", or Firefox `RenderCompositorSWGL failed` on a
   **different test each run** → **the Windows browser dying under fan-out**;
 - auth specs timing out on a **different set each run** → **Supabase's auth rate
-  limit** (~22 verifications in 7s trips it from cold; the window is longer than
-  a 40s backoff);
+  limit**, which is **per IP and per 5 minutes** — look at the ONE job's rate,
+  not at how many jobs are running;
 - `ERR_CONNECTION_REFUSED` → **read the HOST in the error**: `localhost:4321`
   is a dead preview server, `*.supabase.co` is sustained rate-limit abuse.
 
@@ -1154,8 +1154,8 @@ touching application code.** These are the tells:
 - WebKit "target page… closed", or Firefox `RenderCompositorSWGL failed` on a
   **different test each run** → **the Windows browser dying under fan-out**;
 - auth specs timing out on a **different set each run** → **Supabase's auth rate
-  limit** (~22 verifications in 7s trips it from cold; the window is longer than
-  a 40s backoff);
+  limit**, which is **per IP and per 5 minutes** — look at the ONE job's rate,
+  not at how many jobs are running;
 - `ERR_CONNECTION_REFUSED` → **read the HOST in the error**: `localhost:4321`
   is a dead preview server, `*.supabase.co` is sustained rate-limit abuse.
 
@@ -1856,19 +1856,40 @@ within a day.
   (~18/min)**. It failed at run #5 and survived at runs #3 and #4, which is what
   a threshold looks like from underneath.
 
-**NOT MEASURED — do not restate any of these as fact:**
+**THE SCOPE — SETTLED, AND IT REVERSED THE CONCLUSION:**
 
-- the **window length** and the **budget per window**;
-- the **scope**. "Per IP and per project" was asserted, never tested. Two
-  runners on different IPs failed inside one window, which is *consistent with*
-  a per-project limit and does **not** prove it — each could have exhausted a
-  per-IP budget of its own.
-- the **highest sustained rate that is safe**. The repo's answer is to keep the
-  two auth-carrying lanes from overlapping at all, not to aim at a number.
+⚠️⚠️ **THE LIMIT IS PER IP ADDRESS. The Supabase dashboard says so on the
+setting itself**, which is where nobody looked while there was a theory to
+support instead. The window and the budget are named there too:
+**"Rate limit for token verifications", 30 per 5 minutes by default.**
 
-⚠️ **A number with a method beside it survives; a number on its own gets
-restated until it is load-bearing.** This one reached **six files** before
-anybody tested the half of the sentence that was wrong.
+**What that means, and why the first fix was aimed at the wrong thing:**
+
+- **Two runners are two IPs and two buckets.** chromium and webkit were
+  **never contending with each other.** Each was independently over the old
+  default on its own — chromium peaks near **65** verifications per 5 minutes
+  and webkit near **45**, against a ceiling of **30**.
+- So runs #3 and #4 were over the line as well and survived on **Playwright's
+  retries**; run #5 did not. That is retry luck, **not** a concurrency
+  threshold.
+- ⚠️ **Merging the two lanes into one job therefore fixed nothing that was
+  broken.** It reduced project-wide concurrency, which a per-IP limit does not
+  measure, and cost **9m 33s** of gate wall-clock. It was reverted.
+- **The ceiling was the whole fix:** token verifications raised to **300 per 5
+  minutes** on the TEST project, ~4.6× chromium's peak.
+
+⚠️ **SO THE THING TO WATCH IS ONE JOB'S RATE, NEVER HOW MANY JOBS RUN.** A
+single lane that grows enough auth specs can exhaust its own bucket with
+nothing else running anywhere.
+
+**Still unmeasured:** the highest sustained rate that is actually safe. 300 is
+headroom over a measured peak, not a probed ceiling.
+
+⚠️⚠️ **THE LESSON IS NOT ABOUT SUPABASE.** A figure was recorded without its
+method, propagated to **six files**, and then a fix was designed against the
+half of it that had never been checked — while the answer was printed on the
+dashboard beside the setting. **Read the source of a limit before modelling
+it.**
 
 **Every signed-in spec mints its own account and verifies its own magic link**,
 so the verification rate is roughly the number of concurrent workers across

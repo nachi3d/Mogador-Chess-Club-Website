@@ -13,6 +13,29 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ### Fixed
 
+- ⚠️⚠️ **THE RATE LIMIT IS PER IP ADDRESS, THE DASHBOARD SAYS SO, AND THAT
+  REVERSED THE PREVIOUS FIX — WHICH IS REVERTED HERE.** The entry above merged
+  chromium and webkit into one job so they would stop "contending" for one
+  Supabase project's auth budget. **They were never contending.** The setting is
+  **"Rate limit for token verifications", per IP address, per 5 minutes,
+  default 30**, and two CI runners are two IPs and two buckets.
+  - **Each lane was independently over the old default**, with nothing else
+    running: chromium peaks near **65** verifications per 5 minutes, webkit near
+    **45**, against a ceiling of **30**.
+  - **So runs #3 and #4 were over the line too** and survived on Playwright's
+    retries; run #5 did not. **Retry luck, not a concurrency threshold.**
+  - **The merge cost 9m 33s** (15m 25s → 24m 58s, both measured and green) and
+    fixed nothing that was broken. chromium and webkit run in parallel again.
+  - **The actual fix was the ceiling**, raised by Seàn to **300 per 5 minutes**
+    on the TEST project — ~4.6× chromium's peak.
+  - ⚠️ **THE RULE THAT REPLACES THE WRONG ONE: watch ONE job's verification
+    rate, never how many jobs run.** A single lane that grows enough auth specs
+    can exhaust its own bucket with nothing else running anywhere.
+  - ⚠️⚠️ **AND THE LESSON IS NOT ABOUT SUPABASE.** A number was recorded without
+    its method, reached **six files**, and a fix was then designed against the
+    half of it that had never been checked — while the answer was printed on the
+    dashboard next to the setting. **Read the source of a limit before modelling
+    it.**
 - ⚠️⚠️ **ARTEFACT PRESERVATION LIVED IN THE WRAPPERS, AND THE GATE DOES NOT USE
   THE WRAPPERS.** `test-branch.mjs` and `test-release.mjs` each copy
   `test-results/` into `gate-logs/` when they go red — which covers the two

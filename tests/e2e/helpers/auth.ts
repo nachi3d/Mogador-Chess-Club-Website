@@ -156,12 +156,15 @@ export async function reachAccountPage(page: import('@playwright/test').Page): P
  *     limit at gate run #5 and did NOT at runs #3 and #4 — a threshold seen
  *     from underneath.
  *
- * ⚠️ NOT MEASURED, AND NOT TO BE STATED AS IF IT WERE: the window length, the
- * budget per window, and the SCOPE. "Per IP and per project" was asserted here
- * and never tested — two runners on different IPs failed in one window, which
- * is CONSISTENT with a per-project limit but does not prove it, because each
- * could have exhausted a per-IP budget of its own. Nobody has measured the
- * highest sustained rate that is safe.
+ * ⚠️⚠️ THE SCOPE IS PER IP ADDRESS, PER 5 MINUTES — the Supabase dashboard
+ * says so on the setting ("Rate limit for token verifications", default 30;
+ * the TEST project is now 300). This comment previously guessed "per IP and
+ * per project" and a fix was designed against the guess: chromium and webkit
+ * were merged into one CI job to stop them "contending", when two runners are
+ * two IPs and never shared a bucket at all. Each was simply over 30 on its
+ * own. WATCH ONE JOB'S RATE, NOT HOW MANY JOBS RUN.
+ *
+ * Still unmeasured: the highest sustained rate that is actually safe.
  *
  * There is no `Retry-After` header — the body is a bare
  *
