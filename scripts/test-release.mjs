@@ -507,7 +507,17 @@ function runPlaywright(args, label, envOverride = {}) {
     cwd: ROOT,
     stdio: 'inherit',
     shell: true,
-    env: { ...process.env, PLAYWRIGHT_JSON_OUTPUT_NAME: JSON_OUT, ...envOverride },
+    /* ⚠️ MCC_ARTEFACTS_HANDLED tells `preserve-artefacts.ts` to stand down:
+       this script keeps the artefacts itself, labelled by shape and project.
+       Today the `--reporter=` above already means the config's reporters do not
+       load at all, so this is belt and braces — and it is the belt that keeps
+       working if that flag is ever dropped. */
+    env: {
+      ...process.env,
+      PLAYWRIGHT_JSON_OUTPUT_NAME: JSON_OUT,
+      MCC_ARTEFACTS_HANDLED: '1',
+      ...envOverride,
+    },
   });
 
   const tally = new Map();
