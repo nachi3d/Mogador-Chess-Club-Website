@@ -157,9 +157,10 @@ const target = all ? '' : specs.map((s) => `tests/e2e/${s}`).join(' ');
  * MEMORY LIMIT.
  *
  * Every signed-in spec mints its own account and verifies its own magic link,
- * and `/auth/v1/verify` is rate limited — ~22 verifications in 7 seconds trips
- * it from cold, which is the ONSET and not the window: under real suite load a
- * 40s backoff exhausts still limited. At the default six workers a selection that
+ * and `/auth/v1/verify` is rate limited PER IP ADDRESS, per 5 minutes — the
+ * Supabase dashboard names the setting and the window ("Rate limit for token
+ * verifications"; the TEST project is set to 300). Your machine is one IP, so
+ * the whole local suite shares one bucket. At the default six workers a selection that
  * happens to include several auth files goes over, Supabase serves a bare
  * `{"code":429,"error_code":"over_request_rate_limit"}`, and the browsers park
  * on it: the report then shows plain navigation timeouts on a DIFFERENT set of

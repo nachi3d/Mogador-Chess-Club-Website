@@ -1095,6 +1095,10 @@ Probed directly against the test project:
 no Retry-After header
 clear again within ~2 minutes     (an ISOLATED probe; a full suite does not —
                                    a 40s backoff exhausts still limited)
+
+the setting itself, in the dashboard, is the authority:
+  Authentication -> Rate Limits -> "Rate limit for token verifications"
+  PER IP ADDRESS, per 5 minutes. Default 30; TEST project now 300.
 ```
 
 So it is a **burst** limit, not a quota — which is why `followMagicLink()` in
