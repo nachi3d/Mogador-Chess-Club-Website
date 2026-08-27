@@ -1,25 +1,53 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  PLACEHOLDER brand mark — a board in a brass frame.
-  Deliberately generic: it says "chess club" without pretending to be the
-  identity Seàn will eventually commission. Colours are taken straight from
-  src/styles/tokens.css (green-800 / board-light / board-dark / brass-300).
-  Replace this file and re-run `node scripts/build-icons.mjs`.
+  Mogador Chess Club — the simplified mark.
+
+  ⚠️ THIS IS DELIBERATELY NOT THE FULL LOGO. The commissioned artwork lives at
+  src/assets/brand/mark-detailed.png and drives every raster at 180px and up,
+  where its shoulder windows, central arch and gold band all read. Measured on
+  the real file, those close up at 48px and are gone at 32px, and the eight
+  star points become a single blob.
+
+  This mark is what the SMALL sizes get: the favicon, and the header mark, which
+  renders at 36px on desktop and 28px on mobile. It keeps the silhouette and the
+  eight-point star, drops what cannot survive, enlarges the star, and sits
+  squarer (0.80 vs the source's 0.59) so a square icon is not mostly margin.
+
+  Regenerate the rasters with: node scripts/build-icons.mjs
 -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Mogador Chess Club">
-  <rect width="512" height="512" rx="96" fill="#163425"/>
-  <g>
-    <rect x="112" y="112" width="288" height="288" fill="#e8dcbe"/>
-    <g fill="#4f7053">
-      <rect x="112" y="112" width="72" height="72"/>
-      <rect x="256" y="112" width="72" height="72"/>
-      <rect x="184" y="184" width="72" height="72"/>
-      <rect x="328" y="184" width="72" height="72"/>
-      <rect x="112" y="256" width="72" height="72"/>
-      <rect x="256" y="256" width="72" height="72"/>
-      <rect x="184" y="328" width="72" height="72"/>
-      <rect x="328" y="328" width="72" height="72"/>
-    </g>
+  <!--
+    ⚠️ THE FAVICON FLIPS WITH THE BROWSER'S OWN CHROME, NOT WITH THE SITE'S
+    THEME. A dark-green rook is close to invisible in a dark-mode tab strip,
+    and the site's theme cannot reach a favicon. Browsers that read SVG
+    favicons honour this media query; the ones that do not fall back to
+    favicon-32.png, which is the dark ink on the light default.
+  -->
+  <style>
+    .ink { fill: #1d3b2c; }
+    @media (prefers-color-scheme: dark) { .ink { fill: #fffdf7; } }
+  </style>
+  <g class="ink" fill="#1d3b2c">
+    <!-- finial + dome -->
+    <circle cx="256" cy="22" r="9"/>
+    <path d="M 206 86 a 50 50 0 0 1 100 0 z"/>
+    <!-- crown: a WALL with square battlements, and vertical sides. Tapering it
+         straight into the body reads as a queen's coronet, not a rook. -->
+    <path d="M 115 86 H 177 V 128 H 206 V 86
+             H 306 V 128 H 335 V 86 H 397
+             V 184 H 115 Z"/>
+    <!-- the flare from the wall down to the waist, kept as its own shape so
+         the crown above it stays square-shouldered -->
+    <path d="M 115 184 H 397 L 349 229 H 163 Z"/>
+    <!-- body: a flared skirt, narrow under the crown, wide at the foot -->
+    <path d="M 163 229
+             C 157 292 117 337 113 381
+             H 399
+             C 395 337 355 292 349 229 Z"/>
+    <!-- base: a step and a plinth, the plinth the widest thing in the mark -->
+    <rect x="98" y="381" width="316" height="50" rx="4"/>
+    <rect x="77" y="435" width="358" height="45" rx="5"/>
   </g>
-  <rect x="104" y="104" width="304" height="304" fill="none" stroke="#d9bd77" stroke-width="16"/>
+  <!-- the Souiri eight-point star, enlarged so its points survive -->
+  <polygon fill="#c69b4e" points="256.0,251.0 272.0,271.5 297.7,268.3 294.5,294.0 315.0,310.0 294.5,326.0 297.7,351.7 272.0,348.5 256.0,369.0 240.0,348.5 214.3,351.7 217.5,326.0 197.0,310.0 217.5,294.0 214.3,268.3 240.0,271.5"/>
 </svg>

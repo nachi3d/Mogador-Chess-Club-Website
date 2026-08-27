@@ -71,7 +71,16 @@ const ROOT = fileURLToPath(new URL('../', import.meta.url));
 const CONTENT = join(ROOT, 'src', 'content');
 const SUPPLIED = join(ROOT, 'src', 'assets', 'video');
 const OUT = join(ROOT, 'public', 'video');
-const MARK = join(ROOT, 'src', 'assets', 'brand', 'mark.svg');
+/**
+ * ⚠️ THE LIGHT MARK, BECAUSE `HOUSE` IS ALMOST BLACK (#101a14).
+ *
+ * This was `mark.svg` and had to change with the logo. The placeholder mark
+ * carried its own green panel behind a light board, so it read on any ground.
+ * The commissioned mark is dark-green ink on transparency — on the house plate
+ * that is about 1.3:1, i.e. invisible, and nothing would have failed: the
+ * poster would simply have shipped with an empty corner.
+ */
+const MARK = join(ROOT, 'src', 'assets', 'brand', 'mark-light.svg');
 
 /**
  * ⚠️ THESE TWO WIDTHS ARE MIRRORED IN `src/components/VideoFacade.astro`'s

@@ -11,6 +11,52 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+## [0.25.0] — 2026-08-27
+
+### Added
+
+- **The commissioned brand mark is in** — a rook with a Souiri dome and an
+  eight-point star, replacing the placeholder board-in-a-brass-frame.
+  ⚠️ **IT SHIPS AS TWO ASSETS, AND THE SPLIT WAS MEASURED RATHER THAN
+  ASSUMED.** Rendered and looked at:
+  - **180px** — every detail reads: shoulder windows, central arch, all eight
+    star points, the gold band.
+  - **48px** — the star's points are gone, the windows have closed, the band is
+    a smear.
+  - **32px** — a dark blob with a gold speck.
+  - It is also **tall (0.59 w/h)**, so a square icon is mostly margin: at 32px
+    the rook is only **~19px wide**.
+  - So `src/assets/brand/mark.svg` is a **simplified** mark — hand-authored from
+    a row-profile of the artwork, keeping the silhouette and the star, dropping
+    what closes up, enlarging the star from 21% to 33% of the width, and sitting
+    squarer (0.80). `mark-detailed.png` — the artwork, with the cream keyed out
+    to transparency — drives every raster from 180px up.
+  - ⚠️ **A first attempt tapered the crown straight into the body and read as a
+    QUEEN'S CORONET.** The crown needs vertical walls and square battlements to
+    read as a rook. Caught by looking at it.
+- **A light variant, `mark-light.svg`**, because the mark is dark-green ink with
+  no frame of its own. `--mcc-surface-inverse` is a **dark colour in all eight
+  theme/mode combinations**, so the header takes the light mark.
+- **The favicon carries its own `prefers-color-scheme` rule.** The site's theme
+  cannot reach a favicon, and a dark rook is invisible in a dark tab strip.
+
+### Fixed
+
+- ⚠️⚠️ **TWO CALL SITES WOULD HAVE GONE SILENTLY BLANK, AND NEITHER WOULD HAVE
+  FAILED ANYTHING.** The placeholder mark carried its own green panel, so it
+  read on any ground; the new one is transparent dark-green ink.
+  - **The maskable icon flooded with `themeColor` (green-800)** and composited a
+    dark-green rook onto it. The plate is now **cream-100**, which is the logo's
+    own field *and* was already the manifest's `background_color` — so the two
+    now agree instead of quietly disagreeing.
+  - **`fetch-video-posters.mjs` drew the mark on `HOUSE` (#101a14)**, which with
+    the new ink is about **1.3:1**. It takes the light mark now. Nothing would
+    have errored — the poster would have shipped with an empty corner.
+- **`icon-192` and `icon-512` are opaque rather than transparent.** A launcher
+  that puts a transparent dark rook on dark chrome shows nothing, and we do not
+  get to choose the chrome.
+
+
 ## [0.24.0] — 2026-08-27
 
 ### Fixed
@@ -7211,7 +7257,8 @@ Foundation only: no real content, no interactive board yet.
   `url()` references unresolved and the fonts silently 404 into a Georgia
   fallback. `scripts/build-fonts.mjs` self-hosts them instead. See CLAUDE.md.
 
-[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.24.0...HEAD
+[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.25.0...HEAD
+[0.25.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.24.0...v0.25.0
 [0.24.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.23.0...v0.24.0
 [0.23.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.22.0...v0.23.0
 [0.22.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.21.0...v0.22.0
