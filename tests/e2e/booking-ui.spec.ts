@@ -65,19 +65,70 @@ async function panels(page: Page): Promise<Panel[]> {
 
 /**
  * A panel far enough out that `cancel_booking()`'s two-hour cutoff cannot
- * interfere, so booking AND cancelling are both available.
+ * interfere, so booking AND cancelling are both available — AND durable enough
+ * that another run cannot delete it out from under this one.
  *
  * ⚠️ SKIPS RATHER THAN GUESSES when the baked agenda holds nothing suitable.
  * A vacuous pass here would read as "booking works".
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️⚠️ THE DURABILITY FILTER IS NOT BELT AND BRACES — IT IS THE FIX FOR A RED
+ * GATE, AND THE SYMPTOM POINTED AT THE BROWSER.
+ *
+ * This spec drives the BAKED agenda, so it books whatever the build happened to
+ * capture. `booking.spec.ts` creates BARE sessions at runtime — no title, no
+ * notes — and deletes them by id when it finishes. `purgeLeakedSessions()`
+ * deletes every bare row too, globally, in both phases of every run.
+ *
+ * With chromium and webkit as separate CI jobs those two things overlap:
+ * chromium runs `booking.spec.ts`, webkit does NOT (check LANES), and webkit's
+ * build can bake one of chromium's in-flight sessions. chromium then deletes
+ * it, webkit presses Réserver, and the database correctly answers "that session
+ * does not exist" — which the UI correctly renders as
+ * « Cette séance n'existe plus. » and no cancel button.
+ *
+ * ⚠️ IT LOOKED EXACTLY LIKE THE WEBKIT CLICK-SYNTHESIS BUG: webkit-only, both
+ * booking tests, all three attempts, chromium green on the same specs. It was
+ * neither the browser nor the application — the click reached the handler and
+ * the refusal was truthful. Gate runs #8 and #10; the error-context snapshot is
+ * what settled it, by showing the refusal message on the page.
+ *
+ * ⚠️ SO: NEVER BOOK A ROW THAT MATCHES THE PURGE PREDICATE. A seeded session
+ * says something in at least one of these fields; a transient one says nothing
+ * in any of them. If that predicate ever changes in `helpers/purge.ts`, this
+ * must change with it — they are two halves of one rule.
+ * ═════════════════════════════════════════════════════════════════════════
  */
 async function bookablePanel(page: Page): Promise<Panel> {
   const all = await panels(page);
   const cutoff = Date.now() + TWO_HOURS_MS;
-  const usable = all.find((p) => Number.isFinite(p.startsAt) && p.startsAt > cutoff);
+  const future = all.filter((p) => Number.isFinite(p.startsAt) && p.startsAt > cutoff);
+
+  let usable: Panel | undefined;
+  if (future.length > 0) {
+    const { data, error } = await adminClient()
+      .from('sessions')
+      .select('id,title_fr,note_fr,note_en')
+      .in(
+        'id',
+        future.map((p) => p.sessionId),
+      );
+    /* ⚠️ A FAILED QUERY IS NOT "NOTHING IS DURABLE". Throwing keeps this from
+       degrading into a silent skip, which would read as "booking works". */
+    if (error) throw new Error(`could not check session durability: ${error.message}`);
+    const durable = new Set(
+      (data ?? [])
+        .filter((r) => r['title_fr'] !== null || r['note_fr'] !== null || r['note_en'] !== null)
+        .map((r) => String(r['id'])),
+    );
+    usable = future.find((p) => durable.has(p.sessionId));
+  }
+
   test.skip(
     !usable,
-    'the baked agenda carries no session more than two hours out — re-seed the ' +
-      'test project and rebuild; a pass here would be vacuous',
+    'the baked agenda carries no SEEDED session more than two hours out — a bare ' +
+      'one is deletable by any concurrent run, so booking it proves nothing. ' +
+      'Re-seed the test project and rebuild.',
   );
   return usable!;
 }

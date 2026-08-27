@@ -13,6 +13,33 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ### Fixed
 
+- ⚠️⚠️ **THE WEBKIT BOOKING FAILURE WAS NOT WEBKIT, AND NOT THE APPLICATION —
+  ONE JOB WAS DELETING ANOTHER JOB'S SESSION.** Gate runs #8 and #10 went red on
+  `booking-ui.spec.ts`, webkit only, both booking tests, all three attempts,
+  with chromium green on the same specs. That is the exact profile of the
+  "Créer" click-synthesis defect, and it was none of it.
+  - **The click reached the handler and the refusal was truthful.** The page
+    said « Cette séance n'existe plus. » on every attempt; `[data-booking-cancel]`
+    was correctly absent because no booking was made. The `error-context.md`
+    snapshot settled it — the second time this release that reading the artefact
+    beat reasoning about the symptom.
+  - **The mechanism:** `booking.spec.ts` creates **bare** sessions (no title, no
+    notes) at runtime and runs in **chromium only**. `booking-ui.spec.ts` drives
+    the **baked** agenda (Critical Feature 49), so it books whatever the build
+    captured — and runs in **chromium and webkit**. As separate jobs, webkit's
+    build baked one of chromium's in-flight rows, chromium deleted it, webkit
+    pressed Réserver.
+  - ⚠️ **AND THE PER-JOB `E2E_EMAIL_DOMAIN` DOES NOT COVER THIS.** It isolates
+    **users**; `sessions` have no owner column, and `purgeLeakedSessions()`
+    deletes every bare row **globally** in both phases of every run. The note
+    added earlier this release said "there is no third option", which read as
+    though the domain isolated the whole project. Corrected.
+  - **The fix:** `bookablePanel()` now refuses any row matching the purge
+    predicate — a seeded session says something in at least one of `title_fr`,
+    `note_fr`, `note_en`; a transient one says nothing in any of them. It still
+    **skips rather than guesses**, so a vacuous pass is still impossible.
+  - ⚠️ **THOSE TWO PLACES ARE ONE RULE IN TWO FILES** — `helpers/purge.ts` and
+    `bookablePanel()`. Change one and change the other; both now say so.
 - ⚠️⚠️ **THE RATE LIMIT IS PER IP ADDRESS, THE DASHBOARD SAYS SO, AND THAT
   REVERSED THE PREVIOUS FIX — WHICH IS REVERTED HERE.** The entry above merged
   chromium and webkit into one job so they would stop "contending" for one
