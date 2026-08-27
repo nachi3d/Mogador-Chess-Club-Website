@@ -1957,3 +1957,92 @@ file is run on its own. `ERR_CONNECTION_REFUSED` is read by its HOST:
 - ⚠️ **The real fix is a bigger rate limit on the TEST project**, which is a
   dashboard setting and is already an open backlog item. Mitigation is not
   headroom.
+
+---
+
+## ⚠️ THE ACCOUNTS-OFF SLIVER IS NOT A SECOND MATRIX
+
+**Read when:** changing the gate, the sliver, or anything Critical Feature 18 rests on.
+
+
+Exactly two specs can only be proved by an accounts-**OFF build**, because they
+are claims about the **artefact** that shape produces — `auth-disabled.spec.ts`
+and `admin.spec.ts`'s *"the admin surfaces are NOT BUILT"* describe. The second
+build is **irreducible**: you cannot inspect an artefact you did not produce.
+It runs last, **after a sweep**, or `reuseExistingServer` would run the OFF
+specs against the ON build.
+
+⚠️ **IF THE SLIVER RUNS ZERO TESTS THE GATE FAILS**, naming Critical Feature 18.
+
+---
+
+## ⚠️ `check-lanes.mjs` ADVISES AND MUST NEVER GATE
+
+**Read when:** tempted to make the lane heuristic gate the build.
+
+
+It always exits 0, and promoting it to a build step would be **actively
+harmful**: the spec that caught the WebKit "Créer" bug **scores zero**, because
+the heuristic sees what a spec *asserts* and that defect lived in how it
+*drives* the page. A green tick would read as "the lanes are complete".
+
+⚠️ **What DOES gate is `missingLaneSpecs()`** — a lane naming a spec that does
+not exist makes `testMatch` match **nothing**, so the project runs zero tests
+and the gate goes green having proved less than it claims.
+
+---
+
+## ⚠️ DO NOT RUN THE MATRIX ON A FEATURE BRANCH. EVER. NOT "TO BE SAFE".
+
+**Read when:** about to run the full matrix on a branch, or re-arguing the policy.
+
+
+The reasoning is already done, so it is not re-litigated. **A chromium failure
+is a failure; a chromium pass is enough to merge to `dev`**, and nothing reaches
+a reader without passing `test:release` first.
+
+⚠️ **THE "CRITICAL PATH" TRIGGER IS GONE** — forcing the matrix on any branch
+touching the board island, the validator, i18n routing or the SW read as
+prudence and **functioned as a loophole**, because almost everything here
+touches one of those four. `scripts/spec-map.mjs` gained precision instead.
+**If you believe you have found the exception:** change this policy in CLAUDE.md
+in the same commit, with the reason — a one-off exception no future session
+knows about is precisely how the last policy eroded.
+
+**➡️ The audit behind every number above — the per-spec costs, the flag-shape
+table, the four browserless specs, what each lane was EARNED by, the
+four-red-gate memory diagnosis and the rejected alternatives:
+[`docs/reference/testing.md`](./docs/reference/testing.md).**
+
+---
+
+## ⚠️⚠️ AND THE CONVERSE IS ALSO TRUE: PASSING SERIALLY IS **NOT** A CLEAN BILL
+
+**Read when:** about to call a flaky failure environmental, or writing a helper that waits on an island.
+
+
+`play.spec.ts` flaked at **three consecutive gates**, passed every serial re-run,
+and was waved through all three times on the rule above. It was a **real defect
+in the application** the whole time.
+
+- ⚠️ **A HYDRATION RACE HAS EXACTLY THE SIGNATURE OF CONTENTION** — it needs load
+  to widen the window, it moves between tests, and it evaporates under
+  `--workers=1`. The serial re-run cannot distinguish the two, so it must not be
+  the last word.
+- ⚠️ **THE DISCRIMINATOR IS THE FAILURE ARTEFACT, NOT THE RE-RUN.**
+  `error-context.md` carries the page state; **read it before blaming the
+  machine.**
+- ⚠️ **AN ISLAND'S READINESS MUST BE OBSERVABLE, AND `data-ready` IS THE
+  CONVENTION** — every view carries it. A wait on server-rendered markup proves
+  the HTML arrived and **nothing about whether anything is listening**.
+- ⚠️ **A HELPER WAITS ON READINESS, NEVER ON A PROXY FOR IT**: `<cg-board>` is
+  created in `BoardSurface`'s effect, and `BoardSurface` is a **child**, so it
+  appears a render BEFORE the parent view publishes `data-ready`.
+- ⚠️ **AND A PROSE RULE THAT NOTHING CHECKS IS ALREADY BEING BROKEN SOMEWHERE.**
+  "No control inside a hydrating island may look usable before it is" was written
+  down one release before anything enforced it, and was false on **132 pages** at
+  the time. It is now Critical Feature 76 and `check-island-controls.mjs`.
+
+**➡️ The full symptom table, the three-gate diagnosis and the per-island audit:
+[`docs/reference/testing.md`](./docs/reference/testing.md) and
+[`docs/reference/board.md`](./docs/reference/board.md).**
