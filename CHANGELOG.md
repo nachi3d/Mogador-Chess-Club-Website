@@ -364,6 +364,26 @@ and that is taken on his word rather than verified here.
 
 ### Changed
 
+- **CLAUDE.md split from 82% to 78% of the size guard** — 123,159 → 116,643
+  characters, so it stops warning on every build. Nine blocks moved **verbatim**
+  into the reference file for their area, each with a **Read when** line, and a
+  rule plus a pointer left behind:
+  - the PowerShell round-trip encoding trap → `dev-environment.md`
+  - content validity and the "a legal position is not a correct one" narrative
+    → `content.md`
+  - the accounts-OFF sliver, `check-lanes.mjs`, "do not run the matrix on a
+    feature branch", and "passing serially is not a clean bill" →`testing.md`
+  - Play mode's level-purpose and two-levers narrative → `engine.md`
+  - "why static, and why no Supabase" → `roadmap.md`
+  - the add-a-table migration checklist → `supabase.md`
+  - ⚠️ **`scripts/check-split.mjs` reports `✓ Nothing was lost`** — 1,286 lines
+    stayed, 170 moved into `docs/`, nothing newly declared obsolete. **No line
+    was reworded on its way out**, which is the one thing that makes that check
+    meaningful.
+  - ⚠️ **The margin is now ~3,400 characters, which is thin.** The next
+    candidates, in order, are `## Routes`, `## Stack overview` and the
+    `## Content model` detail — but not the Critical Features list, which is the
+    canonical numbered set and belongs in the file that is always loaded.
 - ⚠️⚠️ **THE RANK THRESHOLDS MOVED AGAIN, IN THE SAME RELEASE, AND THAT IS THE
   POINT RATHER THAN CHURN.** Cutting 65 points of content dropped full marks
   from 965 to **900** (780 learning + 120 games) — which pushed Dame (then 800)
