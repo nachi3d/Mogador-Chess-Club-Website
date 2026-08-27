@@ -11,6 +11,8 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+## [0.25.0] — 2026-08-27
+
 ### Added
 
 - **The commissioned brand mark is in** — a rook with a Souiri dome and an
@@ -7255,7 +7257,8 @@ Foundation only: no real content, no interactive board yet.
   `url()` references unresolved and the fonts silently 404 into a Georgia
   fallback. `scripts/build-fonts.mjs` self-hosts them instead. See CLAUDE.md.
 
-[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.24.0...HEAD
+[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.25.0...HEAD
+[0.25.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.24.0...v0.25.0
 [0.24.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.23.0...v0.24.0
 [0.23.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.22.0...v0.23.0
 [0.22.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.21.0...v0.22.0
