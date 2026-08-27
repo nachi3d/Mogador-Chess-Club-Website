@@ -16,18 +16,7 @@
   Regenerate the rasters with: node scripts/build-icons.mjs
 -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Mogador Chess Club">
-  <!--
-    ⚠️ THE FAVICON FLIPS WITH THE BROWSER'S OWN CHROME, NOT WITH THE SITE'S
-    THEME. A dark-green rook is close to invisible in a dark-mode tab strip,
-    and the site's theme cannot reach a favicon. Browsers that read SVG
-    favicons honour this media query; the ones that do not fall back to
-    favicon-32.png, which is the dark ink on the light default.
-  -->
-  <style>
-    .ink { fill: #1d3b2c; }
-    @media (prefers-color-scheme: dark) { .ink { fill: #fffdf7; } }
-  </style>
-  <g class="ink" fill="#1d3b2c">
+  <g fill="#fffdf7">
     <!-- finial + dome -->
     <circle cx="256" cy="22" r="9"/>
     <path d="M 206 86 a 50 50 0 0 1 100 0 z"/>
@@ -49,5 +38,5 @@
     <rect x="77" y="435" width="358" height="45" rx="5"/>
   </g>
   <!-- the Souiri eight-point star, enlarged so its points survive -->
-  <polygon fill="#c69b4e" points="256.0,251.0 272.0,271.5 297.7,268.3 294.5,294.0 315.0,310.0 294.5,326.0 297.7,351.7 272.0,348.5 256.0,369.0 240.0,348.5 214.3,351.7 217.5,326.0 197.0,310.0 217.5,294.0 214.3,268.3 240.0,271.5"/>
+  <polygon fill="#d9bd77" points="256.0,251.0 272.0,271.5 297.7,268.3 294.5,294.0 315.0,310.0 294.5,326.0 297.7,351.7 272.0,348.5 256.0,369.0 240.0,348.5 214.3,351.7 217.5,326.0 197.0,310.0 217.5,294.0 214.3,268.3 240.0,271.5"/>
 </svg>
