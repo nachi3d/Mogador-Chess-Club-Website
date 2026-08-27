@@ -1821,9 +1821,47 @@ subdomain costs nothing and needs to resolve nowhere.
 ### ⚠️ THE RULE FOR THE NEXT PERSON
 
 **Anything that runs the suite concurrently must either serialise access to the
-test project or give each concurrent run its own `E2E_EMAIL_DOMAIN`.** There is
-no third option, and the failure mode if you forget is not subtle — it is an
-instant, confusing death in whichever run started second.
+test project or give each concurrent run its own `E2E_EMAIL_DOMAIN`.** The
+failure mode if you forget is not subtle — it is an instant, confusing death in
+whichever run started second.
+
+### ⚠️⚠️ AND THE DOMAIN ONLY COVERS *USERS* — SESSIONS ARE STILL SHARED
+
+The paragraph above originally ended "there is no third option", which read as
+though a per-job domain isolated the whole project. **It isolates users.**
+`sessions` rows have no owner column, so nothing about them is scoped by email
+domain at all, and `purgeLeakedSessions()` deletes every bare row **globally**,
+in both phases of **every** run.
+
+That is a second collision, and it took two red gates to see because it wears a
+completely different mask:
+
+- `booking.spec.ts` creates **bare** sessions (no title, no notes) at runtime
+  and deletes them by id when it finishes. It runs in **chromium only**.
+- `booking-ui.spec.ts` drives the **baked** agenda (Critical Feature 49), so it
+  books whatever the build captured — including another job's in-flight row.
+  It runs in **chromium and webkit**.
+- Split into separate jobs, webkit's build can bake one of chromium's transient
+  sessions. chromium deletes it. webkit presses Réserver. The database answers
+  truthfully that the session is gone.
+
+⚠️ **IT PRESENTED AS A WEBKIT BUG AND WAS NOT ONE.** webkit-only, both booking
+tests, all three attempts, chromium green on the same specs — the exact profile
+of the "Créer" click-synthesis defect. **The click reached the handler and the
+refusal was correct**; the page said « Cette séance n'existe plus. » the whole
+time. ⚠️ **The `error-context.md` snapshot is what settled it**, which is the
+second time this release that reading the artefact beat reasoning about the
+symptom.
+
+**The fix is in `bookablePanel()`:** never book a row that matches the purge
+predicate. A seeded session says something in at least one of `title_fr`,
+`note_fr`, `note_en`; a transient one says nothing in any of them.
+⚠️ **Those two places are one rule in two files — change one and change the
+other.**
+
+⚠️ **THE GENERAL LESSON: ask what ELSE the shared project holds.** Users were
+isolated and the job was declared done. Sessions, and anything else added later
+without an owner, were not.
 
 ---
 

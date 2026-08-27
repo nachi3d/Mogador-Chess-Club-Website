@@ -75,6 +75,18 @@ async function findE2EUsers(): Promise<Array<{ id: string; email: string }>> {
  * ⚠️ A SPEC THAT STARTS CREATING SESSIONS WITH NOTES MUST DELETE THEM ITSELF.
  * Widening this predicate again is how a seeded row gets eaten a second time.
  *
+ * ⚠️⚠️ AND THIS DELETE IS GLOBAL — IT IS NOT SCOPED BY `E2E_EMAIL_DOMAIN`.
+ * That per-job domain isolates USERS. Sessions have no owner, so every
+ * concurrent run's setup and teardown can delete every other run's bare
+ * sessions, and `booking.spec.ts` creates bare sessions while it runs.
+ * `booking-ui.spec.ts` drives the BAKED agenda, so it can be holding a panel
+ * for a row another job is about to remove — which is what turned CI gate runs
+ * #8 and #10 red, looking exactly like a WebKit bug.
+ *
+ * ⚠️ THE OTHER HALF OF THIS RULE LIVES IN `booking-ui.spec.ts`'s
+ * `bookablePanel()`, which refuses to book any row matching the predicate
+ * below. **Change one and you must change the other.**
+ *
  * Runs in BOTH phases, like the user purge: before, because a crashed run left
  * residue; after, because this one might crash too.
  */
