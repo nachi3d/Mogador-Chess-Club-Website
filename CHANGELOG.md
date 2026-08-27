@@ -11,6 +11,250 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+## [0.24.0] — 2026-08-27
+
+### Fixed
+
+- ⚠️⚠️ **THE WEBKIT BOOKING FAILURE WAS NOT WEBKIT, AND NOT THE APPLICATION —
+  ONE JOB WAS DELETING ANOTHER JOB'S SESSION.** Gate runs #8 and #10 went red on
+  `booking-ui.spec.ts`, webkit only, both booking tests, all three attempts,
+  with chromium green on the same specs. That is the exact profile of the
+  "Créer" click-synthesis defect, and it was none of it.
+  - **The click reached the handler and the refusal was truthful.** The page
+    said « Cette séance n'existe plus. » on every attempt; `[data-booking-cancel]`
+    was correctly absent because no booking was made. The `error-context.md`
+    snapshot settled it — the second time this release that reading the artefact
+    beat reasoning about the symptom.
+  - **The mechanism:** `booking.spec.ts` creates **bare** sessions (no title, no
+    notes) at runtime and runs in **chromium only**. `booking-ui.spec.ts` drives
+    the **baked** agenda (Critical Feature 49), so it books whatever the build
+    captured — and runs in **chromium and webkit**. As separate jobs, webkit's
+    build baked one of chromium's in-flight rows, chromium deleted it, webkit
+    pressed Réserver.
+  - ⚠️ **AND THE PER-JOB `E2E_EMAIL_DOMAIN` DOES NOT COVER THIS.** It isolates
+    **users**; `sessions` have no owner column, and `purgeLeakedSessions()`
+    deletes every bare row **globally** in both phases of every run. The note
+    added earlier this release said "there is no third option", which read as
+    though the domain isolated the whole project. Corrected.
+  - **The fix:** `bookablePanel()` now refuses any row matching the purge
+    predicate — a seeded session says something in at least one of `title_fr`,
+    `note_fr`, `note_en`; a transient one says nothing in any of them. It still
+    **skips rather than guesses**, so a vacuous pass is still impossible.
+  - ⚠️ **THOSE TWO PLACES ARE ONE RULE IN TWO FILES** — `helpers/purge.ts` and
+    `bookablePanel()`. Change one and change the other; both now say so.
+- ⚠️⚠️ **THE RATE LIMIT IS PER IP ADDRESS, THE DASHBOARD SAYS SO, AND THAT
+  REVERSED THE PREVIOUS FIX — WHICH IS REVERTED HERE.** The entry above merged
+  chromium and webkit into one job so they would stop "contending" for one
+  Supabase project's auth budget. **They were never contending.** The setting is
+  **"Rate limit for token verifications", per IP address, per 5 minutes,
+  default 30**, and two CI runners are two IPs and two buckets.
+  - **Each lane was independently over the old default**, with nothing else
+    running: chromium peaks near **65** verifications per 5 minutes, webkit near
+    **45**, against a ceiling of **30**.
+  - **So runs #3 and #4 were over the line too** and survived on Playwright's
+    retries; run #5 did not. **Retry luck, not a concurrency threshold.**
+  - **The merge cost 9m 33s** (15m 25s → 24m 58s, both measured and green) and
+    fixed nothing that was broken. chromium and webkit run in parallel again.
+  - **The actual fix was the ceiling**, raised by Seàn to **300 per 5 minutes**
+    on the TEST project — ~4.6× chromium's peak.
+  - ⚠️ **THE RULE THAT REPLACES THE WRONG ONE: watch ONE job's verification
+    rate, never how many jobs run.** A single lane that grows enough auth specs
+    can exhaust its own bucket with nothing else running anywhere.
+  - ⚠️⚠️ **AND THE LESSON IS NOT ABOUT SUPABASE.** A number was recorded without
+    its method, reached **six files**, and a fix was then designed against the
+    half of it that had never been checked — while the answer was printed on the
+    dashboard next to the setting. **Read the source of a limit before modelling
+    it.**
+- ⚠️⚠️ **ARTEFACT PRESERVATION LIVED IN THE WRAPPERS, AND THE GATE DOES NOT USE
+  THE WRAPPERS.** `test-branch.mjs` and `test-release.mjs` each copy
+  `test-results/` into `gate-logs/` when they go red — which covers the two
+  commands a session is *told* to run, and covers nothing at all when Playwright
+  is invoked directly. `.github/workflows/gate.yml` invokes it directly
+  (`npx playwright test --project=…`), and so does anybody debugging one spec.
+  - ⚠️ **Playwright clears `test-results/` at the START of every run**, so on
+    that path the evidence survives exactly until the next invocation — and
+    re-running is the first instinct after a red run. It destroyed the
+    diagnosis of gate run #5 **twice in one session**, by the same person who
+    had just built the wrapper-side preservation.
+  - **`tests/e2e/reporters/preserve-artefacts.ts`** is a reporter, which is the
+    one place a run cannot bypass: it is part of the run rather than part of
+    what started it. Wired into `playwright.config.ts` in **both** shapes.
+  - ⚠️ **ONE MECHANISM PER RUN.** The wrappers label their copies better, so
+    they set `MCC_ARTEFACTS_HANDLED=1` and the reporter stands down. Proved by
+    running all three cases: preserved on the direct path, **survived a
+    re-run**, silent under the handshake.
+  - ⚠️⚠️ **AND A TRAP FOUND BY WATCHING IT FAIL: `--reporter=` ON THE COMMAND
+    LINE REPLACES THE CONFIG'S REPORTERS ENTIRELY.** The first probe passed
+    `--reporter=line` and kept nothing, silently. That is also why
+    `test-release.mjs` still needs its own copy — it passes `--reporter=line,json`,
+    so the config's reporters never load there at all.
+  - ⚠️ **`config.rootDir` IS THE TEST ROOT, NOT THE REPO ROOT.** The first
+    version wrote `tests/e2e/gate-logs/`. It now walks up to the directory that
+    owns `package.json`.
+- ⚠️ **BOTH TEST SCRIPTS STILL TOLD YOU A LOCAL RUN WAS THE RELEASE GATE.**
+  Moving the matrix to CI changed what a promotion rests on and changed no
+  message anywhere, so `test:branch` signed off every run with *"It runs once,
+  at promotion, via `npm run test:release`"* and `test-release.mjs` opened with
+  *"the release gate"* and *"THIS IS THE ONLY PLACE THE GATE BELONGS"*.
+  - **Both now name the `gate` workflow and the file it lives in.**
+    `test:branch` also says what starts it — a push to `dev` or `main`, or a
+    pull request into either — because "CI runs it" is not actionable if you do
+    not know what triggers it.
+  - ⚠️ **`test-release.mjs` is described as still correct and still maintained**,
+    not deprecated. It is the right thing for a developer who wants the matrix
+    on their own machine; it is simply not what a promotion may rest on.
+  - ⚠️ **Its header now records why serialising there does not contradict
+    parallelising in CI** — memory, per-runner — **and that the serialisation
+    also handed the shared test Supabase project one run at a time**, pointing
+    at `docs/reference/testing.md`. That is where somebody parallelising the
+    next thing will actually be reading.
+  - **Not a quick change:** `scripts/(lanes|test-release|test-branch|spec-map)`
+    is on `quick.mjs`'s FORBIDDEN list as *"what the release gate runs"*. The
+    pattern cannot tell a message string from a spec-selection edit, which is
+    the point — the fast path must never be able to shorten the gate that
+    polices it. Normal branch, full `test:branch`.
+- ⚠️⚠️ **SIX PARALLEL CI JOBS PURGED EACH OTHER'S USERS, AND THE GUARANTEE THEY
+  BROKE HAD NEVER BEEN WRITTEN DOWN.** `global-setup.ts` purges the shared test
+  Supabase project before every suite and treats residue as a **hard failure**;
+  `global-teardown.ts` purges after. Two concurrent runs therefore delete each
+  other's in-flight users, and whichever starts second dies before a single
+  test. Gate run #2: `webkit` failed in **32 seconds** with no test having run,
+  while `iphone-13` — **the same browser engine** — passed in 310s.
+  - ⚠️ **`test-release.mjs` had been providing that serialisation BY ACCIDENT.**
+    It runs one project at a time for **memory** — 80 processes, 6.68 GB, four
+    red gates — and every word written about it says memory. It also happened
+    to mean only one run ever touched Supabase at a time. Never the reason,
+    never recorded, load-bearing anyway.
+  - **The fix needed no code.** `purge.ts` matches an **exact** email domain and
+    `e2eEmail()` mints on it, so a per-job `E2E_EMAIL_DOMAIN`
+    (`<job>.mcc-e2e.test`) partitions the project: each run only ever sees, and
+    only ever deletes, its own users.
+  - ⚠️ **The rule is now in `docs/reference/testing.md`:** anything running the
+    suite concurrently must either serialise access or give each run its own
+    domain. There is no third option.
+- ⚠️⚠️ **THE AUTH-HEAVY LANES NO LONGER OVERLAP — chromium AND webkit SHARE ONE
+  JOB.** They are the only two lanes carrying auth specs (**168** and **89**
+  tests), and run concurrently they put **~257 magic-link verifications through
+  one Supabase project in ~14 minutes**. Gate run #5 died on
+  `429 over_request_rate_limit`; runs #3 and #4 survived identical load, which
+  is a threshold seen from underneath.
+  - ⚠️ **ONE PLAYWRIGHT INVOCATION, NOT `max-parallel`.** A scheduler hint asks
+    GitHub not to overlap them; `npx playwright test --project=chromium
+    --project=webkit --workers=1` makes overlapping impossible. It also builds
+    the site once instead of twice and purges the test project once.
+  - ⚠️ **`--workers=1` IS WRITTEN IN THE WORKFLOW even though the config already
+    sets it under CI**, because for this job it is the guarantee rather than a
+    performance setting — and a guarantee living only in another file is the
+    exact shape of the dependency that broke run #2.
+  - **The other three lanes carry zero auth specs and stay fully parallel.**
+- ⚠️⚠️ **THE RECORDED RATE-LIMIT FIGURE WAS HALF WRONG, AND IT HAD REACHED SIX
+  FILES.** "22 verifications in 7 seconds, clearing a couple of minutes later,
+  enforced per IP and per project" was written as though one number described
+  the limit. **It describes the ONSET of a cold burst.** Gate run #5 disproved
+  the rest within a day: `followMagicLink()` backs off 0/10s/30s and **exhausts
+  with the project still limited**, so the window is longer than 40s under real
+  load; and the **scope was asserted, never tested**. Every copy now states the
+  method beside the number and lists what is still **unmeasured** — the window,
+  the budget, the scope, and the highest safe sustained rate.
+- ⚠️⚠️ **THE SLIVER JOB RAN WITHOUT CREDENTIALS, WHICH MADE CRITICAL FEATURE 18
+  TRIVIALLY TRUE RATHER THAN PROVEN.** The first version of the workflow left
+  `.env.test` out of the accounts-OFF job, reasoning that a shape with no
+  account routes has nothing to sign in to. True, and it misses what the sliver
+  is for: `auth-disabled.spec.ts` proves **no Supabase ref survives anywhere in
+  `dist/`**, and with no credentials in the build there is nothing that COULD
+  leak — it passes because the ref never existed, not because the flag kept it
+  out. The sliver now writes `.env.test` and runs the preflight like every
+  other job, so the guarantee is tested with something real to keep out.
+- **That also removed an expiry trap in the same change**, which is the half
+  that was asked for: without `.env.test` the sliver's build fell back to
+  `agenda.fallback.json`, whose v0.23.0 expiry guard would have failed it after
+  **2026-09-12**.
+
+### Notes
+
+- ⚠️ **A WARNING FROM THE PREVIOUS ENTRY WAS WRONG AND IS CORRECTED HERE.** It
+  said the CI build has no Supabase build variables and therefore bakes the
+  fallback, so the gate would start failing after 12 September.
+  **`playwright.config.ts` passes the TEST project's `PUBLIC_SUPABASE_URL` and
+  `PUBLIC_SUPABASE_ANON_KEY` into the build it starts**, so `fetch-agenda.mjs`
+  reads the real `sessions` table. Measured with the gate's own env: **3
+  sessions baked, newest 2027-01-08**, fallback untouched.
+  - The wrong version came from testing `npm run build` standalone, which does
+    use the fallback, and assuming the gate built the same way. It does not.
+  - ⚠️ **The real condition is "has `.env.test`", not "is CI"** — which is
+    exactly why the sliver was affected and nothing else was. The guard stays;
+    a stale agenda is worse than an empty one.
+
+### Added
+
+- ⚠️⚠️ **THE RELEASE GATE MOVED TO GITHUB ACTIONS, AND CI IS NOW THE GATE OF
+  RECORD.** `.github/workflows/gate.yml` runs the five projects **in parallel**
+  plus the accounts-OFF sliver on `ubuntu-latest`, where Smart App Control does
+  not exist.
+  - **Why:** SAC blocked WebKit on the only machine that could run the matrix,
+    **twice** — v0.18.0 and v0.23.0 both shipped on transferred evidence. The
+    v0.19.0 remedy (re-download) stopped working, and disabling SAC is
+    documented as one-way.
+  - ⚠️ **`npm run test:release` still works and is unchanged.** It remains the
+    right thing for a developer who wants the whole matrix locally; it is
+    simply no longer what a promotion rests on.
+  - ⚠️ **Parallel here does NOT contradict the local serialisation.**
+    `test-release.mjs` runs one project at a time under a worker cap because
+    this machine runs out of RAM — measured, and the cause of four red gates.
+    Every CI job is its own runner with its own memory.
+  - **Artefacts upload on failure**, 30-day retention, per project. That is the
+    whole reason this release's artefact work exists: three consecutive gates
+    ended in "probably environmental" with the evidence already deleted.
+
+- **`scripts/ci-preflight.mjs`** — asserts, in **every** job, that the
+  credentials are present and are **not** production.
+  - ⚠️⚠️ **IT EXISTS BECAUSE A MISSING `.env.test` IS DELIBERATELY NOT AN
+    ABORT.** `assertNotProduction()` treats an absent file as safe, and that is
+    correct locally: with no file there is no reachable project of any kind, and
+    aborting would brick ~750 specs for every checkout without a test project.
+    In CI the same behaviour is a silent hole — a mistyped secret produces no
+    file, every auth spec SKIPS, and the gate reports success. Same class as a
+    zero-test sliver, which the gate already treats as fatal.
+  - ⚠️ **It does not widen `env.ts`.** CLAUDE.md forbids letting the loader fall
+    back to `process.env` — that edit is what would let production credentials
+    into a suite that purges by pattern. The workflow **writes `.env.test`** from
+    secrets instead and this checks the result; the loader is untouched.
+  - It calls `assertNotProduction()` rather than reimplementing it, so it cannot
+    drift from what Playwright's config actually enforces.
+
+### Notes
+
+- ⚠️ **THE INTERLOCK WAS VERIFIED BY MAKING IT FAIL, on the same code path CI
+  runs.** With `SUPABASE_PRODUCTION_REF` set equal to the test ref, both the
+  preflight **and** Playwright's config load abort with *"the test project ref
+  … IS the production ref. Refusing."* — exit 1, before a browser starts. With
+  the file removed entirely, the preflight fails naming all five secrets. With
+  the real credentials, it passes and reports that auth specs will RUN.
+- ⚠️ **MEASURED ON CI AT LAST — 15m 25s, GREEN, ALL SEVEN JOBS.** Gate run #3
+  (`507e2b2`). The estimate was ~10-15 min; it landed just outside it. Compare
+  the local matrix at **21.9 min** on a quiet machine, and 4.8 hours before the
+  lane audit.
+  - ⚠️ **The wall-clock is set by the SLOWEST JOB, not the sum**, because the
+    projects run in parallel — chromium runs the whole suite and is the long
+    pole. Adding a lane is close to free in time; adding specs to chromium is
+    not.
+  - ⚠️ **THE FIRST TWO RUNS FAILED, AND NEITHER WAS THE APPLICATION.** Run #1
+    was the sliver's missing credentials; run #2 was the shared test project
+    being purged out from under six parallel jobs. Both are recorded in
+    `docs/reference/testing.md` — the second as a guarantee nobody had written
+    down.
+- ⚠️ **THE FIRST RUN WILL FAIL AT PREFLIGHT** until the five repository secrets
+  are set, naming each one that is missing. That is the intended first signal
+  rather than a defect — the alternative, skipping quietly when credentials are
+  absent, is precisely the hole the preflight closes.
+- ⚠️ **KNOWN INTERACTION WITH THIS RELEASE'S OWN AGENDA GUARD:** the CI build
+  has no Supabase build variables, so it bakes `agenda.fallback.json` — whose
+  expiry guard starts warning around **2026-08-29** and **fails the build after
+  2026-09-12**. That is the guard working, and in CI it blocks the gate for a
+  reason unrelated to the change under test. Refresh the fallback, or give the
+  workflow read-only agenda credentials. **Do not remove the guard** — a stale
+  agenda is worse than an empty one and `smoke:prod` cannot see it.
+
 ## [0.23.0] — 2026-08-25
 
 **The release in one line:** the exercises became a sequence you can walk, the
@@ -122,6 +366,26 @@ and that is taken on his word rather than verified here.
 
 ### Changed
 
+- **CLAUDE.md split from 82% to 78% of the size guard** — 123,159 → 116,643
+  characters, so it stops warning on every build. Nine blocks moved **verbatim**
+  into the reference file for their area, each with a **Read when** line, and a
+  rule plus a pointer left behind:
+  - the PowerShell round-trip encoding trap → `dev-environment.md`
+  - content validity and the "a legal position is not a correct one" narrative
+    → `content.md`
+  - the accounts-OFF sliver, `check-lanes.mjs`, "do not run the matrix on a
+    feature branch", and "passing serially is not a clean bill" →`testing.md`
+  - Play mode's level-purpose and two-levers narrative → `engine.md`
+  - "why static, and why no Supabase" → `roadmap.md`
+  - the add-a-table migration checklist → `supabase.md`
+  - ⚠️ **`scripts/check-split.mjs` reports `✓ Nothing was lost`** — 1,286 lines
+    stayed, 170 moved into `docs/`, nothing newly declared obsolete. **No line
+    was reworded on its way out**, which is the one thing that makes that check
+    meaningful.
+  - ⚠️ **The margin is now ~3,400 characters, which is thin.** The next
+    candidates, in order, are `## Routes`, `## Stack overview` and the
+    `## Content model` detail — but not the Critical Features list, which is the
+    canonical numbered set and belongs in the file that is always loaded.
 - ⚠️⚠️ **THE RANK THRESHOLDS MOVED AGAIN, IN THE SAME RELEASE, AND THAT IS THE
   POINT RATHER THAN CHURN.** Cutting 65 points of content dropped full marks
   from 965 to **900** (780 learning + 120 games) — which pushed Dame (then 800)
@@ -6947,7 +7211,8 @@ Foundation only: no real content, no interactive board yet.
   `url()` references unresolved and the fonts silently 404 into a Georgia
   fallback. `scripts/build-fonts.mjs` self-hosts them instead. See CLAUDE.md.
 
-[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.23.0...HEAD
+[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.24.0...HEAD
+[0.24.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.23.0...v0.24.0
 [0.23.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.22.0...v0.23.0
 [0.22.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.20.0...v0.21.0

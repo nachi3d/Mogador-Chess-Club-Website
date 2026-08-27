@@ -1091,9 +1091,14 @@ anybody screenshotted the page, which showed:
 Probed directly against the test project:
 
 ```
-22 verifications in 7s → 429
+22 verifications in 7s → 429      (ONSET, from cold — not the window)
 no Retry-After header
-clear again within ~2 minutes
+clear again within ~2 minutes     (an ISOLATED probe; a full suite does not —
+                                   a 40s backoff exhausts still limited)
+
+the setting itself, in the dashboard, is the authority:
+  Authentication -> Rate Limits -> "Rate limit for token verifications"
+  PER IP ADDRESS, per 5 minutes. Default 30; TEST project now 300.
 ```
 
 So it is a **burst** limit, not a quota — which is why `followMagicLink()` in
@@ -2430,3 +2435,33 @@ touching any of these three pages.
 
 **➡️ Every one of these in full, with the incidents behind them:
 [`docs/reference/supabase.md`](./docs/reference/supabase.md).**
+
+---
+
+## ⚠️ THE CHECKLIST FOR A MIGRATION THAT ADDS A TABLE
+
+**Read when:** writing ANY migration that creates a table — read it before, not after.
+
+
+⚠️ **The checklist itself — six lines of SQL to copy, with the reasoning behind
+each — lives in [`docs/reference/supabase.md`](./docs/reference/supabase.md).
+Read it before writing the migration, not after.** Its two most-forgotten lines,
+named here so that skipping one is a decision rather than an oversight:
+
+- ⚠️⚠️ **`revoke all on public.<t> from anon, authenticated` COMES FIRST, AND IS
+  NOT BELT AND BRACES.** A Supabase project ships default privileges that hand
+  `anon` the full set on `create table`, before any migration says a word.
+  **Seven tables shipped that way.**
+- ⚠️ **EVERY NEW TABLE MUST GRANT `service_role` DML EXPLICITLY.** Migration 0002
+  exists solely to repair that omission across every existing table, and **0003
+  reproduced the bug anyway**. ⚠️ **RLS being correct does not mean the table is
+  reachable** — the tell is a `42501` from a caller that bypasses RLS entirely,
+  which is always a missing grant and never a policy bug.
+
+⚠️ **Audit by exercising the table with a real trusted client after pushing**,
+not by re-reading the migration — reading the file is what produced the bug both
+times. Also binding, each detailed in the reference: migrations are **never
+edited after merge**; **slugs are free text, not foreign keys**; **`is_staff()`
+must be `SECURITY DEFINER` with a pinned `search_path`**; ordering is **tables →
+functions → policies**; **`role` is never client-updatable**; **dropping a column
+drops its PK and indexes silently**; **deletion cascades from `auth.users`**.

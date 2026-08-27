@@ -1110,7 +1110,8 @@ is, and the debugging it cost — is in the reference file; these are the tells:
 - WebKit "target page… closed", or Firefox `RenderCompositorSWGL failed` on a
   **different test each run** → **the Windows browser dying under fan-out**;
 - auth specs timing out on a **different set each run** → **Supabase's auth rate
-  limit**, measured at ~22 verifications in 7s;
+  limit**, which is **per IP and per 5 minutes** — look at the ONE job's rate,
+  not at how many jobs are running;
 - `ERR_CONNECTION_REFUSED` → **read the HOST in the error**: `localhost:4321`
   is a dead preview server, `*.supabase.co` is sustained rate-limit abuse.
 
@@ -1153,7 +1154,8 @@ touching application code.** These are the tells:
 - WebKit "target page… closed", or Firefox `RenderCompositorSWGL failed` on a
   **different test each run** → **the Windows browser dying under fan-out**;
 - auth specs timing out on a **different set each run** → **Supabase's auth rate
-  limit**, measured at ~22 verifications in 7s;
+  limit**, which is **per IP and per 5 minutes** — look at the ONE job's rate,
+  not at how many jobs are running;
 - `ERR_CONNECTION_REFUSED` → **read the HOST in the error**: `localhost:4321`
   is a dead preview server, `*.supabase.co` is sustained rate-limit abuse.
 
@@ -1760,3 +1762,287 @@ PUBLIC_AUTH_ENABLED=true npx playwright test --project=webkit --workers=3 \
 ⚠️ **And read the artefact first regardless.** Since the fix above, the evidence
 is in `gate-logs/artefacts-*/`, and it answers the question a re-run only
 circles around.
+
+---
+
+## ⚠️⚠️ THE SHARED TEST PROJECT NEEDS SERIALISED ACCESS — AND NOTHING SAID SO
+
+**Read when:** parallelising ANY test run, adding a CI job, or removing the
+per-project serialisation in `test-release.mjs`. Also when a suite fails
+instantly with a purge or residue error.
+
+### The guarantee, stated at last
+
+**There is exactly ONE test Supabase project, and the suite assumes it has that
+project to itself for the whole run.** Two things enforce that assumption and
+both are destructive:
+
+- `tests/e2e/global-setup.ts` purges e2e data **before** the suite, and treats
+  residue as a **hard failure** — "a suite that starts from unknown state
+  proves nothing about the state it ends in".
+- `tests/e2e/global-teardown.ts` purges **after**.
+
+So two concurrent runs against that project do this to each other: A's setup
+deletes B's in-flight users; B's teardown deletes A's; and whichever starts
+second sees the first's users as *residue* and dies **before a single test
+runs**.
+
+### ⚠️ WHY NOBODY KNEW: `test-release.mjs` PROVIDED IT BY ACCIDENT
+
+The local matrix runs the five projects **one at a time**, and every line of
+reasoning written about that says **memory** — 80 processes, 6.68 GB, four red
+gates, the measured worker cap. All true, and all beside this point.
+
+Running them one at a time also meant **only one run ever touched the Supabase
+project at a time**. That was never the reason for the serialisation, was never
+written down, and was load-bearing anyway. It is the classic shape of an
+invisible dependency: a constraint satisfied as a side effect of a decision
+taken for something else entirely.
+
+⚠️ **It became visible the moment CI parallelised the projects**, which was
+correct on the memory argument — each GitHub runner has its own RAM, so the
+reason for serialising is genuinely absent there — and wrong on a guarantee
+nobody had recorded. Measured, at gate run #2: `webkit` failed in **32 seconds**,
+before any test, while `iphone-13` — **the same browser** — passed in 310s. Not
+a browser problem; a landlord problem.
+
+### The fix, and why it needed no code
+
+`helpers/purge.ts` matches users by an **exact email domain**
+(`u.email.endsWith('@' + env.emailDomain)`), and `e2eEmail()` mints addresses on
+that same domain. So a **per-job `E2E_EMAIL_DOMAIN`** partitions the project:
+each run only ever sees, and only ever deletes, its own users.
+
+`.github/workflows/gate.yml` writes `E2E_EMAIL_DOMAIN=<job>.mcc-e2e.test` into
+the `.env.test` it generates. These are `.test` addresses that nothing delivers
+to — users are created and magic links minted through the admin API — so a
+subdomain costs nothing and needs to resolve nowhere.
+
+### ⚠️ THE RULE FOR THE NEXT PERSON
+
+**Anything that runs the suite concurrently must either serialise access to the
+test project or give each concurrent run its own `E2E_EMAIL_DOMAIN`.** The
+failure mode if you forget is not subtle — it is an instant, confusing death in
+whichever run started second.
+
+### ⚠️⚠️ AND THE DOMAIN ONLY COVERS *USERS* — SESSIONS ARE STILL SHARED
+
+The paragraph above originally ended "there is no third option", which read as
+though a per-job domain isolated the whole project. **It isolates users.**
+`sessions` rows have no owner column, so nothing about them is scoped by email
+domain at all, and `purgeLeakedSessions()` deletes every bare row **globally**,
+in both phases of **every** run.
+
+That is a second collision, and it took two red gates to see because it wears a
+completely different mask:
+
+- `booking.spec.ts` creates **bare** sessions (no title, no notes) at runtime
+  and deletes them by id when it finishes. It runs in **chromium only**.
+- `booking-ui.spec.ts` drives the **baked** agenda (Critical Feature 49), so it
+  books whatever the build captured — including another job's in-flight row.
+  It runs in **chromium and webkit**.
+- Split into separate jobs, webkit's build can bake one of chromium's transient
+  sessions. chromium deletes it. webkit presses Réserver. The database answers
+  truthfully that the session is gone.
+
+⚠️ **IT PRESENTED AS A WEBKIT BUG AND WAS NOT ONE.** webkit-only, both booking
+tests, all three attempts, chromium green on the same specs — the exact profile
+of the "Créer" click-synthesis defect. **The click reached the handler and the
+refusal was correct**; the page said « Cette séance n'existe plus. » the whole
+time. ⚠️ **The `error-context.md` snapshot is what settled it**, which is the
+second time this release that reading the artefact beat reasoning about the
+symptom.
+
+**The fix is in `bookablePanel()`:** never book a row that matches the purge
+predicate. A seeded session says something in at least one of `title_fr`,
+`note_fr`, `note_en`; a transient one says nothing in any of them.
+⚠️ **Those two places are one rule in two files — change one and change the
+other.**
+
+⚠️ **THE GENERAL LESSON: ask what ELSE the shared project holds.** Users were
+isolated and the job was declared done. Sessions, and anything else added later
+without an owner, were not.
+
+---
+
+## ⚠️ THE AUTH RATE LIMIT IS PER PROJECT, NOT PER DOMAIN
+
+**Read when:** auth specs fail across several jobs or several files at once,
+especially with bare navigation timeouts and a different set each run.
+
+Per-job email domains fix the PURGE collision above. They do **nothing** for
+this, and the two are easy to confuse because both appear when runs go parallel.
+
+### ⚠️ WHAT IS MEASURED — AND WHAT THE FIRST VERSION OF THIS SECTION GOT WRONG
+
+The first version said the ceiling was **"22 verifications in 7 seconds,
+clearing a couple of minutes later, enforced per IP and per project"**, as if
+that one figure described the whole limit. **It describes the ONSET of a cold
+burst and nothing else**, and gate run #5 disproved the rest of the sentence
+within a day.
+
+**MEASURED:**
+
+- **ONSET** — ~22 verifications in ~7s returns
+  `{"code":429,"error_code":"over_request_rate_limit"}`, with **no
+  `Retry-After`**. An isolated probe cleared in ~2 minutes.
+- **RECOVERY IS LONGER THAN 40s UNDER SUITE LOAD** — `followMagicLink()` backs
+  off 0/10s/30s and **exhausts with the project still limited**. Observed at
+  gate run #5 and reproduced locally twice on 2026-08-25.
+- **THE SUSTAINED LOAD THAT CROSSED IT** — chromium runs **168** auth tests and
+  webkit **89**. Concurrently that is **~257 verifications in ~14 minutes
+  (~18/min)**. It failed at run #5 and survived at runs #3 and #4, which is what
+  a threshold looks like from underneath.
+
+**THE SCOPE — SETTLED, AND IT REVERSED THE CONCLUSION:**
+
+⚠️⚠️ **THE LIMIT IS PER IP ADDRESS. The Supabase dashboard says so on the
+setting itself**, which is where nobody looked while there was a theory to
+support instead. The window and the budget are named there too:
+**"Rate limit for token verifications", 30 per 5 minutes by default.**
+
+**What that means, and why the first fix was aimed at the wrong thing:**
+
+- **Two runners are two IPs and two buckets.** chromium and webkit were
+  **never contending with each other.** Each was independently over the old
+  default on its own — chromium peaks near **65** verifications per 5 minutes
+  and webkit near **45**, against a ceiling of **30**.
+- So runs #3 and #4 were over the line as well and survived on **Playwright's
+  retries**; run #5 did not. That is retry luck, **not** a concurrency
+  threshold.
+- ⚠️ **Merging the two lanes into one job therefore fixed nothing that was
+  broken.** It reduced project-wide concurrency, which a per-IP limit does not
+  measure, and cost **9m 33s** of gate wall-clock. It was reverted.
+- **The ceiling was the whole fix:** token verifications raised to **300 per 5
+  minutes** on the TEST project, ~4.6× chromium's peak.
+
+⚠️ **SO THE THING TO WATCH IS ONE JOB'S RATE, NEVER HOW MANY JOBS RUN.** A
+single lane that grows enough auth specs can exhaust its own bucket with
+nothing else running anywhere.
+
+**Still unmeasured:** the highest sustained rate that is actually safe. 300 is
+headroom over a measured peak, not a probed ceiling.
+
+⚠️⚠️ **THE LESSON IS NOT ABOUT SUPABASE.** A figure was recorded without its
+method, propagated to **six files**, and then a fix was designed against the
+half of it that had never been checked — while the answer was printed on the
+dashboard beside the setting. **Read the source of a limit before modelling
+it.**
+
+**Every signed-in spec mints its own account and verifies its own magic link**,
+so the verification rate is roughly the number of concurrent workers across
+every runner pointed at that project.
+
+### How to recognise it
+
+⚠️ **It does not look like a rate limit.** It looks like plain navigation
+timeouts, on a **different set of tests every run**, all of which pass when the
+file is run on its own. `ERR_CONNECTION_REFUSED` is read by its HOST:
+`localhost:4321` is a dead preview server, `*.supabase.co` is this.
+
+### What is already done, and what to do next
+
+- **Locally:** `test-branch.mjs` caps auth-heavy selections at `--workers=2` —
+  about a third of the verification rate six workers produce, which is the
+  difference between green and red.
+- **In CI:** `playwright.config.ts` sets `workers: 1` when `process.env.CI` is
+  set, which keeps each job far below the ceiling on its own.
+- ⚠️ **The remaining exposure is jobs running at the same time.** Four or five
+  CI jobs each at one worker is well inside the ceiling today; it is not a
+  guarantee, and it scales with however many jobs are added later.
+- **If it fires: SERIALISE THE AUTH-HEAVY JOBS.** In the workflow that means a
+  `max-parallel` on the matrix, or moving `SCRIPTED_FORMS`-carrying projects
+  into a dependent stage. ⚠️ **Do NOT widen the email domains further** — that
+  addresses the other problem and will look like it is not working.
+- ⚠️ **The real fix is a bigger rate limit on the TEST project**, which is a
+  dashboard setting and is already an open backlog item. Mitigation is not
+  headroom.
+
+---
+
+## ⚠️ THE ACCOUNTS-OFF SLIVER IS NOT A SECOND MATRIX
+
+**Read when:** changing the gate, the sliver, or anything Critical Feature 18 rests on.
+
+
+Exactly two specs can only be proved by an accounts-**OFF build**, because they
+are claims about the **artefact** that shape produces — `auth-disabled.spec.ts`
+and `admin.spec.ts`'s *"the admin surfaces are NOT BUILT"* describe. The second
+build is **irreducible**: you cannot inspect an artefact you did not produce.
+It runs last, **after a sweep**, or `reuseExistingServer` would run the OFF
+specs against the ON build.
+
+⚠️ **IF THE SLIVER RUNS ZERO TESTS THE GATE FAILS**, naming Critical Feature 18.
+
+---
+
+## ⚠️ `check-lanes.mjs` ADVISES AND MUST NEVER GATE
+
+**Read when:** tempted to make the lane heuristic gate the build.
+
+
+It always exits 0, and promoting it to a build step would be **actively
+harmful**: the spec that caught the WebKit "Créer" bug **scores zero**, because
+the heuristic sees what a spec *asserts* and that defect lived in how it
+*drives* the page. A green tick would read as "the lanes are complete".
+
+⚠️ **What DOES gate is `missingLaneSpecs()`** — a lane naming a spec that does
+not exist makes `testMatch` match **nothing**, so the project runs zero tests
+and the gate goes green having proved less than it claims.
+
+---
+
+## ⚠️ DO NOT RUN THE MATRIX ON A FEATURE BRANCH. EVER. NOT "TO BE SAFE".
+
+**Read when:** about to run the full matrix on a branch, or re-arguing the policy.
+
+
+The reasoning is already done, so it is not re-litigated. **A chromium failure
+is a failure; a chromium pass is enough to merge to `dev`**, and nothing reaches
+a reader without passing `test:release` first.
+
+⚠️ **THE "CRITICAL PATH" TRIGGER IS GONE** — forcing the matrix on any branch
+touching the board island, the validator, i18n routing or the SW read as
+prudence and **functioned as a loophole**, because almost everything here
+touches one of those four. `scripts/spec-map.mjs` gained precision instead.
+**If you believe you have found the exception:** change this policy in CLAUDE.md
+in the same commit, with the reason — a one-off exception no future session
+knows about is precisely how the last policy eroded.
+
+**➡️ The audit behind every number above — the per-spec costs, the flag-shape
+table, the four browserless specs, what each lane was EARNED by, the
+four-red-gate memory diagnosis and the rejected alternatives:
+[`docs/reference/testing.md`](./docs/reference/testing.md).**
+
+---
+
+## ⚠️⚠️ AND THE CONVERSE IS ALSO TRUE: PASSING SERIALLY IS **NOT** A CLEAN BILL
+
+**Read when:** about to call a flaky failure environmental, or writing a helper that waits on an island.
+
+
+`play.spec.ts` flaked at **three consecutive gates**, passed every serial re-run,
+and was waved through all three times on the rule above. It was a **real defect
+in the application** the whole time.
+
+- ⚠️ **A HYDRATION RACE HAS EXACTLY THE SIGNATURE OF CONTENTION** — it needs load
+  to widen the window, it moves between tests, and it evaporates under
+  `--workers=1`. The serial re-run cannot distinguish the two, so it must not be
+  the last word.
+- ⚠️ **THE DISCRIMINATOR IS THE FAILURE ARTEFACT, NOT THE RE-RUN.**
+  `error-context.md` carries the page state; **read it before blaming the
+  machine.**
+- ⚠️ **AN ISLAND'S READINESS MUST BE OBSERVABLE, AND `data-ready` IS THE
+  CONVENTION** — every view carries it. A wait on server-rendered markup proves
+  the HTML arrived and **nothing about whether anything is listening**.
+- ⚠️ **A HELPER WAITS ON READINESS, NEVER ON A PROXY FOR IT**: `<cg-board>` is
+  created in `BoardSurface`'s effect, and `BoardSurface` is a **child**, so it
+  appears a render BEFORE the parent view publishes `data-ready`.
+- ⚠️ **AND A PROSE RULE THAT NOTHING CHECKS IS ALREADY BEING BROKEN SOMEWHERE.**
+  "No control inside a hydrating island may look usable before it is" was written
+  down one release before anything enforced it, and was false on **132 pages** at
+  the time. It is now Critical Feature 76 and `check-island-controls.mjs`.
+
+**➡️ The full symptom table, the three-gate diagnosis and the per-island audit:
+[`docs/reference/testing.md`](./docs/reference/testing.md) and
+[`docs/reference/board.md`](./docs/reference/board.md).**

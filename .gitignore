@@ -35,6 +35,14 @@ playwright/.cache/
 # three failures that then had to be re-run from scratch on another machine.
 gate-logs/
 
+# ⚠️ A CI ARTEFACT UNZIPPED INTO THE REPO TO BE READ. `artefacts-webkit/` and
+# its zip were downloaded from a red gate and unpacked here to diagnose it —
+# which is the right thing to do and must not end with 5 MB of screenshots and
+# traces in a commit. `git add -A` had already staged one such directory once
+# this release; explicit paths caught it, and a rule is better than vigilance.
+artefacts-*/
+artefacts-*.zip
+
 # editor-local preferences
 .vscode/
 

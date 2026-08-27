@@ -209,3 +209,41 @@ config rather than taking down a neighbour's server.
 verification behind them: [`docs/reference/dev-environment.md`](./docs/reference/dev-environment.md).**
 Read it before writing or changing any sweep — matching on `chrome.exe` by name
 rather than by executable path would kill Seàn's own browser.
+
+---
+
+## ⚠️⚠️ NEVER ROUND-TRIP A SOURCE FILE THROUGH `Get-Content` / `Set-Content`
+
+**Read when:** making ANY scripted edit to a source file on Windows, or explaining mojibake in a diff.
+
+
+Windows PowerShell 5.1 reads a BOM-less file as the system **ANSI** codepage and
+writes with `-Encoding utf8`. A read-modify-write therefore **double-encodes
+every non-ASCII character**: `séances` becomes `sÃ©ances`, `d’une` becomes
+`dâ€™une`. ⚠️ **THIS REPOSITORY IS FULL OF ACCENTED FRENCH** — the UI strings,
+every `/admin*` surface, the content, this file — so the damage is both silent
+and widespread. One three-line edit corrupted **141 sequences** and turned a
+tiny change into a 536-line diff.
+
+**Use the editing tool.** It preserves encoding. If a scripted edit is genuinely
+unavoidable, do it in Node (`readFileSync(p, 'utf8')` → `writeFileSync(p, s,
+'utf8')`), which is byte-honest on every platform.
+
+- ✅ **APPENDING IS SAFE.** `Add-Content -Encoding utf8` only writes new UTF-8
+  bytes at the end and never re-encodes what is already there. The corruption
+  comes from the READ, not the write.
+- ⚠️ **THE GATE CAUGHT IT, AND ONLY BECAUSE AN ASSERTION READ THE TEXT.**
+  `recurring-sessions.spec.ts` expects `toContainText('13 séances')` and got
+  `13 sÃƒÂ©ances`. A spec that had checked structure — an element exists, a
+  count is right — would have passed while every accent on the page was
+  mangled. Content assertions on real French are what make this visible.
+- ⚠️⚠️ **REVERSING THE DOUBLE-ENCODING IS NOT THE REPAIR WHEN THE FILE IS
+  MIXED**, and it will be mixed whenever any edit landed after the bad write:
+  those parts are already correct and a blanket reversal destroys them.
+  Measured on the real case — **357 characters would have been lost**, because
+  cp1252 cannot represent `⚠`, `’` or `—` and they degrade to `?`.
+  **RESTORE FROM GIT AND RE-APPLY THE CHANGES.** It is slower and it is the
+  only version that cannot lose bytes.
+- **Check before trusting a file you scripted:** a scan for `Ã` or `Â` finds it
+  instantly, and `git diff --stat` shows a whole-file rewrite where a small
+  change was intended.

@@ -139,12 +139,34 @@ export async function reachAccountPage(page: import('@playwright/test').Page): P
  * Follow a magic link, surviving Supabase's BURST rate limit on verification.
  *
  * ═════════════════════════════════════════════════════════════════════════
- * ⚠️ THE LIMIT IS A BURST, AND IT IS MEASURED, NOT GUESSED.
+ * ⚠️ WHAT IS MEASURED, AND WHAT IS NOT. READ BOTH LISTS BEFORE TUNING ANY WAIT.
  *
- * Navigating a magic link hits `/auth/v1/verify`, which is rate limited per IP.
- * Probed against the test project: **22 verifications in 7 seconds** trips it,
- * and it clears again within a couple of minutes. There is no `Retry-After`
- * header — the body is a bare
+ * Navigating a magic link hits `/auth/v1/verify`. MEASURED against the test
+ * project:
+ *
+ *   - ONSET: ~22 verifications in ~7s returns 429. That is where a BURST trips
+ *     the limit. ⚠️ IT IS NOT THE WINDOW AND IT IS NOT THE BUDGET, and it was
+ *     recorded as though it were both for one release.
+ *   - RECOVERY IS LONGER THAN 40s UNDER REAL LOAD: the 0/10s/30s backoff below
+ *     exhausts with the project STILL limited (gate run #5, and reproduced
+ *     locally twice on 2026-08-25). An isolated probe cleared in ~2 minutes;
+ *     a full suite does not.
+ *   - SUSTAINED: chromium carries 168 auth tests and webkit 89. Run together
+ *     that is ~257 verifications in ~14 minutes (~18/min), which crossed the
+ *     limit at gate run #5 and did NOT at runs #3 and #4 — a threshold seen
+ *     from underneath.
+ *
+ * ⚠️⚠️ THE SCOPE IS PER IP ADDRESS, PER 5 MINUTES — the Supabase dashboard
+ * says so on the setting ("Rate limit for token verifications", default 30;
+ * the TEST project is now 300). This comment previously guessed "per IP and
+ * per project" and a fix was designed against the guess: chromium and webkit
+ * were merged into one CI job to stop them "contending", when two runners are
+ * two IPs and never shared a bucket at all. Each was simply over 30 on its
+ * own. WATCH ONE JOB'S RATE, NOT HOW MANY JOBS RUN.
+ *
+ * Still unmeasured: the highest sustained rate that is actually safe.
+ *
+ * There is no `Retry-After` header — the body is a bare
  *
  *     {"code":429,"error_code":"over_request_rate_limit","msg":"Request rate limit reached"}
  *
@@ -205,7 +227,8 @@ export async function followMagicLink(
     'Supabase AUTH RATE LIMIT (429 over_request_rate_limit) — still limited after ' +
       `${waits.length} attempts over ${waits.reduce((a, b) => a + b, 0) / 1000}s.\n` +
       'This is the ENVIRONMENT, not the application: the suite verified more magic\n' +
-      'links than the project allows in a short window (measured: ~22 in 7s).\n' +
+      'links than the project allows. ~22 in 7s trips it from cold; a full run\n' +
+      'is ~257 verifications and the window is longer than this backoff.\n' +
       'Re-run the auth specs on their own, or with fewer workers. Do NOT debug the\n' +
       'callback — see CLAUDE.md → "Symptoms that are the ENVIRONMENT".',
   );

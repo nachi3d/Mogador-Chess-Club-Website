@@ -123,26 +123,15 @@ Anything that looks like an inbox belongs off-site: the club's own WhatsApp numb
 
 ### Why static, and why no Supabase (v1)
 
-The whole v1 product is *content plus a chess engine in the browser*. There is no per-user data worth a server: lesson progress is one visitor's private state, so it lives in `localStorage`. There are no capacity-constrained bookings (Baby Club's reason for Supabase), no transactions, no roles. Adding a database would mean auth, a privacy policy, and a monthly bill in exchange for nothing a visitor can perceive.
+The whole v1 product is *content plus a chess engine in the browser*. There is
+no per-user data worth a server, so lesson progress lives in `localStorage`.
 
-Consequence to respect: **progress is device-local and can be cleared by the browser.** Never build a feature whose value depends on progress surviving — no streaks that punish loss, no "resume where you left off" as the only way to reach a lesson.
+⚠️ **The consequence to respect: progress is device-local and the browser can
+clear it.** Never build a feature whose value depends on progress surviving —
+no streaks that punish loss, no "resume where you left off" as the only way to
+reach a lesson.
 
-#### `src/lib/progress.ts` — the single migration point
-
-All of it lives behind that one module. **Nothing else in the codebase may touch `localStorage` or know the key.** If accounts ever arrive, swapping the backing store is a rewrite of that file and nothing else — the same containment trick as `BoardSurface.tsx`.
-
-⚠️ Five properties hold it up, and each was chosen against a specific failure:
-the **version is in the key** (`mcc:progress:v1`); **every access is guarded and
-fails silent**; records are **normalised field by field on read, never cast**; a
-bad stored value is **never deleted**; and `resetAttempts()` clears the counter
-and **never the solve**.
-
-⚠️ **The solved ticks on `/exercices/` are a plain `<script>`, not an island.**
-The one-board-island rule is about hydrated framework components, and this must
-stay on the right side of that line.
-
-**➡️ The key, the shape, and the reason behind each of those five:
-[`docs/reference/progression.md`](./docs/reference/progression.md).**
+**➡️ The full rationale: [`docs/reference/roadmap.md`](./docs/reference/roadmap.md).**
 
 ### Online play (v2) — keep game logic transport-agnostic
 
@@ -237,36 +226,23 @@ it. Tags said one thing and the manifest said another.
 
 #### ⚠️⚠️ NEVER ROUND-TRIP A SOURCE FILE THROUGH `Get-Content` / `Set-Content`
 
-Windows PowerShell 5.1 reads a BOM-less file as the system **ANSI** codepage and
-writes with `-Encoding utf8`. A read-modify-write therefore **double-encodes
-every non-ASCII character**: `séances` becomes `sÃ©ances`, `d’une` becomes
-`dâ€™une`. ⚠️ **THIS REPOSITORY IS FULL OF ACCENTED FRENCH** — the UI strings,
-every `/admin*` surface, the content, this file — so the damage is both silent
-and widespread. One three-line edit corrupted **141 sequences** and turned a
-tiny change into a 536-line diff.
+Windows PowerShell 5.1 reads a BOM-less file as **ANSI** and writes UTF-8, so a
+read-modify-write **double-encodes every non-ASCII character** — `séances` →
+`sÃ©ances`. ⚠️ **THIS REPOSITORY IS FULL OF ACCENTED FRENCH**, so the damage is
+silent and wide: one three-line edit corrupted **141 sequences**.
 
-**Use the editing tool.** It preserves encoding. If a scripted edit is genuinely
-unavoidable, do it in Node (`readFileSync(p, 'utf8')` → `writeFileSync(p, s,
-'utf8')`), which is byte-honest on every platform.
+**Use the editing tool**, or Node (`readFileSync(p,'utf8')` → `writeFileSync`),
+which is byte-honest everywhere.
 
-- ✅ **APPENDING IS SAFE.** `Add-Content -Encoding utf8` only writes new UTF-8
-  bytes at the end and never re-encodes what is already there. The corruption
-  comes from the READ, not the write.
-- ⚠️ **THE GATE CAUGHT IT, AND ONLY BECAUSE AN ASSERTION READ THE TEXT.**
-  `recurring-sessions.spec.ts` expects `toContainText('13 séances')` and got
-  `13 sÃƒÂ©ances`. A spec that had checked structure — an element exists, a
-  count is right — would have passed while every accent on the page was
-  mangled. Content assertions on real French are what make this visible.
-- ⚠️⚠️ **REVERSING THE DOUBLE-ENCODING IS NOT THE REPAIR WHEN THE FILE IS
-  MIXED**, and it will be mixed whenever any edit landed after the bad write:
-  those parts are already correct and a blanket reversal destroys them.
-  Measured on the real case — **357 characters would have been lost**, because
-  cp1252 cannot represent `⚠`, `’` or `—` and they degrade to `?`.
-  **RESTORE FROM GIT AND RE-APPLY THE CHANGES.** It is slower and it is the
-  only version that cannot lose bytes.
-- **Check before trusting a file you scripted:** a scan for `Ã` or `Â` finds it
-  instantly, and `git diff --stat` shows a whole-file rewrite where a small
-  change was intended.
+- ✅ **APPENDING IS SAFE** — `Add-Content -Encoding utf8` never re-reads.
+- ⚠️⚠️ **REVERSING THE DOUBLE-ENCODING IS NOT THE REPAIR** once the file is
+  mixed — measured, **357 characters would have been lost**.
+  **RESTORE FROM GIT AND RE-APPLY THE CHANGES.**
+- **Scan for `Ã` or `Â`** after any scripted edit; `git diff --stat` showing a
+  whole-file rewrite is the other tell.
+
+**➡️ The incident, why the gate caught it, and why a blanket reversal loses
+bytes: [`docs/reference/dev-environment.md`](./docs/reference/dev-environment.md).**
 
 ### Code
 - TypeScript strict mode, no `as any` to bypass types
@@ -518,9 +494,8 @@ sent anywhere. The rules that bind other work:
   graph. `tests/e2e/play.spec.ts` asserts it against the network log.
 - ⚠️ **Stockfish is NEVER precached** (Critical Feature 6). `globIgnores` keeps it
   out; a runtime `CacheFirst` rule caches it after the first game.
-- ⚠️ **The level presets are MEASURED, not reasoned.** Current, and every number
-  here is an output of `scripts/engine-lab`, **60 games per pairing**, colours
-  alternating:
+- ⚠️ **The level presets are MEASURED, not reasoned** — every number is an output
+  of `scripts/engine-lab`, **60 games per pairing**, colours alternating:
 
   | | skill | depth | movetime | blunder | vs `greedy` | vs `novice` |
   |---|---|---|---|---|---|---|
@@ -530,57 +505,29 @@ sent anywhere. The rules that bind other work:
 
   Ladder, head to head, 60 games: **Avancé 100% over Intermédiaire, Intermédiaire
   95% over Débutant, Avancé 100% over Débutant.** Strictly ordered is the
-  property that matters — the bots saturate at the top, so this is what proves it.
+  property that matters.
 
-- ⚠️⚠️ **WHAT EACH LEVEL IS FOR, WHICH A WIN RATE CANNOT TELL YOU — READ THIS
+- ⚠️⚠️ **EACH LEVEL HAS A TARGET A WIN RATE CANNOT TELL YOU — READ THE REFERENCE
   BEFORE RE-TUNING ONE.** A number with no target behind it gets moved by
-  whoever last found the engine annoying.
-  - **Intermédiaire is the level with a stated target: a student who has
-    finished course 3 and plays accurately should win about ONE GAME IN THREE.**
-    Not one in ten — a wall teaches nothing. Not one in two — that is not a step
-    up from Débutant. `novice` (a 2-ply material bot that takes what is free and
-    will not hang a piece to a single capture) is the stand-in for that student,
-    so the target is **`novice` scoring ~33%**, and 0.20 hits it at **34%**.
-    ⚠️ **0.15 was measured and rejected at the target, not at the win rate** —
-    it scores 80%, leaving the student one game in five.
-  - **Avancé's job is to PUNISH REAL MISTAKES, not to make its own.** It is not
-    meant to be beatable by an accurate club player, and 100% against both bots
-    is the intended reading, not a tuning failure.
-  - **Débutant is the one that may look absurd, and it is correct.** It loses to
-    `novice` — it plays a random legal move 40% of the time, which is what a
-    beginner needs to be able to win against.
-
-- ⚠️ **THE TWO LEVERS ARE DIFFERENT AND ARE NOT INTERCHANGEABLE. Getting this
-  wrong is what sent a retune looking in the wrong place.**
-  - **`blunderChance` makes a level WEAK.** It plays a random legal move that
-    often. `Skill Level` alone cannot: every Stockfish search ends in a
-    quiescence search, so no `(skill, depth)` pair will ever hang a piece.
-    **0.4 is a ceiling, not a dial to turn up** — at 0.5 the games stop
-    resembling chess.
-  - ⚠️ **`skill` below 20 makes a level INACCURATE, and that is a separate
-    fault.** Stockfish deliberately picks a worse root move, bounded by
-    `Skill Level Maximum Error` — **default 200 centipawns in this build**.
-    Measured as best-move agreement at matched depth; the table is in
-    [`docs/reference/engine.md`](./docs/reference/engine.md).
-  - **So a level that blunders wants `blunderChance` changed, and a level that
-    plays second-best moves wants `skill` changed.** Avancé's `blunderChance`
-    has always been 0 and a spec pins it there; its old mistakes were skill 14.
-
-  Re-measure with `scripts/engine-lab` — `--verify`, `--ladder --shipped`,
-  `--sweep` for a blunder rate and `--accuracy` for move quality. Do not
-  re-reason.
-- ⚠️ **The engine is just a `MoveProvider`** (`src/lib/chess/opponent.ts`) — a
-  position goes in, a move comes out. That interface is the v2 online-play seam,
-  and `PlayView` must talk to nothing else.
-- `stockfish` is **not** a project dependency; the engine is vendored under
-  `public/engine`, which must stay **out of the TypeScript project** (it kills
-  `astro check` with a V8 heap OOM naming no file).
+  whoever last found the engine annoying. **Intermédiaire is the one with a
+  stated target**: a student who has finished course 3 and plays accurately wins
+  about **one game in three**. **Avancé's job is to punish real mistakes, not to
+  make its own.** **Débutant looks absurd and is correct** — it must be beatable
+  by a beginner.
+- ⚠️ **THE TWO LEVERS ARE NOT INTERCHANGEABLE.** `blunderChance` makes a level
+  **WEAK** (a random legal move that often); `skill` below 20 makes it
+  **INACCURATE** (a deliberately worse root move). **A level that blunders wants
+  `blunderChance`; a level that plays second-best moves wants `skill`.**
+  Getting this backwards sent a whole retune looking in the wrong place.
+  Re-measure with `scripts/engine-lab`; do not re-reason.
+- ⚠️ **The engine is just a `MoveProvider`** (`src/lib/chess/opponent.ts`) — the
+  v2 online-play seam, and `PlayView` must talk to nothing else.
+- `stockfish` is **not** a project dependency; it is vendored under
+  `public/engine`, which must stay **out of the TypeScript project**.
 
 **➡️ [`docs/reference/engine.md`](./docs/reference/engine.md)** — why Stockfish 11,
-the measured preset table and the reference bots, the fixed 64 MiB memory, and
+what each level is FOR in full, the accuracy table, the fixed 64 MiB memory and
 the random-move implementation. **Read it before re-tuning a level.**
-
----
 
 ## Exercise validation rule — `onlyMove` semantics
 
@@ -695,40 +642,26 @@ already in check and three "mate in 2"s that were mate in 1.
 
 `node scripts/check-content.mjs` replays every line through chess.js. A Zod
 schema proves an entry is well-*shaped*; it cannot prove it is legal chess —
-`"e2e5"` is a valid UCI string and an illegal move. It checks PGNs parse, plies
-exist, solutions and opponent replies interleave legally, `onlyMove: true` is not
-a lie, the student always plays the same colour, the FEN has all six fields, and
-that nothing is half-translated.
+`"e2e5"` is a valid UCI string and an illegal move.
 
 #### ⚠️ A LEGAL POSITION IS NOT A CORRECT ONE — verify the CLAIM, not the chess
 
-`check-content.mjs` proves a position is *possible*. It cannot read the sentence
-next to the board, and that is where content actually goes wrong. Content batch 3
-shipped **four** positions that passed every check and each described a mechanism
-the position did not contain — including a "pin" blocked by the d7 pawn, which is
-the single most common wrong idea about the Ruy Lopez and would have shipped as
-fact.
+It cannot read the sentence next to the board, and that is where content
+actually goes wrong: batch 3 shipped **four** positions that passed every check
+and each described a mechanism the position did not contain.
 
-**THE RULE — every diagram is replayed and its claim asserted BEFORE merge.** No
-board merges on "it parses". Since batch 3 that is **data, not discipline**: a
-board carries a `claims[]` array (`pin`, `fork`, `discovery`, `line`) and
-`check-content.mjs` proves each one on every build.
+**THE RULE — every diagram is replayed and its claim asserted BEFORE merge.**
+Since batch 3 that is **data, not discipline**: a board carries a `claims[]`
+array and `check-content.mjs` proves each one on every build.
 
-- ⚠️ **A trap's claims carry a `ply`; a lesson board's must not.** Both mistakes
-  fail the build.
-- ⚠️ **`kind: 'manual'` is the honest escape and REQUIRES a `note`.** Manual
-  claims and boards with no claims at all print as a **review queue**, which
-  deliberately does not fail the build.
-- ⚠️ Anything added to `assertClaim` gets the same treatment as the originals:
-  **write the fixture that must fail, watch it fail, then delete it.**
+- ⚠️ **A trap's claims carry a `ply`; a lesson board's must not.**
+- ⚠️ **`kind: 'manual'` is the honest escape and REQUIRES a `note`** — manual
+  claims print as a **review queue** and deliberately do not fail the build.
+- ⚠️ Anything added to `assertClaim` gets the same treatment: **write the
+  fixture that must fail, watch it fail, then delete it.**
 
-**➡️ [`docs/reference/content.md`](./docs/reference/content.md)** — the four
-positions that shipped wrong, the claim kinds in full, the deferred per-locale
-Markdown decision for course bodies, and the beginner tutorial
-(`/apprendre-les-bases/`, which adds no new board and no new mode, and namespaces
-its progress under `tutorial:<slug>`). **Read it before writing any content.**
-
----
+**➡️ The four positions that shipped wrong, the claim kinds in full, and the
+beginner tutorial: [`docs/reference/content.md`](./docs/reference/content.md).**
 
 ## Routes
 
@@ -1241,21 +1174,19 @@ named here so that skipping one is a decision rather than an oversight:
 
 - ⚠️⚠️ **`revoke all on public.<t> from anon, authenticated` COMES FIRST, AND IS
   NOT BELT AND BRACES.** A Supabase project ships default privileges that hand
-  `anon` the full set on `create table`, before any migration says a word.
-  **Seven tables shipped that way.**
+  `anon` the full set on `create table`. **Seven tables shipped that way.**
 - ⚠️ **EVERY NEW TABLE MUST GRANT `service_role` DML EXPLICITLY.** Migration 0002
-  exists solely to repair that omission across every existing table, and **0003
-  reproduced the bug anyway**. ⚠️ **RLS being correct does not mean the table is
-  reachable** — the tell is a `42501` from a caller that bypasses RLS entirely,
-  which is always a missing grant and never a policy bug.
+  exists solely to repair that omission, and **0003 reproduced the bug anyway**.
+  ⚠️ **RLS being correct does not mean the table is reachable** — the tell is a
+  `42501` from a caller that bypasses RLS, which is always a missing grant.
 
 ⚠️ **Audit by exercising the table with a real trusted client after pushing**,
 not by re-reading the migration — reading the file is what produced the bug both
-times. Also binding, each detailed in the reference: migrations are **never
-edited after merge**; **slugs are free text, not foreign keys**; **`is_staff()`
+times. Also binding: migrations are **never edited after merge**; **`is_staff()`
 must be `SECURITY DEFINER` with a pinned `search_path`**; ordering is **tables →
-functions → policies**; **`role` is never client-updatable**; **dropping a column
-drops its PK and indexes silently**; **deletion cascades from `auth.users`**.
+functions → policies**; **`role` is never client-updatable**; **deletion cascades
+from `auth.users`**.
+
 ### ⚠️ The test-environment interlock
 
 `assertNotProduction()` runs at **Playwright config load** and aborts the whole
@@ -1445,31 +1376,22 @@ is a FINDING when it comes from `test:release`.**
 
 #### ⚠️⚠️ AND THE CONVERSE IS ALSO TRUE: PASSING SERIALLY IS **NOT** A CLEAN BILL
 
-`play.spec.ts` flaked at **three consecutive gates**, passed every serial re-run,
-and was waved through all three times on the rule above. It was a **real defect
-in the application** the whole time.
+`play.spec.ts` flaked at **three consecutive gates**, passed every serial
+re-run, and was waved through all three times. It was a **real defect in the
+application** the whole time.
 
-- ⚠️ **A HYDRATION RACE HAS EXACTLY THE SIGNATURE OF CONTENTION** — it needs load
-  to widen the window, it moves between tests, and it evaporates under
-  `--workers=1`. The serial re-run cannot distinguish the two, so it must not be
-  the last word.
-- ⚠️ **THE DISCRIMINATOR IS THE FAILURE ARTEFACT, NOT THE RE-RUN.**
-  `error-context.md` carries the page state; **read it before blaming the
-  machine.**
+- ⚠️ **A HYDRATION RACE HAS EXACTLY THE SIGNATURE OF CONTENTION**, so the serial
+  re-run cannot distinguish the two and must not be the last word.
+- ⚠️ **THE DISCRIMINATOR IS THE FAILURE ARTEFACT** — `error-context.md` carries
+  the page state; **read it before blaming the machine.**
 - ⚠️ **AN ISLAND'S READINESS MUST BE OBSERVABLE, AND `data-ready` IS THE
-  CONVENTION** — every view carries it. A wait on server-rendered markup proves
-  the HTML arrived and **nothing about whether anything is listening**.
-- ⚠️ **A HELPER WAITS ON READINESS, NEVER ON A PROXY FOR IT**: `<cg-board>` is
-  created in `BoardSurface`'s effect, and `BoardSurface` is a **child**, so it
-  appears a render BEFORE the parent view publishes `data-ready`.
-- ⚠️ **AND A PROSE RULE THAT NOTHING CHECKS IS ALREADY BEING BROKEN SOMEWHERE.**
-  "No control inside a hydrating island may look usable before it is" was written
-  down one release before anything enforced it, and was false on **132 pages** at
-  the time. It is now Critical Feature 76 and `check-island-controls.mjs`.
+  CONVENTION.** A helper waits on readiness, **never on a proxy for it**.
+- ⚠️ **AND A PROSE RULE THAT NOTHING CHECKS IS ALREADY BEING BROKEN SOMEWHERE** —
+  this one was false on **132 pages**, and is now Critical Feature 76.
 
-**➡️ The full symptom table, the three-gate diagnosis and the per-island audit:
-[`docs/reference/testing.md`](./docs/reference/testing.md) and
-[`docs/reference/board.md`](./docs/reference/board.md).**
+**➡️ The three-gate diagnosis in full:
+[`docs/reference/testing.md`](./docs/reference/testing.md).**
+
 ### ⚠️ Driving a board from a spec — the four gates
 
 **Scroll it into view** (`block: 'center'`, never `scrollIntoViewIfNeeded`),
@@ -1559,7 +1481,34 @@ from what changed.
 | | Command | When | Cost |
 |---|---|---|---|
 | **Every feature branch** | `npm run test:branch` | every session, before merging to `dev` | ~1-3 min |
-| **Promotion** | `PUBLIC_AUTH_ENABLED=true npm run test:release` | once, promoting `dev` → `main` | **~22 min** |
+| **Promotion** | the **`gate` workflow on GitHub Actions** | once, promoting `dev` → `main` | ~10-15 min |
+| *(local, optional)* | `PUBLIC_AUTH_ENABLED=true npm run test:release` | when a developer wants the matrix in one go | ~22 min |
+
+⚠️⚠️ **CI IS THE GATE OF RECORD SINCE v0.24.0. A PROMOTION RESTS ON THE `gate`
+WORKFLOW, NOT ON A LOCAL RUN.** Smart App Control blocked WebKit on the only
+machine that could run the matrix — **twice** (v0.18.0, v0.23.0) — and both
+releases shipped on transferred evidence. A Linux runner has no such policy.
+`npm run test:release` still works and is still right for a developer who wants
+the whole matrix locally; it is simply no longer what a promotion is allowed to
+rest on.
+
+⚠️ **THE FIVE PROJECTS RUN IN PARALLEL THERE, AND THAT DOES NOT CONTRADICT
+`test-release.mjs`.** That script serialises them under a worker cap because
+the local machine runs out of RAM — measured, and the cause of four red gates.
+Each CI job is its own runner with its own memory, so the constraint the
+serialisation exists for is absent.
+
+⚠️ **THE SECRETS ARE THE TEST PROJECT'S, NEVER PRODUCTION'S**, and the workflow
+WRITES `.env.test` from them rather than exporting them. ⚠️ **Never widen
+`tests/e2e/env.ts` to read `process.env`** — that edit is what would let
+production credentials into a suite that purges by pattern, and writing the
+file is what makes CI work without it. `scripts/ci-preflight.mjs` then asserts
+the credentials are present and NOT production, in **every** job.
+
+⚠️ **A MISSING SECRET MUST FAIL, NOT SKIP.** `assertNotProduction()` treats an
+absent `.env.test` as safe — correct locally, a silent hole in CI, where it
+would skip every auth spec and still go green. That is what the preflight
+closes, on the same reasoning that makes a zero-test sliver fatal.
 
 `npm run test:branch` is **chromium only** and runs the specs mapped from what
 actually changed (`scripts/spec-map.mjs`). `--all` runs every chromium spec for
@@ -1604,44 +1553,32 @@ in `scripts/lanes.mjs`, which `playwright.config.ts` turns into `testMatch` and
 
 #### ⚠️ THE ACCOUNTS-OFF SLIVER IS NOT A SECOND MATRIX
 
-Exactly two specs can only be proved by an accounts-**OFF build**, because they
-are claims about the **artefact** that shape produces — `auth-disabled.spec.ts`
-and `admin.spec.ts`'s *"the admin surfaces are NOT BUILT"* describe. The second
-build is **irreducible**: you cannot inspect an artefact you did not produce.
-It runs last, **after a sweep**, or `reuseExistingServer` would run the OFF
-specs against the ON build.
+Two specs can only be proved by an accounts-**OFF build** — `auth-disabled` and
+`admin`'s *"the admin surfaces are NOT BUILT"*. The second build is
+**irreducible**: you cannot inspect an artefact you did not produce.
 
 ⚠️ **IF THE SLIVER RUNS ZERO TESTS THE GATE FAILS**, naming Critical Feature 18.
 
 #### ⚠️ `check-lanes.mjs` ADVISES AND MUST NEVER GATE
 
-It always exits 0, and promoting it to a build step would be **actively
-harmful**: the spec that caught the WebKit "Créer" bug **scores zero**, because
-the heuristic sees what a spec *asserts* and that defect lived in how it
-*drives* the page. A green tick would read as "the lanes are complete".
+It always exits 0. Promoting it to a build step would be **actively harmful** —
+the spec that caught the WebKit "Créer" bug **scores zero**, so a green tick
+would read as "the lanes are complete".
 
 ⚠️ **What DOES gate is `missingLaneSpecs()`** — a lane naming a spec that does
-not exist makes `testMatch` match **nothing**, so the project runs zero tests
-and the gate goes green having proved less than it claims.
+not exist makes `testMatch` match **nothing**, and the gate goes green having
+proved less than it claims.
 
 #### ⚠️ DO NOT RUN THE MATRIX ON A FEATURE BRANCH. EVER. NOT "TO BE SAFE".
 
-The reasoning is already done, so it is not re-litigated. **A chromium failure
-is a failure; a chromium pass is enough to merge to `dev`**, and nothing reaches
-a reader without passing `test:release` first.
+**A chromium failure is a failure; a chromium pass is enough to merge to `dev`**,
+and nothing reaches a reader without passing the gate first.
 
-⚠️ **THE "CRITICAL PATH" TRIGGER IS GONE** — forcing the matrix on any branch
-touching the board island, the validator, i18n routing or the SW read as
-prudence and **functioned as a loophole**, because almost everything here
-touches one of those four. `scripts/spec-map.mjs` gained precision instead.
-**If you believe you have found the exception:** change this policy in CLAUDE.md
-in the same commit, with the reason — a one-off exception no future session
-knows about is precisely how the last policy eroded.
+⚠️ **THE "CRITICAL PATH" TRIGGER IS GONE** — it read as prudence and
+**functioned as a loophole**, because almost everything here touches one of its
+four paths. **If you believe you have found the exception:** change this policy
+in CLAUDE.md in the same commit, with the reason.
 
-**➡️ The audit behind every number above — the per-spec costs, the flag-shape
-table, the four browserless specs, what each lane was EARNED by, the
-four-red-gate memory diagnosis and the rejected alternatives:
-[`docs/reference/testing.md`](./docs/reference/testing.md).**
 ### Critical-path tests (never skip)
 
 ⚠️ **A FAILURE IN ANY OF THESE IS A REGRESSION, NOT A TEST TO UPDATE.** They are
