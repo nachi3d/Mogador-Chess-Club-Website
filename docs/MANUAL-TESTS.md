@@ -578,6 +578,28 @@ the kind of change a student notices and nobody explains.*
       total, a read-side cap has survived somewhere
 - [ ] A **negative** number is still refused, and a blank reason is still refused
 
+## 1a. The brand mark — LOOK AT IT SMALL, ON A REAL SCREEN
+
+⚠️ **This is the one thing in this checklist a spec genuinely cannot judge.**
+Every assertion available is "an image element exists"; whether the mark is
+*legible* is an eye test.
+
+- [ ] **The header mark** — on desktop it is 36px, on a phone 28px. It should
+      read as a **rook**: square battlements, a dome, a gold star. If it reads
+      as a queen or a crown, the crown's walls have lost their vertical sides.
+- [ ] **It is the LIGHT mark on the header**, and the header is dark in every
+      theme. Cycle all four themes in `/parametres/`, light and dark. The mark
+      must never be a dark shape on a dark bar.
+- [ ] **The favicon in the tab strip.** Then switch the OS to dark mode and
+      look again — it should flip to cream rather than disappear. (Chrome and
+      Firefox honour this; Safari may not, which is why `favicon-32.png` exists.)
+- [ ] **Add to home screen on a phone.** The installed icon must be the
+      DETAILED artwork on a cream plate, and a round launcher mask must crop
+      into cream, never into the rook.
+- [ ] **The mark is decorative** — `alt=""` and `aria-hidden`. A screen reader
+      should announce the club name once, not twice.
+
+
 ## 1b. Navigation menu and board coordinates
 
 ### The menu — ⚠️ on a REAL phone, not a narrow desktop window

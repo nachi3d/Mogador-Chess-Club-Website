@@ -28,8 +28,18 @@ const current = stripLocale(pathname);
 <header class="surface-inverse site-header">
   <div class="container-page header-inner">
     <a class="brand" href={localizePath('/', locale)}>
-      <!-- Placeholder mark — see src/assets/brand/mark.svg -->
-      <img class="brand-mark" src="/icons/favicon.svg" alt="" width="36" height="36" aria-hidden="true" />
+      {/*
+        ⚠️ THE LIGHT MARK, NOT THE FAVICON. This sits on `.surface-inverse`,
+        which is a DARK colour in all eight theme/mode combinations, and the
+        mark's own ink is dark green — the favicon would be very nearly
+        invisible here. `mark-light.svg` is the same simplified geometry in
+        cream and brass-300.
+
+        ⚠️ AND IT IS THE SIMPLIFIED MARK, because 36px (28px on mobile) is a
+        small size: the commissioned artwork's windows and star points close up
+        below ~48px. See scripts/build-icons.mjs.
+      */}
+      <img class="brand-mark" src="/icons/mark-light.svg" alt="" width="36" height="36" aria-hidden="true" />
       <span class="brand-name">{site.name}</span>
     </a>
 
