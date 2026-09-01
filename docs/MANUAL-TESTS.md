@@ -635,6 +635,21 @@ pages are unchanged, and that is correct, not a failure to apply.
       a single column with no jump in the text size.
 
 
+## 1a-quater. Nothing scrolls sideways on a phone
+
+⚠️ **Test at 360px, not only at 390px.** 360 is where the narrowest column on
+the site — a tutorial step — runs out of room first, and it is the width that
+was broken while every phone test passed.
+
+- [ ] **A tutorial step, a lesson and an exercise at 360px** — swipe left and
+      right. The page must not move horizontally at all.
+- [ ] **The board on a tutorial step is the same size as on `/exercices/`** at
+      the same phone width. A visibly smaller board on the step means the
+      edge-to-edge bleed has been lost.
+- [ ] **The move-entry field and its "Jouer" button** stay on one row and inside
+      the screen. That row is what pushed the layout wide in the first place.
+
+
 ## 1b. Navigation menu and board coordinates
 
 ### The menu — ⚠️ on a REAL phone, not a narrow desktop window
