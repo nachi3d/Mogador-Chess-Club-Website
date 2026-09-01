@@ -11,6 +11,46 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+## [0.28.0] — 2026-09-01
+
+### Fixed
+
+- ⚠️⚠️ **A PHONE SCROLLED SIDEWAYS, AND THE CAUSE WAS THREE IMPLICIT `auto` GRID
+  TRACKS.** At 360px a tutorial step overflowed by **26px**, a lesson by **5px**
+  and — found by the new tests, not reported — **an exercise page by 5px too**.
+  - An `auto` track is sized by its item's **min-content**. The move-entry row
+    (a field plus a "Jouer" button) has a min-content of **330px**, so
+    `.mcc-exercise`, `.mcc-exercise-side` and `.mcc-move-input` each grew their
+    column past the screen, and the board — `width: 100%` — stretched to match.
+  - ⚠️ **`min-width: 0` ON THE ITEM WAS ALREADY THERE AND LOOKS AS IF IT SHOULD
+    BE ENOUGH.** It constrains the ITEM; the TRACK is sized separately and needs
+    `minmax(0, …)`. Both are required — removing either brings it back.
+  - Verified in the browser before writing any CSS: `max-width`, `width` and
+    `overflow` on the item all left it at 330px; declaring the track fixed it.
+- **The board on a tutorial step keeps its size, which the fix initially cost
+  it.** Once the grid stopped overflowing, the board sized honestly to the
+  narrowest column on the site — a card's padding inside the page gutter — and
+  fell to **263px at 360px, 28px squares**, against 34px on `/exercices/`.
+  ⚠️ **Critical Feature 28 says the controls compact and the board does not**,
+  so the board now bleeds to the card's edges below 768px: **303px at 360px and
+  333px at 390px**, matching the exercise page. The text keeps its padding.
+
+### Added
+
+- ⚠️⚠️ **`mobile-fit.spec.ts` NOW ASSERTS HORIZONTAL OVERFLOW, WHICH IS WHY THIS
+  SHIPPED.** Every assertion in that file measured HEIGHT — on a file whose
+  whole subject is "does this fit a phone", running at exactly the width that
+  was broken.
+  - Three pages × three phone sizes. ⚠️ **The PAGES matter as much as the
+    widths:** `/exercices/` has the widest column on the site and barely
+    overflowed; the tutorial step has the narrowest and broke first, and it was
+    not being measured at all.
+  - The failure message **names the widest element and its right edge**, so the
+    next person starts from the culprit rather than bisecting the DOM.
+  - Watched to fail first: 26px, 5px and 5px, each naming
+    `div.mcc-exercise-board`.
+
+
 ## [0.27.0] — 2026-09-01
 
 ### Changed
@@ -7363,7 +7403,8 @@ Foundation only: no real content, no interactive board yet.
   `url()` references unresolved and the fonts silently 404 into a Georgia
   fallback. `scripts/build-fonts.mjs` self-hosts them instead. See CLAUDE.md.
 
-[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.27.0...HEAD
+[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.28.0...HEAD
+[0.28.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.27.0...v0.28.0
 [0.27.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.26.0...v0.27.0
 [0.26.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.25.0...v0.26.0
 [0.25.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.24.0...v0.25.0

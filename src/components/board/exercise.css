@@ -14,6 +14,25 @@
 
 .mcc-exercise {
   display: grid;
+  /* ⚠️⚠️ minmax(0, 1fr), NOT THE IMPLICIT `auto` TRACK — THIS IS WHAT STOPS THE
+     BOARD OVERFLOWING A SMALL PHONE.
+
+     With no `grid-template-columns` the single column is an implicit `auto`
+     track, and an `auto` track's base size is its item's MIN-CONTENT
+     contribution. The board's min-content is larger than a 360px screen
+     leaves, so the track grew past its container and the page scrolled
+     sideways: measured at 360px, `.mcc-exercise` was a correct 263px and
+     `.mcc-exercise-board` inside it was 330px, for 26px of horizontal scroll
+     on every tutorial step.
+
+     ⚠️ `.mcc-exercise-board { min-width: 0 }` BELOW IS NOT ENOUGH AND LOOKS AS
+     IF IT SHOULD BE. That sets the ITEM's automatic minimum; the TRACK is
+     sized separately, and only a `minmax(0, …)` track says the column itself
+     may shrink. Both are needed — removing either brings the overflow back.
+
+     Verified by trying the alternatives in the browser first: max-width,
+     width, and overflow on the item all left it at 330px. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 1.5rem;
   align-items: start;
 }
@@ -211,6 +230,12 @@
 /* ---------- Side column ---------- */
 .mcc-exercise-side {
   display: grid;
+  /* ⚠️ SAME REASON AS `.mcc-exercise` ABOVE — an implicit `auto` track is
+     sized by its item's min-content and will overflow a narrow screen. The
+     move-input form's row (a field plus a "Jouer" button) has a min-content of
+     330px, which is what actually scrolled a 360px phone sideways: the board
+     was innocent once its own track was fixed. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 1.25rem;
   align-content: start;
 }
