@@ -11,6 +11,8 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+## [0.28.0] — 2026-09-01
+
 ### Fixed
 
 - ⚠️⚠️ **A PHONE SCROLLED SIDEWAYS, AND THE CAUSE WAS THREE IMPLICIT `auto` GRID
@@ -7401,7 +7403,8 @@ Foundation only: no real content, no interactive board yet.
   `url()` references unresolved and the fonts silently 404 into a Georgia
   fallback. `scripts/build-fonts.mjs` self-hosts them instead. See CLAUDE.md.
 
-[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.27.0...HEAD
+[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.28.0...HEAD
+[0.28.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.27.0...v0.28.0
 [0.27.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.26.0...v0.27.0
 [0.26.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.25.0...v0.26.0
 [0.25.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.24.0...v0.25.0
