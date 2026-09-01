@@ -147,6 +147,15 @@
 }
 
 @layer components {
+  /* ⚠️ A CAPPED COLUMN IS ALSO A CENTRED ONE. Capping without centring is
+     what left three pages pinned to the left of a wide screen; they had the
+     max-width and nobody had written the margin. Both halves live here so the
+     next page cannot take one without the other. */
+  .mcc-column {
+    max-inline-size: var(--mcc-measure);
+    margin-inline: auto;
+  }
+
   .container-page {
     width: 100%;
     max-width: var(--mcc-container-max);

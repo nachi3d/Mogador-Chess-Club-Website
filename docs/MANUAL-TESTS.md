@@ -650,6 +650,32 @@ was broken while every phone test passed.
       the screen. That row is what pushed the layout wide in the first place.
 
 
+## 1a-quinquies. Space, alignment and depth on a wide screen
+
+⚠️ **Use a window at least 1440px wide, and preferably ~1800px.** Everything
+here is invisible on a laptop at 1280px, which is where it went unnoticed.
+
+- [ ] **`/a-propos/` and `/parametres/` at 1800px** — the whole block is
+      centred, and the **title lines up with the text under it**. A title at
+      the far left with centred body text below is the half-done state.
+- [ ] **Every page's title sits close to its content** — about 48px, not an
+      empty band. Check a card index, a chooser and a prose page.
+- [ ] **`/agenda/` at 1440px** — sessions are cards side by side, each as dense
+      as an `/apprendre/` chooser card. A session with no level badge and no
+      note is SHORTER than one with both; it must not leave a hole.
+- [ ] **The booking control is still the last thing in a session card**, after
+      the venue and the note. That is the path a parent takes; tidying must not
+      have moved it.
+- [ ] **The page background is not a flat fill** — in all four themes, both
+      modes. ⚠️ **Terminal dark is the one to check**: its scanlines were
+      invisible for several releases because they were black on near-black.
+- [ ] **Cards read as lifted, not outlined** — again in dark mode especially,
+      where a black shadow does nothing.
+- [ ] **One brass figure per card, not several.** On an agenda card it is the
+      places count. If two things on one card are brass, the accent has stopped
+      meaning anything.
+
+
 ## 1b. Navigation menu and board coordinates
 
 ### The menu — ⚠️ on a REAL phone, not a narrow desktop window

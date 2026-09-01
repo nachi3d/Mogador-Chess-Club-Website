@@ -204,12 +204,34 @@ const bookingStrings = Object.fromEntries(BOOKING_KEYS.map((k) => [k, t(k)]));
 </script>
 
 <style>
+  /* ⚠️⚠️ A GRID OF CARDS, NOT A STACK OF FULL-WIDTH ROWS.
+     Measured at 1440px: each session was a 1264px card holding about 600px of
+     content, and the date sat in a 16rem column that was empty below its two
+     lines. The box model was honest — a cancelled session already rendered at
+     97px against a full one's 217px, so absent optional content DID shorten
+     the card — but the card itself was mostly air.
+
+     ⚠️ THE MODEL IS `/apprendre/`'s CHOOSER GRID, deliberately: the same
+     auto-fit / minmax shape, so two surfaces with the same job look the same.
+     22rem is the floor because a session carries a date, a venue, a note and a
+     booking control, which is more than a chooser card holds.
+
+     ⚠️ THE READING ORDER IS UNTOUCHED. auto-fit reflows the cards; the DOM
+     order inside each one — and therefore the path a parent takes to the
+     booking control — is exactly as it was. */
   .sessions {
     display: grid;
+    /* ⚠️ min(22rem, 100%), NOT A BARE 22rem — AND THE BARE ONE REGRESSED A
+       PHONE. A minmax floor is a hard minimum: at 360px the column insisted on
+       352px inside 320px of available width and the page scrolled sideways by
+       12px, one release after that class of bug was fixed. `min()` lets the
+       floor collapse to the container on a screen narrower than the floor. */
+    grid-template-columns: repeat(auto-fit, minmax(min(22rem, 100%), 1fr));
     gap: var(--mcc-card-gap);
     margin: 0;
     padding: 0;
     list-style: none;
+    align-items: start;
   }
 
   /* ⚠️ THE COLOURED LEFT EDGE IS GONE, AND IT WAS ON EVERY SESSION.
@@ -218,16 +240,37 @@ const bookingStrings = Object.fromEntries(BOOKING_KEYS.map((k) => [k, t(k)]));
      edge meant nothing anywhere else on the site. Surface, border, radius and
      shadow now come from `.mcc-card`; what stays here is the grid, which is
      genuinely this card's own. */
+  /* ⚠️ ONE COLUMN AT EVERY WIDTH NOW. The two-column rule split a card into a
+     16rem date and the rest — reasonable on a 1264px row, absurd inside a 22rem
+     card. The date reads as the card's heading instead, which is what it always
+     was. */
   .session {
     display: grid;
-    gap: 0.5rem 1.5rem;
+    gap: 0.5rem;
+    align-content: start;
   }
 
-  @media (min-width: 640px) {
-    .session {
-      grid-template-columns: 16rem 1fr;
-      align-items: start;
-    }
+  /* The date is the card's title: a rule under it separates it from what it
+     announces, which is what the two-column split used to do with distance. */
+  .session-when {
+    padding-block-end: 0.5rem;
+    border-block-end: 1px solid var(--mcc-border-subtle);
+  }
+
+  /* ⚠️ ONE BRASS FIGURE PER CARD, AND THIS IS IT. The places count is the
+     number a parent is actually looking for, and it had no styling at all —
+     it read as another line of body copy. This is the same treatment
+     `.hub-card-state` gives the chooser cards on /apprendre/, deliberately:
+     the accent means "the figure that matters here", and it means nothing if
+     a second thing on the same card takes it.
+
+     ⚠️ `--mcc-accent-text` IS THE AUDITED TOKEN, not a raw brass. Brass as
+     text fails on cream; this resolves to the pair check-contrast.mjs already
+     proves (CLAUDE.md → the brass rule). */
+  .booking-places {
+    margin: 0;
+    color: var(--mcc-accent-text);
+    font-weight: 600;
   }
 
   .session-when {

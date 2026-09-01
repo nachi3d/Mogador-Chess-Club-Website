@@ -89,16 +89,24 @@
   --mcc-font-display: var(--font-display-fraunces);
 }
 
-/* A quarter-sawn grain: fine vertical striping, warm, and far below the level
-   at which it could touch a contrast ratio (0.028 alpha over the page cream).
-   The angle is 96deg rather than 90 so the grain drifts very slightly off
-   vertical, which is what stops it reading as a UI rule. */
+/* A quarter-sawn grain: fine vertical striping, warm, and still far below the
+   level at which it could touch a contrast ratio. The angle is 96deg rather
+   than 90 so the grain drifts very slightly off vertical, which is what stops
+   it reading as a UI rule.
+
+   ⚠️ 0.028 -> 0.05, AND A SECOND, COARSER BAND. Bois is the DEFAULT theme —
+   the one a reader with no stored preference sees — and it was among the
+   faintest on the site: measured at a luminance range of 5.0 across a patch of
+   bare page, against souiri's 22. The page read as a flat cream fill, which is
+   what this pass was asked to fix. page-texture.spec.ts measures the range
+   and holds the ink to AA on the darkest pixel, so this is bounded by a test
+   rather than by a comment. */
 :is(:root, .theme-preview).theme-bois:not([data-theme='dark']) {
-  --mcc-page-texture: repeating-linear-gradient(
-    96deg,
-    rgb(111 74 44 / 0.028) 0 1px,
-    rgb(111 74 44 / 0) 1px 7px
-  );
+  --mcc-page-texture:
+    repeating-linear-gradient(96deg, rgb(111 74 44 / 0.05) 0 1px, rgb(111 74 44 / 0) 1px 7px),
+    repeating-linear-gradient(94deg, rgb(111 74 44 / 0.03) 0 1px, rgb(111 74 44 / 0) 1px 29px);
+  /* ⚠️ THE BOARD TEXTURE IS UNCHANGED. The board stays sober; this pass is the
+     page around it. */
   --mcc-board-texture: repeating-linear-gradient(
     96deg,
     rgb(66 43 25 / 0.05) 0 1px,
@@ -107,11 +115,12 @@
 }
 
 :is(:root, .theme-preview).theme-bois[data-theme='dark'] {
-  --mcc-page-texture: repeating-linear-gradient(
-    96deg,
-    rgb(217 189 119 / 0.022) 0 1px,
-    rgb(217 189 119 / 0) 1px 7px
-  );
+  /* Brass grain on a dark panel: raising the line rather than darkening it,
+     because a dark line on a dark page is what made the Terminal scanline
+     invisible. 0.022 -> 0.045, measured range 4.0 -> see the spec. */
+  --mcc-page-texture:
+    repeating-linear-gradient(96deg, rgb(217 189 119 / 0.045) 0 1px, rgb(217 189 119 / 0) 1px 7px),
+    repeating-linear-gradient(94deg, rgb(217 189 119 / 0.025) 0 1px, rgb(217 189 119 / 0) 1px 29px);
   --mcc-board-texture: repeating-linear-gradient(
     96deg,
     rgb(0 0 0 / 0.06) 0 1px,
@@ -513,15 +522,23 @@
   --mcc-ambient-far: 0.55;
   --mcc-press-shadow: rgb(0 0 0 / 0.6);
 
-  /* Scanlines — the one texture on the site above 0.05, at 0.055, and the
-     only one computed by hand rather than kept trivially low. It is a DARK
-     line over a dark page, so it lowers the page luminance slightly rather
-     than raising it: text contrast goes UP, not down. Worst case, body text
-     over a fully covered line, is 13.31 → 13.9. Nothing to fix. */
+  /* ⚠️⚠️ SCANLINES THAT GLOW, NOT SCANLINES THAT DARKEN — AND THE OLD ONES
+     WERE MEASURABLY INVISIBLE.
+
+     This was black at 0.055 over #04150c. Darkening a page that is already
+     within 12/255 of black changes almost nothing: measured luminance range
+     across a patch of bare page was 0.67, against 22 on souiri/light. The old
+     comment reasoned that a darker line RAISES text contrast, which is true
+     and beside the point — a texture nobody can see is not a texture.
+
+     A phosphor tube glows. The line is now the theme's own green, raising
+     luminance instead, which is both visible and in character. Light text on a
+     slightly lighter line loses a little contrast, so page-texture.spec.ts
+     measures the ink against the LIGHTEST pixel here rather than the darkest. */
   --mcc-page-texture: repeating-linear-gradient(
     0deg,
-    rgb(0 0 0 / 0.055) 0 1px,
-    rgb(0 0 0 / 0) 1px 3px
+    rgb(126 240 164 / 0.07) 0 1px,
+    rgb(126 240 164 / 0) 1px 3px
   );
   /* The board gets them too — a phosphor board without scanlines is just a
      green rectangle. Same direction: darkening, so piece silhouettes gain

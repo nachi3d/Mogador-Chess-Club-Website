@@ -197,7 +197,7 @@ function achievementLabel(id: string): string {
   </noscript>
 
   <div
-    class="progress"
+    class="progress mcc-column"
     data-progress-view
     data-progress-root
     data-sync-ok={t('account.sync.ok')}
@@ -819,10 +819,11 @@ function achievementLabel(id: string): string {
 </script>
 
 <style>
+  /* Width and centring come from `.mcc-column` in global.css; the 1440px
+     rule below drops the cap entirely and flows into two columns. */
   .progress {
     display: grid;
     gap: 2rem;
-    max-width: 44rem;
   }
 
   /* ══════════════════════════════════════════════════════════════════════

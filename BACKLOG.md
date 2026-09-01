@@ -8,6 +8,8 @@ with itself.
 
 | Status | Meaning |
 |---|---|
+| **The two faintest page textures — marbre/dark and terminal/light** | `claude` | Measured luminance range across a patch of bare page: **6 and 7**, against souiri/light's 22 and bois/light's 14.3 after this pass. Both clear `page-texture.spec.ts`'s presence floor and both are AA-safe, so this is taste rather than a defect — but they are the two a reader is least likely to notice any depth on. Raise them the way bois was raised, and re-run the spec, which measures both presence and worst-pixel contrast. |
+| **`/exercices/` has no stable "first content block" selector** | `claude` | Noted while measuring page margins: every other route has one obvious content root, and this one's first block is a `.resume-card` that is `hidden` until a reader has progress. Harmless today — it only made a throwaway measurement harness report zero — but any future check that wants "the first thing under the title" will hit it. |
 | `soon` | Agreed, no blocker, and wanted next — ahead of anything marked `backlog` |
 | `backlog` | Agreed, unscheduled, no blocker |
 | `blocked` | Cannot start until something external exists |

@@ -11,6 +11,83 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+## [0.29.0] — 2026-09-01
+
+### Changed
+
+- ⚠️⚠️ **A CAPPED COLUMN IS ALSO A CENTRED ONE, AND THREE PAGES HAD ONLY THE
+  CAP.** `44rem` was written out three times — `/a-propos/`, `/parametres/`,
+  `/progres/` — and none of the three centred it. Measured at 1800px: a 704px
+  column with **268px of margin on the left and 828px on the right**.
+  `--mcc-measure` now holds the figure and `.mcc-column` in global.css does
+  both halves, so a fourth page cannot take one without the other.
+  - ⚠️ **THE PAGE HEAD IS INSIDE THE COLUMN, AND THE FIRST ATTEMPT LEFT IT
+    OUT.** Centring only the content put the title at the container's left edge
+    with its body centred beneath it — a heading that no longer lined up with
+    what it announced, which is worse than the off-centre column it replaced.
+    Caught by measuring the intro's left edge, not by looking.
+- ⚠️ **THE PAGE HEAD'S GAP WAS `--mcc-section-gap` (96px) ON EVERY PAGE.** A
+  title and the thing under it are one unit, not two sections; it is
+  `--mcc-space-xl` (48px) now. **One change, in `PageIntro.astro`** — the gap
+  belongs to the head, so no page overrides it.
+- **The agenda is a grid of cards, not a stack of full-width rows.** Each
+  session was a 1264px card holding ~600px of content with the date in a 16rem
+  column that was empty below its two lines. Same `auto-fit`/`minmax` shape as
+  `/apprendre/`'s chooser cards, which is the surface this was asked to match.
+  ⚠️ **The reading order is untouched** — `auto-fit` reflows cards, the DOM
+  inside each is unchanged, so the path to the booking control is as it was.
+  - ⚠️ **THE BOX MODEL WAS NOT THE PROBLEM, AND THE BRIEF SAID IT WAS.** A
+    cancelled session already rendered at 97px against a full one's 217px, and
+    the only slack under the content was the card's own 21px padding. Absent
+    optional content already shortened the card; the card was simply too wide.
+
+### Added
+
+- **`tests/e2e/page-texture.spec.ts` — the contrast check `check-contrast.mjs`
+  structurally cannot do.** That script proves a token pair; the page paints
+  `--mcc-page-texture` on top of the audited surface, and no token holds the
+  colour a letter actually sits on. This samples the rendered background, takes
+  the **worst pixel**, and holds the ink to AA against it — for all four themes
+  in both modes.
+  - ⚠️ **IT ALSO ASSERTS THE TEXTURE IS THERE AT ALL**, which is how it caught
+    **terminal/dark rendering completely flat** (luminance range 0.67 against
+    souiri's 22): its scanline was BLACK over a page already within 12/255 of
+    black. A phosphor tube glows — the line is the theme's own green now.
+  - ⚠️ **A FIRST VERSION PARSED THE STYLESHEETS AND WAS WRONG.** Every theme
+    block is written `:is(:root, .theme-x)…`, so a substring matcher for
+    ":root" matched all four and the last one silently won — identical figures
+    for every theme, and a *negative* drop. Sampling pixels has no such failure
+    mode. It was deleted rather than fixed.
+
+- **Depth, measured rather than eyeballed** (luminance range across a patch of
+  bare page, 0–255):
+
+  | theme | before | after |
+  |---|---|---|
+  | bois/light **(the default)** | 5.0 | **14.3** |
+  | bois/dark | 4.0 | **11.0** |
+  | terminal/dark | **0.67** | **12.0** |
+  | marbre/light · souiri/light · souiri/dark | 14 · 22 · 15 | unchanged |
+  | marbre/dark · terminal/light | 6 · 7 | unchanged, and the weakest left |
+
+- **`--shadow-lift` is three stops instead of two**, and dark mode gets its
+  own. ⚠️ **A black cast on a near-black page is not a shadow** — the light
+  figure could be raised indefinitely and a dark-mode card would still read as
+  flat. Dark gets a deeper cast plus a hairline of light along the top edge.
+- **One brass figure per agenda card** — the places count, which had no styling
+  at all. Same treatment `.hub-card-state` gives the chooser cards, through
+  `--mcc-accent-text`, which is already an audited pair.
+
+### Fixed
+
+- ⚠️ **A MOBILE REGRESSION I INTRODUCED AND CAUGHT BEFORE MERGE.** The agenda
+  grid's `minmax(22rem, …)` floor is a hard minimum: at 360px the column
+  insisted on 352px inside 320px and the page scrolled sideways by **12px**,
+  one release after that exact class of bug was fixed. It is
+  `minmax(min(22rem, 100%), 1fr)` now. Verified 0 overflow at 360 and 390 on
+  all four pages.
+
+
 ## [0.28.0] — 2026-09-01
 
 ### Fixed
@@ -7403,7 +7480,8 @@ Foundation only: no real content, no interactive board yet.
   `url()` references unresolved and the fonts silently 404 into a Georgia
   fallback. `scripts/build-fonts.mjs` self-hosts them instead. See CLAUDE.md.
 
-[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.28.0...HEAD
+[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.29.0...HEAD
+[0.29.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.28.0...v0.29.0
 [0.28.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.27.0...v0.28.0
 [0.27.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.26.0...v0.27.0
 [0.26.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.25.0...v0.26.0
