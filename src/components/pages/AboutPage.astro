@@ -45,10 +45,20 @@ const address = venueAddress();
   {/* ⚠️ NAMES ITS PARENT (Critical Feature 62) — "‹ Le club", never a bare
       "Retour" and never `history.back()`. This page sits below the Club
       landing, so that is what the trail says. */}
-  <Trail locale={locale} href={localizePath('/club/', locale)} label={t('club.title')} />
-  <PageIntro title={t('about.title')} intro={t('about.intro')} />
+  {/* ⚠️⚠️ THE HEAD IS INSIDE THE COLUMN, AND THE FIRST ATTEMPT LEFT IT OUT.
+      Centring only the content put the title at the container's left edge
+      (268px at 1800px) with its own body centred beneath it (548px) — a
+      heading that no longer lined up with what it announced, which is worse
+      than the off-centre column it replaced.
 
-  <div class="about">
+      A page whose content is a reading measure is centred AS A BLOCK: trail,
+      title and body share one column. Pages whose content already fills the
+      container are untouched. */}
+  <div class="mcc-column">
+    <Trail locale={locale} href={localizePath('/club/', locale)} label={t('club.title')} />
+    <PageIntro title={t('about.title')} intro={t('about.intro')} />
+
+    <div class="about">
     <section class="about-block">
       <h2>{t('about.club.heading')}</h2>
       <p>{t('about.club.body')}</p>
@@ -103,15 +113,16 @@ const address = venueAddress();
           {t('about.join.contact')}
         </a>
       </p>
-    </section>
+      </section>
+    </div>
   </div>
 </BaseLayout>
 
 <style>
+  /* Width and centring come from `.mcc-column` in global.css. */
   .about {
     display: grid;
     gap: 1.5rem;
-    max-inline-size: 44rem;
     margin-block-end: 2rem;
   }
 
