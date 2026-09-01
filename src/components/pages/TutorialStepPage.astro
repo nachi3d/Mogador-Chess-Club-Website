@@ -185,6 +185,24 @@ const indexPath = localizePath('/apprendre-les-bases/', locale);
     max-width: 60ch;
   }
 
+  /* ── The board bleeds to the card's edges on a phone ───────────────────
+     ⚠️ THIS IS WHAT KEEPS CRITICAL FEATURE 28 TRUE HERE — the controls
+     compact, the board does not. Once the exercise grid stopped overflowing
+     (see exercise.css), the board sized honestly to its column, and on THIS
+     page the column is the narrowest on the site: the step card's 20px padding
+     sits inside the page gutter, and the board block adds 12px of its own. At
+     360px that left a 263px board — 28px squares, against 34px on
+     `/exercices/` for the same phone.
+
+     The text keeps its padding; the board is a figure and takes the full card.
+     Measured at 360px: 263px → 303px, which is the same square size the
+     exercise page gives. */
+  @media (max-width: 47.99rem) {
+    .step-board {
+      margin-inline: calc(var(--mcc-card-pad) * -1);
+    }
+  }
+
   /* ── Two columns once there is genuinely room for two ──────────────────
      60ch + a 34rem board + the gap needs ~1140px of MAIN, and main is capped
      at --mcc-container-max (74rem = 1184px). Below this the single column is
