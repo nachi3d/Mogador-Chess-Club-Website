@@ -61,6 +61,19 @@
 .auth-card,
 .dash-card {
   position: relative;
+  /* ⚠️ THE PADDING LIVES HERE, NOT ON EACH PAGE, AND IT DID NOT UNTIL v0.25.0.
+     This rule owned the surface, the border, the radius and the press, and
+     left every page to pad its own card. The result was what you would expect
+     of a value nobody owned: `.card` 1.25rem, `.lesson-card` 1rem 1.25rem,
+     `.auth-card` 1.5rem — and `.step` NOTHING AT ALL, so a tutorial step and
+     the lesson list set their text hard against the frame.
+
+     `--mcc-card-pad` already existed in tokens.css (= --mcc-space-md, 20px)
+     and only `surfaces.css` was using it. Every gap comes from the scale, so
+     a card's own gap does too. A page that genuinely wants a different figure
+     still overrides it — scoped styles win on specificity — but it now has to
+     mean it rather than inherit nothing. */
+  padding: var(--mcc-card-pad);
   background-color: var(--mcc-surface-raised);
   border: 1px solid var(--mcc-border-subtle);
   /* ⚠️ --mcc-border-subtle, NEVER --mcc-border. The latter has never existed;

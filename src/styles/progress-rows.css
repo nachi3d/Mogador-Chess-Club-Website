@@ -1,0 +1,72 @@
+/* ============================================================
+   Rows that a SCRIPT builds — and therefore cannot be scoped.
+
+   ⚠️⚠️ THIS FILE EXISTS BECAUSE THE GAME HISTORY SHIPPED UNSTYLED.
+
+   Astro stamps `data-astro-cid-*` at BUILD time onto the elements a component
+   declares, and compiles `.progress-row` to
+   `.progress-row[data-astro-cid-kceort72]`. `/progres/` builds its game rows
+   and its award rows with `document.createElement`, so they carry the class
+   and NOT the attribute — and every one of these rules silently missed them.
+
+   On screen: three games rendered as run-together text,
+   "Débutant20 août 2026Gagnée", directly beneath server-rendered rows that
+   were proper cards. Nothing errored, nothing failed, and the section had
+   looked finished since the game log landed. It is exactly the failure
+   CLAUDE.md describes as "a control that looks like it belongs to a different
+   website".
+
+   ⚠️ THE SERVER-RENDERED ROWS USE THE SAME CLASSES and are styled from here
+   too — one definition, both origins. Do not move a rule back into the scoped
+   block "because that row is server-rendered": the next row built by script
+   loses it again, silently, and the tell is subtle enough to survive a review.
+
+   ⚠️ PREFIXED WITH `.progress-block` SO THE CASCADE IS SETTLED BY SPECIFICITY,
+   not by stylesheet order, which is not guaranteed for a component-imported
+   sheet. Same rule as `admin.css` and `family.css`.
+   ============================================================ */
+
+.progress-block .progress-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.5rem 0.75rem;
+  background-color: var(--mcc-surface-sunken);
+  border-radius: var(--radius-card);
+  font-size: 0.9375rem;
+}
+
+.progress-block .progress-row-count {
+  color: var(--mcc-text-secondary);
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.progress-block .award-when {
+  display: block;
+  margin-block-start: 0.15rem;
+  color: var(--mcc-text-secondary);
+  font-size: 0.8125rem;
+}
+
+.progress-block .award-points {
+  color: var(--mcc-accent-text);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.progress-block .game-log {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* ⚠️ ONE TREATMENT FOR ALL THREE OUTCOMES — no colour per result. A `.game-loss`
+   in red would make a loss cost something on a site whose rules say it costs
+   nothing (Critical Feature 35). The word carries the meaning. Notation-ish so
+   the three words line up down the right edge the way award points do. */
+.progress-block .game-outcome {
+  font-family: var(--font-notation);
+  white-space: nowrap;
+}
