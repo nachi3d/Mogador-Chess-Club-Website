@@ -11,6 +11,60 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+## [0.27.0] — 2026-09-01
+
+### Changed
+
+- ⚠️⚠️ **THE READABLE MEASURE WAS ON THE CARD, NOT ON THE PROSE — SO THE BOARD
+  WAS HELD TO A WIDTH CHOSEN FOR SENTENCES.** `.step` was `max-width: 60ch` and
+  `.lesson` was `66ch`, capping the whole article, boards and exercise controls
+  included. The cap now sits on the text blocks; the board takes its own width.
+- **`--mcc-container-max` grows once, at 1440px**, from 74rem to 84rem. It was
+  74rem at every width above 768px, so a 1690px window showed 1184px of page
+  and ~500px of nothing. ⚠️ **It does not widen prose** — every text block keeps
+  its own measure, and `themes.spec.ts` still asserts 60–70 characters.
+  ⚠️ **1440px and no lower:** below it there is not room for a full measure AND
+  a board side by side, and no spec runs above 1280px, so nothing below the
+  line moves.
+- **A tutorial step is two columns at 1440px and up** — prose left, board and
+  its controls right — and **fits above the fold at 1440×900**.
+- **A lesson pairs each prose chunk with the board it illustrates.** The pair is
+  now a real element rather than a fragment; DOM order is unchanged, so reading
+  order is unchanged.
+- **`/progres/` flows into two columns.** ⚠️ **MULTICOL, NOT A GRID, AND THE GRID
+  WAS TRIED FIRST**: grid rows align, so the ten-row achievements block took a
+  row to itself and left ~500px of empty column beside it — two columns wide and
+  nearly as tall. `break-inside: avoid` is load-bearing.
+
+**Measured at 1440px, before → after** (document height, and screens at 900px):
+
+  | page   | before | after | screens |
+  |--------|--------|-------|---------|
+  | step   | 1659px | **1281px** | 1.84 → **1.42** |
+  | lesson | 2613px | **1988px** | 2.90 → **2.21** |
+  | progres| 2722px | **1794px** | 3.02 → **1.99** |
+
+  Prose measures after: step **60 characters**, lesson **66** — both inside the
+  60–70 rule. Card padding stays **20px** on `.step`, `.lesson-card` and `.card`
+  at the new width.
+
+### Notes
+
+- ⚠️ **MOBILE IS BYTE-FOR-BYTE UNCHANGED**, verified by measuring the same
+  numbers with the change stashed: 360px and 390px, all three pages, identical
+  overflow and identical card widths. Everything here is behind a 1440px media
+  query.
+- ⚠️ **A PRE-EXISTING 360px OVERFLOW IS RECORDED RATHER THAN FIXED.** A tutorial
+  step scrolls sideways by **26px** at 360px, and a lesson by **5px** — the same
+  before this change as after. The cause is the board block: `.mcc-exercise-board`
+  measures **330px inside a 280px content area**. It is board geometry, which
+  CLAUDE.md says to read `docs/reference/board.md` before touching, and it wants
+  its own change. ⚠️ `mobile-fit.spec.ts` covers 360×640 but measures HEIGHT, so
+  horizontal overflow at that width is untested.
+- **No animation was added and no library was considered.** Nothing here moves;
+  it is layout. (GSAP remains rejected on licence grounds — see E1.)
+
+
 ## [0.26.0] — 2026-09-01
 
 ### Fixed
@@ -7309,7 +7363,8 @@ Foundation only: no real content, no interactive board yet.
   `url()` references unresolved and the fonts silently 404 into a Georgia
   fallback. `scripts/build-fonts.mjs` self-hosts them instead. See CLAUDE.md.
 
-[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.26.0...HEAD
+[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.27.0...HEAD
+[0.27.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.26.0...v0.27.0
 [0.26.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.25.0...v0.26.0
 [0.25.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.24.0...v0.25.0
 [0.24.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.23.0...v0.24.0

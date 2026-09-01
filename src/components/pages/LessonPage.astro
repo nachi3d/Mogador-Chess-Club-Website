@@ -125,7 +125,12 @@ const pairs = chunks.map((chunk, i) => ({ chunk, board: data.boards[i] }));
     <div class="lesson-body">
       {
         pairs.map(({ chunk, board }, i) => (
-          <>
+          /* ⚠️ THE PAIR IS A REAL ELEMENT SO THE TWO CAN SIT SIDE BY SIDE at
+             1440px and up. It was a fragment, which made prose and boards flat
+             siblings and left no way to say "this board belongs beside THAT
+             paragraph". The DOM order is unchanged — prose, then its board —
+             so the reading order a screen reader follows is unchanged too. */
+          <div class="lesson-pair">
             {/* The drop cap marks where the teaching starts, so it belongs to
                 the FIRST prose chunk and nowhere else — a lesson with four
                 boards has five prose chunks, and five drop caps would mark
@@ -159,7 +164,7 @@ const pairs = chunks.map((chunk, i) => ({ chunk, board: data.boards[i] }));
                 )}
               </figure>
             )}
-          </>
+          </div>
         ))
       }
     </div>
@@ -228,8 +233,37 @@ const pairs = chunks.map((chunk, i) => ({ chunk, board: data.boards[i] }));
 </BaseLayout>
 
 <style>
-  .lesson {
+  /* ══════════════════════════════════════════════════════════════════════
+     ⚠️⚠️ THE MEASURE IS ON THE PROSE, NOT ON THE ARTICLE.
+
+     This was `.lesson { max-width: 66ch }`, which held the boards to a width
+     chosen for sentences as well. Measured at 1440px and 1690px: main 1184px,
+     article 666px, 2.9 screens of scrolling with half the window empty.
+
+     ⚠️ `themes.spec.ts` ASSERTS THE 60–70 CHARACTER MEASURE ON `.prose` AT
+     1280px, and that is exactly where the cap now lives, so the rule it
+     protects is unmoved. */
+  .prose {
     max-width: 66ch;
+  }
+
+  /* ── A board beside the paragraph it illustrates ───────────────────────
+     Only at 1440px and up, where `--mcc-container-max` grows to 84rem and
+     there is room for a full measure AND a board. Below that they stack, as
+     before — the board is the thing being taught with and must not be
+     squeezed to make a layout work. */
+  @media (min-width: 90rem) {
+    .lesson-pair {
+      display: grid;
+      grid-template-columns: minmax(0, 66ch) minmax(0, 1fr);
+      column-gap: var(--mcc-space-lg);
+      align-items: start;
+    }
+
+    /* The final chunk usually has no board; it simply keeps column one. */
+    .lesson-pair > .lesson-board {
+      margin-block: 0;
+    }
   }
 
   .lesson-counter {

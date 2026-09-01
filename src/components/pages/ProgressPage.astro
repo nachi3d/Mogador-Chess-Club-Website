@@ -825,6 +825,44 @@ function achievementLabel(id: string): string {
     max-width: 44rem;
   }
 
+  /* ══════════════════════════════════════════════════════════════════════
+     ⚠️ NONE OF THIS IS PROSE, so none of it needs a prose measure.
+
+     Ten stacked blocks — bars, rows of numbers, chips, a rank meter — held to
+     44rem (704px) inside a 1184px main. Measured at 1440px and 1690px: 3.02
+     screens of scrolling with the right half of the window empty.
+
+     Two columns at 1440px and up, where `--mcc-container-max` grows to 84rem.
+     ⚠️ `align-items: start` MATTERS: without it every block in a row stretches
+     to the tallest, and a two-row bar block would sit in a box the height of
+     the achievements list.
+
+     ⚠️⚠️ MULTICOL, NOT A TWO-COLUMN GRID, AND THE FIRST ATTEMPT WAS THE GRID.
+     Grid rows align: the ten-row achievements block took a whole row to
+     itself and left ~500px of empty column beside it, so the page was two
+     columns wide and still nearly as tall. Multicol FLOWS the blocks and
+     balances the two columns, which is what a stack of unequal cards wants.
+     Reading order is unaffected — the DOM order is untouched, and multicol
+     fills column one before column two.
+
+     ⚠️ `break-inside: avoid` IS LOAD-BEARING. Without it a block splits across
+     the column boundary and a progress bar or an achievements list is cut in
+     half mid-item. */
+  @media (min-width: 90rem) {
+    .progress {
+      display: block;
+      max-width: none;
+      columns: 2;
+      column-gap: var(--mcc-space-xl);
+    }
+
+    .progress > * {
+      break-inside: avoid;
+      margin-block-end: 2rem;
+    }
+
+  }
+
   .progress-block {
     display: grid;
     gap: 0.75rem;
