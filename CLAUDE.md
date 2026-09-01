@@ -943,6 +943,46 @@ contrast failures and the field grouping in full:
 
 ---
 
+## ⚠️ SPACE — CENTRING, THE PAGE HEAD, AND DEPTH
+
+- ⚠️⚠️ **A CAPPED COLUMN IS ALSO A CENTRED ONE.** `.mcc-column` (global.css)
+  sets `--mcc-measure` **and** `margin-inline: auto`; never write one without
+  the other. Three pages had the cap and not the margin, and sat against the
+  left of a centred container — 268px of margin one side, 828px the other.
+- ⚠️ **THE PAGE HEAD GOES INSIDE THE COLUMN.** Centring the content alone
+  leaves the title at the container edge and its own body indented beneath it,
+  which is worse than the off-centre column. Trail, title and body are one
+  block. Pages whose content fills the container are untouched.
+- ⚠️ **THE TITLE-TO-CONTENT GAP LIVES IN `PageIntro.astro`, AND NOWHERE ELSE.**
+  It is `--mcc-space-xl`. It was `--mcc-section-gap` (96px above 768px) on
+  every page: a title and what it announces are one unit, not two sections. A
+  page wanting a different figure is a design argument, not a local override.
+- ⚠️ **A CHOOSER-SHAPED SURFACE USES THE CHOOSER'S GRID.** `/apprendre/`'s
+  `auto-fit`/`minmax` card grid is the model; `/agenda/` follows it. Where a
+  surface differs, the difference is named in the file.
+- ⚠️⚠️ **`minmax(min(Xrem, 100%), 1fr)`, NEVER A BARE `minmax(Xrem, …)`.** A
+  minmax floor is a hard minimum: a 22rem floor overflows a 360px phone by
+  12px. `min()` lets it collapse on a screen narrower than the floor.
+- ⚠️ **A BLACK SHADOW ON A DARK PAGE IS NOT A SHADOW.** `--shadow-lift` has its
+  own dark-mode value; raising the light-mode figure does nothing there.
+- ⚠️ **ONE BRASS FIGURE PER CARD** — the number the reader came for. Through
+  `--mcc-accent-text`, never a raw brass. Two accents on one card is none.
+
+### ⚠️⚠️ THE PAGE TEXTURE IS AUDITED BY A SPEC, NOT BY `check-contrast.mjs`
+
+`check-contrast.mjs` proves a TOKEN PAIR and cannot see `--mcc-page-texture`
+painted over it — the same blind spot as an `opacity` on text.
+`tests/e2e/page-texture.spec.ts` samples the rendered background, takes the
+**worst pixel**, and holds the ink to AA on it, for four themes × two modes.
+
+- ⚠️ **IT ALSO ASSERTS THE TEXTURE EXISTS.** Terminal/dark rendered flat for
+  several releases — a BLACK scanline on a page within 12/255 of black. On a
+  dark theme the texture must **raise** luminance, not lower it.
+- ⚠️ **MEASURE IT IN A BROWSER, NEVER BY PARSING THE CSS.** A parser was tried
+  and mis-resolved half the themes: every theme block is
+  `:is(:root, .theme-x)…`, so matching on ":root" matches all four.
+
+
 ## Design tokens, themes and typography
 
 `src/styles/tokens.css` is the source of record. Direction: **"old chess club"**

@@ -82,6 +82,16 @@ const FOLLOW = 'follow';
       ITS PARENT. Without this the settings page became the one screen with no
       way up and no active bar entry — reachable, and unmoored. */}
   <Trail locale={locale} href={localizePath('/moi/', locale)} label={t('nav.me')} />
+  {/* ⚠️⚠️ THE HEAD IS INSIDE THE COLUMN, AND THE FIRST ATTEMPT LEFT IT OUT.
+      Centring only the content put the title at the container's left edge
+      (268px at 1800px) with its own body centred beneath it (548px) — a
+      heading that no longer lined up with what it announced, which is worse
+      than the off-centre column it replaced.
+
+      A page whose content is a reading measure is centred AS A BLOCK: trail,
+      title and body share one column. Pages whose content already fills the
+      container are untouched. */}
+  <div class="mcc-column">
   <PageIntro title={t('settings.title')} intro={t('settings.intro')} />
 
   <noscript>
@@ -282,6 +292,7 @@ const FOLLOW = 'follow';
     data-sound-off={t('settings.sound.off')}
   >
   </p>
+  </div>
 </BaseLayout>
 
 <script>
@@ -534,10 +545,10 @@ const FOLLOW = 'follow';
 </script>
 
 <style>
+  /* Width and centring come from `.mcc-column` in global.css. */
   .settings {
     display: grid;
     gap: 2rem;
-    max-width: 44rem;
   }
 
   .settings-noscript {

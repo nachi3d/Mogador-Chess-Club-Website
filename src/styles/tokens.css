@@ -132,7 +132,19 @@
   --radius-app: 14px;
   --radius-pill: 999px;
 
-  --shadow-lift: 0 1px 2px rgb(20 18 14 / 0.06), 0 10px 28px -12px rgb(20 18 14 / 0.18);
+  /* ⚠️ THREE STOPS, NOT TWO — A CARD SHOULD READ AS LIFTED, NOT AS OUTLINED.
+     It was 0.06 + 0.18, which on a cream page under a near-white card is close
+     to nothing: the hairline border did all the work and the card looked drawn
+     rather than raised. The contact stop grounds it, the middle stop is the one
+     the eye reads as height, and the wide stop is the soft cast.
+
+     ⚠️ A SHADOW IS NOT AN AUDITED PAIR AND MUST NOT CARRY MEANING. It falls on
+     the page background and never behind text, so check-contrast.mjs has
+     nothing to say about it — and for the same reason nothing may depend on
+     seeing it. It is depth, and depth only. */
+  --shadow-lift:
+    0 1px 2px rgb(20 18 14 / 0.1), 0 4px 10px -4px rgb(20 18 14 / 0.14),
+    0 18px 36px -18px rgb(20 18 14 / 0.3);
   /* The board sits on the table — a tighter, heavier shadow than a card. */
   --shadow-board: 0 2px 4px rgb(20 18 14 / 0.12), 0 18px 40px -18px rgb(20 18 14 / 0.35);
 }
@@ -292,6 +304,14 @@
   --mcc-surface-field: var(--mcc-surface-sunken);
 
   --mcc-container-max: 74rem;
+  /* ⚠️ THE READING COLUMN, AND IT IS CENTRED WHEREVER IT IS USED.
+     44rem was written out three times — /a-propos/, /parametres/, /progres/ —
+     and none of the three centred it, so on a wide screen the content sat
+     against the left edge of a container that was itself centred. Measured at
+     1800px: a 704px column with 268px of margin on the left and 828px on the
+     right. Use it with `margin-inline: auto`; `.mcc-column` in global.css
+     does both. */
+  --mcc-measure: 44rem;
   --mcc-gutter: 1.25rem;
   --mcc-section-gap: 4rem;
   /* The board is the one element that must never be cramped or overscaled. */
@@ -339,6 +359,17 @@
    ============================================================ */
 :root[data-theme='dark'] {
   color-scheme: dark;
+
+  /* ⚠️ A BLACK SHADOW ON A DARK PAGE IS NOT A SHADOW. The light modes cast
+     warm ink on cream and read as height; the same cast on a near-black
+     surface is invisible, which is why a card in dark mode stayed flat however
+     much the light-mode figure was raised. Dark gets a deeper, tighter cast
+     plus a hairline of light along the top edge — the way a raised surface
+     catches the room.
+     ⚠️ The inset stop is listed FIRST so it paints beneath the others. */
+  --shadow-lift:
+    inset 0 1px 0 rgb(255 255 255 / 0.05), 0 2px 4px rgb(0 0 0 / 0.4),
+    0 18px 36px -18px rgb(0 0 0 / 0.6);
 
   --mcc-surface-page: #101a14; /* the room */
   --mcc-surface-raised: #18261e; /* a card catching the lamp */
