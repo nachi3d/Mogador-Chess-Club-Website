@@ -79,16 +79,22 @@ const indexPath = localizePath('/apprendre-les-bases/', locale);
       <p set:html={emphasise(task)} />
     </section>
 
-    <ExerciseBoard
-      locale={locale}
-      slug={`tutorial:${data.slug}`}
-      fen={data.fen}
-      solution={data.solution}
-      opponentReplies={data.opponentReplies}
-      onlyMove={data.onlyMove}
-      hint={hint}
-      {...(data.orientation ? { orientation: data.orientation } : {})}
-    />
+    {/* ⚠️ A WRAPPER THIS COMPONENT DECLARES, so the scoped grid below can place
+        it. `ExerciseBoard` renders `.mcc-board-block` from ANOTHER component,
+        and a scoped rule cannot reach an element this template does not
+        declare — the same rule that stranded the progress rows. */}
+    <div class="step-board">
+      <ExerciseBoard
+        locale={locale}
+        slug={`tutorial:${data.slug}`}
+        fen={data.fen}
+        solution={data.solution}
+        opponentReplies={data.opponentReplies}
+        onlyMove={data.onlyMove}
+        hint={hint}
+        {...(data.orientation ? { orientation: data.orientation } : {})}
+      />
+    </div>
 
     {
       !next && (
@@ -160,8 +166,69 @@ const indexPath = localizePath('/apprendre-les-bases/', locale);
 </BaseLayout>
 
 <style>
-  .step {
+  /* ══════════════════════════════════════════════════════════════════════
+     ⚠️⚠️ THE READABLE MEASURE BELONGS TO THE PROSE, NOT TO THE CARD.
+
+     This was `.step { max-width: 60ch }`, which capped the WHOLE step — the
+     board and its controls included — at a width chosen for sentences.
+     Measured at 1440px and at 1690px: `main` is 1184px and the card was
+     606px, so the reader scrolled 1.84 screens past content that would have
+     fitted, with more than half the page empty beside it.
+
+     The cap now sits on the text blocks. The board is not prose and takes its
+     own width (`--mcc-board-max`).
+     ══════════════════════════════════════════════════════════════════════ */
+  .step-head,
+  .step-prose,
+  .step-task,
+  .step-finished {
     max-width: 60ch;
+  }
+
+  /* ── Two columns once there is genuinely room for two ──────────────────
+     60ch + a 34rem board + the gap needs ~1140px of MAIN, and main is capped
+     at --mcc-container-max (74rem = 1184px). Below this the single column is
+     correct and unchanged: a board squeezed beside prose is worse than a
+     board under it. */
+  @media (min-width: 90rem) {
+    .step {
+      display: grid;
+      /* ⚠️ THE PROSE COLUMN TAKES THE REMAINDER, AND THE BOARD IS 30rem RATHER
+         THAN ITS 34rem MAXIMUM. Asking for `60ch` here and letting the board
+         have its full width needs ~1232px inside a container capped at 1184,
+         so the grid silently shrank the text instead: measured at 50
+         characters, below the 55 the lesson measure spec treats as the floor.
+         Sizing the board column down by 4rem buys the prose back — measured
+         at 62 characters, inside the 60–70 rule, with the board still half as
+         wide again as a phone's. */
+      grid-template-columns: minmax(0, 60ch) minmax(0, 1fr);
+      column-gap: var(--mcc-space-lg);
+      align-items: start;
+    }
+
+    /* The trail spans, so it still reads as the way out of the whole step. */
+    .step > :global(.trail) {
+      grid-column: 1 / -1;
+    }
+
+    .step-head,
+    .step-prose,
+    .step-task {
+      grid-column: 1;
+    }
+
+    /* ⚠️ SPANS THE TEXT ROWS RATHER THAN SITTING IN ONE. The board is taller
+       than any single text block; pinning it to one row would leave the other
+       two stranded beside white space. */
+    .step-board {
+      grid-column: 2;
+      grid-row: 2 / span 3;
+    }
+
+    .step-finished,
+    .step-nav {
+      grid-column: 1 / -1;
+    }
   }
 
   .step-counter {

@@ -437,6 +437,30 @@
   }
 }
 
+/* ══════════════════════════════════════════════════════════════════════════
+   ⚠️ THE CONTAINER GROWS ONCE, AT 1440px, AND THAT IS THE ONLY PLACE IT DOES.
+
+   74rem (1184px) was the cap at every width above 768px, so a 1690px window
+   showed 1184px of page and ~500px of nothing. Measured on a tutorial step:
+   the card was 606px in a 1184px main, and the reader scrolled 1.84 screens
+   past content that would have fitted.
+
+   ⚠️ THIS DOES NOT WIDEN PROSE. Every text block carries its own measure —
+   `.lesson` 66ch, the step's prose 60ch — and the 60–70 character rule is
+   asserted by `themes.spec.ts`. What the extra width feeds is the things that
+   are NOT prose: a board beside its lesson, exercise controls, the progress
+   blocks, a card grid with room for another column.
+
+   ⚠️ 1440px, NOT LOWER. Below it there is not enough room for a readable
+   column AND a board side by side, and the single column is the better
+   layout. No spec runs above 1280px, so nothing below this line moves.
+   ══════════════════════════════════════════════════════════════════════════ */
+@media (min-width: 90rem) {
+  :root {
+    --mcc-container-max: 84rem;
+  }
+}
+
 /* Motion accessibility — non-negotiable. */
 @media (prefers-reduced-motion: reduce) {
   :root {
