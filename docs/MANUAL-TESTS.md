@@ -600,6 +600,21 @@ Every assertion available is "an image element exists"; whether the mark is
       should announce the club name once, not twice.
 
 
+## 1a-bis. Chooser cards go where they say, and cards have air
+
+- [ ] **Solve one tutorial step**, then open `/moi/`. "Ma progression" must go to
+      `/progres/` — NOT to the next unsolved step. Same on `/apprendre/`:
+      "Exercices" goes to the exercise index, not into an exercise.
+      ⚠️ **With no progress at all this cannot fail** — there is nothing to
+      resume, so nothing to retarget. Solve something first.
+- [ ] **`/progres/` after playing a game** — "Tes parties" must be rows with the
+      level on the left, the date under it and the result on the right. Run
+      together as one line means a script-built row has lost its stylesheet
+      again; read `src/styles/progress-rows.css`.
+- [ ] **A tutorial step and a course page in each of the four themes** — text
+      must not touch the card frame. 20px all round is the intended figure.
+
+
 ## 1b. Navigation menu and board coordinates
 
 ### The menu — ⚠️ on a REAL phone, not a narrow desktop window

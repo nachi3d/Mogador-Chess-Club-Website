@@ -195,6 +195,53 @@ test.describe('the section landings are choosers, not menus', () => {
   });
 
   /**
+   * ⚠️⚠️ REACHABILITY IS NOT IDENTITY, AND THE TEST ABOVE ONLY PROVES THE
+   * FIRST. It asks whether the href returns 200. A retargeted exercise URL
+   * returns 200 too — so it passed for the whole time "Ma progression" was
+   * sending readers to the next unsolved exercise instead of `/progres/`.
+   *
+   * The cause: declaring a journey to get the "8 sur 24" count ALSO handed the
+   * card's href to `ResumeResolver`. `HubCard` now sets `data-resume-keep-href`
+   * — a chooser card goes where it says (Critical Feature 65).
+   *
+   * ⚠️⚠️ THE SEED MUST BE A KEY THIS JOURNEY ACTUALLY CONTAINS, AND THE FIRST
+   * VERSION OF THIS TEST WAS NOT. `step` is null unless something in the
+   * journey has been TOUCHED, so a seed the journey does not track leaves
+   * nothing to resume and nothing to rewrite — the test then passes against the
+   * broken code, which is the one outcome a regression test may not have.
+   *
+   * `hub-everything` is the tutorial and the lessons, keyed `tutorial:…` and
+   * `lesson:…`. Seeding an `exercises`-style slug looked right and matched
+   * none of them. Watched to fail before the fix, with this seed.
+   */
+  test('the progression card goes to /progres/, even once there is a step to resume', async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      window.localStorage.setItem(
+        'mcc:progress:v1',
+        JSON.stringify({
+          exercises: {
+            'tutorial:lechiquier-et-les-coordonnees': {
+              solved: true,
+              attempts: 1,
+              hintUsed: false,
+              solvedAt: '2026-01-01T10:00:00.000Z',
+            },
+          },
+        }),
+      );
+    });
+    await page.goto('/moi/');
+
+    const card = page.getByTestId('hub-progress');
+    /* The resolver has run by the time it has written a tally. */
+    await expect(card.locator('[data-resume-count]')).toContainText(/\d+\s+sur\s+\d+/);
+
+    await expect(card.locator('a')).toHaveAttribute('href', '/progres/');
+  });
+
+  /**
    * ⚠️ THE CLUB LANDING EXISTS BECAUSE A PHONE COULD NOT REACH THE CLUB AT ALL.
    *
    * The agenda, contact and about pages sat under "Le club" in the desktop

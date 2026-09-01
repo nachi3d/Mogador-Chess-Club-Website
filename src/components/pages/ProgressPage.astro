@@ -48,6 +48,7 @@ import type { JourneyStep } from '@lib/journey';
 import { exerciseJourney, lessonJourney, tutorialJourney } from '@lib/journey';
 import BaseLayout from '@layouts/BaseLayout.astro';
 import PageIntro from '@components/PageIntro.astro';
+import '@styles/progress-rows.css';
 import Trail from '@components/nav/Trail.astro';
 import { localizePath } from '@i18n/paths';
 import ResumeResolver from '@components/progress/ResumeResolver.astro';
@@ -891,22 +892,12 @@ function achievementLabel(id: string): string {
     list-style: none;
   }
 
-  .progress-row {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 1rem;
-    padding: 0.5rem 0.75rem;
-    background-color: var(--mcc-surface-sunken);
-    border-radius: var(--radius-card);
-    font-size: 0.9375rem;
-  }
-
-  .progress-row-count {
-    color: var(--mcc-text-secondary);
-    font-size: 0.875rem;
-    font-variant-numeric: tabular-nums;
-  }
+  /* ⚠️ .progress-row / .progress-row-count / .award-when / .award-points /
+     .game-log / .game-outcome LIVE IN src/styles/progress-rows.css.
+     They are NOT scoped, deliberately: the game and award rows are built with
+     document.createElement, so they never carry this component's
+     data-astro-cid and a scoped rule misses them entirely. Read that file's
+     header before moving one back. */
 
   /* ── Given by a prof (v2-S4) ──────────────────────────────────────────
      ⚠️ DISTINCT BY STRUCTURE, NOT BY COLOUR ALONE. The block carries an accent
@@ -925,19 +916,6 @@ function achievementLabel(id: string): string {
 
   .award-row {
     align-items: flex-start;
-  }
-
-  .award-when {
-    display: block;
-    margin-block-start: 0.15rem;
-    color: var(--mcc-text-secondary);
-    font-size: 0.8125rem;
-  }
-
-  .award-points {
-    color: var(--mcc-accent-text);
-    font-weight: 600;
-    white-space: nowrap;
   }
 
   /* ── By theme ─────────────────────────────────────────────────────── */
@@ -1115,23 +1093,10 @@ function achievementLabel(id: string): string {
      `data-outcome` is still on the row, because a future feature (a win
      streak, say) may want to find them — but styling on it is the thing to
      think twice about, not a free hook. */
-  .game-log {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
   .progress-block-intro {
     margin: 0 0 0.75rem;
     color: var(--mcc-text-secondary);
     font-size: 0.875rem;
-  }
-
-  .game-outcome {
-    /* Notation-ish, so the three words line up down the right edge the way the
-       award points do. */
-    font-family: var(--font-notation);
-    white-space: nowrap;
   }
 
   .game-log-trimmed {

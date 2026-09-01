@@ -11,6 +11,58 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+## [0.26.0] — 2026-09-01
+
+### Fixed
+
+- ⚠️⚠️ **"MA PROGRESSION" WENT TO THE NEXT UNSOLVED EXERCISE, NOT TO
+  `/progres/`** — on both layouts, for any reader who had started something.
+  The card declared a journey so it could print "8 sur 24", and
+  `data-resume-for` meant BOTH "give me a count" and "retarget my link". The
+  resolver duly pointed the card at the next step.
+  - **`data-resume-keep-href`** now separates the two, and `HubCard` sets it for
+    every chooser card. A landing is a chooser (Critical Feature 65), so its
+    cards go where they say; resuming stays with the resume surfaces — the home
+    "Reprendre" link, `ResumeCard`, and the progress page's own rows.
+  - ⚠️ **THE SAME DEFECT WAS LIVE ON `/apprendre/`** and nobody had reported it:
+    "Les bases", "Leçons" and "Exercices" were retargeted too, so a reader who
+    had begun anything never reached those indexes from the chooser. Fixed by
+    the same rule.
+  - ⚠️ **NOTHING FAILED, BECAUSE THE SPEC ASKED THE WRONG QUESTION.**
+    `wayfinding.spec.ts` asserted the href **resolved 200** — which a retargeted
+    exercise URL does. **Reachability is not identity.** The spec now names the
+    destination, and ⚠️ **it had to be seeded with a key the journey actually
+    contains**: the first version seeded an exercise slug, `hub-everything` is
+    keyed `tutorial:…`/`lesson:…`, so there was nothing to resume and the test
+    passed against the broken code. Watched to fail first, on
+    `/apprendre-les-bases/la-tour/`.
+
+- ⚠️⚠️ **THE GAME HISTORY ON `/progres/` HAS BEEN RENDERING UNSTYLED** — three
+  games as run-together text, "Débutant20 août 2026Gagnée", directly beneath
+  server-rendered rows that were proper cards. Found while reporting what the
+  page shows; it had looked finished since the log landed.
+  - **The cause is the documented scoped-style trap.** Astro compiles
+    `.progress-row` to `.progress-row[data-astro-cid-…]`; the game rows and the
+    award rows are built with `document.createElement`, so they carry the class
+    and not the attribute and every rule missed them.
+  - **`src/styles/progress-rows.css`** now holds the six rules those rows need,
+    prefixed with `.progress-block` so the cascade is settled by specificity
+    rather than by stylesheet order. The awards list was broken the same way
+    and is fixed by the same move.
+
+- **Card padding is defined once, in `cards.css`, instead of per page.** The
+  shared rule owned the surface, border, radius and press and left every page
+  to pad its own card — so `.card` had 1.25rem, `.lesson-card` 1rem 1.25rem,
+  `.auth-card` 1.5rem, and ⚠️ **`.step` had none at all**, which is why tutorial
+  steps set their text hard against the frame.
+  - It takes `--mcc-card-pad`, which **already existed** in `tokens.css` (=
+    `--mcc-space-md`, 20px) and was used only by `surfaces.css`. Every gap comes
+    from the scale, so a card's own gap does too.
+  - The duplicated declarations in `CardGrid` and `NumberedCard` are gone;
+    `.auth-card` keeps its roomier 1.5rem deliberately. Measured at 20px on
+    `.step` and `.lesson-card` in **all four themes**.
+
+
 ## [0.25.0] — 2026-08-27
 
 ### Added
@@ -7257,7 +7309,8 @@ Foundation only: no real content, no interactive board yet.
   `url()` references unresolved and the fonts silently 404 into a Georgia
   fallback. `scripts/build-fonts.mjs` self-hosts them instead. See CLAUDE.md.
 
-[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.25.0...HEAD
+[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.26.0...HEAD
+[0.26.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.25.0...v0.26.0
 [0.25.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.24.0...v0.25.0
 [0.24.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.23.0...v0.24.0
 [0.23.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.22.0...v0.23.0
