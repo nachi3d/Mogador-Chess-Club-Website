@@ -615,6 +615,26 @@ Every assertion available is "an image element exists"; whether the mark is
       must not touch the card frame. 20px all round is the intended figure.
 
 
+## 1a-ter. Desktop width — the 1440px layouts
+
+⚠️ **Everything here is behind a 1440px media query.** On a smaller laptop the
+pages are unchanged, and that is correct, not a failure to apply.
+
+- [ ] **A tutorial step at 1440px or wider** — prose in a column on the left,
+      the board and its controls beside it on the right. At 1440×900 the whole
+      step should sit above the fold.
+- [ ] **A lesson at 1440px** — each board sits beside the paragraph it
+      illustrates, not under it. The final paragraph, which has no board, keeps
+      the left column.
+- [ ] **`/progres/` at 1440px** — two balanced columns. ⚠️ **No block may be
+      split across the column break** (half an achievements list at the bottom
+      of column one). That is `break-inside` having been lost.
+- [ ] **Prose is still readable, not stretched** — a line of lesson text should
+      run 60–70 characters, not the full width of the window.
+- [ ] **Then narrow the window below 1440px** and confirm everything returns to
+      a single column with no jump in the text size.
+
+
 ## 1b. Navigation menu and board coordinates
 
 ### The menu — ⚠️ on a REAL phone, not a narrow desktop window
