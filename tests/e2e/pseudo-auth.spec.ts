@@ -377,6 +377,34 @@ test.describe('the pseudo path — what needs no database', () => {
   });
 
   /**
+   * ⚠️ CRITICAL FEATURE 62 — EVERY PAGE BELOW A LANDING NAMES ITS PARENT.
+   *
+   * `wayfinding.spec.ts` owns that rule, and its list is hard-coded against the
+   * DEFAULT build — which emits neither of these routes, so they would sit
+   * outside the one spec that checks trails. The assertion belongs with the
+   * pages that need it rather than in a list that cannot see them.
+   *
+   * ⚠️ A LINK, NEVER `history.back()`: a student who arrives from a WhatsApp
+   * link has no history, and a control that does nothing is worse than none.
+   */
+  for (const [path, parent] of [
+    ['/inscription/', 'Se connecter'],
+    ['/mot-de-passe/', 'Mon compte'],
+  ] as const) {
+    test(`${path} carries a trail naming its parent`, async ({ page }) => {
+      await page.goto(path);
+      const trail = page.getByTestId('trail');
+      await expect(trail).toBeVisible();
+      await expect(trail).toContainText(parent);
+
+      const href = await trail.locator('a').getAttribute('href');
+      expect(href, 'the trail is not a link').toBeTruthy();
+      const res = await page.request.get(href!);
+      expect(res.status(), `the trail on ${path} points at a ${res.status()}`).toBe(200);
+    });
+  }
+
+  /**
    * ⚠️ THIS FORM IS FILLED ON A PHONE, STANDING UP, AT DAR SOUIRI. Five fields
    * and four hints is the longest form on the site, and a horizontal scrollbar
    * at 360px is how a required field ends up off-screen and unfilled.
