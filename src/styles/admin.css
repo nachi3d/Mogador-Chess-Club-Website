@@ -659,11 +659,18 @@
    monospace face at a size that survives a bright room at Dar Souiri: `l` and
    `1` must not be a guess. It is deliberately selectable — Seàn copies it into
    WhatsApp when the prefilled link is not the right channel. */
+/* ⚠️ NO BORDER, AND THAT IS THE CONTRAST RULE BEING FOLLOWED RATHER THAN
+   DECORATED AROUND. `--mcc-border-strong` on `--mcc-surface-sunken` is
+   DELIBERATELY ABSENT from `check-contrast.mjs` — the locked achievement star
+   was that pair once and Marbre light measured it at exactly 3.00 against a 3.0
+   floor, so the outlier was removed rather than excepted. Drawing it here would
+   reintroduce an unaudited pair on the one element that must be readable in a
+   bright room. The sunken fill and the monospace face identify the box; the
+   text is `--mcc-text-primary` on sunken, which IS proved at the text bar. */
 .admin .account-temp-password {
   display: inline-block;
   margin: 0 0 0.75rem;
   padding: 0.5rem 0.9rem;
-  border: 1px solid var(--mcc-border-strong);
   border-radius: var(--radius-card);
   background-color: var(--mcc-surface-sunken);
   color: var(--mcc-text-primary);

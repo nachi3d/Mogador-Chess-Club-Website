@@ -66,6 +66,8 @@ const t = useTranslations(locale);
       data-err-email-invalid={t('signup.error.email_invalid')}
       data-err-too-many-signups={t('signup.error.too_many_signups')}
       data-err-unknown={t('signup.error.unknown')}
+      data-err-created-not-signed-in={t('signup.error.created_not_signed_in')}
+      data-signin-path={localizePath('/connexion/', locale)}
       data-msg-unconfigured={t('login.unconfigured')}
     >
       <label for="signup-name">{t('signup.nameLabel')}</label>
@@ -234,6 +236,8 @@ const t = useTranslations(locale);
             errorEl.textContent = form.dataset.msgUnconfigured ?? '';
             errorEl.hidden = false;
           }
+          submit.disabled = false;
+          submit.textContent = form.dataset.msgSubmit ?? '';
           return;
         }
 
@@ -247,17 +251,43 @@ const t = useTranslations(locale);
         });
 
         if (!result.ok) {
+          /**
+           * ⚠️ ONE OUTCOME HERE IS NOT A FAILURE TO CREATE, AND MUST NOT READ
+           * AS ONE. `created_not_signed_in` means the account EXISTS and only
+           * the sign-in did not land. Telling the reader "the account could not
+           * be created" sends them to try again — where they are told the pseudo
+           * is taken, by themselves, on an account they were told did not exist,
+           * and **a pseudo is immutable** so they cannot reuse the name they
+           * chose. The form is replaced by the one instruction that is true:
+           * go and sign in with what you just typed.
+           */
+          if (result.error === 'created_not_signed_in') {
+            form.hidden = true;
+            if (errorEl) {
+              errorEl.textContent = message('created_not_signed_in');
+              errorEl.hidden = false;
+            }
+            const go = document.querySelector('[data-testid="signup-signin-link"]');
+            if (go instanceof HTMLElement) go.focus();
+            return;
+          }
           fail(result.error, result.error === 'pseudo_taken' ? pseudo : null);
+          submit.disabled = false;
+          submit.textContent = form.dataset.msgSubmit ?? '';
           return;
         }
 
         /* Registration signs in on success, so the landing rule applies exactly
            as it does after a magic link — first stop `/bienvenue/`. A full
-           document load so the header re-reads the flag from scratch. */
+           document load so the header re-reads the flag from scratch.
+
+           ⚠️ THE BUTTON IS DELIBERATELY LEFT DISABLED. `assign()` resolves
+           asynchronously, and registration is NOT idempotent: a second tap in
+           that window fires another `register_with_pseudo`, which answers
+           `pseudo_taken` and paints an error over a page that is leaving. */
         window.location.assign(await landingAfterSignIn());
       } catch {
         fail('unknown');
-      } finally {
         submit.disabled = false;
         submit.textContent = form.dataset.msgSubmit ?? '';
       }

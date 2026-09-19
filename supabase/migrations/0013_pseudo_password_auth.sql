@@ -255,9 +255,17 @@ create trigger on_auth_user_guard_pseudo
 -- from `wa.me/`.
 --
 -- ⚠️ THE LOCAL-ZERO RULE ASSUMES MOROCCO, AND THAT IS A DECISION, NOT A
--- FALLBACK. A ten-digit number starting `0` is read as Moroccan (+212). The club
--- is in Essaouira and that is what its families type. Anybody else must type
--- their own `+` prefix, and the form says so in as many words.
+-- FALLBACK. A **ten-digit** number starting `0` is read as Moroccan (+212). The
+-- club is in Essaouira and that is what its families type.
+--
+-- ⚠️ AND THE LENGTH CHECK IS THE LOAD-BEARING HALF. A French `06 12 34 56 78`
+-- is also ten digits and IS the same number shape, so it is genuinely
+-- ambiguous — but a UK `07700 900000` is eleven, and rewriting it to
+-- `+2127700900000` would yield a string that passes every shape check and
+-- reaches nobody. On the one field that is the sole way back into an account, a
+-- plausible wrong answer is far worse than a refusal, so anything else starting
+-- `0` is REFUSED and the reader is told. The form's hint asks for a `+` prefix
+-- for a number outside Morocco.
 --
 -- ⚠️ IT IS NOT VALIDATION OF EXISTENCE. Nothing here proves the number reaches
 -- the parent — only that it has the shape of a number. The actual proof is Seàn
@@ -284,9 +292,18 @@ begin
   if digits like '00%' then
     digits := '+' || substring(digits from 3);
   elsif digits like '0%' then
-    -- Moroccan local form. See the note above: this is a decision about where
-    -- the club is, not a guess about the number.
-    digits := '+212' || substring(digits from 2);
+    -- ⚠️ MOROCCAN LOCAL FORM, AND ONLY AT MOROCCAN LENGTH. `0` + nine digits is
+    -- what a parent in Essaouira types; anything else starting `0` is somebody
+    -- else's national format, and rewriting it to +212 would produce a number
+    -- that PASSES every shape check and reaches nobody. On the one field that
+    -- is the sole way back into an account, a plausible wrong answer is worse
+    -- than a refusal the reader can see and correct — so this returns NULL and
+    -- the caller says "that number does not look valid".
+    if length(digits) = 10 then
+      digits := '+212' || substring(digits from 2);
+    else
+      return null;
+    end if;
   elsif digits not like '+%' then
     digits := '+' || digits;
   end if;

@@ -71,16 +71,13 @@ export function pseudoEmail(raw: string): string {
 }
 
 /**
- * Is this address the plumbing rather than a real inbox?
+ * ⚠️ THERE IS DELIBERATELY NO `isSyntheticEmail()` HERE, AND IT SHOULD NOT BE
+ * ADDED BACK.
  *
- * ⚠️ USED TO SUPPRESS, NEVER TO BRANCH ON CAPABILITY. What decides whether an
- * account signs in with a password is `profile.pseudo`, which is the database's
- * own answer. This is for the surfaces that hold a `session.user.email` and
- * must not print it — `/compte/`, and the two placeholder checks, where a name
- * equal to the email local part means "nobody ever typed this" for a magic-link
- * account and means nothing at all for a pseudo one (the local part IS the
- * pseudo the reader chose).
+ * It existed for one draft and nothing ever called it: `/compte/` and
+ * `/bienvenue/` both branch on `profile.pseudo`, which is the DATABASE's own
+ * answer to "does this account sign in with a password". Sniffing the address
+ * instead would be a second, weaker answer to a question already answered —
+ * and one that silently says "no" on a build whose `getProfile()` degraded.
+ * The address is plumbing; `pseudo` is the fact.
  */
-export function isSyntheticEmail(email: string | null | undefined): boolean {
-  return typeof email === 'string' && email.toLowerCase().endsWith(`@${PSEUDO_EMAIL_DOMAIN}`);
-}

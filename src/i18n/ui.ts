@@ -588,8 +588,12 @@ const fr = {
   'signup.passwordHint':
     '6 caractères minimum. Prenez-en un dont vous vous souviendrez — c’est plus important qu’un mot de passe compliqué.',
   'signup.whatsappLabel': 'Numéro WhatsApp',
+  /* ⚠️ L'INDICATIF EST MENTIONNÉ PARCE QUE LE NORMALISEUR SUPPOSE LE MAROC.
+     Un « 0 » suivi de neuf chiffres devient +212 : pour un parent à Essaouira
+     c'est juste, pour un numéro étranger ça donnerait un numéro valide qui ne
+     joint personne — sur le seul canal de récupération du compte. */
   'signup.whatsappHint':
-    'Celui d’un parent pour les mineurs. C’est par là que le club vous redonne l’accès si vous oubliez votre mot de passe. Exemple : 06 12 34 56 78',
+    'Celui d’un parent pour les mineurs. C’est par là que le club vous redonne l’accès si vous oubliez votre mot de passe. Exemple : 06 12 34 56 78. Hors du Maroc, indiquez l’indicatif : +33 6 12 34 56 78.',
   'signup.emailLabel': 'Adresse e-mail (facultatif)',
   'signup.emailHint':
     'Seulement pour que le club puisse vous écrire. Elle ne sert pas à se connecter.',
@@ -608,6 +612,12 @@ const fr = {
   'signup.error.too_many_signups':
     'Trop d’inscriptions viennent d’être créées. Réessayez dans une heure, ou prévenez le club.',
   'signup.error.unknown': 'La création du compte a échoué. Réessayez dans un instant.',
+  /* ⚠️ LE COMPTE EXISTE — CE N'EST PAS UN ÉCHEC DE CRÉATION. Dire le
+     contraire enverrait l'élève réessayer, et on lui répondrait que son
+     pseudo est déjà pris… par lui-même, sur un compte qu'on vient de lui
+     dire inexistant. Et le pseudo ne peut plus changer. */
+  'signup.error.created_not_signed_in':
+    'Votre compte est créé, mais la connexion n’a pas abouti. Connectez-vous avec le pseudo et le mot de passe que vous venez de choisir.',
   /* ── /mot-de-passe — le changement, forcé ou volontaire ──────────────────
      ⚠️ LE MOT DE PASSE ACTUEL EST DEMANDÉ MÊME APRÈS UNE RÉINITIALISATION.
      Le téléphone familial reste connecté : sans cette vérification, cet écran
@@ -809,7 +819,8 @@ const fr = {
   'account.contact.body':
     'Le numéro WhatsApp est la seule façon de vous redonner l’accès si vous oubliez votre mot de passe. Gardez-le à jour.',
   'account.whatsappLabel': 'Numéro WhatsApp',
-  'account.whatsappHint': 'Celui d’un parent pour les mineurs. Exemple : 06 12 34 56 78',
+  'account.whatsappHint':
+    'Celui d’un parent pour les mineurs. Exemple : 06 12 34 56 78. Hors du Maroc, indiquez l’indicatif.',
   'account.contactEmailLabel': 'Adresse e-mail (facultatif)',
   'account.contactEmailHint': 'Pour que le club puisse vous écrire. Elle ne sert pas à se connecter.',
   'account.contactSave': 'Enregistrer le contact',
@@ -1444,8 +1455,9 @@ const en: Record<keyof typeof fr, string> = {
   'signup.passwordHint':
     'At least 6 characters. Pick one you will remember — that matters more than a complicated one.',
   'signup.whatsappLabel': 'WhatsApp number',
+  /* ⚠️ The country code is named because the normaliser assumes Morocco. See the FR note. */
   'signup.whatsappHint':
-    'A parent’s number for under-18s. It is how the club gets you back in if you forget your password. Example: 06 12 34 56 78',
+    'A parent’s number for under-18s. It is how the club gets you back in if you forget your password. Example: 06 12 34 56 78. Outside Morocco, include the country code: +33 6 12 34 56 78.',
   'signup.emailLabel': 'Email address (optional)',
   'signup.emailHint': 'Only so the club can write to you. It is not used to sign in.',
   'signup.submit': 'Create the account',
@@ -1463,6 +1475,9 @@ const en: Record<keyof typeof fr, string> = {
   'signup.error.too_many_signups':
     'Too many accounts have just been created. Try again in an hour, or tell the club.',
   'signup.error.unknown': 'The account could not be created. Try again in a moment.',
+  /* ⚠️ The account EXISTS — this is not a creation failure. See the FR note. */
+  'signup.error.created_not_signed_in':
+    'Your account was created, but signing in did not complete. Sign in with the username and password you just chose.',
   /* ⚠️ The current password is asked for even right after a reset — a family
      phone left signed in is the normal case here. See the FR note. */
   'password.title': 'Password',
@@ -1615,7 +1630,8 @@ const en: Record<keyof typeof fr, string> = {
   'account.contact.body':
     'The WhatsApp number is the only way to get you back in if you forget your password. Keep it up to date.',
   'account.whatsappLabel': 'WhatsApp number',
-  'account.whatsappHint': 'A parent’s number for under-18s. Example: 06 12 34 56 78',
+  'account.whatsappHint':
+    'A parent’s number for under-18s. Example: 06 12 34 56 78. Outside Morocco, include the country code.',
   'account.contactEmailLabel': 'Email address (optional)',
   'account.contactEmailHint': 'So the club can write to you. It is not used to sign in.',
   'account.contactSave': 'Save contact details',

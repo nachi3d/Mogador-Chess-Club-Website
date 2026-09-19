@@ -95,6 +95,10 @@ Saturday at Dar Souiri.
   password guarantees a WhatsApp message and a hand reset every week. A short
   password a student remembers beats a strong one Seàn resets weekly, and the
   threat model is a club roster — no money, no personal data beyond a first name.
+- ⚠️ **A number starting `0` is Moroccan only at Moroccan length**, and
+  anything else starting `0` is refused rather than bent to +212: a UK number
+  rewritten that way passes every shape check and reaches nobody, which on the
+  sole recovery channel is worse than a refusal the reader can see.
 - ⚠️ **The WhatsApp number is REQUIRED, and it is the whole recovery story.**
   There is no inbox, so there is no reset link; SMS OTP stays rejected. An
   account with no number is an account nobody can ever help, and the student

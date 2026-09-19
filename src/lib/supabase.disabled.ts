@@ -59,6 +59,7 @@ export type PseudoError =
   | 'not_pseudo_account'
   | 'not_signed_in'
   | 'bad_credentials'
+  | 'created_not_signed_in'
   | 'unknown';
 
 /** Always false: there is no configuration in a disabled build, by design. */

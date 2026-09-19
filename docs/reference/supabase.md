@@ -2097,10 +2097,14 @@ A parent at Dar Souiri types `06 12 34 56 78`; a French parent types `+33 6 …`
 somebody pastes `00212612345678`. All three are the same act and only one shape
 can be dialled from `wa.me/`.
 
-⚠️ **THE LOCAL-ZERO RULE ASSUMES MOROCCO, AND THAT IS A DECISION.** A number
-starting `0` is read as Moroccan (+212), because that is what the club's families
-type. Anybody else types their own `+` prefix, and both forms say so in the hint
-above the field. The function returns NULL for anything that does not end up
+⚠️ **THE LOCAL-ZERO RULE ASSUMES MOROCCO, AND THE LENGTH CHECK IS THE
+LOAD-BEARING HALF.** `0` + **nine** digits is read as Moroccan (+212); anything
+else starting `0` is **refused**, not rewritten. A UK `07700 900000` bent to
+`+2127700900000` would pass every shape check and reach nobody — on the one
+field that is the sole way back into an account, a plausible wrong answer is far
+worse than a refusal the reader can see. A French `06 12 34 56 78` is genuinely
+ambiguous (same length, same shape), which is why both hints now ask for the
+country code outside Morocco rather than leaving it to be inferred. The function returns NULL for anything that does not end up
 matching `^\+[1-9][0-9]{7,14}$`, and the callers raise `whatsapp_invalid`.
 
 ⚠️ **THERE IS NO TYPESCRIPT MIRROR OF THIS ONE, DELIBERATELY.** The sign-up form

@@ -233,6 +233,35 @@ test.describe('pseudo + password', () => {
   });
 
   /**
+   * ⚠️ A NUMBER THAT NORMALISES TO SOMETHING PLAUSIBLE AND WRONG IS THE WORST
+   * OUTCOME THIS FIELD HAS.
+   *
+   * The leading-zero rule reads `0` + nine digits as Moroccan, which is right
+   * for the families this is built for. A UK `07700 900000` is eleven digits:
+   * bent to `+2127700900000` it would pass every shape check, be stored as the
+   * account's only recovery channel, and reach nobody — and nothing would
+   * notice until somebody forgot a password months later. It must be REFUSED,
+   * visibly, at the moment of typing.
+   */
+  test('a number that is not Moroccan is refused rather than bent to +212', async () => {
+    const cases: Array<[string, string | null]> = [
+      ['06 12 34 56 78', '+212612345678'],
+      ['0612345678', '+212612345678'],
+      ['00212612345678', '+212612345678'],
+      ['+33 6 12 34 56 78', '+33612345678'],
+      /* Eleven digits behind a zero: not a Moroccan number, and not ours to
+         guess at. */
+      ['07700 900000', null],
+      ['0', null],
+      ['pas un numéro', null],
+    ];
+    for (const [input, expected] of cases) {
+      const { data } = await adminClient().rpc('normalize_whatsapp', { p_raw: input });
+      expect(data ?? null, `normalize_whatsapp('${input}')`).toBe(expected);
+    }
+  });
+
+  /**
    * ⚠️ THE NAMESPACE IS RESERVED AT THE `auth.users` DOOR.
    *
    * Without the guard trigger, anybody holding the published anon key could

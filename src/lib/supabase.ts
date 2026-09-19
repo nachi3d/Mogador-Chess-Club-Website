@@ -222,6 +222,20 @@ export type PseudoError =
   | 'not_pseudo_account'
   | 'not_signed_in'
   | 'bad_credentials'
+  /**
+   * ⚠️ THE ACCOUNT EXISTS AND THE READER IS NOT SIGNED IN — AND IT MUST NOT BE
+   * REPORTED AS A FAILED SIGN-UP.
+   *
+   * Registration is two steps: the RPC, then a sign-in. The second can fail on
+   * its own (a dropped connection, GoTrue's rate limit on `/auth/v1/token`,
+   * which this path is known to hammer). Reporting that as "the account could
+   * not be created" sends the reader to try again — where they are told the
+   * pseudo is taken, by themselves, on an account they were told did not exist.
+   * **And a pseudo is immutable**, so they cannot reuse the name they chose.
+   * That is a dead end for a fourteen-year-old, produced entirely by one wrong
+   * message.
+   */
+  | 'created_not_signed_in'
   | 'unknown';
 
 const PSEUDO_ERRORS: readonly PseudoError[] = [
@@ -277,6 +291,7 @@ export async function registerWithPseudo(input: {
   email?: string;
   locale?: string;
 }): Promise<{ ok: true } | { ok: false; error: PseudoError }> {
+  /* ── Step 1: create. A failure here means NO account exists. ──────────── */
   try {
     const sb = await getSupabase();
     const { error } = await sb.rpc('register_with_pseudo', {
@@ -288,9 +303,21 @@ export async function registerWithPseudo(input: {
       p_locale: input.locale ?? 'fr',
     });
     if (error) return { ok: false, error: pseudoError(error.message) };
-    return await signInWithPseudo(input.pseudo, input.password);
   } catch (e) {
     return { ok: false, error: pseudoError(e instanceof Error ? e.message : String(e)) };
+  }
+
+  /* ── Step 2: sign in. ⚠️ THE ACCOUNT NOW EXISTS, so nothing below may be
+     reported as a failed creation — see the note on `created_not_signed_in`.
+     The two steps are split into two `try` blocks precisely so that a throw
+     cannot be attributed to the wrong one: a missing configuration throws above
+     and means no account, a dropped connection throws here and means there is
+     one. ───────────────────────────────────────────────────────────────── */
+  try {
+    const signedIn = await signInWithPseudo(input.pseudo, input.password);
+    return signedIn.ok ? signedIn : { ok: false, error: 'created_not_signed_in' };
+  } catch {
+    return { ok: false, error: 'created_not_signed_in' };
   }
 }
 
