@@ -1,17 +1,38 @@
 ---
 /**
- * /connexion — email magic link, and nothing else.
+ * /connexion — TWO DOORS, AND THE PSEUDO IS THE FRONT ONE.
  *
- * No passwords exist anywhere in this system, so there is no reset flow, no
- * strength meter and no credential to leak. Google OAuth and prof-created
- * accounts arrive in v2-S2.
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️ THE ORDER ON THIS PAGE IS THE DECISION (v0.18.0).
  *
- * ⚠️ NOT AN ISLAND. The one-hydrated-component rule still holds — the board is
- * the only Preact island on the site. This is a plain form plus a module script,
- * which is also what keeps `@supabase/supabase-js` out of every other page's
- * chunk graph.
+ * The club teaches teenagers in Essaouira. Many of them have no active email
+ * address at all; the ones who do read it on a shared family phone, where a
+ * Supabase-branded "Confirm your signup" arrives next to nothing they
+ * recognise and reads, correctly, as spam. A sign-in page whose only control
+ * asks for an email address is a sign-in page that locks out the people the
+ * site is for.
+ *
+ * So: pseudo + password first, full width, no disclosure in front of it.
+ *
+ * ⚠️ AND THE MAGIC LINK STAYS, BELOW, IN A `<details>`. It is not legacy and
+ * must not be removed: it is the path that works for anyone with a real inbox,
+ * and it is how Seàn and Michael sign in. Two first-class paths, one of which
+ * is right for most of the readers of this page.
+ *
+ * ⚠️ THERE IS NO SELF-SERVICE PASSWORD RESET, AND THE PAGE SAYS SO OUT LOUD.
+ * A reset link needs an inbox and an SMS code needs a budget and a provider
+ * (rejected long ago — see CLAUDE.md). What the club has is a person: the
+ * WhatsApp block below is the actual recovery mechanism, written as an
+ * instruction rather than hidden as a footnote, because a fourteen-year-old who
+ * cannot get in and is not told how will simply stop coming.
+ *
+ * ⚠️ NOT AN ISLAND. The board is still the only hydrated component on the site.
+ * Two plain forms plus a module script, which is also what keeps
+ * `@supabase/supabase-js` out of every other page's chunk graph.
+ * ═════════════════════════════════════════════════════════════════════════
  */
 import type { Locale } from '@config/site';
+import { whatsappUrl } from '@config/site';
 import { localizePath } from '@i18n/paths';
 import { useTranslations } from '@i18n/ui';
 import BaseLayout from '@layouts/BaseLayout.astro';
@@ -31,88 +52,178 @@ const t = useTranslations(locale);
   <PageIntro title={t('login.title')} intro={t('login.intro')} />
 
   <div class="auth-card">
-    {/* Translated strings ride on the element rather than through a global or
+    {/* ══ 1. THE PSEUDO PATH ═══════════════════════════════════════════════
+        Translated strings ride on the element rather than through a global or
         `define:vars`: a bundled module script cannot take `define:vars`, and an
-        `is:inline` one cannot `import` a bare specifier. Data attributes are
-        the seam that lets the i18n layer stay server-side and the logic stay
-        bundled. */}
+        `is:inline` one cannot `import` a bare specifier. */}
+    <h2 class="auth-heading">{t('login.pseudo.heading')}</h2>
     <form
-      id="login-form"
-      data-testid="login-form"
+      id="pseudo-form"
+      data-testid="pseudo-form"
       novalidate
-      data-msg-sending={t('login.sending')}
-      data-msg-submit={t('login.submit')}
-      data-msg-error={t('login.error')}
-      data-msg-invalid={t('login.invalidEmail')}
+      data-msg-signing={t('login.signingIn')}
+      data-msg-submit={t('login.pseudoSubmit')}
+      data-msg-bad={t('login.badCredentials')}
       data-msg-unconfigured={t('login.unconfigured')}
-      data-msg-retry={t('login.retry')}
-      data-callback-path="/auth/callback"
     >
-      <label for="login-email">{t('login.emailLabel')}</label>
+      <label for="login-pseudo">{t('login.pseudoLabel')}</label>
+      {/* ⚠️ `autocapitalize="none"` AND `autocorrect="off"`: a phone keyboard
+          capitalises the first letter by default, and the pseudo is stored
+          lowercase. The client lowercases it anyway — this is so the reader
+          sees what they will actually be signed in as. */}
       <input
-        id="login-email"
-        name="email"
-        type="email"
-        inputmode="email"
-        autocomplete="email"
+        id="login-pseudo"
+        name="pseudo"
+        type="text"
+        autocomplete="username"
+        autocapitalize="none"
+        autocorrect="off"
+        spellcheck="false"
         required
-        data-testid="login-email"
+        data-testid="login-pseudo"
       />
 
-      {/* ── The honeypot ───────────────────────────────────────────────────
-          ⚠️⚠️ THIS IS NOT SECURITY, AND NOTHING HERE MAY BE TREATED AS SUCH.
+      <label for="login-password">{t('login.passwordLabel')}</label>
+      <input
+        id="login-password"
+        name="password"
+        type="password"
+        autocomplete="current-password"
+        required
+        data-testid="login-password"
+      />
+      {/* ⚠️ A CHECKBOX, NOT AN EYE ICON INSIDE THE FIELD. A 44px target with a
+          real label beats a 20px glyph on the phone this is typed on, and a
+          student who cannot see what they typed retypes the whole password. */}
+      <p class="auth-reveal">
+        <input type="checkbox" id="login-reveal" data-testid="login-reveal" />
+        <label for="login-reveal">{t('login.showPassword')}</label>
+      </p>
 
-          The anon key ships to every browser by design, so anyone who wants an
-          account can POST to Supabase's `/auth/v1/otp` endpoint and never load
-          this page at all. Any check written into this form is bypassed by not
-          using the form. What this buys is the cheap half: the naive scrapers
-          that fill every input they find stop creating rows. That is noise
-          reduction, and calling it anything more would be the same mistake as
-          treating `isStaff()` as a gate.
-
-          The real answers to junk sign-ups are elsewhere and are named in
-          CLAUDE.md: Supabase's own per-address and per-IP rate limits, and
-          `/admin/comptes/`, where an admin can SEE the sign-ups and remove one.
-
-          ⚠️ IT FAILS VISIBLY AND RECOVERABLY — NEVER AS A FAKE SUCCESS. The
-          usual honeypot advice is to pretend the send worked, which denies the
-          bot its signal. It also means a parent whose password manager filled
-          this field waits forever for an email that was never sent, with the
-          page cheerfully telling them to check their inbox. On this site that
-          trade goes the other way: show the error, CLEAR the field, and let the
-          second press through. A bot loops; a human presses twice.
-
-          ⚠️ HIDDEN FOR EVERYONE, INCLUDING ASSISTIVE TECH. `aria-hidden` plus
-          `tabindex="-1"` keeps it out of the accessibility tree and out of the
-          tab order, so it is not a mystery field a screen-reader user must
-          skip. Positioned off-screen rather than `display: none`, because the
-          scrapers worth catching skip what is explicitly not displayed. */}
-      <div class="auth-hp" aria-hidden="true">
-        <label for="login-website">{t('login.hpLabel')}</label>
-        <input
-          id="login-website"
-          name="website"
-          type="text"
-          tabindex="-1"
-          autocomplete="off"
-          data-testid="login-hp"
-        />
-      </div>
-
-      <button type="submit" class="btn-primary" data-testid="login-submit">
-        {t('login.submit')}
+      <button type="submit" class="btn-primary" data-testid="login-pseudo-submit">
+        {t('login.pseudoSubmit')}
       </button>
-
-      {/* role="alert" so a screen reader hears the failure without hunting. */}
-      <p class="auth-error" role="alert" data-testid="login-error" hidden></p>
+      <p class="auth-error" role="alert" data-testid="login-pseudo-error" hidden></p>
     </form>
 
-    {/* Rendered server-side and revealed on success rather than injected, so the
-        success copy is real translated markup and not a string built in JS. */}
-    <div class="auth-sent" data-testid="login-sent" hidden>
-      <h2>{t('login.sent.title')}</h2>
-      <p>{t('login.sent.body')}</p>
-    </div>
+    <p class="auth-signup">
+      <span>{t('login.noAccount')}</span>
+      <a class="btn-ghost" href={localizePath('/inscription/', locale)} data-testid="login-signup-link">
+        {t('login.createAccount')}
+      </a>
+    </p>
+
+    {/* ══ 2. RECOVERY — a person, not a link ═══════════════════════════════
+        ⚠️ OUTBOUND ONLY, AND THE SAME SHAPE AS EVERY OTHER SHARE ON THIS SITE:
+        `wa.me/<club number>?text=…` hands the reader's own device a prefilled
+        message. Nothing is posted, stored or received here. */}
+    <section class="auth-forgot" data-testid="login-forgot">
+      <h2 class="auth-heading">{t('login.forgot.heading')}</h2>
+      <p>{t('login.forgot.body')}</p>
+      <p>
+        <a
+          class="btn-ghost"
+          href={whatsappUrl(locale, t('login.forgot.message'))}
+          rel="noopener"
+          target="_blank"
+          data-testid="login-forgot-whatsapp"
+        >
+          {t('login.forgot.cta')}
+        </a>
+      </p>
+    </section>
+
+    {/* ══ 3. THE MAGIC LINK — kept, and second ═════════════════════════════ */}
+    <details class="auth-block" data-testid="login-email-block">
+      <summary>
+        <span class="auth-block-title">{t('login.email.heading')}</span>
+        <span class="auth-block-hint">{t('login.email.hint')}</span>
+      </summary>
+
+      <div class="auth-block-body">
+        <form
+          id="login-form"
+          data-testid="login-form"
+          novalidate
+          data-msg-sending={t('login.sending')}
+          data-msg-submit={t('login.submit')}
+          data-msg-error={t('login.error')}
+          data-msg-invalid={t('login.invalidEmail')}
+          data-msg-unconfigured={t('login.unconfigured')}
+          data-msg-retry={t('login.retry')}
+          data-callback-path="/auth/callback"
+        >
+          <label for="login-email">{t('login.emailLabel')}</label>
+          <input
+            id="login-email"
+            name="email"
+            type="email"
+            inputmode="email"
+            autocomplete="email"
+            required
+            data-testid="login-email"
+          />
+
+          {/* ── The honeypot ─────────────────────────────────────────────────
+              ⚠️⚠️ THIS IS NOT SECURITY, AND NOTHING HERE MAY BE TREATED AS SUCH.
+
+              The anon key ships to every browser by design, so anyone who wants
+              an account can POST to Supabase's `/auth/v1/otp` endpoint and never
+              load this page at all. Any check written into this form is bypassed
+              by not using the form. What this buys is the cheap half: the naive
+              scrapers that fill every input they find stop creating rows. That
+              is noise reduction, and calling it anything more would be the same
+              mistake as treating `isStaff()` as a gate.
+
+              The real answers to junk sign-ups are elsewhere and are named in
+              CLAUDE.md: Supabase's own per-address and per-IP rate limits, and
+              `/admin/comptes/`, where an admin can SEE the sign-ups and remove
+              one.
+
+              ⚠️ IT FAILS VISIBLY AND RECOVERABLY — NEVER AS A FAKE SUCCESS. The
+              usual honeypot advice is to pretend the send worked, which denies
+              the bot its signal. It also means a parent whose password manager
+              filled this field waits forever for an email that was never sent,
+              with the page cheerfully telling them to check their inbox. On this
+              site that trade goes the other way: show the error, CLEAR the
+              field, and let the second press through. A bot loops; a human
+              presses twice.
+
+              ⚠️ HIDDEN FOR EVERYONE, INCLUDING ASSISTIVE TECH. `aria-hidden`
+              plus `tabindex="-1"` keeps it out of the accessibility tree and out
+              of the tab order, so it is not a mystery field a screen-reader user
+              must skip. Positioned off-screen rather than `display: none`,
+              because the scrapers worth catching skip what is explicitly not
+              displayed. */}
+          <div class="auth-hp" aria-hidden="true">
+            <label for="login-website">{t('login.hpLabel')}</label>
+            <input
+              id="login-website"
+              name="website"
+              type="text"
+              tabindex="-1"
+              autocomplete="off"
+              data-testid="login-hp"
+            />
+          </div>
+
+          <button type="submit" class="btn-primary" data-testid="login-submit">
+            {t('login.submit')}
+          </button>
+
+          {/* role="alert" so a screen reader hears the failure without hunting. */}
+          <p class="auth-error" role="alert" data-testid="login-error" hidden></p>
+        </form>
+
+        {/* Rendered server-side and revealed on success rather than injected, so
+            the success copy is real translated markup and not a string built in
+            JS. */}
+        <div class="auth-sent" data-testid="login-sent" hidden>
+          <h3>{t('login.sent.title')}</h3>
+          <p>{t('login.sent.body')}</p>
+        </div>
+      </div>
+    </details>
 
     <p class="auth-guest">
       <a href={localizePath('/', locale)}>{t('login.guestNote')}</a>
@@ -123,7 +234,7 @@ const t = useTranslations(locale);
     /**
      * A bundled module, not inline: it needs the Supabase client, which is
      * itself reached with `await import()` so the ~30 KB only lands when
-     * somebody actually submits the form — not merely by opening this page.
+     * somebody actually submits a form — not merely by opening this page.
      */
     const form = document.getElementById('login-form') as HTMLFormElement | null;
     const email = document.querySelector('[data-testid="login-email"]') as HTMLInputElement | null;
@@ -148,6 +259,88 @@ const t = useTranslations(locale);
       errorEl.textContent = message;
       errorEl.hidden = false;
     }
+
+    /* ── 1. Pseudo + password ─────────────────────────────────────────────── */
+
+    const pseudoForm = document.getElementById('pseudo-form') as HTMLFormElement | null;
+    const pseudoInput = document.querySelector('[data-testid="login-pseudo"]') as HTMLInputElement | null;
+    const passwordInput = document.querySelector('[data-testid="login-password"]') as HTMLInputElement | null;
+    const reveal = document.querySelector('[data-testid="login-reveal"]') as HTMLInputElement | null;
+    const pseudoSubmit = document.querySelector('[data-testid="login-pseudo-submit"]') as HTMLButtonElement | null;
+    const pseudoError = document.querySelector('[data-testid="login-pseudo-error"]') as HTMLElement | null;
+
+    const pseudoMsg = {
+      signing: pseudoForm?.dataset.msgSigning ?? '',
+      submit: pseudoForm?.dataset.msgSubmit ?? '',
+      bad: pseudoForm?.dataset.msgBad ?? '',
+      unconfigured: pseudoForm?.dataset.msgUnconfigured ?? '',
+    };
+
+    reveal?.addEventListener('change', () => {
+      if (passwordInput) passwordInput.type = reveal.checked ? 'text' : 'password';
+    });
+
+    pseudoForm?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (!pseudoInput || !passwordInput || !pseudoSubmit) return;
+      if (pseudoError) pseudoError.hidden = true;
+
+      const pseudo = pseudoInput.value.trim();
+      const password = passwordInput.value;
+      /* ⚠️ NO CLIENT-SIDE SHAPE CHECK ON SIGN-IN, DELIBERATELY. On the sign-up
+         form an invalid pseudo is a typo worth catching early; here it is an
+         existing account or it is not, and telling somebody their pseudo is
+         "invalid" when they typed the one they have used all term would be
+         a message about our rules rather than about their credentials. */
+      if (!pseudo || !password) {
+        if (pseudoError) {
+          pseudoError.textContent = pseudoMsg.bad;
+          pseudoError.hidden = false;
+        }
+        return;
+      }
+
+      pseudoSubmit.disabled = true;
+      pseudoSubmit.textContent = pseudoMsg.signing;
+
+      try {
+        const { isConfigured, signInWithPseudo, landingAfterSignIn } = await import('@lib/supabase');
+        if (!isConfigured()) {
+          if (pseudoError) {
+            pseudoError.textContent = pseudoMsg.unconfigured;
+            pseudoError.hidden = false;
+          }
+          return;
+        }
+        const result = await signInWithPseudo(pseudo, password);
+        if (!result.ok) {
+          if (pseudoError) {
+            /* ⚠️ ONE MESSAGE FOR BOTH CAUSES. "No such pseudo" would turn this
+               form into a roster of who has an account at the club. */
+            pseudoError.textContent = pseudoMsg.bad;
+            pseudoError.hidden = false;
+          }
+          passwordInput.value = '';
+          passwordInput.focus();
+          return;
+        }
+        /* ⚠️ ONE LANDING RULE, IN `@lib/supabase`, SHARED WITH THE CALLBACK AND
+           THE SIGN-UP PAGE — a forced password change first, then the welcome
+           screen, then the account. A copy here is how two doors into the same
+           house come to disagree. */
+        window.location.assign(await landingAfterSignIn());
+      } catch {
+        if (pseudoError) {
+          pseudoError.textContent = pseudoMsg.bad;
+          pseudoError.hidden = false;
+        }
+      } finally {
+        pseudoSubmit.disabled = false;
+        pseudoSubmit.textContent = pseudoMsg.submit;
+      }
+    });
+
+    /* ── 2. The magic link ────────────────────────────────────────────────── */
 
     form?.addEventListener('submit', async (event) => {
       event.preventDefault();
@@ -218,15 +411,23 @@ const t = useTranslations(locale);
     background-color: var(--mcc-surface-raised);
   }
 
+  .auth-heading {
+    margin: 0 0 0.75rem;
+    font-size: 1.15rem;
+  }
+
   label {
     display: block;
     margin-bottom: 0.35rem;
     font-weight: 500;
   }
 
-  input[type='email'] {
+  input[type='email'],
+  input[type='text'],
+  input[type='password'] {
     width: 100%;
     padding: 0.6rem 0.75rem;
+    margin-bottom: 0.9rem;
     border: 1px solid var(--mcc-border-strong);
     border-radius: var(--radius-card);
     background-color: var(--mcc-surface-page);
@@ -234,9 +435,30 @@ const t = useTranslations(locale);
     font: inherit;
   }
 
-  input[type='email']:focus-visible {
+  input:focus-visible {
     outline: 2px solid var(--mcc-focus-ring);
     outline-offset: 1px;
+  }
+
+  /* The reveal checkbox is a row, not a block: the label belongs beside the box
+     and the whole row is the target. */
+  .auth-reveal {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0 0 0.5rem;
+  }
+
+  .auth-reveal input {
+    width: auto;
+    margin: 0;
+    min-width: 1.15rem;
+    min-height: 1.15rem;
+  }
+
+  .auth-reveal label {
+    margin: 0;
+    font-weight: 400;
   }
 
   .btn-primary {
@@ -254,6 +476,63 @@ const t = useTranslations(locale);
   .btn-primary:disabled {
     opacity: 0.7;
     cursor: default;
+  }
+
+  .auth-signup {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 0.75rem;
+    align-items: center;
+    margin: 1.25rem 0 0;
+    padding-top: 1rem;
+    border-top: 1px solid var(--mcc-border-subtle);
+  }
+
+  .auth-forgot {
+    margin-top: 1.5rem;
+    padding: 1rem;
+    border: 1px solid var(--mcc-border-subtle);
+    border-radius: var(--radius-card);
+    background-color: var(--mcc-surface-page);
+  }
+
+  .auth-forgot p {
+    margin: 0.5rem 0 0;
+    color: var(--mcc-text-secondary);
+  }
+
+  /* ⚠️ NATIVE `<details>`, STYLED — not reimplemented. Same rule as `/compte/`:
+     it works with no JavaScript, it is keyboard-operable and announced for
+     free, and find-in-page opens it. */
+  .auth-block {
+    margin-top: 1.5rem;
+    border: 1px solid var(--mcc-border-subtle);
+    border-radius: var(--radius-card);
+    background-color: var(--mcc-surface-page);
+  }
+
+  .auth-block summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.15rem 0.75rem;
+    align-items: baseline;
+    min-height: 3rem;
+    padding: 0.85rem 1.1rem;
+    border-radius: var(--radius-card);
+    cursor: pointer;
+  }
+
+  .auth-block-title {
+    font-weight: 500;
+  }
+
+  .auth-block-hint {
+    color: var(--mcc-text-secondary);
+    font-size: 0.9rem;
+  }
+
+  .auth-block-body {
+    padding: 0 1.1rem 1.1rem;
   }
 
   /* ⚠️ OFF-SCREEN, NOT `display: none` AND NOT `visibility: hidden`. A scraper
@@ -275,9 +554,9 @@ const t = useTranslations(locale);
     color: var(--mcc-danger-text);
   }
 
-  .auth-sent h2 {
+  .auth-sent h3 {
     margin: 0 0 0.5rem;
-    font-size: 1.25rem;
+    font-size: 1.1rem;
   }
 
   .auth-sent p {

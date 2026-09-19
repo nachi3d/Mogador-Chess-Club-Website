@@ -77,36 +77,22 @@ const t = useTranslations('fr');
           return;
         }
 
-        /* Land the reader in their own locale. The profile is the record of
-           record; the fallback is French, which is the site default. */
-        let locale = 'fr';
         /**
-         * ⚠️ FIRST SIGN-IN GOES TO `/bienvenue/`, EVERY LATER ONE TO `/compte/`.
+         * ⚠️ THE LANDING RULE LIVES IN `@lib/supabase`, AND IT IS THE ONLY COPY.
          *
-         * `onboarded_at` is null until the welcome screen is completed OR
-         * dismissed, so this branch fires exactly once per ACCOUNT — not once
-         * per device, which is what a `localStorage` bookmark would have given.
-         *
-         * ⚠️ THE DEFAULT IS `/compte/`. A profile that could not be read must
-         * send the reader to the page that always works rather than to a screen
-         * whose whole purpose is a one-time prompt: re-showing onboarding to an
-         * established parent because a fetch hiccuped is the failure worth
-         * avoiding, and `/bienvenue/` sends an already-onboarded account
-         * straight back here anyway.
+         * Three surfaces sign a reader in — this page, `/connexion/`'s pseudo
+         * form and `/inscription/` — and they must agree about where somebody
+         * arrives: a forced password change first, then the once-per-account
+         * welcome screen (`onboarded_at`), then `/compte/`. It reads the locale
+         * off the profile and defaults to `/compte/`, which is the page that
+         * always works; `/bienvenue/` bounces an already-onboarded account back
+         * here anyway.
          */
-        let first = false;
-        try {
-          const { getProfile } = await import('@lib/supabase');
-          const profile = await getProfile();
-          if (profile?.locale === 'en') locale = 'en';
-          first = profile ? profile.onboarded_at === null : false;
-        } catch {
-          /* A missing profile should not strand a signed-in reader. */
-        }
+        const { landingAfterSignIn } = await import('@lib/supabase');
+        const destination = await landingAfterSignIn();
 
         root?.setAttribute('data-state', 'done');
-        const prefix = locale === 'en' ? '/en' : '';
-        window.location.replace(`${prefix}${first ? '/bienvenue/' : '/compte/'}`);
+        window.location.replace(destination);
       } catch {
         fail();
       }

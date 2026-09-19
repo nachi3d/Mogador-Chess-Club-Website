@@ -367,7 +367,19 @@ const ANSWERS = [
       const child = await resolveChild();
       childId = child?.id ?? null;
 
-      const email = session.user.email ?? '';
+      /**
+       * ⚠️ A PSEUDO ACCOUNT HAS NO PLACEHOLDER, EVER, AND THE TEST MUST BE
+       * SUPPRESSED RATHER THAN TIGHTENED.
+       *
+       * On that path `session.user.email` is the synthetic
+       * `<pseudo>@pseudo.mogadorchess.invalid`, whose local part IS the pseudo
+       * the reader typed. A student called Yassine who chose `yassine` would be
+       * told their own name "came from your email address" and asked to replace
+       * it — the test asks "did anybody ever type this?", and here somebody
+       * plainly did. `profile.pseudo` is the database's own answer to which
+       * kind of account this is; nothing is inferred from the address.
+       */
+      const email = profile?.pseudo ? '' : (session.user.email ?? '');
       const currentName = child?.name ?? '';
       placeholder = looksLikePlaceholder(currentName, email);
       profileName = placeholder ? '' : currentName;

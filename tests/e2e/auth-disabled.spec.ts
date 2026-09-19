@@ -57,6 +57,13 @@ test.describe('accounts disabled — the default build', () => {
       'en/compte',
       'bienvenue',
       'en/bienvenue',
+      /* v0.18.0 — the pseudo path's two new routes. A sign-up form that exists
+         in a build with no database is a form that creates nothing and says
+         nothing useful about why. */
+      'inscription',
+      'en/inscription',
+      'mot-de-passe',
+      'en/mot-de-passe',
       'auth/callback',
       'admin',
       'admin/eleves',
@@ -86,6 +93,10 @@ test.describe('accounts disabled — the default build', () => {
     '/en/compte/',
     '/bienvenue/',
     '/en/bienvenue/',
+    '/inscription/',
+    '/en/inscription/',
+    '/mot-de-passe/',
+    '/en/mot-de-passe/',
     '/auth/callback/',
     '/admin/',
     '/admin/eleves/',

@@ -517,7 +517,7 @@ const fr = {
   'auth.signOut': 'Se déconnecter',
   'login.title': 'Se connecter',
   'login.intro':
-    "Recevez un lien par e-mail — pas de mot de passe. Un compte sert à retrouver votre progression sur tous vos appareils ; tout le site reste accessible sans compte.",
+    "Avec votre pseudo et votre mot de passe. Un compte sert à retrouver votre progression sur tous vos appareils ; tout le site reste accessible sans compte.",
   'login.emailLabel': 'Adresse e-mail',
   'login.submit': 'Recevoir le lien',
   'login.sending': 'Envoi…',
@@ -539,10 +539,96 @@ const fr = {
      jamais. */
   'login.hpLabel': 'Laissez ce champ vide',
   'login.retry': 'Vérification impossible. Appuyez à nouveau sur le bouton.',
+  /* ── Pseudo + mot de passe (v0.18.0) ─────────────────────────────────────
+     ⚠️ C'EST LE CHEMIN PRINCIPAL, ET LE LIEN E-MAIL RESTE. Les élèves du club
+     sont des adolescents d'Essaouira : beaucoup n'ont pas d'adresse e-mail
+     active, et un message « Confirm your signup » signé Supabase ressemble à du
+     spam pour leurs parents. Le lien par e-mail reste en second : c'est le
+     chemin qui marche pour qui a une vraie boîte.
+     ⚠️ « Pseudo ou mot de passe incorrect » NE DIT PAS LEQUEL, volontairement :
+     un message qui distingue les deux transforme le formulaire en annuaire des
+     comptes du club. */
+  'login.pseudo.heading': 'Avec un pseudo',
+  'login.pseudoLabel': 'Pseudo',
+  'login.passwordLabel': 'Mot de passe',
+  'login.pseudoSubmit': 'Se connecter',
+  'login.signingIn': 'Connexion…',
+  'login.badCredentials': 'Pseudo ou mot de passe incorrect.',
+  'login.showPassword': 'Afficher le mot de passe',
+  'login.noAccount': 'Pas encore de compte ?',
+  'login.createAccount': 'Créer un compte',
+  'login.forgot.heading': 'Mot de passe oublié ?',
+  'login.forgot.body':
+    'Écrivez au club sur WhatsApp : on vous donne un mot de passe provisoire, et vous en choisirez un nouveau à la connexion suivante.',
+  'login.forgot.cta': 'Écrire au club sur WhatsApp',
+  'login.forgot.message': 'Bonjour, j’ai oublié mon mot de passe pour le site du club. Mon pseudo est : ',
+  'login.email.heading': 'Avec une adresse e-mail',
+  'login.email.hint': 'Pour les comptes créés avec une adresse e-mail. Un lien, pas de mot de passe.',
   'callback.title': 'Connexion…',
   'callback.working': 'Connexion en cours…',
   'callback.failed': "Ce lien n'est plus valide. Demandez-en un nouveau.",
   'callback.retry': 'Retourner à la connexion',
+  /* ── /inscription — le compte sans e-mail ────────────────────────────────
+     ⚠️ LE NUMÉRO WHATSAPP EST OBLIGATOIRE PARCE QUE C'EST LA SEULE VOIE DE
+     RÉCUPÉRATION. Il n'y a pas de lien « mot de passe oublié » : il n'y a pas
+     de boîte e-mail où l'envoyer. Un compte sans numéro est un compte que
+     personne ne peut aider, et l'élève le découvrirait au pire moment.
+     ⚠️ AUCUNE EXIGENCE DE COMPLEXITÉ, volontairement. Ce sont des mineurs sur
+     des téléphones partagés : une règle qui garantit l'oubli garantit une
+     réinitialisation à la main chaque semaine. */
+  'signup.title': 'Créer un compte',
+  'signup.intro':
+    'Pas besoin d’adresse e-mail. Choisissez un pseudo et un mot de passe : c’est tout ce qu’il faudra pour revenir.',
+  'signup.nameLabel': 'Prénom',
+  'signup.nameHint': 'Celui que le club affichera. Vous pourrez le changer.',
+  'signup.pseudoLabel': 'Pseudo',
+  'signup.pseudoHint':
+    '3 à 20 caractères : lettres sans accent, chiffres, point, tiret. Il ne pourra plus être changé.',
+  'signup.passwordLabel': 'Mot de passe',
+  'signup.passwordHint':
+    '6 caractères minimum. Prenez-en un dont vous vous souviendrez — c’est plus important qu’un mot de passe compliqué.',
+  'signup.whatsappLabel': 'Numéro WhatsApp',
+  'signup.whatsappHint':
+    'Celui d’un parent pour les mineurs. C’est par là que le club vous redonne l’accès si vous oubliez votre mot de passe. Exemple : 06 12 34 56 78',
+  'signup.emailLabel': 'Adresse e-mail (facultatif)',
+  'signup.emailHint':
+    'Seulement pour que le club puisse vous écrire. Elle ne sert pas à se connecter.',
+  'signup.submit': 'Créer le compte',
+  'signup.working': 'Création du compte…',
+  'signup.haveAccount': 'Vous avez déjà un compte ?',
+  'signup.signIn': 'Se connecter',
+  'signup.error.pseudo_invalid':
+    'Ce pseudo ne convient pas : 3 à 20 caractères, lettres sans accent, chiffres, point, tiret.',
+  'signup.error.pseudo_taken': 'Ce pseudo est déjà pris. Essayez-en un autre.',
+  'signup.error.password_too_short': 'Le mot de passe doit faire au moins 6 caractères.',
+  'signup.error.name_required': 'Indiquez un prénom (40 caractères maximum).',
+  'signup.error.whatsapp_invalid':
+    'Ce numéro ne semble pas valide. Exemple : 06 12 34 56 78, ou +33 6 12 34 56 78.',
+  'signup.error.email_invalid': 'Cette adresse e-mail ne semble pas valide.',
+  'signup.error.too_many_signups':
+    'Trop d’inscriptions viennent d’être créées. Réessayez dans une heure, ou prévenez le club.',
+  'signup.error.unknown': 'La création du compte a échoué. Réessayez dans un instant.',
+  /* ── /mot-de-passe — le changement, forcé ou volontaire ──────────────────
+     ⚠️ LE MOT DE PASSE ACTUEL EST DEMANDÉ MÊME APRÈS UNE RÉINITIALISATION.
+     Le téléphone familial reste connecté : sans cette vérification, cet écran
+     serait un bouton « prendre ce compte » pour la personne suivante. */
+  'password.title': 'Mot de passe',
+  'password.intro': 'Changez le mot de passe de votre compte.',
+  'password.forced':
+    'Le club vous a donné un mot de passe provisoire. Choisissez le vôtre maintenant : lui seul ouvrira le compte ensuite.',
+  'password.currentLabel': 'Mot de passe actuel',
+  'password.currentHint': 'Celui que vous venez d’utiliser, ou celui que le club vous a donné.',
+  'password.newLabel': 'Nouveau mot de passe',
+  'password.confirmLabel': 'Répétez le nouveau mot de passe',
+  'password.submit': 'Enregistrer',
+  'password.working': 'Enregistrement…',
+  'password.saved': 'Mot de passe modifié.',
+  'password.mismatch': 'Les deux mots de passe ne sont pas identiques.',
+  'password.error.wrong_password': 'Le mot de passe actuel est incorrect.',
+  'password.error.password_too_short': 'Le nouveau mot de passe doit faire au moins 6 caractères.',
+  'password.error.not_pseudo_account':
+    'Ce compte se connecte avec un lien par e-mail : il n’a pas de mot de passe.',
+  'password.error.unknown': 'Le changement a échoué. Réessayez dans un instant.',
   /* ── /bienvenue — le premier passage, une seule fois ──────────────────────
      ⚠️ UNE QUESTION, PAS UN FORMULAIRE. La v0.13.0 demandait « le prénom de
      l'élève », ce qui suppose que le titulaire du compte n'est PAS un joueur.
@@ -713,6 +799,31 @@ const fr = {
   'account.saved': 'Enregistré.',
   'account.saveError': "Impossible d'enregistrer. Réessayez.",
   'account.email': 'Adresse e-mail',
+  /* ── Le compte à pseudo (v0.18.0) ────────────────────────────────────────
+     ⚠️ LE TITULAIRE EST DÉSIGNÉ PAR SON PSEUDO, JAMAIS PAR L'ADRESSE INTERNE.
+     Cette adresse existe uniquement parce que Supabase exige un e-mail ; la
+     montrer donnerait à l'élève une information fausse et inutilisable. */
+  'account.pseudoLabel': 'Pseudo',
+  'account.pseudoHint': 'C’est ce que vous tapez pour vous connecter. Il ne change pas.',
+  'account.contact.heading': 'Contact et récupération',
+  'account.contact.body':
+    'Le numéro WhatsApp est la seule façon de vous redonner l’accès si vous oubliez votre mot de passe. Gardez-le à jour.',
+  'account.whatsappLabel': 'Numéro WhatsApp',
+  'account.whatsappHint': 'Celui d’un parent pour les mineurs. Exemple : 06 12 34 56 78',
+  'account.contactEmailLabel': 'Adresse e-mail (facultatif)',
+  'account.contactEmailHint': 'Pour que le club puisse vous écrire. Elle ne sert pas à se connecter.',
+  'account.contactSave': 'Enregistrer le contact',
+  'account.contact.error.whatsapp_invalid':
+    'Ce numéro ne semble pas valide. Exemple : 06 12 34 56 78.',
+  'account.contact.error.whatsapp_required':
+    'Un numéro WhatsApp est nécessaire : c’est la seule façon de récupérer votre compte.',
+  'account.contact.error.email_invalid': 'Cette adresse e-mail ne semble pas valide.',
+  'account.contact.error.unknown': "Impossible d'enregistrer. Réessayez.",
+  'account.password.heading': 'Mot de passe',
+  'account.password.body': 'Vous pouvez le changer quand vous voulez.',
+  'account.password.change': 'Changer de mot de passe',
+  'account.password.mustChange':
+    'Votre mot de passe actuel est provisoire : il a été donné par le club. Choisissez le vôtre.',
   'account.role': 'Rôle',
   'account.role.admin': 'Administrateur',
   'account.role.prof': 'Professeur',
@@ -1283,7 +1394,7 @@ const en: Record<keyof typeof fr, string> = {
   'auth.signOut': 'Sign out',
   'login.title': 'Sign in',
   'login.intro':
-    'Get a link by email — no password. An account keeps your progress across your devices; the whole site stays available without one.',
+    'With your username and your password. An account keeps your progress across your devices; the whole site stays available without one.',
   'login.emailLabel': 'Email address',
   'login.submit': 'Send the link',
   'login.sending': 'Sending…',
@@ -1297,10 +1408,80 @@ const en: Record<keyof typeof fr, string> = {
   /* ⚠️ Noise reduction, NOT security — the anon key is public. See the FR note. */
   'login.hpLabel': 'Leave this field empty',
   'login.retry': 'Could not verify. Press the button again.',
+  /* ⚠️ The pseudo is the PRIMARY path and the email link stays. See the FR note
+     for why — many of the club's students have no inbox at all. */
+  'login.pseudo.heading': 'With a username',
+  'login.pseudoLabel': 'Username',
+  'login.passwordLabel': 'Password',
+  'login.pseudoSubmit': 'Sign in',
+  'login.signingIn': 'Signing in…',
+  'login.badCredentials': 'Wrong username or password.',
+  'login.showPassword': 'Show the password',
+  'login.noAccount': 'No account yet?',
+  'login.createAccount': 'Create an account',
+  'login.forgot.heading': 'Forgotten your password?',
+  'login.forgot.body':
+    'Message the club on WhatsApp: we give you a temporary password, and you choose your own at the next sign-in.',
+  'login.forgot.cta': 'Message the club on WhatsApp',
+  'login.forgot.message': 'Hello, I have forgotten my password for the club website. My username is: ',
+  'login.email.heading': 'With an email address',
+  'login.email.hint': 'For accounts created with an email address. A link, no password.',
   'callback.title': 'Signing in…',
   'callback.working': 'Signing you in…',
   'callback.failed': 'This link is no longer valid. Request a new one.',
   'callback.retry': 'Back to sign in',
+  /* ⚠️ The WhatsApp number is REQUIRED because it is the only way back in —
+     there is no inbox to send a reset link to. See the FR note. */
+  'signup.title': 'Create an account',
+  'signup.intro':
+    'No email address needed. Choose a username and a password: that is all it takes to come back.',
+  'signup.nameLabel': 'First name',
+  'signup.nameHint': 'What the club will display. You can change it later.',
+  'signup.pseudoLabel': 'Username',
+  'signup.pseudoHint':
+    '3 to 20 characters: unaccented letters, digits, dot, dash. It cannot be changed later.',
+  'signup.passwordLabel': 'Password',
+  'signup.passwordHint':
+    'At least 6 characters. Pick one you will remember — that matters more than a complicated one.',
+  'signup.whatsappLabel': 'WhatsApp number',
+  'signup.whatsappHint':
+    'A parent’s number for under-18s. It is how the club gets you back in if you forget your password. Example: 06 12 34 56 78',
+  'signup.emailLabel': 'Email address (optional)',
+  'signup.emailHint': 'Only so the club can write to you. It is not used to sign in.',
+  'signup.submit': 'Create the account',
+  'signup.working': 'Creating the account…',
+  'signup.haveAccount': 'Already have an account?',
+  'signup.signIn': 'Sign in',
+  'signup.error.pseudo_invalid':
+    'That username will not work: 3 to 20 characters, unaccented letters, digits, dot, dash.',
+  'signup.error.pseudo_taken': 'That username is taken. Try another one.',
+  'signup.error.password_too_short': 'The password must be at least 6 characters.',
+  'signup.error.name_required': 'Give a first name (40 characters maximum).',
+  'signup.error.whatsapp_invalid':
+    'That number does not look valid. Example: 06 12 34 56 78, or +44 7700 900000.',
+  'signup.error.email_invalid': 'That email address does not look valid.',
+  'signup.error.too_many_signups':
+    'Too many accounts have just been created. Try again in an hour, or tell the club.',
+  'signup.error.unknown': 'The account could not be created. Try again in a moment.',
+  /* ⚠️ The current password is asked for even right after a reset — a family
+     phone left signed in is the normal case here. See the FR note. */
+  'password.title': 'Password',
+  'password.intro': 'Change your account password.',
+  'password.forced':
+    'The club gave you a temporary password. Choose your own now: from then on it is the only one that opens the account.',
+  'password.currentLabel': 'Current password',
+  'password.currentHint': 'The one you just used, or the one the club gave you.',
+  'password.newLabel': 'New password',
+  'password.confirmLabel': 'Repeat the new password',
+  'password.submit': 'Save',
+  'password.working': 'Saving…',
+  'password.saved': 'Password changed.',
+  'password.mismatch': 'The two passwords are not the same.',
+  'password.error.wrong_password': 'The current password is wrong.',
+  'password.error.password_too_short': 'The new password must be at least 6 characters.',
+  'password.error.not_pseudo_account':
+    'This account signs in with an email link: it has no password.',
+  'password.error.unknown': 'The change failed. Try again in a moment.',
   /* ── /en/bienvenue — first run, once. See the FR note for the reasoning. */
   'welcome.title': 'Welcome to the club',
   'welcome.intro': 'One question, and we will not ask it again.',
@@ -1427,6 +1608,28 @@ const en: Record<keyof typeof fr, string> = {
   'account.saved': 'Saved.',
   'account.saveError': 'Could not save. Try again.',
   'account.email': 'Email address',
+  /* ⚠️ The holder is named by their username, never by the internal address. */
+  'account.pseudoLabel': 'Username',
+  'account.pseudoHint': 'This is what you type to sign in. It does not change.',
+  'account.contact.heading': 'Contact and recovery',
+  'account.contact.body':
+    'The WhatsApp number is the only way to get you back in if you forget your password. Keep it up to date.',
+  'account.whatsappLabel': 'WhatsApp number',
+  'account.whatsappHint': 'A parent’s number for under-18s. Example: 06 12 34 56 78',
+  'account.contactEmailLabel': 'Email address (optional)',
+  'account.contactEmailHint': 'So the club can write to you. It is not used to sign in.',
+  'account.contactSave': 'Save contact details',
+  'account.contact.error.whatsapp_invalid':
+    'That number does not look valid. Example: 06 12 34 56 78.',
+  'account.contact.error.whatsapp_required':
+    'A WhatsApp number is needed: it is the only way to recover your account.',
+  'account.contact.error.email_invalid': 'That email address does not look valid.',
+  'account.contact.error.unknown': 'Could not save. Try again.',
+  'account.password.heading': 'Password',
+  'account.password.body': 'You can change it whenever you like.',
+  'account.password.change': 'Change password',
+  'account.password.mustChange':
+    'Your current password is temporary — the club gave it to you. Choose your own.',
   'account.role': 'Role',
   'account.role.admin': 'Administrator',
   'account.role.prof': 'Teacher',

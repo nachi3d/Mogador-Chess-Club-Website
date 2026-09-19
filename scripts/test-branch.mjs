@@ -128,6 +128,12 @@ const AUTH_SPECS = new Set([
   'onboarding.spec.ts',
   'progress-sync.spec.ts',
   'role-separation.spec.ts',
+  /* ⚠️ IT MINTS ACCOUNTS WITHOUT VERIFYING A SINGLE LINK, and it belongs here
+     anyway. The pseudo path never touches `/auth/v1/verify`, but it hammers
+     `/auth/v1/token` (a sign-in per test, several in the reset flow) and shares
+     the project's auth quota with everything above. The cap is about the
+     project, not about one endpoint. */
+  'pseudo-auth.spec.ts',
 ]);
 const authSpecs = all ? AUTH_SPECS.size : specs.filter((s) => AUTH_SPECS.has(s)).length;
 const workers = authSpecs > 2 ? ' --workers=2' : '';

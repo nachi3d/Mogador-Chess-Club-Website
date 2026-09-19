@@ -1,0 +1,364 @@
+---
+/**
+ * /inscription — a compte with no email address.
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️ FOUR FIELDS, AND THE FOURTH IS THE ONE PEOPLE WILL WANT TO MAKE OPTIONAL.
+ *
+ * Prénom, pseudo, mot de passe, **numéro WhatsApp**. The number is REQUIRED and
+ * it is required for one reason: there is no inbox, so there is no reset link,
+ * so the only way back into a forgotten account is a person messaging another
+ * person. An account with no number is an account Seàn cannot help — and the
+ * student discovers that at the worst possible moment, three weeks later, with
+ * nothing anybody can do about it.
+ *
+ * ⚠️ THE PASSWORD RULE IS SIX CHARACTERS AND NOTHING ELSE. No uppercase, no
+ * digit, no symbol, no meter. These are minors on shared phones: a rule that
+ * guarantees a forgotten password guarantees a WhatsApp message and a hand
+ * reset every week, and a password the student actually remembers is worth more
+ * here than one that is strong on a Tuesday and gone by Saturday. The threat
+ * model is a club roster with no money and no personal data beyond a first name
+ * — not a bank.
+ *
+ * ⚠️ EVERY REFUSAL COMES FROM POSTGRES. The shape checks below are a mirror so
+ * the form can answer instantly (`src/lib/pseudo.ts` → migration 0013); the
+ * function is what actually decides, including the one thing the client cannot
+ * know — whether the pseudo is free.
+ *
+ * ⚠️ IT SIGNS THE READER IN AND SENDS THEM ON. A sign-up that ends on "now go
+ * and sign in" asks a fourteen-year-old to retype a password they chose eight
+ * seconds ago, and a typo at that moment is indistinguishable from a site that
+ * does not work.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+import type { Locale } from '@config/site';
+import { localizePath } from '@i18n/paths';
+import { useTranslations } from '@i18n/ui';
+import BaseLayout from '@layouts/BaseLayout.astro';
+import PageIntro from '@components/PageIntro.astro';
+import Trail from '@components/nav/Trail.astro';
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const t = useTranslations(locale);
+---
+
+<BaseLayout locale={locale} title={t('signup.title')} description={t('signup.intro')}>
+  <Trail locale={locale} href={localizePath('/connexion/', locale)} label={t('login.title')} />
+  <PageIntro title={t('signup.title')} intro={t('signup.intro')} />
+
+  <div class="auth-card">
+    <form
+      id="signup-form"
+      data-testid="signup-form"
+      novalidate
+      data-locale={locale}
+      data-msg-working={t('signup.working')}
+      data-msg-submit={t('signup.submit')}
+      data-err-pseudo-invalid={t('signup.error.pseudo_invalid')}
+      data-err-pseudo-taken={t('signup.error.pseudo_taken')}
+      data-err-password-too-short={t('signup.error.password_too_short')}
+      data-err-name-required={t('signup.error.name_required')}
+      data-err-whatsapp-invalid={t('signup.error.whatsapp_invalid')}
+      data-err-email-invalid={t('signup.error.email_invalid')}
+      data-err-too-many-signups={t('signup.error.too_many_signups')}
+      data-err-unknown={t('signup.error.unknown')}
+      data-msg-unconfigured={t('login.unconfigured')}
+    >
+      <label for="signup-name">{t('signup.nameLabel')}</label>
+      <p class="auth-hint" id="signup-name-hint">{t('signup.nameHint')}</p>
+      <input
+        id="signup-name"
+        type="text"
+        maxlength="40"
+        autocomplete="given-name"
+        aria-describedby="signup-name-hint"
+        required
+        data-testid="signup-name"
+      />
+
+      <label for="signup-pseudo">{t('signup.pseudoLabel')}</label>
+      <p class="auth-hint" id="signup-pseudo-hint">{t('signup.pseudoHint')}</p>
+      {/* ⚠️ `autocapitalize="none"`: a phone capitalises the first letter, the
+          pseudo is stored lowercase, and a reader who types `Yassine` and is
+          later told to sign in as `yassine` has been set up to fail. */}
+      <input
+        id="signup-pseudo"
+        type="text"
+        maxlength="20"
+        autocomplete="username"
+        autocapitalize="none"
+        autocorrect="off"
+        spellcheck="false"
+        aria-describedby="signup-pseudo-hint"
+        required
+        data-testid="signup-pseudo"
+      />
+
+      <label for="signup-password">{t('signup.passwordLabel')}</label>
+      <p class="auth-hint" id="signup-password-hint">{t('signup.passwordHint')}</p>
+      <input
+        id="signup-password"
+        type="password"
+        autocomplete="new-password"
+        aria-describedby="signup-password-hint"
+        required
+        data-testid="signup-password"
+      />
+      {/* ⚠️ SHOWN, NOT CONFIRMED TWICE. A "repeat the password" field on a phone
+          keyboard is two chances to make the same typo and no way to see it;
+          being able to READ what you typed is the thing that actually prevents
+          an account nobody can open. */}
+      <p class="auth-reveal">
+        <input type="checkbox" id="signup-reveal" data-testid="signup-reveal" />
+        <label for="signup-reveal">{t('login.showPassword')}</label>
+      </p>
+
+      <label for="signup-whatsapp">{t('signup.whatsappLabel')}</label>
+      <p class="auth-hint" id="signup-whatsapp-hint">{t('signup.whatsappHint')}</p>
+      <input
+        id="signup-whatsapp"
+        type="tel"
+        inputmode="tel"
+        autocomplete="tel"
+        aria-describedby="signup-whatsapp-hint"
+        required
+        data-testid="signup-whatsapp"
+      />
+
+      <label for="signup-email">{t('signup.emailLabel')}</label>
+      <p class="auth-hint" id="signup-email-hint">{t('signup.emailHint')}</p>
+      <input
+        id="signup-email"
+        type="email"
+        inputmode="email"
+        autocomplete="email"
+        aria-describedby="signup-email-hint"
+        data-testid="signup-email"
+      />
+
+      <button type="submit" class="btn-primary" data-testid="signup-submit">
+        {t('signup.submit')}
+      </button>
+      <p class="auth-error" role="alert" data-testid="signup-error" hidden></p>
+    </form>
+
+    <p class="auth-guest">
+      <span>{t('signup.haveAccount')}</span>
+      <a href={localizePath('/connexion/', locale)} data-testid="signup-signin-link">
+        {t('signup.signIn')}
+      </a>
+    </p>
+  </div>
+
+  <script>
+    import { isValidPseudo, PASSWORD_MIN } from '@lib/pseudo';
+
+    const form = document.getElementById('signup-form') as HTMLFormElement | null;
+    const name = document.querySelector('[data-testid="signup-name"]') as HTMLInputElement | null;
+    const pseudo = document.querySelector('[data-testid="signup-pseudo"]') as HTMLInputElement | null;
+    const password = document.querySelector('[data-testid="signup-password"]') as HTMLInputElement | null;
+    const reveal = document.querySelector('[data-testid="signup-reveal"]') as HTMLInputElement | null;
+    const whatsapp = document.querySelector('[data-testid="signup-whatsapp"]') as HTMLInputElement | null;
+    const email = document.querySelector('[data-testid="signup-email"]') as HTMLInputElement | null;
+    const submit = document.querySelector('[data-testid="signup-submit"]') as HTMLButtonElement | null;
+    const errorEl = document.querySelector('[data-testid="signup-error"]') as HTMLElement | null;
+
+    /**
+     * The translated sentence for a token the database (or the mirror) raised.
+     *
+     * ⚠️ ATTRIBUTE LOOKUP, NOT `dataset`. `dataset` camel-cases hyphens and
+     * leaves underscores alone, so `data-err-pseudo-taken` is `errPseudoTaken`
+     * and there is no spelling of the token that indexes it directly. Reading
+     * the attribute keeps the token exactly as Postgres raised it.
+     *
+     * ⚠️ AN UNKNOWN TOKEN FALLS BACK TO THE GENERIC FAILURE, never to the raw
+     * string: a reader must not be shown `pseudo_taken` because somebody added
+     * a `raise` without a translation.
+     */
+    function message(token: string): string {
+      return form?.getAttribute(`data-err-${token.replace(/_/g, '-')}`) ?? '';
+    }
+
+    function fail(token: string, focus?: HTMLElement | null) {
+      if (errorEl) {
+        errorEl.textContent = message(token) || (form?.getAttribute('data-err-unknown') ?? '');
+        errorEl.hidden = false;
+      }
+      focus?.focus();
+    }
+
+    reveal?.addEventListener('change', () => {
+      if (password) password.type = reveal.checked ? 'text' : 'password';
+    });
+
+    form?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (!name || !pseudo || !password || !whatsapp || !submit) return;
+      if (errorEl) errorEl.hidden = true;
+
+      /* ── The mirror. The database refuses the same things; this only saves a
+         round trip and gives the reader the message beside their own typing. */
+      if (name.value.trim() === '' || name.value.trim().length > 40) {
+        fail('name_required', name);
+        return;
+      }
+      if (!isValidPseudo(pseudo.value)) {
+        fail('pseudo_invalid', pseudo);
+        return;
+      }
+      if (password.value.length < PASSWORD_MIN) {
+        fail('password_too_short', password);
+        return;
+      }
+      /* ⚠️ THE NUMBER IS ONLY CHECKED FOR EMPTINESS HERE. Normalising a phone
+         number is one rule and it lives in `normalize_whatsapp()`; a second
+         opinion in TypeScript is how `06…` becomes valid on one side and not on
+         the other. The database answers `whatsapp_invalid` with the same
+         sentence this form would have shown. */
+      if (whatsapp.value.trim() === '') {
+        fail('whatsapp_invalid', whatsapp);
+        return;
+      }
+
+      submit.disabled = true;
+      submit.textContent = form.dataset.msgWorking ?? '';
+
+      try {
+        const { isConfigured, registerWithPseudo, landingAfterSignIn } = await import('@lib/supabase');
+        if (!isConfigured()) {
+          if (errorEl) {
+            errorEl.textContent = form.dataset.msgUnconfigured ?? '';
+            errorEl.hidden = false;
+          }
+          return;
+        }
+
+        const result = await registerWithPseudo({
+          pseudo: pseudo.value,
+          password: password.value,
+          displayName: name.value,
+          whatsapp: whatsapp.value,
+          email: email?.value ?? '',
+          locale: form.dataset.locale === 'en' ? 'en' : 'fr',
+        });
+
+        if (!result.ok) {
+          fail(result.error, result.error === 'pseudo_taken' ? pseudo : null);
+          return;
+        }
+
+        /* Registration signs in on success, so the landing rule applies exactly
+           as it does after a magic link — first stop `/bienvenue/`. A full
+           document load so the header re-reads the flag from scratch. */
+        window.location.assign(await landingAfterSignIn());
+      } catch {
+        fail('unknown');
+      } finally {
+        submit.disabled = false;
+        submit.textContent = form.dataset.msgSubmit ?? '';
+      }
+    });
+  </script>
+</BaseLayout>
+
+<style>
+  .auth-card {
+    max-width: 32rem;
+    padding: 1.5rem;
+    border: 1px solid var(--mcc-border-subtle);
+    border-radius: var(--radius-card);
+    background-color: var(--mcc-surface-raised);
+  }
+
+  label {
+    display: block;
+    margin-bottom: 0.2rem;
+    font-weight: 500;
+  }
+
+  /* ⚠️ THE HINTS ARE NOT DECORATION AND THEY ARE ABOVE THE FIELD, not below it.
+     "A parent's number for under-18s" has to be read BEFORE the number is
+     typed; underneath, it is an explanation of a decision already made. */
+  .auth-hint {
+    margin: 0 0 0.4rem;
+    color: var(--mcc-text-secondary);
+    font-size: 0.9rem;
+  }
+
+  input[type='text'],
+  input[type='password'],
+  input[type='tel'],
+  input[type='email'] {
+    width: 100%;
+    padding: 0.6rem 0.75rem;
+    margin-bottom: 1.1rem;
+    border: 1px solid var(--mcc-border-strong);
+    border-radius: var(--radius-card);
+    background-color: var(--mcc-surface-page);
+    color: var(--mcc-text-primary);
+    font: inherit;
+  }
+
+  input:focus-visible {
+    outline: 2px solid var(--mcc-focus-ring);
+    outline-offset: 1px;
+  }
+
+  .auth-reveal {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: -0.6rem 0 1.1rem;
+  }
+
+  .auth-reveal input {
+    width: auto;
+    margin: 0;
+    min-width: 1.15rem;
+    min-height: 1.15rem;
+  }
+
+  .auth-reveal label {
+    margin: 0;
+    font-weight: 400;
+  }
+
+  .btn-primary {
+    margin-top: 0.5rem;
+    padding: 0.7rem 1.4rem;
+    border: 1px solid var(--mcc-primary);
+    border-radius: var(--radius-card);
+    background-color: var(--mcc-primary);
+    color: var(--mcc-primary-contrast);
+    font: inherit;
+    font-weight: 500;
+    cursor: pointer;
+  }
+
+  .btn-primary:disabled {
+    opacity: 0.7;
+    cursor: default;
+  }
+
+  .auth-error {
+    margin: 0.75rem 0 0;
+    color: var(--mcc-danger-text);
+  }
+
+  .auth-guest {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 1.25rem 0 0;
+    padding-top: 1rem;
+    border-top: 1px solid var(--mcc-border-subtle);
+  }
+
+  .auth-guest a {
+    color: var(--mcc-link);
+  }
+</style>

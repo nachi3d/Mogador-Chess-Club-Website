@@ -320,6 +320,27 @@ it. Tags said one thing and the manifest said another.
 68. **The deploy hook URL is a VAULT SECRET, and this repository is public.** It is the credential. `vault.create_secret(…, 'cloudflare_deploy_hook')`, read only by `request_site_rebuild()` — never a table, never `.env`, never a migration. ⚠️ **No secret means NO DISPATCH, not an error**, which is what lets a test project count firings safely.
 69. **`sessions.series_id` is a LABEL, never a rule — NO RRULE engine, NO recurrence table.** The expansion happens once, in the browser; what is stored is thirteen ordinary rows. Nothing may read it to decide what a session IS, only to select rows the prof already sees. One cancelled week must not require reasoning about a rule.
 70. **The rebuild trigger may NEVER fail a write.** Every failure path logs and returns. A trigger that can raise makes `/admin/seances` unable to save — somebody else's outage becoming a database outage in front of a room of children.
+71. **The PSEUDO is the account's name; the synthetic address is NEVER shown.**
+    `<pseudo>@pseudo.mogadorchess.invalid` exists only because Supabase keys
+    users by email. `.invalid` is reserved (RFC 6761), so no mail can ever reach
+    it and no pseudo can collide with a real address. `admin_list_accounts()`
+    NULLs it in SQL rather than asking four surfaces to remember.
+72. **A pseudo is unique and IMMUTABLE once set, and only `register_with_pseudo()`
+    may create one** — the address is derived from it, so a changed pseudo makes
+    **correct credentials fail**. Two triggers hold it, one of them on
+    `auth.users` reserving the namespace against anyone with the anon key.
+    ⚠️ Consequence: the service role cannot mint a pseudo account either.
+73. **The WhatsApp number is the ONLY recovery channel, so it is REQUIRED.** No
+    reset link (there is no inbox) and SMS/OTP stays rejected. Recovery is a
+    person: `admin_reset_password()` — ADMIN only, audited, revokes sessions,
+    and returns the temporary password **once**.
+74. **No password is readable anywhere, and there are NO complexity rules.** Six
+    characters and nothing else: these are minors on shared phones, and a rule
+    that guarantees a forgotten password guarantees a weekly hand reset. The only
+    copies of a temporary password are a bcrypt hash and one screen.
+75. **The magic link is NOT legacy.** It is second on `/connexion/`, inside a
+    `<details>`, and first-class: it is how Seàn and Michael sign in. Removing or
+    "cleaning up" the email path breaks the two accounts that run the club.
 
 ---
 
@@ -669,6 +690,8 @@ FR at the root, EN under `/en/...`. **Route segments are not translated** (`/en/
 | `/connexion/` | `/en/connexion/` | **NOT EMITTED by default** — see the account flag below |
 | `/compte/` | `/en/compte/` | **NOT EMITTED by default** — see the account flag below |
 | `/bienvenue/` | `/en/bienvenue/` | **NOT EMITTED by default.** The first-run screen, once per account. ⚠️ The segment is NOT translated |
+| `/inscription/` | `/en/inscription/` | **NOT EMITTED by default.** Sign-up: prénom, pseudo, mot de passe, **numéro WhatsApp** (required), optional contact e-mail |
+| `/mot-de-passe/` | `/en/mot-de-passe/` | **NOT EMITTED by default.** Changing a password — forced after a reset, voluntary from `/compte/`. The current password is required in **both** cases |
 | `/auth/callback/` | — | **NOT EMITTED by default.** The only unlocalised route |
 | `/admin/` | — | **NOT EMITTED by default.** Staff dashboard. **FR only** — see Critical Feature 43 |
 | `/admin/eleves/` | — | **NOT EMITTED by default.** The class list — **children, not accounts** |
@@ -984,6 +1007,12 @@ nothing. Nothing is deleted — v2-S3 sets the variable and the feature returns.
 only**; **all** security is RLS. **Guests are first-class forever** — accounts add
 sync and teacher oversight, and **gate nothing**. Content **stays in git**. Auth is
 magic-link + Google, **no passwords**; **SMS is rejected**, do not reintroduce it.
+
+⚠️ **"NO PASSWORDS" IS SUPERSEDED FOR THE PSEUDO PATH (v0.18.0), AND ONLY THERE.**
+Most of the club's students have no email address at all, so a pseudo + password
+is now the primary door and the magic link is the second (Critical Features
+71–75). **SMS/OTP is still rejected** — recovery is a WhatsApp message from Seàn,
+by hand. Nothing here weakens the guest rule or the static rule.
 
 - ⚠️ **The guest zero-request rule wins every conflict.** A visitor reading a
   lesson causes **zero** requests to any Supabase origin and does not download the
@@ -1338,6 +1367,39 @@ touching any of these three pages.
   AND CLEARS ITSELF**; **a CAPTCHA is not a drop-in** (Critical Feature 9).
 - ⚠️ **`admin_delete_account()` IS NOT A SECOND ROUTE TO `delete_own_account()`**
   (55), and **THE AUDIT RECORDS THE ACT, NOT THE PERSON.**
+
+### ⚠️ THE PSEUDO PATH — `/connexion/`, `/inscription/`, `/mot-de-passe/`
+
+The rules that bind work elsewhere. Everything else — the `.invalid` reasoning,
+the `auth.users` write and its mitigation, the normaliser, the throttle — is in
+the reference.
+
+- ⚠️ **SIGN-UP IS AN RPC, NOT `supabase.auth.signUp()`, AND THAT IS NOT STYLE.**
+  With confirmations ON (the setting the magic link needs) GoTrue mails the
+  synthetic address and refuses the sign-in until somebody answers it. **Nobody
+  can.** `register_with_pseudo()` mints the account already confirmed, in one
+  transaction, with no mail at all.
+- ⚠️ **IT WRITES `auth.users` AND `auth.identities` DIRECTLY**, which is
+  Supabase-internal. The mitigation is `pseudo-auth.spec.ts` registering and
+  signing in through the REAL endpoints on every gate — **do not weaken it into
+  a mock.** Every token column is `''`, never NULL, or every later sign-in fails
+  with "Database error querying schema".
+- ⚠️ **`profile.pseudo` IS THE DISCRIMINATOR** — non-null means "this account has
+  a password". No second column, no `auth_kind` enum to drift.
+- ⚠️ **THE PLACEHOLDER-NAME TEST IS SUPPRESSED FOR PSEUDO ACCOUNTS.** The local
+  part of the synthetic address IS the name the reader chose (Critical Feature
+  53 asks "did anybody type this?", and here somebody did).
+- ⚠️ **`landingAfterSignIn()` IS THE ONE RULE FOR WHERE A READER ARRIVES**, shared
+  by the callback, the pseudo sign-in and registration: forced password change →
+  `/bienvenue/` → `/compte/`. A second copy is how two doors disagree.
+- ⚠️ **THE FORCED CHANGE IS GUIDANCE, NOT A GATE**, and the CURRENT password is
+  required even there — a family phone left signed in is the normal case here.
+  The flag is cleared **in the same statement** as the new hash.
+- ⚠️ **ONE MESSAGE FOR A WRONG PASSWORD AND AN UNKNOWN PSEUDO.** Distinguishing
+  them answers "does this child have an account here?" from a public page.
+- ⚠️ **`guardian_phone` IS WRITTEN THROUGH `update_own_contact()`, NEVER BY A
+  COLUMN GRANT** — one normaliser decides what a phone number is, or the `wa.me`
+  link works for some rows only.
 
 **➡️ Every one of these in full, with the incidents behind them:
 [`docs/reference/supabase.md`](./docs/reference/supabase.md).**

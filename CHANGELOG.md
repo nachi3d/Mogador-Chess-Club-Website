@@ -13,6 +13,109 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ### Added
 
+- **Signing in with a PSEUDO and a PASSWORD — the primary path, with the magic
+  link kept beside it (migration 0013).** The club teaches teenagers in
+  Essaouira: many have no active email address, and a Supabase-branded
+  "Confirm your signup" reads as spam to a parent. A sign-in page whose only
+  control asks for an inbox locks out the people the site is for.
+  - **`/inscription/`** — prénom, pseudo, mot de passe, **numéro WhatsApp**, and
+    an optional real email that is contact only. FR + EN.
+  - **`/connexion/`** — the pseudo form first and full width; the magic link
+    second, in a `<details>`. ⚠️ **The email path is not legacy and must not be
+    removed**: it is how Seàn and Michael sign in, and it is the path that works
+    for anyone with a real inbox.
+  - **`/mot-de-passe/`** — one page for both a forced change (after a reset) and
+    a voluntary one. The current password is required and verified in Postgres
+    **in both cases**: a family phone left signed in is the normal case here, and
+    without that check the screen is a "take this account" button for whoever
+    picks the phone up next.
+  - **`/admin/comptes/` gains a reset control**, admin-only: it generates a
+    temporary password, shows it **once**, offers a prefilled outbound WhatsApp
+    message to the number on the account, revokes that account's sessions and
+    writes an audit row. Plus a **Réinitialisations** journal.
+  - **`/compte/`** names a pseudo account by its **pseudo**, hides the address
+    row entirely, and gains an editable recovery channel (WhatsApp + optional
+    email) and a link to the password page.
+
+- **The synthetic address: `<pseudo>@pseudo.mogadorchess.invalid`.** Supabase
+  Auth has no username identity, so a pseudo has to become an email address.
+  `.invalid` is **reserved by RFC 6761** and is guaranteed never to resolve, so
+  three properties come for free: no message can ever be delivered or bounce,
+  nobody can own a mailbox there so a pseudo can never collide with a real
+  person's address, and it is obviously synthetic on sight. ⚠️ **It is never
+  shown to a reader** — `admin_list_accounts()` NULLs it in SQL rather than
+  asking four surfaces to remember.
+
+- **`password_resets`** — who reset, when, **for whom**. ⚠️ It names the student
+  where `account_deletions` (0009) deliberately names nobody, and that is the
+  same rule applied honestly rather than an inconsistency: Critical Feature 51
+  forbids retaining anything about an **erased** account, and a reset erases
+  nothing. The rows cascade away with the account. **No password is in it**, and
+  a spec asserts that against the whole serialised row rather than a column list.
+
+### Changed
+
+- **`landingAfterSignIn()` in `@lib/supabase` is now the ONE rule for where a
+  reader arrives**, shared by the magic-link callback, the pseudo sign-in and
+  registration: a forced password change first, then the once-per-account
+  welcome screen, then `/compte/`. Three doors into the same house must not
+  disagree about which room you land in.
+- **`profiles` gains `pseudo`, `contact_email`, `must_change_password`** —
+  ⚠️ none of them client-writable. The column grant list stays exactly
+  `display_name, locale, onboarded_at, account_shape`, which is what actually
+  stops a client writing `role` (RLS operates on ROWS and would allow it).
+  `pseudo` is additionally **immutable once set**, by trigger: the synthetic
+  address is derived from it, so a changed pseudo would leave the account
+  unopenable with correct credentials.
+- **The e2e purge learned about pseudo accounts.** Their address cannot carry
+  the e2e email domain, so `e2ePseudo()` prefixes every test pseudo with `e2e-`
+  and the purge matches on that — nothing else in the reserved domain is touched.
+
+### Why sign-up is a database function and not `supabase.auth.signUp()`
+
+The obvious implementation does not work and must not be attempted. With email
+confirmations ON — the project's setting, and the one the magic link needs —
+GoTrue sends a confirmation to the synthetic address and refuses the sign-in
+until it is answered. **Nobody can answer it; the account is born locked.**
+Turning confirmations off would apply to the whole project, including real
+addresses, and would let anyone sign up as somebody else's email and hold it.
+
+So `register_with_pseudo()` mints the account in one transaction, already
+confirmed, with no mail entering the picture. ⚠️ **The cost is that 0013 writes
+`auth.users` and `auth.identities` directly, which is Supabase-internal.** That
+risk is accepted with its mitigation stated rather than hidden:
+`pseudo-auth.spec.ts` registers and signs in through the **real** endpoints on
+every gate, so a GoTrue schema change surfaces as a red test rather than as a
+Saturday at Dar Souiri.
+
+### Decisions that will look like omissions
+
+- ⚠️ **No complexity requirements on the password. Six characters, nothing
+  else.** These are minors on shared phones: a rule that guarantees a forgotten
+  password guarantees a WhatsApp message and a hand reset every week. A short
+  password a student remembers beats a strong one Seàn resets weekly, and the
+  threat model is a club roster — no money, no personal data beyond a first name.
+- ⚠️ **The WhatsApp number is REQUIRED, and it is the whole recovery story.**
+  There is no inbox, so there is no reset link; SMS OTP stays rejected. An
+  account with no number is an account nobody can ever help, and the student
+  discovers that three weeks later at the worst possible moment.
+- ⚠️ **No self-service reset.** Recovery is a person: Seàn generates, reads out
+  or sends on WhatsApp, the student replaces it at the next sign-in.
+- ⚠️ **The sign-in form says the same thing for a wrong password and an unknown
+  pseudo.** Distinguishing them answers "does this child have an account here?"
+  for anyone who asks, from a public page.
+- ⚠️ **The synthetic namespace is reserved at the `auth.users` door** by a
+  BEFORE INSERT trigger. Without it anyone holding the published anon key could
+  request a magic link for `yassine@pseudo.mogadorchess.invalid`, and GoTrue
+  would create that user — permanently taking the pseudo for an account nobody
+  can sign into. A free, scriptable denial of service on the club's own names.
+- ⚠️ **The sign-up throttle is GLOBAL (40/hour) and that weakness is accepted.**
+  GoTrue's per-IP sign-up limit does not apply to a function call. A global cap
+  means somebody determined can also deny sign-ups for an hour — an annoyance
+  Seàn can see in `/admin/comptes/` and wait out, where an unbounded table is not.
+
+### Added
+
 - **`docs/SETUP-NEW-MACHINE.md` — bringing the project up on a fresh Windows
   machine, in order, with a verification after each step.** Written because the
   project is moving to another PC and four things live on this machine and not

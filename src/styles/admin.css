@@ -647,6 +647,36 @@
   color: var(--color-ink-950);
 }
 
+/* A pseudo account: the tag says which door this account uses, in a word.
+   Same audited pair as `confirmed` — "signs in with a password" is a fact about
+   the account, not a warning about it. */
+.admin .account-state[data-state='pseudo'] {
+  background-color: var(--mcc-surface-sunken);
+  color: var(--mcc-text-secondary);
+}
+
+/* ⚠️ THE TEMPORARY PASSWORD IS READ OUT LOUD OVER A PHONE, so it is set in the
+   monospace face at a size that survives a bright room at Dar Souiri: `l` and
+   `1` must not be a guess. It is deliberately selectable — Seàn copies it into
+   WhatsApp when the prefilled link is not the right channel. */
+.admin .account-temp-password {
+  display: inline-block;
+  margin: 0 0 0.75rem;
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--mcc-border-strong);
+  border-radius: var(--radius-card);
+  background-color: var(--mcc-surface-sunken);
+  color: var(--mcc-text-primary);
+  /* ⚠️ `--font-notation` IS THE REAL TOKEN NAME. An unknown custom property
+     invalidates the whole declaration silently — the defect this codebase has
+     hit four times — and the fallback face would put `l` and `1` one pixel
+     apart on the one string that must be read out loud correctly. */
+  font-family: var(--font-notation);
+  font-size: 1.25rem;
+  letter-spacing: 0.06em;
+  user-select: all;
+}
+
 .admin .account-meta {
   margin: 0.4rem 0 0;
   color: var(--mcc-text-secondary);

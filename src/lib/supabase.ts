@@ -63,6 +63,19 @@ export interface Profile {
    * guessed at. See `src/lib/account-shape.ts` and migration 0010.
    */
   readonly account_shape: string | null;
+  /**
+   * The name this account signs in with, or null on a magic-link account.
+   *
+   * ⚠️ THIS NULL IS THE DISCRIMINATOR FOR THE WHOLE FEATURE. "Does this account
+   * have a password?" is answered here and nowhere else — there is no second
+   * column and no `auth_kind` enum that could disagree with reality. See
+   * migration 0013.
+   */
+  readonly pseudo: string | null;
+  /** An optional REAL address, for contact only. Never an auth channel. */
+  readonly contact_email: string | null;
+  /** True between an admin reset and the reader choosing their own password. */
+  readonly must_change_password: boolean;
 }
 
 let client: SupabaseClient | null = null;
@@ -181,6 +194,171 @@ export async function signInWithMagicLink(
   }
 }
 
+/* ══ The pseudo + password path (migration 0013) ═════════════════════════════
+ *
+ * ⚠️ THE MAGIC LINK ABOVE IS NOT LEGACY. Two paths, both first-class: an inbox
+ * is what works for Seàn and Michael, a pseudo is what works for a teenager in
+ * Essaouira who has no email address. Nothing below deprecates anything above.
+ *
+ * ⚠️ EVERY RULE IS IN THE DATABASE, AND EVERY MESSAGE IS A TOKEN. These
+ * functions hand back the raw `message` from Postgres — `pseudo_taken`,
+ * `password_too_short`, `whatsapp_invalid` — and the PAGE maps it to a
+ * translated sentence. That keeps French and English out of SQL and keeps the
+ * i18n layer out of this module, which is the same seam `ChessBoard` holds.
+ * An unrecognised token is shown as the generic failure, never raw.
+ */
+
+/** A failure a form can translate, or an unknown one it will generalise. */
+export type PseudoError =
+  | 'pseudo_invalid'
+  | 'pseudo_taken'
+  | 'password_too_short'
+  | 'name_required'
+  | 'whatsapp_invalid'
+  | 'whatsapp_required'
+  | 'email_invalid'
+  | 'too_many_signups'
+  | 'wrong_password'
+  | 'not_pseudo_account'
+  | 'not_signed_in'
+  | 'bad_credentials'
+  | 'unknown';
+
+const PSEUDO_ERRORS: readonly PseudoError[] = [
+  'pseudo_invalid',
+  'pseudo_taken',
+  'password_too_short',
+  'name_required',
+  'whatsapp_invalid',
+  'whatsapp_required',
+  'email_invalid',
+  'too_many_signups',
+  'wrong_password',
+  'not_pseudo_account',
+  'not_signed_in',
+];
+
+/** Postgres puts our `raise exception 'token'` in `message`, sometimes adorned. */
+function pseudoError(message: string | undefined): PseudoError {
+  const text = (message ?? '').toLowerCase();
+  for (const known of PSEUDO_ERRORS) {
+    if (text.includes(known)) return known;
+  }
+  return 'unknown';
+}
+
+/**
+ * Create a pseudo account, and sign in with it.
+ *
+ * ⚠️ REGISTRATION IS AN RPC, NOT `signUp()`, AND THAT IS NOT A STYLE CHOICE.
+ * `signUp()` with the synthetic address makes GoTrue send a confirmation
+ * message to an address that can never receive one, and the account is born
+ * locked. Migration 0013 explains the whole reasoning; do not "simplify" this
+ * back into `auth.signUp`.
+ *
+ * ⚠️ IT SIGNS IN IMMEDIATELY AFTERWARDS, on purpose. A sign-up that ends on a
+ * "now go and sign in" screen asks a fourteen-year-old to type a password they
+ * chose eight seconds ago, and a mistyped one at that moment is indistinguish-
+ * able from a broken site.
+ */
+export async function registerWithPseudo(input: {
+  pseudo: string;
+  password: string;
+  displayName: string;
+  whatsapp: string;
+  email?: string;
+  locale?: string;
+}): Promise<{ ok: true } | { ok: false; error: PseudoError }> {
+  try {
+    const sb = await getSupabase();
+    const { error } = await sb.rpc('register_with_pseudo', {
+      p_pseudo: input.pseudo,
+      p_password: input.password,
+      p_display_name: input.displayName,
+      p_whatsapp: input.whatsapp,
+      p_email: input.email ?? null,
+      p_locale: input.locale ?? 'fr',
+    });
+    if (error) return { ok: false, error: pseudoError(error.message) };
+    return await signInWithPseudo(input.pseudo, input.password);
+  } catch (e) {
+    return { ok: false, error: pseudoError(e instanceof Error ? e.message : String(e)) };
+  }
+}
+
+/**
+ * Sign in with a pseudo and a password.
+ *
+ * ⚠️ THE SYNTHETIC ADDRESS IS BUILT HERE AND SHOWN NOWHERE. GoTrue's own
+ * "Invalid login credentials" is collapsed to `bad_credentials`, deliberately:
+ * the page must not distinguish "no such pseudo" from "wrong password", which
+ * would turn the sign-in form into a roster of who has an account.
+ */
+export async function signInWithPseudo(
+  pseudo: string,
+  password: string,
+): Promise<{ ok: true } | { ok: false; error: PseudoError }> {
+  try {
+    const { pseudoEmail } = await import('./pseudo');
+    const sb = await getSupabase();
+    const { data, error } = await sb.auth.signInWithPassword({
+      email: pseudoEmail(pseudo),
+      password,
+    });
+    if (error || !data.session) return { ok: false, error: 'bad_credentials' };
+    setAuthFlag();
+    return { ok: true };
+  } catch {
+    return { ok: false, error: 'unknown' };
+  }
+}
+
+/**
+ * Replace the reader's own password.
+ *
+ * ⚠️ THE CURRENT ONE IS REQUIRED AND IS VERIFIED IN POSTGRES, never here. A
+ * shared family phone with a session left open is the normal case at this club,
+ * not the exotic one — without that check this is a "take this account" button
+ * for whoever picks the phone up next.
+ */
+export async function changeOwnPassword(
+  current: string,
+  next: string,
+): Promise<{ ok: true } | { ok: false; error: PseudoError }> {
+  try {
+    const sb = await getSupabase();
+    const { error } = await sb.rpc('change_own_password', { p_current: current, p_new: next });
+    if (error) return { ok: false, error: pseudoError(error.message) };
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: pseudoError(e instanceof Error ? e.message : String(e)) };
+  }
+}
+
+/**
+ * Update the recovery channel.
+ *
+ * ⚠️ A FUNCTION RATHER THAN A COLUMN UPDATE, so that ONE normaliser decides
+ * what a phone number is — see migration 0013. A pseudo account may not empty
+ * it: it is the only way back in after a forgotten password.
+ */
+export async function updateOwnContact(
+  whatsapp: string,
+  email: string,
+): Promise<{ ok: true } | { ok: false; error: PseudoError }> {
+  try {
+    const sb = await getSupabase();
+    const { error } = await sb.rpc('update_own_contact', {
+      p_whatsapp: whatsapp,
+      p_email: email,
+    });
+    if (error) return { ok: false, error: pseudoError(error.message) };
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: pseudoError(e instanceof Error ? e.message : String(e)) };
+  }
+}
+
 /**
  * Finish a magic-link landing. Supabase has already parsed the fragment by the
  * time this resolves (`detectSessionInUrl`); this records the flag and removes
@@ -200,6 +378,45 @@ export async function completeSignIn(): Promise<Session | null> {
     /* replaceState can throw in exotic embedding. Not worth failing sign-in. */
   }
   return session;
+}
+
+/**
+ * Where a reader goes the moment they are signed in — ONE rule, one place.
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️ THREE SURFACES SIGN SOMEBODY IN and they must agree: `/auth/callback/`
+ * (magic link), `/connexion/` (pseudo + password) and `/inscription/` (which
+ * signs in immediately after creating the account). A second copy of this
+ * decision is how two doors into the same house come to disagree about which
+ * room you arrive in — the same reasoning as `ResumeResolver.astro`.
+ *
+ * The order is deliberate:
+ *   1. a FORCED password change wins, because until it is done the reader is
+ *      holding a credential somebody else read out to them over WhatsApp;
+ *   2. then the first-run welcome, once per account (`onboarded_at`);
+ *   3. otherwise `/compte/`.
+ *
+ * ⚠️ THE DEFAULT IS `/compte/`. A profile that could not be read must send the
+ * reader to the page that always works rather than to a one-time screen: nothing
+ * here is a gate, and `/bienvenue/` bounces an already-onboarded account back
+ * anyway.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+export async function landingAfterSignIn(): Promise<string> {
+  let locale = 'fr';
+  let first = false;
+  let mustChange = false;
+  try {
+    const profile = await getProfile();
+    if (profile?.locale === 'en') locale = 'en';
+    first = profile ? profile.onboarded_at === null : false;
+    mustChange = profile?.must_change_password === true;
+  } catch {
+    /* A missing profile must not strand a signed-in reader. */
+  }
+  const prefix = locale === 'en' ? '/en' : '';
+  if (mustChange) return `${prefix}/mot-de-passe/`;
+  return `${prefix}${first ? '/bienvenue/' : '/compte/'}`;
 }
 
 /**
@@ -292,6 +509,8 @@ export async function deleteOwnAccount(): Promise<{ ok: true } | { ok: false; me
  * ═════════════════════════════════════════════════════════════════════════
  */
 const PROFILE_COLUMNS: readonly string[] = [
+  'id, role, display_name, locale, guardian_phone, onboarded_at, account_shape, pseudo, contact_email, must_change_password',
+  /* Pre-0013 — before a pseudo and a password were a way in. */
   'id, role, display_name, locale, guardian_phone, onboarded_at, account_shape',
   /* Pre-0010 — before the welcome screen asked who the account is for. */
   'id, role, display_name, locale, guardian_phone, onboarded_at',
@@ -317,6 +536,12 @@ export async function getProfile(): Promise<Profile | null> {
           ...(row as unknown as Profile),
           onboarded_at: (row['onboarded_at'] as string | null | undefined) ?? null,
           account_shape: (row['account_shape'] as string | null | undefined) ?? null,
+          /* ⚠️ A DATABASE WITHOUT 0013 READS AS "no pseudo account", which is
+             exactly what it is — every account on such a database signs in by
+             magic link. Degrade, never repair. */
+          pseudo: (row['pseudo'] as string | null | undefined) ?? null,
+          contact_email: (row['contact_email'] as string | null | undefined) ?? null,
+          must_change_password: row['must_change_password'] === true,
         };
       }
     }
