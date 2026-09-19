@@ -244,6 +244,14 @@ function pseudoError(message: string | undefined): PseudoError {
   for (const known of PSEUDO_ERRORS) {
     if (text.includes(known)) return known;
   }
+  /**
+   * ⚠️ THE RACE THE PRE-CHECK CANNOT WIN. `register_with_pseudo()` looks the
+   * pseudo up and then inserts; two people registering the same one in the same
+   * second reach the unique index instead, which speaks Postgres rather than our
+   * vocabulary. Left unmapped it becomes the generic "something failed", and the
+   * second reader retypes everything instead of picking another name.
+   */
+  if (text.includes('duplicate key') || text.includes('unique constraint')) return 'pseudo_taken';
   return 'unknown';
 }
 
