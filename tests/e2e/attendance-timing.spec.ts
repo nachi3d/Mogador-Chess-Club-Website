@@ -53,6 +53,8 @@ test.describe('v2-S4 — marking a class of twenty', () => {
   const createdUsers: string[] = [];
   const createdChildren: string[] = [];
   let sessionId = '';
+  /** A second, unmarked session — the race test below needs a clean register. */
+  let raceSessionId = '';
   let profEmail = '';
 
   test.beforeAll(async () => {
@@ -80,6 +82,9 @@ test.describe('v2-S4 — marking a class of twenty', () => {
     expect(kidError, `could not create the class: ${kidError?.message}`).toBeNull();
     for (const kid of kids ?? []) createdChildren.push(String(kid['id']));
 
+    /* ⚠️ BOTH SESSIONS IN ONE STATEMENT — Critical Feature 67: the rebuild
+       trigger fires per STATEMENT, so two inserts would be two builds. Titled,
+       so a concurrent run's leak purge cannot mistake either for residue. */
     const { data: session } = await adminClient()
       .from('sessions')
       .insert([
@@ -88,15 +93,27 @@ test.describe('v2-S4 — marking a class of twenty', () => {
           title_fr: 'Séance chronométrée',
           status: 'published',
         },
+        {
+          starts_at: new Date(Date.now() + 7_200_000).toISOString(),
+          title_fr: 'Séance chronométrée — lecture tardive',
+          status: 'published',
+        },
       ])
-      .select('id');
-    sessionId = String(session?.[0]?.['id']);
+      .select('id,title_fr');
+    /* Matched by title, never by position: the returning order is PostgREST's
+       business, not a promise. */
+    const byTitle = (title: string) =>
+      String((session ?? []).find((r) => String(r['title_fr']) === title)?.['id'] ?? '');
+    sessionId = byTitle('Séance chronométrée');
+    raceSessionId = byTitle('Séance chronométrée — lecture tardive');
+    expect(sessionId && raceSessionId, 'the two sessions were not created').toBeTruthy();
   });
 
   test.afterAll(async () => {
-    if (sessionId) {
-      await adminClient().from('attendance').delete().eq('session_id', sessionId);
-      await adminClient().from('sessions').delete().eq('id', sessionId);
+    for (const id of [sessionId, raceSessionId]) {
+      if (!id) continue;
+      await adminClient().from('attendance').delete().eq('session_id', id);
+      await adminClient().from('sessions').delete().eq('id', id);
     }
     if (createdChildren.length > 0) {
       await adminClient().from('child_profiles').delete().in('id', createdChildren);
@@ -311,5 +328,118 @@ test.describe('v2-S4 — marking a class of twenty', () => {
         { timeout: 15_000, message: 're-marking duplicated a row instead of correcting it' },
       )
       .toEqual({ rows: CLASS_SIZE, absent: 1 });
+  });
+
+  /**
+   * ⚠️⚠️ A READ THAT LANDS MID-PASS MUST NOT WIPE THE MARKS ALREADY MADE.
+   *
+   * This is the defect the v0.30.0 gate found, and it was found by ACCIDENT —
+   * the test above happened to race and reported `16 sur 26 marqués` after
+   * twenty taps that were all durable in Postgres. The prof's own count, which
+   * is what stops them losing their place in a room, was wrong while every
+   * mark was safe.
+   *
+   * ⚠️ THE GENERATION COUNTER IN `loadRegister()` CANNOT CATCH IT. The counter
+   * orders loads against each OTHER, and the load that wipes the register is
+   * the NEWEST one — issued before the prof touched anything, landing after.
+   *
+   * ⚠️ SO THE RACE IS FORCED RATHER THAN HOPED FOR. Every register read is
+   * delayed, a fresh load is issued, and the taps happen while it is in flight.
+   * Without the merge in `loadRegister()` this fails on every engine, every
+   * run; with it, the late answer cannot discard a mark it never saw.
+   */
+  test('a register read issued before the taps cannot wipe them when it lands', async ({
+    page,
+  }) => {
+    const DELAY_MS = 2_500;
+    let delayedReads = 0;
+    /**
+     * ⚠️⚠️ THE **ANSWER** IS DELAYED, NOT THE REQUEST — and getting that
+     * backwards produces a test that passes against the broken page.
+     *
+     * Sleeping before `route.continue()` holds the request back, so Postgres
+     * is asked AFTER the taps and answers WITH them; the repaint then paints
+     * the right thing and nothing is proved. The defect is a read that reached
+     * the database BEFORE the prof touched anything and comes back after, so
+     * the request goes out at once and its response is held.
+     *
+     * ⚠️ GET ONLY. `markAttendance()` POSTs to the same path, and delaying the
+     * write would test something else entirely.
+     */
+    await page.route('**/rest/v1/attendance*', async (route) => {
+      if (route.request().method() !== 'GET') return route.continue();
+      const response = await route.fetch();
+      delayedReads += 1;
+      await new Promise((resolve) => setTimeout(resolve, DELAY_MS));
+      return route.fulfill({ response });
+    });
+
+    await signIn(page);
+    await expect(page.getByTestId('account-staff')).toBeVisible({ timeout: 20_000 });
+    await page.goto('/admin/seances/');
+    await expect(page.getByTestId('admin')).toHaveAttribute('data-state', 'staff', {
+      timeout: 20_000,
+    });
+
+    /* ⚠️ WAIT FOR THE BOOT'S OWN LOAD FIRST, then choose. The boot handler
+       preselects the nearest session when the reader has not chosen, so
+       selecting before it settles is a coin toss over which register is on
+       screen — and this test needs a known one. */
+    const rows = page.locator('.mark-row[data-child]');
+    await expect
+      .poll(async () => rows.count(), { timeout: 30_000, message: 'the register never loaded' })
+      .toBeGreaterThanOrEqual(CLASS_SIZE);
+
+    await page.locator('[data-mark-session]').selectOption(raceSessionId);
+    await expect(page.locator('[data-mark-session]')).toHaveValue(raceSessionId);
+    /* The second session has never been marked, so its register lands on zero —
+       which is also how we know the switch has actually painted. */
+    await expect(page.locator('[data-mark-summary]')).toContainText(/^0 sur /, {
+      timeout: 30_000,
+    });
+
+    /* A load for the session ALREADY on screen — the shape the boot handler
+       produces, and the one the counter waves through. */
+    const readsBefore = delayedReads;
+    await page.locator('[data-mark-session]').evaluate((select) => {
+      select.dispatchEvent(new Event('change'));
+    });
+
+    /* ⚠️ WAIT UNTIL THAT READ HAS ACTUALLY REACHED POSTGRES before tapping.
+       Its answer — captured here, delivered later — is what must not be
+       allowed to overwrite what happens next. Without this wait the first tap
+       could land first and the answer would legitimately contain it. */
+    await expect
+      .poll(() => delayedReads, {
+        timeout: 15_000,
+        message: 'the register read never left the browser — the race is not being forced',
+      })
+      .toBeGreaterThan(readsBefore);
+
+    const three = createdChildren
+      .slice(0, 3)
+      .map((id) => page.locator(`.mark-row[data-child="${id}"]`));
+    for (const row of three) {
+      await row.locator('.mark-button[data-status="present"]').click();
+      await expect(row.locator('.mark-button[data-status="present"]')).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      );
+    }
+
+    /* Let the delayed read land, and then some. */
+    await page.waitForTimeout(DELAY_MS + 1_500);
+
+    for (const row of three) {
+      await expect(
+        row.locator('.mark-button[data-status="present"]'),
+        'a register read landing mid-pass unpressed a mark the prof had made',
+      ).toHaveAttribute('aria-pressed', 'true');
+    }
+    const total = await rows.count();
+    await expect(
+      page.locator('[data-mark-summary]'),
+      'the count the prof reads disagrees with the taps they made',
+    ).toContainText(`3 sur ${total} marqués`);
   });
 });

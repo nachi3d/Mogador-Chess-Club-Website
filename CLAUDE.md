@@ -1399,7 +1399,13 @@ by a session that never opens it:
   un élève" unreachable for two releases.
 - ⚠️ **TWO LOADS ARE ROUTINELY IN FLIGHT AND CAN LAND OUT OF ORDER** — a
   generation counter drops the older answer, and **any surface that loads twice
-  copies it**. ⚠️ **The honeypot is noise reduction, not security** (56), and
+  copies it**. ⚠️⚠️ **AND THE COUNTER ORDERS LOADS AGAINST EACH OTHER, NEVER
+  AGAINST THE READER.** The answer that wipes what they just did is usually the
+  NEWEST one — issued before they acted, landing after. **A landing answer is
+  MERGED, not applied**: anything the reader did after the read was issued wins,
+  because the read could not have known about it. The register showed `16 sur 26
+  marqués` after twenty taps that were all durable in Postgres. ⚠️ **The honeypot
+  is noise reduction, not security** (56), and
   ⚠️ **`admin_delete_account()` is not a second route to `delete_own_account()`**
   (55).
 

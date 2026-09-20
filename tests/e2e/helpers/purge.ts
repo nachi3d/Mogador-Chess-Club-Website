@@ -107,13 +107,34 @@ async function findE2EUsers(): Promise<Array<{ id: string; email: string }>> {
  *
  * ⚠️ THE OTHER HALF OF THIS RULE LIVES IN `booking-ui.spec.ts`'s
  * `bookablePanel()`, which refuses to book any row matching the predicate
- * below. **Change one and you must change the other.**
+ * below. **Change one and you must change the other.** The age guard added
+ * below only NARROWS what is deleted, so that refusal stays conservative and
+ * needs no matching change.
+ *
+ * ⚠️⚠️ AND THE AGE GUARD IS WHY A ROW A CONCURRENT JOB IS STILL USING SURVIVES.
+ *
+ * A leak is a row nobody came back for; a row created ninety seconds ago is
+ * another runner mid-test. Without the cutoff the two are the same query, and
+ * at the v0.30.0 gate that ate the session `account-deletion.spec.ts` had just
+ * seeded — its attendance row went with it by cascade, and the spec failed on
+ * `attendance: 0` with a message saying nothing had been seeded. Three retries,
+ * deterministic, and not a line of product code involved.
+ *
+ * ⚠️ NOTHING ACCUMULATES: a leak from a crashed run is hours old by the next
+ * one and is deleted then. The cutoff buys a window, not an exemption.
  *
  * Runs in BOTH phases, like the user purge: before, because a crashed run left
  * residue; after, because this one might crash too.
  */
 /** Migration 0006's row — untitled, note-bearing, and load-bearing for the suite. */
 const MIGRATED_SESSION_ID = '5e5e0912-0000-4000-8000-000000000912';
+
+/**
+ * How old a bare session must be before it counts as abandoned. Comfortably
+ * longer than the slowest job in the matrix (webkit, ~20 min) and far shorter
+ * than the gap between runs.
+ */
+const LEAK_AGE_MS = 60 * 60 * 1000;
 
 async function purgeLeakedSessions(phase: 'before' | 'after'): Promise<void> {
   const sb = adminClient();
@@ -123,6 +144,7 @@ async function purgeLeakedSessions(phase: 'before' | 'after'): Promise<void> {
     .is('title_fr', null)
     .is('note_fr', null)
     .is('note_en', null)
+    .lt('created_at', new Date(Date.now() - LEAK_AGE_MS).toISOString())
     .neq('id', MIGRATED_SESSION_ID);
   if (error) {
     throw new Error(`purge(${phase}): could not delete leaked sessions — ${error.message}`);
