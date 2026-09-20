@@ -11,6 +11,8 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+## [0.30.0] — 2026-09-20
+
 ### Added
 
 - **Signing in with a PSEUDO and a PASSWORD — the primary path, with the magic
@@ -7675,7 +7677,8 @@ Foundation only: no real content, no interactive board yet.
   `url()` references unresolved and the fonts silently 404 into a Georgia
   fallback. `scripts/build-fonts.mjs` self-hosts them instead. See CLAUDE.md.
 
-[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.29.0...HEAD
+[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.30.0...HEAD
+[0.30.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.29.0...v0.30.0
 [0.29.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.28.0...v0.29.0
 [0.28.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.27.0...v0.28.0
 [0.27.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.26.0...v0.27.0
