@@ -14,7 +14,7 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 ### Added
 
 - **Signing in with a PSEUDO and a PASSWORD — the primary path, with the magic
-  link kept beside it (migration 0013).** The club teaches teenagers in
+  link kept beside it (migration 0015).** The club teaches teenagers in
   Essaouira: many have no active email address, and a Supabase-branded
   "Confirm your signup" reads as spam to a parent. A sign-in page whose only
   control asks for an inbox locks out the people the site is for.
@@ -81,12 +81,68 @@ Turning confirmations off would apply to the whole project, including real
 addresses, and would let anyone sign up as somebody else's email and hold it.
 
 So `register_with_pseudo()` mints the account in one transaction, already
-confirmed, with no mail entering the picture. ⚠️ **The cost is that 0013 writes
+confirmed, with no mail entering the picture. ⚠️ **The cost is that 0015 writes
 `auth.users` and `auth.identities` directly, which is Supabase-internal.** That
 risk is accepted with its mitigation stated rather than hidden:
 `pseudo-auth.spec.ts` registers and signs in through the **real** endpoints on
 every gate, so a GoTrue schema change surfaces as a red test rather than as a
 Saturday at Dar Souiri.
+
+### Verified live, on the test project (2026-09-20)
+
+- **The whole mechanism was exercised end to end over HTTP with the anon key**,
+  not only in SQL: `register_with_pseudo()` from `anon`, then GoTrue's password
+  grant issuing a real token for the synthetic address. That was the one
+  genuinely unknown part of the design — Supabase has no username identity and
+  the account is minted by writing `auth.users`/`auth.identities` directly.
+- **The RLS audit was run against the CATALOG, not the migration file.**
+  `authenticated` may still write exactly four columns of `profiles`
+  (`account_shape, display_name, locale, onboarded_at` — never `role`, never
+  `pseudo`, never `must_change_password`, never `guardian_phone`); `anon` still
+  holds exactly one table grant in the whole schema (`sessions` / SELECT);
+  `password_resets` has RLS on, two SELECT policies and `service_role` DML;
+  `register_with_pseudo` is the ONLY one of the new functions `anon` may
+  execute. The namespace guard refuses `signInWithOtp` for a synthetic address
+  **over HTTP**, with the anon key, exactly as a scraper would try it.
+- ⚠️ **The audit found a defect in the SPEC before the suite did:**
+  `admin_reset_password()` is granted to `authenticated` and gated on
+  `is_admin_direct()`, which reads `auth.uid()` — the service role has neither,
+  so a spec resetting with the admin key was asserting against a path no
+  administrator can take. It now signs in as a real admin.
+- **The before/after point proof** (brief item 4): an account with two solved
+  exercises, three games and a teacher award computed **23 points, rank
+  cavalier** — identical before and after 0015, with every row count and the
+  `child_profiles.account_id` link unchanged. Taken by removing 0015's objects
+  from the test database, snapshotting, re-applying the migration file and
+  snapshotting again; the totals come from the real `computeLedger()` over the
+  catalogue the built `/progres/` page embeds, not a second summation.
+
+### Changed — numbering
+
+- ⚠️ **This migration was written as 0013 and is 0015.** Session booking (0013)
+  and the award cap (0014) reached `main` while it was being built on a stale
+  `dev`. `supabase_migrations.schema_migrations` keys on the NUMBER, so two
+  files claiming 0013 is how a push silently skips one. Nothing overlaps:
+  booking touches neither `profiles` nor `admin_list_accounts()`.
+- ⚠️ **Critical Features 71–76 belong to booking and the island-controls rule**,
+  so the pseudo path's are **77–81**. Renumbering the released ones would break
+  every reference already written against them.
+
+### Fixed — two upstream time bombs the stale test project was hiding
+
+- **`role-separation.spec.ts` still demanded the 50-point award ceiling that
+  0014 removed.** The code, the migration and `validateAward()` had all moved
+  on; the only thing still asking for a cap was the spec that claims to prove
+  what the database does. It passed because the TEST project had never had 0014
+  applied — a gate run against a stale schema proves the schema it ran against.
+- **`agenda.spec.ts` pinned the literal date `2026-09-12`** for the migrated
+  fixture, and `fetch-agenda.mjs` bakes only sessions from yesterday onward, so
+  it was certain to fail from 2026-09-13. The expected date now comes from the
+  baked snapshot; the timezone assertion that gives the test its teeth (16:00 in
+  the CLUB's zone) is untouched.
+- **The Google describe in `auth.spec.ts` never declared that it needs accounts
+  ON**, so in an accounts-OFF build its two tests ran against a 404: one passed
+  vacuously and the other timed out.
 
 ### Decisions that will look like omissions
 
