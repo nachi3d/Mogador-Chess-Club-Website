@@ -57,6 +57,23 @@ import AdminShell from '@components/admin/AdminShell.astro';
   </section>
 
   <section class="admin-block mcc-card">
+    <h2 class="admin-block-title">Réinitialisations</h2>
+    {/* ⚠️ CE JOURNAL NOMME L'ÉLÈVE, ET CELUI DES SUPPRESSIONS NON. Ce n'est pas
+        une incohérence : la Critical Feature 51 interdit de conserver quoi que
+        ce soit d'un compte EFFACÉ. Une réinitialisation n'efface rien, et
+        « à qui a-t-on remis un mot de passe trois fois ce trimestre ? » est
+        précisément la question à laquelle ce journal sert à répondre. Les
+        lignes disparaissent avec le compte (cascade). */}
+    <p class="admin-note">
+      Qui a réinitialisé, quand, et pour qui. Jamais le mot de passe : il n’existe qu’une
+      fois, à l’écran.
+    </p>
+    <div data-resets>
+      <p class="admin-empty">Chargement…</p>
+    </div>
+  </section>
+
+  <section class="admin-block mcc-card">
     <h2 class="admin-block-title">Suppressions</h2>
     {/* ⚠️ THE JOURNAL NAMES NOBODY, AND THAT IS DELIBERATE. Critical Feature 51
         says erasure leaves no statistic, no archive and no anonymised copy —
@@ -76,7 +93,14 @@ import AdminShell from '@components/admin/AdminShell.astro';
 </AdminShell>
 
 <script>
-  import { deleteAccount, listAccounts, listDeletions, validateDeletion } from '@lib/admin';
+  import {
+    deleteAccount,
+    listAccounts,
+    listDeletions,
+    listPasswordResets,
+    resetPassword,
+    validateDeletion,
+  } from '@lib/admin';
   import type { AdminAccount } from '@lib/admin';
 
   const set = (name: string, value: string | number) => {
@@ -106,11 +130,21 @@ import AdminShell from '@components/admin/AdminShell.astro';
     const confirmed = account.confirmedAt
       ? '<span class="account-state" data-state="confirmed">confirmé</span>'
       : '<span class="account-state" data-state="pending">jamais confirmé</span>';
+    /* ⚠️ UN COMPTE À PSEUDO EST DÉSIGNÉ PAR SON PSEUDO — c'est le nom que Seàn
+       prononcera au téléphone, et l'adresse synthétique n'arrive même pas
+       jusqu'ici : `admin_list_accounts()` la remplace par NULL à la source. */
+    const who = account.pseudo
+      ? `<span class="account-email">${esc(account.pseudo)}</span>
+         <span class="account-state" data-state="pseudo">pseudo</span>`
+      : `<span class="account-email">${esc(account.email || '—')}</span>${confirmed}`;
+    const temporary = account.mustChangePassword
+      ? '<span class="account-state" data-state="pending">mot de passe provisoire</span>'
+      : '';
     return `
       <li class="account-row" data-account-id="${esc(account.accountId)}">
         <div class="account-main">
-          <span class="account-email">${esc(account.email)}</span>
-          ${confirmed}
+          ${who}
+          ${temporary}
         </div>
         <p class="account-meta">
           inscrit le ${esc(when(account.createdAt))}
@@ -217,6 +251,138 @@ import AdminShell from '@components/admin/AdminShell.astro';
     field.focus();
   }
 
+  /**
+   * ⚠️ LE MOT DE PASSE S'AFFICHE UNE SEULE FOIS, ET LA PAGE LE DIT.
+   *
+   * Rien ne le stocke : `auth.users` n'a que l'empreinte bcrypt et le journal
+   * n'a que qui/quand/pour qui. Un rechargement ne le ramène pas — et c'est le
+   * comportement honnête : re-réinitialiser coûte un clic, tandis qu'un mot de
+   * passe consultable plus tard serait un identifiant en clair dans une table.
+   *
+   * ⚠️ LE LIEN WHATSAPP EST SORTANT, comme tous les partages du site :
+   * `wa.me/<numéro>?text=…` prépare un message sur l'appareil de Seàn. Rien
+   * n'est envoyé par le site, rien n'est stocké, rien n'est reçu.
+   */
+  function showTemporary(li: HTMLElement, account: AdminAccount, password: string) {
+    const actions = li.querySelector('[data-actions]') as HTMLElement | null;
+    if (!actions) return;
+
+    const wrap = document.createElement('div');
+    wrap.className = 'account-confirm';
+
+    const heading = document.createElement('p');
+    heading.className = 'account-confirm-q';
+    heading.textContent =
+      'Mot de passe provisoire — il ne sera plus affiché. L’élève devra en choisir un ' +
+      'nouveau à la prochaine connexion.';
+
+    /* Un <code> plutôt qu'un champ : rien à soumettre, rien à modifier par
+       accident, et la police à chasse fixe évite de confondre l comme dans
+       « clou » et 1 au téléphone. */
+    const value = document.createElement('code');
+    value.className = 'account-temp-password';
+    value.dataset['testid'] = 'account-temp-password';
+    value.textContent = password;
+
+    const buttons = document.createElement('p');
+    buttons.className = 'account-confirm-actions';
+
+    if (account.whatsapp) {
+      const digits = account.whatsapp.replace(/[^0-9]/g, '');
+      const message =
+        `Bonjour, voici le mot de passe provisoire pour le site du club : ${password} — ` +
+        `pseudo : ${account.pseudo ?? ''}. Tu en choisiras un nouveau à la connexion.`;
+      const send = document.createElement('a');
+      send.className = 'btn-ghost';
+      send.href = `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
+      send.target = '_blank';
+      send.rel = 'noopener';
+      send.textContent = `Envoyer sur WhatsApp (${account.whatsapp})`;
+      send.dataset['testid'] = 'account-reset-whatsapp';
+      buttons.append(send);
+    } else {
+      /* Ne peut pas arriver pour un compte créé par le formulaire — le numéro
+         y est obligatoire — mais un compte migré à la main pourrait en manquer,
+         et un bouton absent sans explication ressemblerait à une panne. */
+      const none = document.createElement('span');
+      none.className = 'admin-note';
+      none.textContent = 'Aucun numéro WhatsApp enregistré : à lire de vive voix.';
+      buttons.append(none);
+    }
+
+    const done = document.createElement('button');
+    done.type = 'button';
+    done.className = 'btn-ghost';
+    done.textContent = 'Terminé';
+    done.dataset['testid'] = 'account-reset-done';
+    done.addEventListener('click', () => void render());
+    buttons.append(done);
+
+    wrap.append(heading, value, buttons);
+    actions.replaceChildren(wrap);
+  }
+
+  /**
+   * ⚠️ DEUX ÉTAPES, SUR PLACE, SANS MODALE — comme la suppression juste en
+   * dessous. La première frappe ne fait rien d'irréversible mais invalide les
+   * sessions en cours et l'ancien mot de passe : c'est assez pour mériter une
+   * confirmation, et pas assez pour mériter une raison écrite.
+   */
+  function startReset(li: HTMLElement, account: AdminAccount) {
+    const actions = li.querySelector('[data-actions]') as HTMLElement | null;
+    if (!actions) return;
+
+    const wrap = document.createElement('div');
+    wrap.className = 'account-confirm';
+
+    const question = document.createElement('p');
+    question.className = 'account-confirm-q';
+    question.textContent =
+      `Réinitialiser le mot de passe de ${account.pseudo ?? ''} ? L’ancien mot de passe ` +
+      'cessera de fonctionner immédiatement et les appareils connectés seront déconnectés.';
+
+    const go = document.createElement('button');
+    go.type = 'button';
+    go.className = 'btn-ghost';
+    go.textContent = 'Générer un mot de passe provisoire';
+    go.dataset['testid'] = 'account-reset-go';
+
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.className = 'btn-ghost';
+    cancel.textContent = 'Annuler';
+    cancel.addEventListener('click', () => void render());
+
+    const status = document.createElement('p');
+    status.className = 'account-status';
+    status.setAttribute('role', 'status');
+
+    go.addEventListener('click', async () => {
+      /* Verrouillé pendant l'appel : un double appui générerait un second mot
+         de passe et invaliderait le premier, que Seàn vient peut-être de lire
+         à voix haute. */
+      go.disabled = true;
+      cancel.disabled = true;
+      status.textContent = 'Génération…';
+      const result = await resetPassword(account.accountId);
+      if (!result.ok) {
+        status.textContent = result.error ?? 'La réinitialisation a échoué.';
+        go.disabled = false;
+        cancel.disabled = false;
+        return;
+      }
+      showTemporary(li, account, result.password);
+    });
+
+    const buttons = document.createElement('p');
+    buttons.className = 'account-confirm-actions';
+    buttons.append(go, cancel);
+
+    wrap.append(question, buttons, status);
+    actions.replaceChildren(wrap);
+    go.focus();
+  }
+
   function attachActions() {
     for (const li of document.querySelectorAll('[data-account-id]')) {
       const el = li as HTMLElement;
@@ -224,6 +390,27 @@ import AdminShell from '@components/admin/AdminShell.astro';
       if (!account) continue;
       const actions = el.querySelector('[data-actions]') as HTMLElement | null;
       if (!actions) continue;
+      /* ⚠️ LE NOM ACCESSIBLE NE PEUT PAS ÊTRE L'ADRESSE POUR UN COMPTE À
+         PSEUDO : elle est nulle. Le pseudo est le nom que cet écran affiche et
+         que Seàn prononce, donc c'est celui-là. */
+      const label = account.pseudo || account.email || 'ce compte';
+
+      const buttons: HTMLElement[] = [];
+
+      /* ⚠️ UNIQUEMENT POUR LES COMPTES À MOT DE PASSE. Un compte par lien
+         e-mail n'a pas de mot de passe à réinitialiser — `admin_reset_password`
+         refuse d'ailleurs, et un bouton qui échoue toujours est pire qu'absent. */
+      if (account.pseudo) {
+        const reset = document.createElement('button');
+        reset.type = 'button';
+        reset.className = 'btn-ghost';
+        reset.textContent = 'Réinitialiser le mot de passe';
+        reset.dataset['testid'] = 'account-reset-start';
+        reset.setAttribute('aria-label', `Réinitialiser le mot de passe de ${label}`);
+        reset.addEventListener('click', () => startReset(el, account));
+        buttons.push(reset);
+      }
+
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'btn-ghost';
@@ -231,14 +418,20 @@ import AdminShell from '@components/admin/AdminShell.astro';
       btn.dataset['testid'] = 'account-delete-start';
       /* Repeated per row, so the visible label alone is not a distinguishing
          accessible name — the same rule the family roster follows. */
-      btn.setAttribute('aria-label', `Supprimer le compte ${account.email}`);
+      btn.setAttribute('aria-label', `Supprimer le compte ${label}`);
       btn.addEventListener('click', () => startDelete(el, account));
-      actions.replaceChildren(btn);
+      buttons.push(btn);
+
+      actions.replaceChildren(...buttons);
     }
   }
 
   async function render() {
-    const [rows, deletions] = await Promise.all([listAccounts(), listDeletions()]);
+    const [rows, deletions, resets] = await Promise.all([
+      listAccounts(),
+      listDeletions(),
+      listPasswordResets(),
+    ]);
     accounts = rows;
 
     const weekAgo = Date.now() - 7 * 86_400_000;
@@ -253,6 +446,23 @@ import AdminShell from '@components/admin/AdminShell.astro';
         : `<ul class="account-list" data-testid="account-list">${rows.map(row).join('')}</ul>`,
     );
     attachActions();
+
+    paint(
+      '[data-resets]',
+      resets.length === 0
+        ? '<p class="admin-empty">Aucune réinitialisation enregistrée.</p>'
+        : `<ul class="mark-list" data-testid="reset-list">${resets
+            .map(
+              (r) => `
+              <li class="mark-row">
+                <span class="mark-name">${esc(r.pseudo ?? r.displayName ?? '—')}</span>
+                <span class="admin-rank">${esc(when(r.resetAt))}${
+                  r.resetByName ? ` · par ${esc(r.resetByName)}` : ''
+                }</span>
+              </li>`,
+            )
+            .join('')}</ul>`,
+    );
 
     paint(
       '[data-deletions]',

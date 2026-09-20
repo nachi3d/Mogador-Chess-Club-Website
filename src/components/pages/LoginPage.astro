@@ -1,20 +1,42 @@
 ---
 /**
- * /connexion — email magic link, plus Google when it is configured.
+ * /connexion — THREE DOORS, AND THE PSEUDO IS THE FRONT ONE.
  *
- * ⚠️ STILL NO PASSWORDS, AND THAT WAS RE-EXAMINED RATHER THAN INHERITED.
- * "Identifier + password" was raised as a way in for people without an email
- * address and was rejected again, on three grounds: Supabase's password grant
- * only accepts an email or a phone, so a username needs a synthetic
- * unroutable address; that address then feeds the placeholder-name rule
- * (Critical Feature 53), which derives a child's name from the email local
- * part and would put it on the attendance sheet; and an account whose only
- * credential is a password, with no address to send a reset to, cannot be
- * recovered by anyone — in a volunteer club with no support desk, for users
- * who are children. The no-email case belongs to prof-created accounts, and
- * the autonomous teenager is already served by graduation (CF41). See BACKLOG.
+ * ══════════════════════════════════════════════════════════════════════════
+ * ⚠️ THIS PAGE USED TO SAY "STILL NO PASSWORDS", WITH THREE REASONS. THE
+ * DECISION WAS REVERSED BY SEÀN IN v0.30.0, AND THE REASONS ARE ANSWERED
+ * RATHER THAN OVERRULED — they were good, and two of them shaped the design.
  *
- * So there is no reset flow, no strength meter and no credential to leak.
+ * The premise that changed: most of the club's students have NO active email
+ * address at all. The magic link serves the two adults who run the club and
+ * locks out the people the site is for, and "prof-created accounts" (the old
+ * escape hatch) was never built and would still need a credential to hand over.
+ *
+ * The three objections, and where each is answered:
+ *
+ *   1. "The password grant only accepts an email, so a username needs a
+ *      synthetic unroutable address." — TRUE, and that is exactly what
+ *      migration 0015 mints: `<pseudo>@pseudo.mogadorchess.invalid`, on a TLD
+ *      RFC 6761 guarantees can never resolve. It is never shown to a reader.
+ *   2. "That address then feeds the placeholder-name rule (CF53) and would put
+ *      the email local part on the attendance sheet." — THE SHARPEST OF THE
+ *      THREE, and the reason the placeholder test is SUPPRESSED for pseudo
+ *      accounts: CF53 asks "did anybody ever type this?", and on this path
+ *      somebody did — the local part IS the pseudo the reader chose.
+ *   3. "An account whose only credential is a password, with no address to
+ *      send a reset to, cannot be recovered by anyone." — ANSWERED BY MAKING
+ *      THE RECOVERY CHANNEL A REQUIRED FIELD. There is no reset link; there is
+ *      a WhatsApp number and Seàn, who resets by hand from /admin/comptes/.
+ *      The support desk the objection says the club does not have is a person,
+ *      and he is on the other end of the number the sign-up form insists on.
+ *
+ * ⚠️ THE MAGIC LINK AND GOOGLE BOTH STAY, AND NEITHER IS LEGACY. The club
+ * GAINS a door rather than swapping one: Seàn and Michael sign in by inbox.
+ * ══════════════════════════════════════════════════════════════════════════
+ *
+ * ⚠️ THERE IS NO SELF-SERVICE RESET, AND THE PAGE SAYS SO OUT LOUD rather
+ * than hiding it in a FAQ. A student who cannot get in and is not told how
+ * simply stops coming.
  *
  * ⚠️ NOT AN ISLAND. The one-hydrated-component rule still holds — the board is
  * the only Preact island on the site. This is a plain form plus a module script,
@@ -22,6 +44,7 @@
  * chunk graph.
  */
 import type { Locale } from '@config/site';
+import { whatsappUrl } from '@config/site';
 import { GOOGLE_AUTH_ENABLED } from '@config/auth';
 import { localizePath } from '@i18n/paths';
 import { useTranslations } from '@i18n/ui';
@@ -42,6 +65,92 @@ const t = useTranslations(locale);
   <PageIntro title={t('login.title')} intro={t('login.intro')} />
 
   <div class="auth-card">
+    {/* ══ 1. THE PSEUDO PATH ═══════════════════════════════════════════
+        First, full width, in front of everything: it is the door most of the
+        club's students have. See the header for why that changed. */}
+    <h2 class="auth-heading">{t('login.pseudo.heading')}</h2>
+    <form
+      id="pseudo-form"
+      data-testid="pseudo-form"
+      novalidate
+      data-msg-signing={t('login.signingIn')}
+      data-msg-submit={t('login.pseudoSubmit')}
+      data-msg-bad={t('login.badCredentials')}
+      data-msg-unconfigured={t('login.unconfigured')}
+    >
+      <label for="login-pseudo">{t('login.pseudoLabel')}</label>
+      {/* ⚠️ `autocapitalize="none"` AND `autocorrect="off"`: a phone keyboard
+          capitalises the first letter and the pseudo is stored lowercase. The
+          client lowercases it anyway — this is so the reader SEES what they
+          will be signed in as. */}
+      <input
+        id="login-pseudo"
+        name="pseudo"
+        type="text"
+        autocomplete="username"
+        autocapitalize="none"
+        autocorrect="off"
+        spellcheck="false"
+        required
+        data-testid="login-pseudo"
+      />
+
+      <label for="login-password">{t('login.passwordLabel')}</label>
+      <input
+        id="login-password"
+        name="password"
+        type="password"
+        autocomplete="current-password"
+        required
+        data-testid="login-password"
+      />
+      {/* ⚠️ A CHECKBOX WITH A REAL LABEL, NOT AN EYE GLYPH INSIDE THE FIELD.
+          A 44px target beats a 20px icon on the phone this is typed on, and a
+          student who cannot see what they typed retypes the whole password. */}
+      <p class="auth-reveal">
+        <input type="checkbox" id="login-reveal" data-testid="login-reveal" />
+        <label for="login-reveal">{t('login.showPassword')}</label>
+      </p>
+
+      <button type="submit" class="btn-primary" data-testid="login-pseudo-submit">
+        {t('login.pseudoSubmit')}
+      </button>
+      <p class="auth-error" role="alert" data-testid="login-pseudo-error" hidden></p>
+    </form>
+
+    <p class="auth-signup">
+      <span>{t('login.noAccount')}</span>
+      <a class="btn-ghost" href={localizePath('/inscription/', locale)} data-testid="login-signup-link">
+        {t('login.createAccount')}
+      </a>
+    </p>
+
+    {/* ══ 2. RECOVERY — A PERSON, NOT A LINK ═════════════════════════════
+        ⚠️ OUTBOUND ONLY, like every share on this site: `wa.me/<club number>`
+        with a prefilled message, on the reader's own device. Nothing is posted,
+        stored or received here. */}
+    <section class="auth-forgot" data-testid="login-forgot">
+      <h2 class="auth-heading">{t('login.forgot.heading')}</h2>
+      <p>{t('login.forgot.body')}</p>
+      <p>
+        <a
+          class="btn-ghost"
+          href={whatsappUrl(locale, t('login.forgot.message'))}
+          rel="noopener"
+          target="_blank"
+          data-testid="login-forgot-whatsapp"
+        >
+          {t('login.forgot.cta')}
+        </a>
+      </p>
+    </section>
+
+    {/* ══ 3. THE ADDRESS PATHS — KEPT, AND SECOND ════════════════════════
+        ⚠️ GOOGLE STAYS OUTSIDE THE DISCLOSURE. `auth.spec.ts` asserts the
+        button and its same-address note are VISIBLE whenever the flag is on —
+        and rightly: that note is the only thing standing between the button and
+        a silent second account, and a note inside a collapsed block prevents
+        nothing. */}
     {/* ⚠️ BEHIND ITS OWN FLAG, AND ABSENT RATHER THAN DISABLED WHEN IT IS OFF.
         Google sign-in needs the provider configured in Supabase and an OAuth
         client in Google Cloud; neither lives in this repository, so nothing
@@ -101,6 +210,16 @@ const t = useTranslations(locale);
       )
     }
 
+    {/* ⚠️ NATIVE `<details>`, STYLED — not a scripted accordion. It works with
+        no JavaScript, it is keyboard-operable and announced for free, and
+        find-in-page opens it. Same rule as `/compte/`'s two blocks. */}
+    <details class="auth-block" data-testid="login-email-block">
+      <summary>
+        <span class="auth-block-title">{t('login.email.heading')}</span>
+        <span class="auth-block-hint">{t('login.email.hint')}</span>
+      </summary>
+
+      <div class="auth-block-body">
     {/* Translated strings ride on the element rather than through a global or
         `define:vars`: a bundled module script cannot take `define:vars`, and an
         `is:inline` one cannot `import` a bare specifier. Data attributes are
@@ -180,9 +299,11 @@ const t = useTranslations(locale);
     {/* Rendered server-side and revealed on success rather than injected, so the
         success copy is real translated markup and not a string built in JS. */}
     <div class="auth-sent" data-testid="login-sent" hidden>
-      <h2>{t('login.sent.title')}</h2>
+      <h3>{t('login.sent.title')}</h3>
       <p>{t('login.sent.body')}</p>
     </div>
+      </div>
+    </details>
 
     <p class="auth-guest">
       <a href={localizePath('/', locale)}>{t('login.guestNote')}</a>
@@ -262,6 +383,83 @@ const t = useTranslations(locale);
            the tab is gone by then. */
         google.disabled = false;
         if (label !== null) google.textContent = label;
+      }
+    });
+
+    /* ── The pseudo path ────────────────────────────────────────── */
+
+    const pseudoForm = document.getElementById('pseudo-form') as HTMLFormElement | null;
+    const pseudoInput = document.querySelector('[data-testid="login-pseudo"]') as HTMLInputElement | null;
+    const passwordInput = document.querySelector('[data-testid="login-password"]') as HTMLInputElement | null;
+    const reveal = document.querySelector('[data-testid="login-reveal"]') as HTMLInputElement | null;
+    const pseudoSubmit = document.querySelector('[data-testid="login-pseudo-submit"]') as HTMLButtonElement | null;
+    const pseudoError = document.querySelector('[data-testid="login-pseudo-error"]') as HTMLElement | null;
+
+    const pseudoMsg = {
+      signing: pseudoForm?.dataset.msgSigning ?? '',
+      submit: pseudoForm?.dataset.msgSubmit ?? '',
+      bad: pseudoForm?.dataset.msgBad ?? '',
+      unconfigured: pseudoForm?.dataset.msgUnconfigured ?? '',
+    };
+
+    function showPseudoError(text: string) {
+      if (!pseudoError) return;
+      pseudoError.textContent = text;
+      pseudoError.hidden = false;
+    }
+
+    reveal?.addEventListener('change', () => {
+      if (passwordInput) passwordInput.type = reveal.checked ? 'text' : 'password';
+    });
+
+    pseudoForm?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (!pseudoInput || !passwordInput || !pseudoSubmit) return;
+      if (pseudoError) pseudoError.hidden = true;
+
+      const pseudo = pseudoInput.value.trim();
+      const password = passwordInput.value;
+      /* ⚠️ NO SHAPE CHECK ON SIGN-IN, DELIBERATELY. On the sign-up form an
+         invalid pseudo is a typo worth catching early; here the account either
+         exists or it does not, and telling somebody their pseudo is "invalid"
+         when they typed the one they have used all term is a message about our
+         rules rather than about their credentials. */
+      if (!pseudo || !password) {
+        showPseudoError(pseudoMsg.bad);
+        return;
+      }
+
+      pseudoSubmit.disabled = true;
+      pseudoSubmit.textContent = pseudoMsg.signing;
+
+      try {
+        const { isConfigured, signInWithPseudo, landingAfterSignIn } = await import('@lib/supabase');
+        if (!isConfigured()) {
+          showPseudoError(pseudoMsg.unconfigured);
+          return;
+        }
+        const result = await signInWithPseudo(pseudo, password);
+        if (!result.ok) {
+          /* ⚠️ ONE MESSAGE FOR BOTH CAUSES. "No such pseudo" would turn this
+             form into a roster of who has an account at the club. */
+          showPseudoError(pseudoMsg.bad);
+          passwordInput.value = '';
+          passwordInput.focus();
+          return;
+        }
+        /* ⚠️ ONE LANDING RULE, IN `@lib/supabase`, SHARED WITH THE CALLBACK AND
+           THE SIGN-UP PAGE — a forced password change first, then the welcome
+           screen, then the account. A copy here is how two doors into the same
+           house come to disagree about which room you arrive in. */
+        window.location.assign(await landingAfterSignIn());
+        return;
+      } catch {
+        showPseudoError(pseudoMsg.bad);
+      } finally {
+        /* Reached on every failure path. The success path returns above, while
+           the tab is already navigating away. */
+        pseudoSubmit.disabled = false;
+        pseudoSubmit.textContent = pseudoMsg.submit;
       }
     });
 
@@ -466,5 +664,112 @@ const t = useTranslations(locale);
 
   .auth-guest a {
     color: var(--mcc-link);
+  }
+
+  /* ── The pseudo path ─────────────────────────────────────────── */
+
+  .auth-heading {
+    margin: 0 0 0.75rem;
+    font-size: 1.15rem;
+  }
+
+  input[type='text'],
+  input[type='password'] {
+    width: 100%;
+    padding: 0.6rem 0.75rem;
+    margin-bottom: 0.9rem;
+    border: 1px solid var(--mcc-border-strong);
+    border-radius: var(--radius-card);
+    background-color: var(--mcc-surface-page);
+    color: var(--mcc-text-primary);
+    font: inherit;
+  }
+
+  input[type='text']:focus-visible,
+  input[type='password']:focus-visible {
+    outline: 2px solid var(--mcc-focus-ring);
+    outline-offset: 1px;
+  }
+
+  /* The reveal checkbox is a ROW: the label belongs beside the box, and the
+     whole row is the target. */
+  .auth-reveal {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0 0 0.5rem;
+  }
+
+  .auth-reveal input {
+    width: auto;
+    margin: 0;
+    min-width: 1.15rem;
+    min-height: 1.15rem;
+  }
+
+  .auth-reveal label {
+    margin: 0;
+    font-weight: 400;
+  }
+
+  .auth-signup {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 0.75rem;
+    align-items: center;
+    margin: 1.25rem 0 0;
+    padding-top: 1rem;
+    border-top: 1px solid var(--mcc-border-subtle);
+  }
+
+  .auth-forgot {
+    margin-top: 1.5rem;
+    padding: 1rem;
+    border-radius: var(--radius-card);
+    background-color: var(--mcc-surface-page);
+  }
+
+  .auth-forgot p {
+    margin: 0.5rem 0 0;
+    color: var(--mcc-text-secondary);
+  }
+
+  /* ⚠️ NATIVE `<details>`, STYLED — not reimplemented. Same rule as
+     `/compte/`: it works with no JavaScript, it is keyboard-operable and
+     announced for free, and find-in-page opens it. */
+  .auth-block {
+    margin-top: 1.5rem;
+    border: 1px solid var(--mcc-border-subtle);
+    border-radius: var(--radius-card);
+    background-color: var(--mcc-surface-page);
+  }
+
+  .auth-block summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.15rem 0.75rem;
+    align-items: baseline;
+    min-height: 3rem;
+    padding: 0.85rem 1.1rem;
+    border-radius: var(--radius-card);
+    cursor: pointer;
+  }
+
+  .auth-block-title {
+    font-weight: 500;
+  }
+
+  .auth-block-hint {
+    color: var(--mcc-text-secondary);
+    font-size: 0.9rem;
+  }
+
+  .auth-block-body {
+    padding: 0 1.1rem 1.1rem;
+  }
+
+  .auth-sent h3 {
+    margin: 0 0 0.5rem;
+    font-size: 1.1rem;
   }
 </style>

@@ -154,6 +154,12 @@ export const NEEDS_ACCOUNTS_ON = [
   'family',
   'onboarding',
   'progress-sync',
+  /* ⚠️ IT VERIFIES NO MAGIC LINK AND BELONGS HERE ANYWAY. The pseudo path never
+     touches `/auth/v1/verify`, but it hammers `/auth/v1/token` — a sign-in per
+     test, several in the reset flow — and shares the project's auth quota with
+     everything else on this list. The cap is about the PROJECT, not about one
+     endpoint. */
+  'pseudo-auth',
   'recurring-sessions',
   'role-separation',
 ];

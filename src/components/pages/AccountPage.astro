@@ -63,6 +63,10 @@ const t = useTranslations(locale);
     data-msg-delete-word={t('account.delete.confirmWord')}
     data-msg-delete-working={t('account.delete.working')}
     data-msg-delete-error={t('account.delete.error')}
+    data-msg-contact-whatsapp-invalid={t('account.contact.error.whatsapp_invalid')}
+    data-msg-contact-whatsapp-required={t('account.contact.error.whatsapp_required')}
+    data-msg-contact-email-invalid={t('account.contact.error.email_invalid')}
+    data-msg-contact-unknown={t('account.contact.error.unknown')}
   >
     {/* Signed out — the default, because that is what a static page can prove. */}
     <div class="account-signed-out" data-testid="account-signed-out" hidden>
@@ -126,12 +130,93 @@ const t = useTranslations(locale);
           <dl class="account-facts">
             {/* "Titulaire du compte", not "Adresse e-mail": the label is where
                 the ownership is stated, and the value happens to be the
-                address. */}
-            <dt>{t('account.holder')}</dt>
-            <dd data-testid="account-email"></dd>
-            <dt>{t('account.role')}</dt>
-            <dd data-testid="account-role"></dd>
+                address.
+
+                ⚠️ AND FOR A PSEUDO ACCOUNT THE VALUE IS THE PSEUDO, NEVER THE
+                SYNTHETIC ADDRESS. `<pseudo>@pseudo.mogadorchess.invalid` exists
+                only because Supabase keys users by email; showing it hands a
+                student a fact that is both confusing and unusable. The two rows
+                are server-rendered and one of them is hidden — never built by
+                script, which would lose the scoped styles. */}
+            <div class="account-fact" data-testid="account-fact-email">
+              <dt>{t('account.holder')}</dt>
+              <dd data-testid="account-email"></dd>
+            </div>
+            <div class="account-fact" data-testid="account-fact-pseudo" hidden>
+              <dt>{t('account.pseudoLabel')}</dt>
+              <dd data-testid="account-pseudo"></dd>
+            </div>
+            <div class="account-fact">
+              <dt>{t('account.role')}</dt>
+              <dd data-testid="account-role"></dd>
+            </div>
           </dl>
+
+          {/* ══ THE RECOVERY CHANNEL ═══════════════════════════════════════
+              ⚠️ PSEUDO ACCOUNTS ONLY, AND IT IS NOT A PREFERENCE. There is no
+              inbox to send a reset link to, so this number is the only way back
+              into the account — which is why `update_own_contact()` refuses to
+              empty it for an account that has a pseudo. A magic-link account
+              already has a working recovery channel: its own inbox. */}
+          <section class="account-contact" data-testid="account-contact" hidden>
+            <h3>{t('account.contact.heading')}</h3>
+            <p class="account-field-hint">{t('account.contact.body')}</p>
+
+            <form class="account-form" data-testid="account-contact-form">
+              <label for="account-whatsapp">{t('account.whatsappLabel')}</label>
+              <p class="account-field-hint" id="account-whatsapp-hint">
+                {t('account.whatsappHint')}
+              </p>
+              <input
+                id="account-whatsapp"
+                type="tel"
+                inputmode="tel"
+                autocomplete="tel"
+                aria-describedby="account-whatsapp-hint"
+                data-testid="account-whatsapp"
+              />
+
+              <label for="account-contact-email">{t('account.contactEmailLabel')}</label>
+              <p class="account-field-hint" id="account-contact-email-hint">
+                {t('account.contactEmailHint')}
+              </p>
+              <input
+                id="account-contact-email"
+                type="email"
+                inputmode="email"
+                autocomplete="email"
+                aria-describedby="account-contact-email-hint"
+                data-testid="account-contact-email"
+              />
+
+              <button type="submit" class="btn-primary" data-testid="account-contact-save">
+                {t('account.contactSave')}
+              </button>
+              <p class="account-status" role="status" data-testid="account-contact-status"></p>
+            </form>
+          </section>
+
+          {/* ══ THE PASSWORD ═══════════════════════════════════════════════
+              ⚠️ A LINK, NOT A FORM. The change needs the current password and
+              is one page's whole job; duplicating it here would be a second
+              copy of a rule that must not drift — and `/mot-de-passe/` is
+              where a forced reset already sends people. */}
+          <section class="account-password" data-testid="account-password" hidden>
+            <h3>{t('account.password.heading')}</h3>
+            <p class="account-field-hint">{t('account.password.body')}</p>
+            <p class="account-field-warning" data-testid="account-password-must" hidden>
+              {t('account.password.mustChange')}
+            </p>
+            <p>
+              <a
+                class="btn-ghost"
+                href={localizePath('/mot-de-passe/', locale)}
+                data-testid="account-password-link"
+              >
+                {t('account.password.change')}
+              </a>
+            </p>
+          </section>
 
           <form class="account-form" data-testid="account-form">
             <label for="account-display-name">{t('account.displayName')}</label>
@@ -309,6 +394,10 @@ const t = useTranslations(locale);
     const form = document.querySelector('[data-testid="account-form"]') as HTMLFormElement | null;
     const status = document.querySelector('[data-testid="account-status"]') as HTMLElement | null;
     const signOutBtn = document.querySelector('[data-testid="account-signout"]') as HTMLButtonElement | null;
+    const contactForm = document.querySelector('[data-testid="account-contact-form"]') as HTMLFormElement | null;
+    const whatsappInput = document.querySelector('[data-testid="account-whatsapp"]') as HTMLInputElement | null;
+    const contactEmailInput = document.querySelector('[data-testid="account-contact-email"]') as HTMLInputElement | null;
+    const contactStatus = document.querySelector('[data-testid="account-contact-status"]') as HTMLElement | null;
 
     const roleLabels: Record<string, string> = {
       admin: root?.dataset.locale === 'en' ? 'Administrator' : 'Administrateur',
@@ -348,12 +437,61 @@ const t = useTranslations(locale);
 
       const profile = await getProfile();
       const email = session.user.email ?? '';
-      if (emailEl) emailEl.textContent = email;
+      /* ⚠️ THE ADDRESS IS NOT WRITTEN INTO THE DOM AT ALL FOR A PSEUDO ACCOUNT,
+         and hiding the row is NOT enough — `pseudo-auth.spec.ts` asserts the
+         synthetic domain appears nowhere in the document, which is the honest
+         reading of "never shown to a reader": a hidden node is still there for
+         devtools, for a screen reader that ignores `hidden`, and for anyone who
+         selects the page and copies it. The row is revealed below only when
+         there is a real address to put in it. */
+      if (emailEl) emailEl.textContent = profile?.pseudo ? '' : email;
       if (roleEl) roleEl.textContent = profile ? (roleLabels[profile.role] ?? profile.role) : '';
       if (nameInput) nameInput.value = profile?.display_name ?? '';
       if (localeSelect) localeSelect.value = profile?.locale === 'en' ? 'en' : 'fr';
 
-      if (namePlaceholder && looksLikePlaceholder(profile?.display_name ?? '', email)) {
+      /**
+       * ⚠️ A PSEUDO ACCOUNT IS NAMED BY ITS PSEUDO, AND THE ADDRESS ROW GOES
+       * AWAY ENTIRELY. `session.user.email` on such an account is the synthetic
+       * `<pseudo>@pseudo.mogadorchess.invalid`, which must never reach a
+       * reader — it looks like an address they could use and is neither real
+       * nor usable.
+       */
+      const pseudo = profile?.pseudo ?? null;
+      if (pseudo) {
+        const pseudoRow = document.querySelector('[data-testid="account-fact-pseudo"]') as HTMLElement | null;
+        const emailRow = document.querySelector('[data-testid="account-fact-email"]') as HTMLElement | null;
+        const pseudoEl = document.querySelector('[data-testid="account-pseudo"]') as HTMLElement | null;
+        if (pseudoEl) pseudoEl.textContent = pseudo;
+        if (pseudoRow) pseudoRow.hidden = false;
+        if (emailRow) emailRow.hidden = true;
+
+        /* The recovery channel and the password control exist only for the
+           accounts that have a password. A magic-link account's recovery
+           channel is its own inbox. */
+        const contact = document.querySelector('[data-testid="account-contact"]') as HTMLElement | null;
+        const passwordBlock = document.querySelector('[data-testid="account-password"]') as HTMLElement | null;
+        if (contact) contact.hidden = false;
+        if (passwordBlock) passwordBlock.hidden = false;
+        if (whatsappInput) whatsappInput.value = profile?.guardian_phone ?? '';
+        if (contactEmailInput) contactEmailInput.value = profile?.contact_email ?? '';
+
+        if (profile?.must_change_password) {
+          const must = document.querySelector('[data-testid="account-password-must"]') as HTMLElement | null;
+          if (must) must.hidden = false;
+          /* ⚠️ THE DISCLOSURE OPENS ITSELF WHEN THERE IS SOMETHING TO FIX —
+             the same rule as the placeholder name below. A temporary password
+             the club read out over WhatsApp is exactly that. */
+          (document.querySelector('[data-testid="account-settings"]') as HTMLDetailsElement | null)
+            ?.setAttribute('open', '');
+        }
+      }
+
+      /* ⚠️ AND THE PLACEHOLDER TEST IS SUPPRESSED FOR THEM. The local part of
+         a synthetic address IS the pseudo the reader chose, so a student called
+         `yassine` with the pseudo `yassine` would be told their own name "came
+         from your email address" and invited to replace it. The test asks
+         "did anybody ever type this?", and on this path somebody did. */
+      if (namePlaceholder && !pseudo && looksLikePlaceholder(profile?.display_name ?? '', email)) {
         namePlaceholder.hidden = false;
         /* ⚠️ THE DISCLOSURE OPENS ITSELF WHEN THERE IS SOMETHING TO FIX. A
            warning inside a collapsed block is a warning nobody reads, and this
@@ -422,6 +560,35 @@ const t = useTranslations(locale);
       /* A name that was the email fragment and has just been replaced is no
          longer a placeholder — the warning must not outlive the problem. */
       if (result.ok && namePlaceholder) namePlaceholder.hidden = true;
+    });
+
+    /**
+     * The recovery channel.
+     *
+     * ⚠️ THE NORMALISER IS IN POSTGRES AND THERE IS NO SECOND OPINION HERE.
+     * `06 12 34 56 78`, `0612345678` and `+212612345678` are one number, and
+     * exactly one function decides that — otherwise the `wa.me` link Seàn taps
+     * works for some rows and not others. The page sends what was typed and
+     * translates whatever token comes back.
+     */
+    contactForm?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (!contactStatus) return;
+      contactStatus.textContent = '';
+
+      const { updateOwnContact } = await import('@lib/supabase');
+      const result = await updateOwnContact(
+        whatsappInput?.value ?? '',
+        contactEmailInput?.value ?? '',
+      );
+      if (result.ok) {
+        contactStatus.textContent = root?.dataset.msgSaved ?? '';
+        return;
+      }
+      contactStatus.textContent =
+        root?.getAttribute(`data-msg-contact-${result.error.replace(/_/g, '-')}`) ??
+        root?.getAttribute('data-msg-contact-unknown') ??
+        (root?.dataset.msgError ?? '');
     });
 
     signOutBtn?.addEventListener('click', async () => {
@@ -597,6 +764,21 @@ const t = useTranslations(locale);
     margin: 0 0 1.5rem;
   }
 
+  /* ⚠️ `display: contents` SO THE WRAPPERS DO NOT BREAK THE TWO-COLUMN GRID.
+     The `dt`/`dd` pairs are wrapped so a whole row can be hidden (the address
+     row on a pseudo account), and a wrapper that is a grid item would put both
+     halves of a pair in the first column.
+     ⚠️ AND THE `[hidden]` RULE IS NOT REDUNDANT: `display: contents` overrides
+     the UA stylesheet's `display: none` for `hidden`, so without it the row
+     "hidden" by script would still be on screen. */
+  .account-fact {
+    display: contents;
+  }
+
+  .account-fact[hidden] {
+    display: none;
+  }
+
   .account-facts dt {
     color: var(--mcc-text-secondary);
   }
@@ -608,6 +790,36 @@ const t = useTranslations(locale);
   .account-form {
     max-width: 26rem;
     margin-bottom: 2rem;
+  }
+
+  /* The recovery channel and the password control: two small blocks inside the
+     settings disclosure, separated from the name/language form above them. */
+  .account-contact,
+  .account-password {
+    margin: 0 0 2rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--mcc-border-subtle);
+  }
+
+  .account-contact h3,
+  .account-password h3 {
+    margin: 0 0 0.35rem;
+    font-size: 1.05rem;
+  }
+
+  .account-contact input {
+    width: 100%;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--mcc-border-strong);
+    border-radius: var(--radius-card);
+    background-color: var(--mcc-surface-page);
+    color: var(--mcc-text-primary);
+    font: inherit;
+  }
+
+  .account-contact input:focus-visible {
+    outline: 2px solid var(--mcc-focus-ring);
+    outline-offset: 1px;
   }
 
   .account-form label {

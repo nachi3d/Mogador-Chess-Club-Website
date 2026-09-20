@@ -17,8 +17,30 @@
 
 import { adminClient } from './supabase-admin';
 import { loadE2EEnv } from '../env';
+import { PSEUDO_EMAIL_DOMAIN } from '../../../src/lib/pseudo';
 
-/** Users whose email is inside the e2e domain. */
+/**
+ * ⚠️ THE PSEUDO ACCOUNTS ARE NOT IN THE E2E EMAIL DOMAIN, AND WOULD SURVIVE.
+ *
+ * A pseudo account's address is `<pseudo>@pseudo.mogadorchess.invalid` — built
+ * from the pseudo, so it cannot carry the e2e domain and the pattern above
+ * cannot see it. Left alone they accumulate on the test project and, worse,
+ * hold pseudos that a later run wants to register again (`pseudo_taken` on a
+ * spec that has nothing wrong with it).
+ *
+ * The prefix is the whole safety story: `e2ePseudo()` is the only way a spec
+ * makes one, every pseudo it mints starts `e2e-`, and NOTHING ELSE IS MATCHED.
+ * A real student called `e2e-…` cannot exist — and the interlock in `env.ts`
+ * already makes production unreachable from here.
+ */
+const E2E_PSEUDO_PREFIX = 'e2e-';
+
+function isE2EPseudoAddress(email: string): boolean {
+  if (!email.endsWith(`@${PSEUDO_EMAIL_DOMAIN}`)) return false;
+  return email.split('@')[0]?.startsWith(E2E_PSEUDO_PREFIX) === true;
+}
+
+/** Users whose email is inside the e2e domain — or an e2e pseudo account. */
 async function findE2EUsers(): Promise<Array<{ id: string; email: string }>> {
   const env = loadE2EEnv();
   if (!env) return [];
@@ -33,7 +55,7 @@ async function findE2EUsers(): Promise<Array<{ id: string; email: string }>> {
     if (error) throw new Error(`purge: listUsers failed — ${error.message}`);
     const users = data?.users ?? [];
     for (const u of users) {
-      if (u.email && u.email.endsWith(`@${env.emailDomain}`)) {
+      if (u.email && (u.email.endsWith(`@${env.emailDomain}`) || isE2EPseudoAddress(u.email))) {
         found.push({ id: u.id, email: u.email });
       }
     }
