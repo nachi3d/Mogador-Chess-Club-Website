@@ -146,6 +146,53 @@ Saturday at Dar Souiri.
   ON**, so in an accounts-OFF build its two tests ran against a 404: one passed
   vacuously and the other timed out.
 
+### Fixed — the two the gate found, one of them in the register
+
+- ⚠️⚠️ **THE REGISTER'S COUNT COULD BE WRONG WHILE EVERY MARK WAS SAFE.** A
+  register load carries the database as it was when the read was ISSUED, so a
+  read in flight while the prof is already marking knows nothing about those
+  taps — and `renderMarkList()` begins by clearing what is on screen. The boot
+  handler issues exactly such a read: the prof picks a session the moment the
+  picker fills, starts marking, and a few hundred milliseconds later the page
+  repaints **their first few taps away**.
+  - Measured at this gate: twenty taps, **all twenty durable in Postgres**, and
+    the summary reading `16 sur 26 marqués` with the first four rows blank.
+    Three retries, three different counts — 16, 19, 17 — because it depends on
+    where in the pass the stale answer lands.
+  - ⚠️ **The generation counter written for this exact defect could not catch
+    it**, and that is the general lesson: it orders loads **against each
+    other**, and the load that wipes the register is the NEWEST one. A landing
+    answer is now **merged** — anything tapped after the read was issued wins,
+    because the read could not have known about it.
+  - ⚠️ **What it costs in a room**: a prof re-marking children who are already
+    marked, or believing four are missing and hunting for them. The data was
+    never wrong; the prof's own count was, and that count is the thing that
+    stops them losing their place.
+  - A failed mark now survives a repaint too — it keeps its note rather than
+    quietly turning into a row that looks saved.
+  - ⚠️ **It was found by ACCIDENT and now has a deterministic spec**, because a
+    defect caught by a flake is a defect that comes back. `attendance-timing`
+    forces the race: it holds every register read, taps while one is in flight,
+    and fails if the landing answer unpresses anything.
+    ⚠️⚠️ **THE RESPONSE IS HELD, NOT THE REQUEST**, and the first version got
+    that backwards — sleeping before `route.continue()` asks Postgres *after*
+    the taps, so it answers *with* them and the broken page passes. **Watched
+    to fail against the unfixed page** (`a register read landing mid-pass
+    unpressed a mark the prof had made`), then watched to pass with the fix.
+
+- **The e2e session purge was eating rows a concurrent job was still using.**
+  It deletes every `sessions` row with no title and no notes, is global by
+  design and is **not** scoped by the per-job email domain — so one runner's
+  cleanup removed the session `account-deletion.spec.ts` had just seeded, the
+  attendance row went with it by cascade, and the spec failed on
+  `attendance: 0` with a message saying nothing had been seeded. Deterministic
+  across three retries, with no product code involved.
+  - A leak is now a bare row **older than an hour**: one created ninety seconds
+    ago is another runner mid-test, not an abandoned row. Nothing accumulates —
+    a genuine leak is hours old by the next run and is deleted then, which is
+    the failure mode the purge was written for at v0.16.0 (318 rows, a blown
+    axe timeout, two sessions spent blaming Firefox).
+
 ### Decisions that will look like omissions
 
 - ⚠️ **No complexity requirements on the password. Six characters, nothing

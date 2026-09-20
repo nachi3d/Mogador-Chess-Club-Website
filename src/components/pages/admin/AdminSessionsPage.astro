@@ -396,6 +396,21 @@ const STATUSES = [
   let me: string | null = null;
   /** The marks on screen, so the summary does not need a re-read per tap. */
   const marks = new Map<string, AttendanceStatus>();
+  /**
+   * ⚠️ WHAT THE PROF HAS TAPPED, AND WHEN — the other half of the race below.
+   *
+   * A register load carries the database as it was when the read was ISSUED,
+   * so anything tapped after that moment is missing from it. Rendering that
+   * answer unchanged wipes those taps off the screen. Every tap is therefore
+   * stamped with a counter, and a landing load re-applies the ones it could
+   * not have seen. Keyed by child, scoped by session, because a mark belongs
+   * to the session it was made against and must not follow the picker.
+   */
+  let tapClock = 0;
+  const tapped = new Map<
+    string,
+    { sessionId: string; status: AttendanceStatus; tap: number; failed: boolean }
+  >();
 
   const whenFmt = new Intl.DateTimeFormat('fr-FR', {
     weekday: 'short',
@@ -409,6 +424,21 @@ const STATUSES = [
     const div = document.createElement('div');
     div.textContent = value;
     return div.innerHTML;
+  }
+
+  /**
+   * ⚠️ LOUD, AND IT SURVIVES A REPAINT. A failed mark keeps the prof's intent
+   * on screen with a note saying it did not save; a register load landing
+   * afterwards would otherwise paint a row that looks saved and is not.
+   */
+  function paintFailure(row: HTMLElement) {
+    row.dataset.failed = '';
+    if (row.querySelector('.mark-failed-note')) return;
+    const note = document.createElement('p');
+    note.className = 'mark-failed-note';
+    note.setAttribute('role', 'status');
+    note.textContent = 'Non enregistré — retoucher pour réessayer.';
+    row.appendChild(note);
   }
 
   function paintSummary() {
@@ -462,6 +492,9 @@ const STATUSES = [
         const button = node.querySelector(`[data-status="${current}"]`);
         button?.setAttribute('aria-pressed', 'true');
       }
+      /* A tap that never reached Postgres stays flagged across a repaint. */
+      const own = tapped.get(child.id);
+      if (own?.failed && own.sessionId === select?.value) paintFailure(node);
       list.appendChild(node);
     }
     paintSummary();
@@ -487,6 +520,8 @@ const STATUSES = [
     row.querySelectorAll('.mark-button').forEach((b) => b.setAttribute('aria-pressed', 'false'));
     button.setAttribute('aria-pressed', 'true');
     marks.set(childId, status);
+    /* ⚠️ STAMPED, so a read issued before this tap cannot erase it. */
+    tapped.set(childId, { sessionId, status, tap: ++tapClock, failed: false });
     row.removeAttribute('data-failed');
     row.querySelector('.mark-failed-note')?.remove();
     row.dataset.saving = '';
@@ -499,12 +534,9 @@ const STATUSES = [
       /* ⚠️ LOUD, AND IT DOES NOT REVERT. The prof's intent stays on screen so
          they can see what to retry; a mark that silently undoes itself is worse
          than one that never happened. */
-      row.dataset.failed = '';
-      const note = document.createElement('p');
-      note.className = 'mark-failed-note';
-      note.setAttribute('role', 'status');
-      note.textContent = 'Non enregistré — retoucher pour réessayer.';
-      row.appendChild(note);
+      const own = tapped.get(childId);
+      if (own) own.failed = true;
+      paintFailure(row);
     }
   });
 
@@ -529,11 +561,29 @@ const STATUSES = [
    * counter for this exact reason. That lesson was written down and not applied
    * here; a third surface that loads twice must copy the guard, not rediscover
    * the defect.
+   *
+   * ⚠️⚠️ AND THE COUNTER ALONE IS NOT ENOUGH — IT ONLY ORDERS LOADS AGAINST
+   * EACH OTHER, NEVER AGAINST THE PROF.
+   *
+   * The load that wipes the register is the NEWEST one, so the guard above
+   * waves it through: the boot handler's own `loadRegister()` is issued while
+   * the prof is already marking, carries the database as it was BEFORE the
+   * first tap, and lands a few hundred milliseconds into the pass. Measured at
+   * the v0.30.0 gate — twenty taps, all twenty durable in Postgres, and the
+   * screen reading `16 sur 26 marqués` with the FIRST FOUR rows blank. In a
+   * room that is a prof re-marking children who are already marked, or worse,
+   * believing four are missing.
+   *
+   * So a landing answer is merged rather than applied: anything tapped after
+   * the read was issued wins over what the read says, because the read could
+   * not have known about it.
    */
   let registerGeneration = 0;
 
   async function loadRegister(sessionId: string) {
     const mine = ++registerGeneration;
+    /* Where the prof had got to when this read was issued — see above. */
+    const tapsAtIssue = tapClock;
     if (!sessionId) {
       if (list) list.innerHTML = '';
       if (emptyNote) emptyNote.hidden = false;
@@ -551,7 +601,13 @@ const STATUSES = [
     if (mine !== registerGeneration) return;
     bookedForSession = booked;
     renderBookedList(booked);
-    renderMarkList(new Map(rows.map((r) => [r.childId, r.status])));
+    const landed = new Map(rows.map((r) => [r.childId, r.status]));
+    /* ⚠️ THE PROF'S LATER TAPS WIN. Same session only: a mark made against the
+       previous selection is not news about this one. */
+    for (const [childId, own] of tapped) {
+      if (own.sessionId === sessionId && own.tap > tapsAtIssue) landed.set(childId, own.status);
+    }
+    renderMarkList(landed);
   }
 
   /**

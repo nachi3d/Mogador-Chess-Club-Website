@@ -2251,6 +2251,12 @@ account promoted to `prof` with the SQL in `docs/ADMIN.md`.
 - [ ] ⚠️ **Nothing moves.** The list does not re-sort, rows do not disappear as
       they are marked, and no row changes height under your thumb
 - [ ] The counter reads "12 sur 20 marqués · 12 présents" and keeps up
+- [ ] ⚠️ **START MARKING THE INSTANT THE NAMES APPEAR** — do not wait for the
+      page to settle, because that is the bug this checks. Mark ten fast, then
+      watch the screen for two seconds: **no row may go blank again**, and the
+      counter must equal the number of taps you made. (Before v0.30.0 the boot's
+      own read landed mid-pass and wiped the first few — every mark was safely
+      in the database, and the count on screen was wrong.)
 - [ ] Tap a child again on a different letter — it **corrects**, it does not add a
       second row. Reload: your correction is what stuck
 - [ ] **Turn airplane mode on and mark three more.** They flip on screen and then

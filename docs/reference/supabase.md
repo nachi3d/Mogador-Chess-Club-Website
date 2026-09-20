@@ -2105,6 +2105,38 @@ The rules that bind work elsewhere — the rest is reference:
 - ⚠️ **`role-separation.spec.ts` runs ONE AT A TIME.** Its tests share a student,
   a session and awards.
 
+**⚠️⚠️ THE REGISTER'S COUNT AND THE READ THAT WIPED IT (v0.30.0)**
+
+The generation counter borrowed from `FamilySection.astro` was applied to
+`loadRegister()` and **was not enough**, because it answers the wrong question:
+it decides which of two LOADS is authoritative, and says nothing about the prof.
+
+The sequence that broke it has nothing unusual in it. The page boots, fills the
+session picker, and the prof — who is standing in front of the class — picks a
+session and starts marking the moment names appear. The boot handler's own
+`loadRegister()` is still in flight; it carries the register as it was **before
+the first tap**; it lands two hundred milliseconds into the pass; it is the
+NEWEST load, so the counter waves it through; and `renderMarkList()` starts by
+clearing `marks` and every `aria-pressed`.
+
+- **Measured at the v0.30.0 gate**: twenty taps, **all twenty rows durable in
+  Postgres**, and the summary reading `16 sur 26 marqués` with the **first four**
+  rows blank. Three retries gave 16, 19 and 17 — the number depends on where in
+  the pass the stale answer lands, which is why it read as flake.
+- ⚠️ **THE DATA WAS NEVER WRONG. THE PROF'S COUNT WAS** — and the count is the
+  whole point of the summary: it is what stops them losing their place in a room
+  of twenty children. Critical Feature 45 is measured in taps; this is the same
+  claim seen from the prof's side.
+- **The remedy is a MERGE, not a better ordering.** Every tap is stamped with a
+  counter; a landing load re-applies any mark made after the read was issued,
+  scoped to the session it was made against. A load can no longer discard
+  something it could not have known about.
+- A failed mark keeps its note across a repaint for the same reason — otherwise
+  a row that did not save quietly repaints as one that did.
+
+⚠️ **THE GENERAL RULE, NOW IN CLAUDE.md:** a generation counter orders loads
+against each other, never against the reader.
+
 **Not built, deliberately:** creating a student from the admin UI.
 
 **➡️ What each surface does, the measured 59 ms register, the sign-up hygiene
