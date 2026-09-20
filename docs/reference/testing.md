@@ -795,6 +795,102 @@ touching application code.**
 with an assertion naming a value.** WebKit and Firefox carry one local retry;
 chromium has none. A run reporting `N passed, 1 flaky` on WebKit is green.
 
+### ⚠️⚠️ THE HYDRATION RACE — WHERE THAT RULE FAILED, THREE GATES RUNNING (2026-08-21)
+
+The rule above is a filter for false positives. **It has no power against a race
+that load merely WIDENS**, and this is the case that proved it.
+
+**The symptom.** `play.spec.ts` reported one flaky test at each of three
+consecutive gates. A different test each time — `:307` legality across plies,
+`:153` typed focus, `:111` pointer focus — which is this project's own
+definition of non-deterministic. Every serial `--workers=1` re-run passed, once
+in **997 ms** against a 60 s timeout. It was written off as contention three
+times.
+
+⚠️ **THE "AREA" WAS A MIRAGE.** Two of the three failures were not in the
+behaviour their test names describe: they failed inside `startGame()`, at the
+shared wait for `data-phase="playing"`, before reaching any assertion of their
+own. Reading the test NAMES suggested a focus-modality problem in
+`useMoveSource.ts`; reading the STACKS said the tests had nothing in common but
+their helper.
+
+**What it actually was.** The setup form is server-rendered, and the island is
+`client:visible`. Between the HTML arriving and Preact attaching, the start
+button is markup with no handler. A click in that window does **nothing** — no
+start, no error, no acknowledgement.
+
+⚠️ **THE ONE LINE THAT SETTLED IT WAS IN THE ARTEFACT ALL ALONG.** The captured
+page state showed `data-phase="setup"` with the error alert **EMPTY**. The
+load-failure path cannot produce that: it sets `loadError` *before* returning to
+`setup`, and the alert renders text. Empty alert ⇒ `start()` never ran ⇒ the
+click was swallowed. `error-context.md` had said so at every gate.
+
+**Reproduction, and why the first two attempts found nothing.**
+
+| attempt | result | why |
+|---|---|---|
+| 15 rounds, one page reused | 0 failures | the island chunk is cached after round 1; the race needs a cold fetch |
+| 15 rounds, fresh context each | 0 failures | Playwright's own actionability wait (~tens of ms) usually covers a ~500 ms hydration |
+| `play.spec.ts --repeat-each=3` | **1 in 60** | the real thing, at its real rate — too rare to iterate against |
+| **island JS delayed 4 s via `page.route`** | **100%** | the window is forced open; the race becomes an ordinary assertion |
+
+⚠️ **FORCE THE WINDOW OPEN RATHER THAN CHASING THE RATE.** Throttling the chunk
+turned a 1-in-60 ghost into something that fails every time and can be watched
+to fail — which is also what made a regression test possible.
+
+**What the same experiment proved about the helper.** `openPlay()` waited for
+`data-phase="setup"`, which is in the SERVER's HTML — so it proves the document
+arrived and nothing more. With hydration delayed it returned with the island
+still un-hydrated and its click was swallowed too. ⚠️ **THE SEVENTEEN TESTS
+USING IT WERE NOT PROTECTED, ONLY LUCKIER** than the three that called
+`page.goto` directly: a scroll plus one locator round-trip bought a few tens of
+milliseconds, and that accident was the entire difference.
+
+**It is a READER's defect first.** With hydration late, a human pressing
+"Commencer la partie" is ignored, and nothing on screen changes. Only a fast
+local build hides it.
+
+**The fix, both halves.**
+
+- `PlayView` exposes `data-ready`, false until a mount effect sets it — the same
+  convention as the exercise board — and the start button and both radio
+  fieldsets are `disabled` until then. ⚠️ **The radios were the half nearly
+  missed**: disabling only the button leaves the choices live, and a colour
+  picked before hydration is discarded when Preact attaches, snapping back to
+  "Les blancs" under the reader's hand. Visible rather than silent, so milder —
+  but a form is either working or it is not.
+- `openPlay()` waits on `data-ready="true"`, and the three tests that skipped
+  it now use it.
+
+⚠️ **THE REGRESSION TEST THROTTLES THE CHUNK ON PURPOSE.** Without that the
+window is too narrow to observe, which is exactly how this survived three
+gates. It was watched to fail on the un-fixed component first (`Received: ""` —
+no such attribute).
+
+**The lesson, and it is the general one:** *passing serially is not a clean bill
+of health.* A hydration race, a resource race and machine contention share one
+signature. The re-run cannot separate them; **the artefact can**.
+
+⚠️ **NOT AUDITED: the exercise and replay islands.** They are the same shape —
+server-rendered controls inside a `client:visible` island — and were not checked
+in this session. Assume the defect until measured.
+
+> ⚠️ **MEASURED IN v0.20.0, AND THE ASSUMPTION WAS RIGHT: 560 CONTROLS ON 132
+> PAGES.** The replayer's launch button, its transport controls and every
+> move-list button on every trap and lesson, plus the exercise hint button. The
+> rule "no control inside a hydrating island may look usable before it is" was
+> already written down at the time — it had been applied to the one control a
+> flaking test happened to point at, and to nothing else. It is now **Critical
+> Feature 76** and a build step, `scripts/check-island-controls.mjs`, which
+> reads `dist/` and was watched to fail (560/132) before it was allowed to
+> pass. **➡️ The per-island audit:
+> [`board.md`](./board.md#️-island-readiness--the-per-island-audit-v0200).**
+>
+> ⚠️ **AND THE SECOND HALF OF THE LESSON: NO TEST WAS FAILING, AND NONE COULD.**
+> Every spec waits for something a reader does not have. The suite is
+> structurally blind to this class of defect, which is why enforcement is a
+> check against the artefact and not another spec.
+
 ⚠️ **THE TWO BROWSER-CRASH ROWS ARE NOW A FINDING WHEN THEY COME FROM
 `test:release`.** They belong to a raw `npx playwright test`, which still pools
 every project at the default fan-out. The matrix caps its workers and runs one
@@ -835,6 +931,13 @@ divides just as neatly as five of 80.
    genuine hydration signal. `[data-testid="replayer"]` is **not**: Astro
    server-renders it whether or not any JS ran.
 3. **Wait on `data-ready="true"` and `data-busy="false"`** before interacting.
+   ⚠️ **AND `<cg-board>` DOES NOT IMPLY `data-ready`, IN ANY VIEW.**
+   `BoardSurface` is a **child**, and child effects run first, so the board
+   element appears a render BEFORE the parent view publishes its readiness.
+   Since v0.20.0 every view's controls ship `disabled` until that attribute
+   flips (Critical Feature 76), so the gap is now observable rather than
+   theoretical: a spec that waits only on the board can read a control that is
+   still disabled. Wait on the declared signal, never on a proxy for it.
 4. **Tap, and press for a DURATION.** `click()` with no `delay` sends mousedown
    and mouseup in **one animation frame**, and Chessground does its drag
    bookkeeping in a `requestAnimationFrame` loop — measured **1/8 solved at 0ms
@@ -1007,7 +1110,8 @@ is, and the debugging it cost — is in the reference file; these are the tells:
 - WebKit "target page… closed", or Firefox `RenderCompositorSWGL failed` on a
   **different test each run** → **the Windows browser dying under fan-out**;
 - auth specs timing out on a **different set each run** → **Supabase's auth rate
-  limit**, measured at ~22 verifications in 7s;
+  limit**, which is **per IP and per 5 minutes** — look at the ONE job's rate,
+  not at how many jobs are running;
 - `ERR_CONNECTION_REFUSED` → **read the HOST in the error**: `localhost:4321`
   is a dead preview server, `*.supabase.co` is sustained rate-limit abuse.
 
@@ -1027,3 +1131,918 @@ which caps its workers precisely so it never reaches that state.
 
 **➡️ The full symptom table and the diagnoses behind it:
 [`docs/reference/testing.md`](./docs/reference/testing.md).**
+
+---
+
+## Symptoms that are the environment, not the application — the tells
+
+**Read when:** a test run smells stale, flaky, or fails on a different set each time.
+
+⚠️ **Moved verbatim out of CLAUDE.md at the v0.18.0 split.**
+`scripts/check-split.mjs` compares normalised lines, so nothing inside the
+block below may be reworded. Relative links like `./docs/reference/…` are
+written from the repository root — CLAUDE.md's position, not this file's.
+
+### ⚠️ Symptoms that are the ENVIRONMENT, not the application
+
+Each of these has cost real debugging time. **Recognise the signature before
+touching application code.** These are the tells:
+
+- a fixed bug still "fails" and the fix is missing from `dist/` → **a stale
+  preview server** (Playwright's `reuseExistingServer` skipped its own build);
+- **every project fails identically** on a Critical Feature → **a stale `dist/`**;
+- WebKit "target page… closed", or Firefox `RenderCompositorSWGL failed` on a
+  **different test each run** → **the Windows browser dying under fan-out**;
+- auth specs timing out on a **different set each run** → **Supabase's auth rate
+  limit**, which is **per IP and per 5 minutes** — look at the ONE job's rate,
+  not at how many jobs are running;
+- `ERR_CONNECTION_REFUSED` → **read the HOST in the error**: `localhost:4321`
+  is a dead preview server, `*.supabase.co` is sustained rate-limit abuse.
+
+**A genuine failure is deterministic and fails A SERIAL RE-RUN too, and it fails
+with an assertion naming a value.** ⚠️ **THE LOCAL RETRY IS NOT THE ARBITER —
+`--workers=1` IS**; when the compositor has died the retry runs inside the same
+broken process. ⚠️ **Never pipe the test run into `tail`** — it reports tail's
+exit code, so 14 failures read as "196 passed, exit 0". ⚠️ **A browser-crash row
+is a FINDING when it comes from `test:release`.**
+
+**➡️ The full symptom table and the diagnoses behind it:
+[`docs/reference/testing.md`](./docs/reference/testing.md).**
+
+
+---
+
+## Driving a board from a spec — the four gates
+
+**Read when:** writing or debugging any spec that moves a piece.
+
+⚠️ **Moved verbatim out of CLAUDE.md at the v0.18.0 split.**
+`scripts/check-split.mjs` compares normalised lines, so nothing inside the
+block below may be reworded. Relative links like `./docs/reference/…` are
+written from the repository root — CLAUDE.md's position, not this file's.
+
+### ⚠️ Driving a board from a spec — the four gates
+
+**Scroll it into view** (`block: 'center'`, never `scrollIntoViewIfNeeded`),
+**wait on `<cg-board>`** (not `[data-testid]`, which Astro server-renders),
+**wait on `data-ready="true"` and `data-busy="false"`**, and **press for a
+DURATION** — measured **1/8 solved at 0ms against 8/8 at 60ms**. Use
+`movePiece()` from `tests/e2e/helpers/board.ts`.
+
+⚠️ **Test the pointer path BY POINTER.** Every exercise spec that solved by
+typing into `MoveInput` bypassed Chessground entirely and would stay green if
+the board refused every tap.
+
+⚠️ **Never assert a short-lived class with a MutationObserver alone**, and
+⚠️ **every axe check on a reveal-bearing page must call `settleReveals(page)`**
+— a `[data-reveal]` element is transparent text axe can still find, so it
+presents as flakiness rather than breakage.
+
+⚠️ **`play.spec.ts` runs ONE AT A TIME** — every test boots a real engine with
+64 MiB of linear memory.
+
+**➡️ Each gate in full, with the measurements and the false positives it
+produced: [`docs/reference/testing.md`](./docs/reference/testing.md).**
+
+
+---
+
+## Why the gate runs twice — once per flag shape
+
+**Read when:** promoting a release, or wondering whether one matrix run is enough.
+
+⚠️ **Moved verbatim out of CLAUDE.md at the v0.18.0 split.**
+`scripts/check-split.mjs` compares normalised lines, so nothing inside the
+block below may be reworded. Relative links like `./docs/reference/…` are
+written from the repository root — CLAUDE.md's position, not this file's.
+
+#### ⚠️⚠️ THE GATE RUNS TWICE — ONCE PER FLAG SHAPE (v0.14.0)
+
+The old policy ran the matrix once, on the default build, because that was "what
+production ships". **That premise is false**: production serves the accounts-**ON**
+build, and the default matrix skips every auth spec — so the whole account stack
+was reaching production with **chromium coverage only**.
+
+Neither shape subsumes the other. **OFF** is the only shape that can prove
+Critical Feature 18 (`auth-disabled.spec.ts`: no route emitted, no Supabase ref
+in the bundle); **ON** is the only shape that exercises `/connexion/`,
+`/auth/callback/`, `/bienvenue/`, `/compte/` and `/admin*` at all.
+
+⚠️ **THE ON MATRIX HAMMERS SUPABASE'S AUTH RATE LIMIT** — five projects at ~40
+magic-link verifications each. A project the limit takes out is **re-run on its
+own**, never waved through.
+
+⚠️ **IF THE FLAG EVER GOES BACK OFF IN PRODUCTION, THE SECOND RUN GOES WITH IT**
+— recorded so a future session can remove it honestly rather than deleting a
+cost whose reason nobody remembers.
+
+
+---
+
+## Why the matrix runs one project at a time, under a worker cap
+
+**Read when:** a matrix run goes red, or before changing `--workers`, a timeout, or where the logs live.
+
+⚠️ **Moved verbatim out of CLAUDE.md at the v0.18.0 split.**
+`scripts/check-split.mjs` compares normalised lines, so nothing inside the
+block below may be reworded. Relative links like `./docs/reference/…` are
+written from the repository root — CLAUDE.md's position, not this file's.
+
+#### ⚠️ THE MATRIX RUNS ONE PROJECT AT A TIME, UNDER A WORKER CAP
+
+`test:release` runs each project on its own, sequentially, at **three** workers.
+That is slower than one pooled run and it is the reason the gate is green: the red
+gates were **memory exhaustion**, not browser bugs and not test bugs.
+
+- ⚠️ **`--workers=3` IS NOT A TUNING KNOB**, and ⚠️ **DO NOT "FIX" A RED MATRIX BY
+  RAISING TIMEOUTS** — tried, and the failure count went **up**.
+- ⚠️ **EVERY RUN KEEPS ITS OWN LOG** — `matrix-<shape>-<stamp>.log`, never a shared
+  `matrix.log`, and the memory traces are namespaced the same way. The gate runs
+  TWICE and the second run must not erase the first's evidence.
+  ⚠️ **AND THEY LIVE IN `gate-logs/`, NEVER UNDER `node_modules/`** — gitignored
+  but real. They were in `node_modules/.cache`, which `npm ci` deletes outright:
+  three failures awaiting adjudication went with the old machine's
+  `node_modules/` and cost a ~4.8-hour re-run of both shapes to replace.
+- ⚠️ **A TROUGH UNDER ~2 GB MEANS THE BROWSER WAS STARVED, AND THE FAILURES WILL
+  BE BARE TIMEOUTS NAMING NO VALUE.** On a machine with a heavy background
+  baseline this manufactures failures that cost an arbiter pass each. Quiet the
+  machine first — **[`docs/SETUP-NEW-MACHINE.md`](./docs/SETUP-NEW-MACHINE.md)
+  §9a** measures what to close. `--workers=3` is not the knob.
+- ⚠️ **A GATE THAT IS EXPECTED TO BE RED IS WORTH NOTHING.** A red matrix is a
+  finding to chase, never a known flake to wave through.
+- **It proves every project actually ran**, comparing counts project against
+  project.
+- ⚠️ **The alternatives were MEASURED** — `scripts/test-release.mjs` →
+  MEASUREMENTS. Re-measure before re-arguing.
+
+
+---
+
+## The "critical path" matrix trigger, and why it was removed
+
+**Read when:** you believe a feature branch needs the full matrix.
+
+⚠️ **Moved verbatim out of CLAUDE.md at the v0.18.0 split.**
+`scripts/check-split.mjs` compares normalised lines, so nothing inside the
+block below may be reworded. Relative links like `./docs/reference/…` are
+written from the repository root — CLAUDE.md's position, not this file's.
+
+#### ⚠️ THE "CRITICAL PATH" TRIGGER IS GONE
+
+The old policy forced the matrix on any branch touching the board island, the
+exercise validator, i18n routing or the service worker. It read as prudence and
+**functioned as a loophole** — almost everything here touches one of those four.
+`scripts/spec-map.mjs` gained precision instead.
+
+**If you believe you have found the exception:** change this policy in CLAUDE.md
+in the same commit, with the reason. Do not make a one-off exception no future
+session will know about — that is precisely how the last policy eroded.
+
+**➡️ The measured memory numbers, the four-red-gate diagnosis, the per-session
+cost the removal bought back and the rejected alternatives:
+[`docs/reference/testing.md`](./docs/reference/testing.md).**
+
+---
+
+## The gate audit — 4.8 hours to ~25 minutes, and what it cost in risk
+
+**Read when:** changing `scripts/lanes.mjs`, adding a spec, arguing about the
+release gate's cost, or wondering why a spec runs on one browser.
+
+⚠️ **THE CONCLUSION FIRST, BECAUSE IT IS THE PART THAT GETS RE-LITIGATED:** the
+redundancy that had produced nothing was removed, and every lane that had ever
+caught a defect was kept and pinned to the engine that caught it.
+
+### What it cost before — measured, not estimated
+
+The v0.17.0 gate, on this machine, both flag shapes:
+
+| project | accounts OFF | accounts ON |
+|---|---|---|
+| chromium | 6.0 min | 6.0 min |
+| firefox | 23.2 min | **126 min** |
+| webkit | **66 min** | 17.3 min |
+| pixel-5 | 5.3 min | 7.5 min |
+| iphone-13 | 13.7 min | 15.4 min |
+| **total** | **115.6 min** | **172.1 min** |
+
+**4.8 hours and ~6,700 test executions per release**, for a static teaching
+site. ⚠️ **The firefox/webkit volatility between shapes is memory starvation,
+not browser cost** — see §9a of `docs/SETUP-NEW-MACHINE.md`. It is why the
+figures either side of chromium cannot be read as intrinsic.
+
+### The three findings
+
+**1. 29 of the 41 spec files ran IDENTICALLY in both flag shapes.** Proved by
+comparing run/skip status per spec across the two recorded gate JSONs, not
+inferred from duration:
+
+| class | files | which |
+|---|---|---|
+| identical in both shapes | **29** | everything not listed below |
+| ON only (skip entirely in OFF) | 8 | `account-deletion`, `attendance-timing`, `booking`, `child-profiles`, `family`, `onboarding`, `progress-sync`, `role-separation` |
+| OFF only | 1 | `auth-disabled` |
+| partial | 3 | `admin` (3 of 15), `auth` (6 of 26), `recurring-sessions` (6 of 9) |
+
+⚠️ **So the second matrix re-ran ~3,000 tests that could not answer anything
+new.** What the OFF shape uniquely proves is `auth-disabled` plus three tests in
+`admin` — which is now the sliver.
+
+**2. Four spec files never open a browser at all.** `booking` (14 tests),
+`child-profiles` (7), `engine-levels` (5), `role-separation` (20) take no `page`
+fixture anywhere: they are `rpc()` calls, RLS assertions and arithmetic. Between
+them they spawned **255 browser contexts per release**.
+
+**3. Chromium runs the whole suite in 7.1 minutes** — 726 passed, 20 skipped,
+accounts ON, including the new `booking-ui.spec.ts`. It proves all 41 once.
+
+### Cost per spec file — chromium, accounts ON, CPU seconds
+
+The ten most expensive, of 1,119 s total:
+
+| spec | ran | cpu s | | spec | ran | cpu s |
+|---|---|---|---|---|---|---|
+| `themes` | 51 | 81.2 | | `sound` | 25 | 54.3 |
+| `progression` | 40 | 76.5 | | `theme` | 29 | 46.2 |
+| `family` | 10 | 63.1 | | `onboarding` | 9 | 45.1 |
+| `exercise` | 31 | 62.8 | | `play` | 20 | 44.6 |
+| `mobile-app` | 63 | 60.7 | | `account-deletion` | 6 | 43.9 |
+
+⚠️ **`pwa` is 1.8 s and `engine-levels` is 0.0 s.** Six of `pwa`'s eight tests
+take `{ request }` and inspect `sw.js`, the manifest and `dist/` — it never
+registers a service worker in a browser. "The service worker needs cross-browser
+coverage" is an intuition that does not survive reading the file.
+
+### The lanes, and what each is earned by
+
+`scripts/lanes.mjs` holds them. Measured at the gate audit on a machine with
+**2.5 GB free** — the bad case, deliberately:
+
+| lane | files | measured | earned by |
+|---|---|---|---|
+| webkit | 12 | 5.1 min | the **"Créer" click-synthesis bug** (`956b05a`) |
+| firefox | 6 | 5.6 min | the **agenda axe violation** in Gecko's a11y tree |
+| iphone-13 | 5 | 3.6 min | the **tap-versus-bottom-bar collision** |
+| pixel-5 | 3 | 1.1 min | the same touch surface, other engine |
+
+Plus chromium at 7.1 min over everything, and the sliver at ~2 min.
+**1,279 test executions against ~6,700 — 81% fewer.**
+
+⚠️ **Measured GREEN end to end: 21.9 min, 1,277 passed, 0 failed**, with the
+accounts-OFF sliver inside it (21 passed, 11 skipped). Troughs across the five
+projects were **0.51 to 2.03 GB free** — deep in the starvation regime §9a of
+[`docs/SETUP-NEW-MACHINE.md`](../SETUP-NEW-MACHINE.md) describes — so **that is
+the bad case**, and a quiet machine should beat it.
+
+### What was cut, and the risk of each
+
+- ⚠️ **`exercise` (31), `replayer` (19), `play` (20) and `tutorial` (15) dropped
+  to chromium.** This is the biggest accepted risk. Their engine-sensitive
+  surface is the **board**, which stays covered on webkit and both mobile
+  projects through `board-pointer`, `board-frame`, `board-affordance` and
+  `nav-coords`. What is no longer covered cross-browser is each mode's verdict
+  wording, attempt counting and hint UI — DOM text, low engine sensitivity.
+- ⚠️ **`progression` (40) and `wayfinding` (25) lost their Firefox axe run.**
+  `agenda` and `main-menu` keep one, so a Gecko-specific axe rule would still
+  surface somewhere in the gate.
+- ⚠️ **Evidence in both directions, stated honestly.** The last two full
+  matrices found **zero** genuine cross-browser defects — every failure and
+  flake was memory starvation, cleared by a serial re-run. But the matrix caught
+  a real, user-facing WebKit defect **one release earlier**. The lanes keep
+  exactly what produced that.
+
+### ⚠️ THE HEURISTIC'S BLIND SPOT CANNOT BE TUNED AWAY
+
+`scripts/check-lanes.mjs` scores each spec for layout, touch, board, media
+query, animation timing, axe and font signals. It is **advisory and always exits
+0**, and the reason is a fact about this repository rather than caution:
+
+> `recurring-sessions.spec.ts` scores **zero** on every signal — and it is the
+> spec that caught the Créer bug.
+
+The score measures what a spec **asserts**. The WebKit defect lived in how the
+spec **drives** the page: a plain `fill()` followed by a plain `click()`, with
+no blur in between. No pattern added to that list would find it, because the
+signal is not in the file. ⚠️ **A gate on this would print a green tick meaning
+"the lanes are complete", which is the exact false confidence that lets the next
+one through.**
+
+⚠️ **What DOES gate is `missingLaneSpecs()`.** A lane naming a spec that does
+not exist makes `testMatch` match nothing, the project runs zero tests, and the
+gate goes green having proved less than it claims — the one failure mode the
+lane design introduced. That is a filesystem fact, so it is checked exactly and
+`test-release.mjs` refuses before a browser starts.
+
+### ⚠️ THE AUDIT'S REAL FINDING WAS A GAP, NOT A SAVING
+
+`booking.spec.ts` is 14 excellent tests that never open a page. So the booking
+controls on `/agenda/` — **painted by script, the same surface class as the
+Créer button** — shipped in v0.18.0 with **no browser test on any engine**, and
+`booking.spec.ts` would have stayed green throughout.
+
+`booking-ui.spec.ts` was written with the lanes and put in the webkit lane. It
+drives the real controls: the signed-out invitation with **zero Supabase
+requests**, an account with no child, a booking confirmed against the database
+rather than against the button's own label, a **stale past session refusing in
+words**, and — the regression it exists for — **book, cancel, book with no
+reload**, so every press lands on a control the previous press rebuilt.
+
+⚠️ **A session that shrinks a gate does not get to leave a known untested
+surface behind.** That is the rule this file would want back if it were ever
+lost.
+
+### ⚠️ AN ASSERTION ON A GLOBAL TABLE IS NOT ISOLATED, AND `mode: 'serial'` DOES NOT MAKE IT SO
+
+The first run of the new gate went red on one chromium test:
+`booking.spec.ts` → *"a booking and a cancellation fire no rebuild at all"*,
+**`Expected: 1868, Received: 1870`**.
+
+It took a before/after count of `rebuild_requests` — **one log for the whole
+database**. The file carries `test.describe.configure({ mode: 'serial' })`,
+which serialises the tests **in that file** and nothing else:
+`recurring-sessions`, `admin` and `attendance-timing` create and cancel sessions
+in other files, concurrently, and every one of those *legitimately* fires a
+rebuild. A serial re-run of the file passed **14/14**.
+
+⚠️ **THE RULE WAS NEVER IN QUESTION — THE MEASUREMENT WAS.** Critical Feature 72
+held throughout; a booking had written nothing. What failed was an assertion
+that could not tell its own effects from everybody else's.
+
+⚠️ **THAT IS AS EXPENSIVE AS A FLAKE AND TEACHES THE SAME LESSON.** A reader has
+to rule out four other spec files by hand before believing the gate, and the
+habit that forms is "re-run it". The fix was to assert the thing the rule
+actually names: **the session ROW is unchanged** across the booking and the
+cancellation. That is isolated by construction, and it is closer to CF72 than
+the log was — the regression CF72 names is a denormalised `bookings_count` on
+`sessions`, which changes the row. `select … for update` is a lock and leaves no
+trace.
+
+⚠️ **WHAT IT GIVES UP IS WRITTEN IN THE SPEC RATHER THAN HIDDEN:** an UPDATE that
+wrote the same values back would fire the trigger and leave the row equal.
+Nothing plausible does that — and nothing isolated could see it, because the
+only witness is the global log.
+
+**The generalisation, for the next spec that reaches for a counter:** if an
+assertion reads a table that any other spec file may write, it is not isolated,
+and no `describe` option will make it so. Assert on a row you created.
+
+---
+
+## The gate, in full — the audit that made it ~22 minutes, and the lanes
+
+**Read when:** changing `scripts/test-release.mjs`, `scripts/lanes.mjs`,
+`scripts/check-lanes.mjs` or the worker cap; adding a spec to a lane; arguing
+that the matrix should run more often or differently; or diagnosing a red
+matrix.
+
+> ⚠️ Moved out of CLAUDE.md **verbatim** at the v0.20.0 split — nothing inside
+> this block was reworded. The binding RULES stayed behind, under
+> "⚠️ VERIFICATION POLICY"; what is here is the measurement and the incident
+> behind each of them. A phrase like "see below" may point at a neighbouring
+> section here or at the rule it belongs to in CLAUDE.md.
+
+#### ⚠️⚠️ THE GATE WAS 4.8 HOURS AND IS NOW ~22 MINUTES
+
+It used to be **five projects × every spec × both flag shapes** — ~6,700 test
+executions, **measured at 115.6 min + 172.1 min = 4.8 hours**. Three
+measurements from the audit ended that, and they are recorded rather than
+recalled:
+
+- ⚠️ **29 of the 41 spec files ran IDENTICALLY in both flag shapes**, proved by
+  run/skip status rather than inferred. The second matrix re-ran ~3,000 tests
+  that **could not answer anything new**.
+- ⚠️ **Four spec files never open a browser at all** — `booking`,
+  `child-profiles`, `engine-levels`, `role-separation` take no `page` fixture.
+  They spawned **255 browser contexts per release** to run `rpc()` calls and
+  arithmetic.
+- ⚠️ **Chromium runs the WHOLE suite in 7.1 minutes** — 42 spec files, 726
+  passed, 20 skipped — and proves every one of them once.
+
+**So chromium became the backbone and the other four projects became LANES.**
+
+#### ⚠️ THE LANES ARE PINNED TO THE ENGINE THAT CAUGHT A REAL DEFECT
+
+`scripts/lanes.mjs` is the **one** definition — `playwright.config.ts` turns it
+into `testMatch` and `scripts/check-lanes.mjs` reads it. Never a second copy.
+
+| lane | earned by |
+|---|---|
+| **webkit** | the **"Créer" click-synthesis bug** (`956b05a`, one release before this): a `change` handler rewrote the submit button between mousedown and mouseup and WebKit declined to synthesise the click. Silent on Safari and every iPhone; invisible in Blink and Gecko. |
+| **firefox** | the **agenda axe violation** Gecko's accessibility tree produced. |
+| **iphone-13** | the **tap-versus-bottom-bar collision**. |
+| **pixel-5** | the same touch surface on the other mobile engine. |
+
+⚠️ **A SPEC JOINS A LANE FOR A NAMED REASON, NEVER "TO BE SAFE."** The default
+is chromium-only, so a new spec costs one run until somebody argues otherwise.
+Write the reason beside it in `lanes.mjs`.
+
+⚠️ **THE COST IS NOT ALLOWED TO DRIFT BACK.** Measured green end to end at
+**21.9 min, 1,277 passed, 0 failed** — on a machine whose troughs were **0.51 to
+2.03 GB free**, i.e. deep in the starvation regime §9a describes, so this is the
+BAD case rather than the good one.
+
+#### ⚠️ THE ACCOUNTS-OFF SLIVER IS NOT A SECOND MATRIX
+
+Exactly two specs can only be proved by an accounts-**OFF build**, because they
+are claims about the **artefact** that shape produces: `auth-disabled.spec.ts`
+(Critical Feature 18 — no route emitted, no Supabase ref, host or anon key
+anywhere in the bundle) and `admin.spec.ts`'s *"the admin surfaces are NOT
+BUILT"* describe.
+
+⚠️ **THE SECOND BUILD IS IRREDUCIBLE — you cannot inspect an artefact you did
+not produce** — and it is the whole cost: the tests themselves take seconds, on
+chromium alone, because neither is engine-sensitive. `test-release.mjs` runs it
+last, **after a sweep**, because the ON preview server is still listening and
+`reuseExistingServer` would otherwise run the OFF specs against the ON build.
+
+⚠️ **IF THE SLIVER RUNS ZERO TESTS THE GATE FAILS**, naming Critical Feature 18.
+A gate that quietly stops proving the flag still works is the failure this whole
+change could most easily have introduced.
+
+#### ⚠️ `check-lanes.mjs` ADVISES AND MUST NEVER GATE
+
+It scores each spec for signals a different engine could answer differently and
+reports the chromium-only ones. ⚠️ **It always exits 0, and promoting it to a
+build step would be actively harmful** — `recurring-sessions.spec.ts` **scores
+zero** and is the spec that caught the Créer bug, because the heuristic sees
+what a spec *asserts* and that defect lived in how it *drives* the page. A green
+tick would read as "the lanes are complete".
+
+⚠️ **What DOES gate is `missingLaneSpecs()`**, before a browser starts: a lane
+naming a spec that does not exist makes `testMatch` match **nothing**, so the
+project runs zero tests and the gate goes green having proved less than it
+claims. A fact about the filesystem, checked exactly, and it refuses.
+
+**➡️ The full audit — the per-spec costs, the flag-shape table, the four
+browserless specs and why the heuristic's blind spot cannot be tuned away:
+[`docs/reference/testing.md`](./docs/reference/testing.md).**
+
+#### ⚠️ THE MATRIX RUNS ONE PROJECT AT A TIME, UNDER A WORKER CAP
+
+`test:release` runs each project on its own, sequentially, at **three** workers.
+That is slower than one pooled run and it is the reason the gate is green: the
+red gates were **memory exhaustion**, not browser bugs and not test bugs.
+
+⚠️ **`--workers=3` IS NOT A TUNING KNOB**, and ⚠️ **DO NOT "FIX" A RED MATRIX BY
+RAISING TIMEOUTS** — tried, and the failure count went **up**. ⚠️ **A TROUGH
+UNDER ~2 GB MEANS THE BROWSER WAS STARVED**, and the failures will be bare
+timeouts naming no value; quiet the machine first
+(**[`docs/SETUP-NEW-MACHINE.md`](./docs/SETUP-NEW-MACHINE.md) §9a** measures what
+to close). ⚠️ **A GATE THAT IS EXPECTED TO BE RED IS WORTH NOTHING** — a red
+matrix is a finding to chase, never a known flake to wave through. It also
+**proves every project actually ran** — under the lanes that is "nobody ran ZERO
+  and chromium is never the smaller run", because a mistyped lane matches nothing.
+
+⚠️ **EVERY RUN KEEPS ITS OWN LOG** — `matrix-<shape>-<stamp>.log`, never a shared
+`matrix.log`. The shape is in the NAME because the gate ran twice per release
+until the gate audit, and the second run used to erase the first's evidence; it still
+names the shape, because a log that cannot say which build it tested is not
+evidence. ⚠️ **AND THEY LIVE IN `gate-logs/`, NEVER UNDER `node_modules/`**,
+which `npm ci` deletes outright — that cost a ~4.8-hour re-run of both shapes
+once, which is also the run that produced the numbers behind the lanes.
+
+⚠️ **The alternatives were MEASURED** — `scripts/test-release.mjs` →
+MEASUREMENTS. Re-measure before re-arguing.
+#### ⚠️ DO NOT RUN THE MATRIX ON A FEATURE BRANCH. EVER. NOT "TO BE SAFE".
+
+The reasoning is already done, so it is not re-litigated. The matrix answers
+exactly one question — does this work in Firefox and WebKit — and asking it every
+session does not make the answer truer, it just moves the cost from one run per
+release to one per session. **A chromium failure is a failure; a chromium pass is
+enough to merge to `dev`**, and nothing reaches a reader without passing
+`test:release` first.
+
+#### ⚠️ THE "CRITICAL PATH" TRIGGER IS GONE
+
+The old policy forced the matrix on any branch touching the board island, the
+exercise validator, i18n routing or the service worker. It read as prudence and
+**functioned as a loophole** — almost everything here touches one of those four.
+`scripts/spec-map.mjs` gained precision instead.
+
+**If you believe you have found the exception:** change this policy in CLAUDE.md
+in the same commit, with the reason. Do not make a one-off exception no future
+session will know about — that is precisely how the last policy eroded.
+
+**➡️ The measured memory numbers, the four-red-gate diagnosis, the per-session
+cost the removal bought back and the rejected alternatives:
+[`docs/reference/testing.md`](./docs/reference/testing.md).**
+
+---
+
+## Passing serially is not a clean bill — the hydration-race diagnosis in full
+
+**Read when:** a spec flakes and the serial re-run passes; or before concluding
+that any intermittent failure is machine contention.
+
+> ⚠️ Moved out of CLAUDE.md **verbatim** at the v0.20.0 split — nothing inside
+> was reworded. The rules stayed behind under "⚠️ Symptoms that are the
+> ENVIRONMENT"; this is the incident and the measurement behind them.
+
+#### ⚠️⚠️ AND THE CONVERSE HAS NOW HAPPENED: PASSING SERIALLY IS **NOT** A CLEAN BILL
+
+`play.spec.ts` flaked at **three consecutive gates**, passed every serial
+re-run, and was waved through all three times on the rule above. It was a
+**real defect in the application** the whole time — a
+**server-rendered control that is live-looking and inert until its island
+hydrates**, so a click aimed at it did nothing at all.
+
+⚠️ **A HYDRATION RACE HAS EXACTLY THE SIGNATURE OF CONTENTION** — it needs load
+to widen the window, it moves between tests, and it evaporates under
+`--workers=1`. The serial re-run cannot distinguish the two, so it must not be
+the last word.
+
+⚠️ **THE DISCRIMINATOR IS THE FAILURE ARTEFACT, NOT THE RE-RUN.** `error-context.md`
+carries the page state; read it before blaming the machine. Here the error alert
+was **empty**, which the load-failure path cannot produce — that one line said
+"the handler never ran", and it was sitting in the artefact at every one of the
+three gates.
+
+⚠️ **AN ISLAND'S READINESS MUST BE OBSERVABLE, AND `data-ready` IS THE
+CONVENTION** — every view now carries it. A wait on server-rendered markup —
+`data-phase="setup"`, `[data-testid="replayer"]` — proves the HTML arrived and
+**nothing about whether anything is listening**. ⚠️ **A HELPER WAITS ON
+READINESS, NEVER ON A PROXY FOR IT**: `<cg-board>` is created in
+`BoardSurface`'s effect, and `BoardSurface` is a **child**, so it appears a
+render BEFORE the parent view publishes `data-ready`.
+
+### ⚠️⚠️ AND THE RULE ABOVE WAS TRUE, WRITTEN DOWN, AND BROKEN ON 132 PAGES
+
+"No control inside a hydrating island may look usable before it is" shipped as
+prose one release ago, having fixed exactly the one control that a flaking test
+happened to point at. The audit that followed measured the rest against `dist/`:
+⚠️ **560 controls on 132 pages** — the replayer's launch button, its transport
+controls and **every move-list button** on every trap and every lesson, plus the
+exercise **hint** button, the one a student presses precisely when stuck.
+
+⚠️ **NO TEST WAS FAILING, AND NONE COULD.** Every spec waits for something a
+reader does not have. This is a reader's defect that the suite is structurally
+blind to, and two of the three instances were found only by accident.
+
+⚠️ **SO IT IS NOW CRITICAL FEATURE 76 AND A BUILD STEP** —
+`scripts/check-island-controls.mjs`, run after `astro build`, which reads the
+artefact rather than the source. ⚠️ **It was watched to FAIL first** (560/132),
+then pass. A prose rule that nothing checks is a rule that is already being
+broken somewhere you have not looked.
+
+**➡️ The full symptom table and the diagnoses behind it:
+[`docs/reference/testing.md`](./docs/reference/testing.md). The per-island audit
+and what each view had to change: [`docs/reference/board.md`](./docs/reference/board.md).**
+
+---
+
+## The gate keeps its failure artefacts, and a webkit re-run needs more than one file
+
+**Read when:** adjudicating a failing or flaky gate row, or re-running one spec
+to decide whether it is real.
+
+### ⚠️⚠️ THE ARTEFACTS SURVIVE NOW — `gate-logs/artefacts-<shape>-<stamp>/<project>/`
+
+Playwright clears `test-results/` at the START of every run, and the gate runs
+six times (five projects plus the sliver). So only the LAST run's artefacts used
+to exist. Measured at the v0.20.0 gate: `test-results/` held **0 entries** after
+four flaky tests across firefox and webkit.
+
+⚠️ **That directly defeated this project's own rule.** CLAUDE.md says *"THE
+DISCRIMINATOR IS THE FAILURE ARTEFACT, NOT THE RE-RUN"* — a rule adopted after
+`error-context.md` was the thing that finally separated a real hydration race
+from machine contention, three gates late. The gate made it impossible to follow
+for every project but one, and **three consecutive gates then ended in "probably
+environmental" with nothing left to check**.
+
+`test-release.mjs` now copies each project's artefacts out of `test-results/`
+immediately after that project's run, before the next one clears it.
+
+- ⚠️ **`preserveOutput` alone is NOT the fix**, and it is the obvious one. It
+  governs whether Playwright keeps output for PASSING tests; it does not stop
+  the next run clearing the directory, and six runs share one directory. The
+  artefacts have to LEAVE `test-results/` between runs.
+- ⚠️ **The sweep was checked, not assumed.** `demo.mjs --sweep-only` runs
+  between projects and the concern was that it might remove the copy. It does
+  not — it kills processes and touches no files. A copy into a directory the
+  next sweep deletes would be no better than what it replaced.
+- ⚠️ **Namespaced by `RUN_ID`**, exactly like the logs and the memory traces,
+  for the identical reason: a second run must never erase the first's evidence.
+- ⚠️ **It never fails the gate.** A copy that throws — locked file, full disk —
+  is reported and the run continues. Evidence-keeping must not turn a green
+  matrix red or mask a real result.
+- ⚠️ **THE POINTER PRINTS ON THE FAILURE PATH, and that took two goes.** The
+  first version printed it only on the green path — which is exactly backwards,
+  because the gate exits before it when something fails, so the path was missing
+  precisely when somebody needed it. Caught by running the real script against a
+  deliberate failure rather than by reading it.
+
+### ⚠️⚠️ A ONE-FILE WEBKIT RE-RUN CANNOT REPRODUCE THE GATE'S CONTENTION
+
+This one has already produced a wrong conclusion, at the v0.22.0 gate, and it
+looks completely convincing.
+
+`playwright.config.ts` sets **`fullyParallel: false`** on `webkit` and
+`iphone-13`. That means tests **within a file** run in sequence; only FILES run
+concurrently. So:
+
+```
+npx playwright test --project=webkit --workers=3 tests/e2e/one-file.spec.ts
+   -> "Running 6 tests using 1 worker"
+```
+
+⚠️ **`--workers=3` is silently irrelevant there.** One file is one worker no
+matter what the flag says, so the re-run is SERIAL — which is the arbiter this
+project has already learned not to trust on its own ("passing serially is not a
+clean bill"). At the v0.22.0 gate that re-run was very nearly reported as strong
+evidence that a flaky row was environmental.
+
+**To reproduce the gate's conditions on webkit, pass SEVERAL spec files:**
+
+```
+PUBLIC_AUTH_ENABLED=true npx playwright test --project=webkit --workers=3 \
+  tests/e2e/account-deletion.spec.ts tests/e2e/family.spec.ts \
+  tests/e2e/onboarding.spec.ts tests/e2e/auth.spec.ts
+```
+
+⚠️ **And read the artefact first regardless.** Since the fix above, the evidence
+is in `gate-logs/artefacts-*/`, and it answers the question a re-run only
+circles around.
+
+---
+
+## ⚠️⚠️ THE SHARED TEST PROJECT NEEDS SERIALISED ACCESS — AND NOTHING SAID SO
+
+**Read when:** parallelising ANY test run, adding a CI job, or removing the
+per-project serialisation in `test-release.mjs`. Also when a suite fails
+instantly with a purge or residue error.
+
+### The guarantee, stated at last
+
+**There is exactly ONE test Supabase project, and the suite assumes it has that
+project to itself for the whole run.** Two things enforce that assumption and
+both are destructive:
+
+- `tests/e2e/global-setup.ts` purges e2e data **before** the suite, and treats
+  residue as a **hard failure** — "a suite that starts from unknown state
+  proves nothing about the state it ends in".
+- `tests/e2e/global-teardown.ts` purges **after**.
+
+So two concurrent runs against that project do this to each other: A's setup
+deletes B's in-flight users; B's teardown deletes A's; and whichever starts
+second sees the first's users as *residue* and dies **before a single test
+runs**.
+
+### ⚠️ WHY NOBODY KNEW: `test-release.mjs` PROVIDED IT BY ACCIDENT
+
+The local matrix runs the five projects **one at a time**, and every line of
+reasoning written about that says **memory** — 80 processes, 6.68 GB, four red
+gates, the measured worker cap. All true, and all beside this point.
+
+Running them one at a time also meant **only one run ever touched the Supabase
+project at a time**. That was never the reason for the serialisation, was never
+written down, and was load-bearing anyway. It is the classic shape of an
+invisible dependency: a constraint satisfied as a side effect of a decision
+taken for something else entirely.
+
+⚠️ **It became visible the moment CI parallelised the projects**, which was
+correct on the memory argument — each GitHub runner has its own RAM, so the
+reason for serialising is genuinely absent there — and wrong on a guarantee
+nobody had recorded. Measured, at gate run #2: `webkit` failed in **32 seconds**,
+before any test, while `iphone-13` — **the same browser** — passed in 310s. Not
+a browser problem; a landlord problem.
+
+### The fix, and why it needed no code
+
+`helpers/purge.ts` matches users by an **exact email domain**
+(`u.email.endsWith('@' + env.emailDomain)`), and `e2eEmail()` mints addresses on
+that same domain. So a **per-job `E2E_EMAIL_DOMAIN`** partitions the project:
+each run only ever sees, and only ever deletes, its own users.
+
+`.github/workflows/gate.yml` writes `E2E_EMAIL_DOMAIN=<job>.mcc-e2e.test` into
+the `.env.test` it generates. These are `.test` addresses that nothing delivers
+to — users are created and magic links minted through the admin API — so a
+subdomain costs nothing and needs to resolve nowhere.
+
+### ⚠️ THE RULE FOR THE NEXT PERSON
+
+**Anything that runs the suite concurrently must either serialise access to the
+test project or give each concurrent run its own `E2E_EMAIL_DOMAIN`.** The
+failure mode if you forget is not subtle — it is an instant, confusing death in
+whichever run started second.
+
+### ⚠️⚠️ AND THE DOMAIN ONLY COVERS *USERS* — SESSIONS ARE STILL SHARED
+
+The paragraph above originally ended "there is no third option", which read as
+though a per-job domain isolated the whole project. **It isolates users.**
+`sessions` rows have no owner column, so nothing about them is scoped by email
+domain at all, and `purgeLeakedSessions()` deletes every bare row **globally**,
+in both phases of **every** run.
+
+That is a second collision, and it took two red gates to see because it wears a
+completely different mask:
+
+- `booking.spec.ts` creates **bare** sessions (no title, no notes) at runtime
+  and deletes them by id when it finishes. It runs in **chromium only**.
+- `booking-ui.spec.ts` drives the **baked** agenda (Critical Feature 49), so it
+  books whatever the build captured — including another job's in-flight row.
+  It runs in **chromium and webkit**.
+- Split into separate jobs, webkit's build can bake one of chromium's transient
+  sessions. chromium deletes it. webkit presses Réserver. The database answers
+  truthfully that the session is gone.
+
+⚠️ **IT PRESENTED AS A WEBKIT BUG AND WAS NOT ONE.** webkit-only, both booking
+tests, all three attempts, chromium green on the same specs — the exact profile
+of the "Créer" click-synthesis defect. **The click reached the handler and the
+refusal was correct**; the page said « Cette séance n'existe plus. » the whole
+time. ⚠️ **The `error-context.md` snapshot is what settled it**, which is the
+second time this release that reading the artefact beat reasoning about the
+symptom.
+
+**The fix is in `bookablePanel()`:** never book a row that matches the purge
+predicate. A seeded session says something in at least one of `title_fr`,
+`note_fr`, `note_en`; a transient one says nothing in any of them.
+⚠️ **Those two places are one rule in two files — change one and change the
+other.**
+
+⚠️ **THE GENERAL LESSON: ask what ELSE the shared project holds.** Users were
+isolated and the job was declared done. Sessions, and anything else added later
+without an owner, were not.
+
+---
+
+## ⚠️ THE AUTH RATE LIMIT IS PER PROJECT, NOT PER DOMAIN
+
+**Read when:** auth specs fail across several jobs or several files at once,
+especially with bare navigation timeouts and a different set each run.
+
+Per-job email domains fix the PURGE collision above. They do **nothing** for
+this, and the two are easy to confuse because both appear when runs go parallel.
+
+### ⚠️ WHAT IS MEASURED — AND WHAT THE FIRST VERSION OF THIS SECTION GOT WRONG
+
+The first version said the ceiling was **"22 verifications in 7 seconds,
+clearing a couple of minutes later, enforced per IP and per project"**, as if
+that one figure described the whole limit. **It describes the ONSET of a cold
+burst and nothing else**, and gate run #5 disproved the rest of the sentence
+within a day.
+
+**MEASURED:**
+
+- **ONSET** — ~22 verifications in ~7s returns
+  `{"code":429,"error_code":"over_request_rate_limit"}`, with **no
+  `Retry-After`**. An isolated probe cleared in ~2 minutes.
+- **RECOVERY IS LONGER THAN 40s UNDER SUITE LOAD** — `followMagicLink()` backs
+  off 0/10s/30s and **exhausts with the project still limited**. Observed at
+  gate run #5 and reproduced locally twice on 2026-08-25.
+- **THE SUSTAINED LOAD THAT CROSSED IT** — chromium runs **168** auth tests and
+  webkit **89**. Concurrently that is **~257 verifications in ~14 minutes
+  (~18/min)**. It failed at run #5 and survived at runs #3 and #4, which is what
+  a threshold looks like from underneath.
+
+**THE SCOPE — SETTLED, AND IT REVERSED THE CONCLUSION:**
+
+⚠️⚠️ **THE LIMIT IS PER IP ADDRESS. The Supabase dashboard says so on the
+setting itself**, which is where nobody looked while there was a theory to
+support instead. The window and the budget are named there too:
+**"Rate limit for token verifications", 30 per 5 minutes by default.**
+
+**What that means, and why the first fix was aimed at the wrong thing:**
+
+- **Two runners are two IPs and two buckets.** chromium and webkit were
+  **never contending with each other.** Each was independently over the old
+  default on its own — chromium peaks near **65** verifications per 5 minutes
+  and webkit near **45**, against a ceiling of **30**.
+- So runs #3 and #4 were over the line as well and survived on **Playwright's
+  retries**; run #5 did not. That is retry luck, **not** a concurrency
+  threshold.
+- ⚠️ **Merging the two lanes into one job therefore fixed nothing that was
+  broken.** It reduced project-wide concurrency, which a per-IP limit does not
+  measure, and cost **9m 33s** of gate wall-clock. It was reverted.
+- **The ceiling was the whole fix:** token verifications raised to **300 per 5
+  minutes** on the TEST project, ~4.6× chromium's peak.
+
+⚠️ **SO THE THING TO WATCH IS ONE JOB'S RATE, NEVER HOW MANY JOBS RUN.** A
+single lane that grows enough auth specs can exhaust its own bucket with
+nothing else running anywhere.
+
+**Still unmeasured:** the highest sustained rate that is actually safe. 300 is
+headroom over a measured peak, not a probed ceiling.
+
+⚠️⚠️ **THE LESSON IS NOT ABOUT SUPABASE.** A figure was recorded without its
+method, propagated to **six files**, and then a fix was designed against the
+half of it that had never been checked — while the answer was printed on the
+dashboard beside the setting. **Read the source of a limit before modelling
+it.**
+
+**Every signed-in spec mints its own account and verifies its own magic link**,
+so the verification rate is roughly the number of concurrent workers across
+every runner pointed at that project.
+
+### How to recognise it
+
+⚠️ **It does not look like a rate limit.** It looks like plain navigation
+timeouts, on a **different set of tests every run**, all of which pass when the
+file is run on its own. `ERR_CONNECTION_REFUSED` is read by its HOST:
+`localhost:4321` is a dead preview server, `*.supabase.co` is this.
+
+### What is already done, and what to do next
+
+- **Locally:** `test-branch.mjs` caps auth-heavy selections at `--workers=2` —
+  about a third of the verification rate six workers produce, which is the
+  difference between green and red.
+- **In CI:** `playwright.config.ts` sets `workers: 1` when `process.env.CI` is
+  set, which keeps each job far below the ceiling on its own.
+- ⚠️ **The remaining exposure is jobs running at the same time.** Four or five
+  CI jobs each at one worker is well inside the ceiling today; it is not a
+  guarantee, and it scales with however many jobs are added later.
+- **If it fires: SERIALISE THE AUTH-HEAVY JOBS.** In the workflow that means a
+  `max-parallel` on the matrix, or moving `SCRIPTED_FORMS`-carrying projects
+  into a dependent stage. ⚠️ **Do NOT widen the email domains further** — that
+  addresses the other problem and will look like it is not working.
+- ⚠️ **The real fix is a bigger rate limit on the TEST project**, which is a
+  dashboard setting and is already an open backlog item. Mitigation is not
+  headroom.
+
+---
+
+## ⚠️ THE ACCOUNTS-OFF SLIVER IS NOT A SECOND MATRIX
+
+**Read when:** changing the gate, the sliver, or anything Critical Feature 18 rests on.
+
+
+Exactly two specs can only be proved by an accounts-**OFF build**, because they
+are claims about the **artefact** that shape produces — `auth-disabled.spec.ts`
+and `admin.spec.ts`'s *"the admin surfaces are NOT BUILT"* describe. The second
+build is **irreducible**: you cannot inspect an artefact you did not produce.
+It runs last, **after a sweep**, or `reuseExistingServer` would run the OFF
+specs against the ON build.
+
+⚠️ **IF THE SLIVER RUNS ZERO TESTS THE GATE FAILS**, naming Critical Feature 18.
+
+---
+
+## ⚠️ `check-lanes.mjs` ADVISES AND MUST NEVER GATE
+
+**Read when:** tempted to make the lane heuristic gate the build.
+
+
+It always exits 0, and promoting it to a build step would be **actively
+harmful**: the spec that caught the WebKit "Créer" bug **scores zero**, because
+the heuristic sees what a spec *asserts* and that defect lived in how it
+*drives* the page. A green tick would read as "the lanes are complete".
+
+⚠️ **What DOES gate is `missingLaneSpecs()`** — a lane naming a spec that does
+not exist makes `testMatch` match **nothing**, so the project runs zero tests
+and the gate goes green having proved less than it claims.
+
+---
+
+## ⚠️ DO NOT RUN THE MATRIX ON A FEATURE BRANCH. EVER. NOT "TO BE SAFE".
+
+**Read when:** about to run the full matrix on a branch, or re-arguing the policy.
+
+
+The reasoning is already done, so it is not re-litigated. **A chromium failure
+is a failure; a chromium pass is enough to merge to `dev`**, and nothing reaches
+a reader without passing `test:release` first.
+
+⚠️ **THE "CRITICAL PATH" TRIGGER IS GONE** — forcing the matrix on any branch
+touching the board island, the validator, i18n routing or the SW read as
+prudence and **functioned as a loophole**, because almost everything here
+touches one of those four. `scripts/spec-map.mjs` gained precision instead.
+**If you believe you have found the exception:** change this policy in CLAUDE.md
+in the same commit, with the reason — a one-off exception no future session
+knows about is precisely how the last policy eroded.
+
+**➡️ The audit behind every number above — the per-spec costs, the flag-shape
+table, the four browserless specs, what each lane was EARNED by, the
+four-red-gate memory diagnosis and the rejected alternatives:
+[`docs/reference/testing.md`](./docs/reference/testing.md).**
+
+---
+
+## ⚠️⚠️ AND THE CONVERSE IS ALSO TRUE: PASSING SERIALLY IS **NOT** A CLEAN BILL
+
+**Read when:** about to call a flaky failure environmental, or writing a helper that waits on an island.
+
+
+`play.spec.ts` flaked at **three consecutive gates**, passed every serial re-run,
+and was waved through all three times on the rule above. It was a **real defect
+in the application** the whole time.
+
+- ⚠️ **A HYDRATION RACE HAS EXACTLY THE SIGNATURE OF CONTENTION** — it needs load
+  to widen the window, it moves between tests, and it evaporates under
+  `--workers=1`. The serial re-run cannot distinguish the two, so it must not be
+  the last word.
+- ⚠️ **THE DISCRIMINATOR IS THE FAILURE ARTEFACT, NOT THE RE-RUN.**
+  `error-context.md` carries the page state; **read it before blaming the
+  machine.**
+- ⚠️ **AN ISLAND'S READINESS MUST BE OBSERVABLE, AND `data-ready` IS THE
+  CONVENTION** — every view carries it. A wait on server-rendered markup proves
+  the HTML arrived and **nothing about whether anything is listening**.
+- ⚠️ **A HELPER WAITS ON READINESS, NEVER ON A PROXY FOR IT**: `<cg-board>` is
+  created in `BoardSurface`'s effect, and `BoardSurface` is a **child**, so it
+  appears a render BEFORE the parent view publishes `data-ready`.
+- ⚠️ **AND A PROSE RULE THAT NOTHING CHECKS IS ALREADY BEING BROKEN SOMEWHERE.**
+  "No control inside a hydrating island may look usable before it is" was written
+  down one release before anything enforced it, and was false on **132 pages** at
+  the time. It is now Critical Feature 76 and `check-island-controls.mjs`.
+
+**➡️ The full symptom table, the three-gate diagnosis and the per-island audit:
+[`docs/reference/testing.md`](./docs/reference/testing.md) and
+[`docs/reference/board.md`](./docs/reference/board.md).**

@@ -550,3 +550,276 @@ test.describe('E3 renders on desktop in every theme', () => {
     }
   }
 });
+
+/* ═══ The game history on /progres/ ═════════════════════════════════════ */
+
+/**
+ * ⚠️ GAMES WERE RECORDED AND NEVER SHOWN.
+ *
+ * `game_results` has carried a row per game since v2-S3 and the local record
+ * has carried counters since E3 — and a student could see none of it. The
+ * ledger knew they had won twice at Intermédiaire; the page never said when,
+ * against which level, or that they had played at all.
+ *
+ * ⚠️ AND IT MUST NOT BECOME A REPORT CARD. Critical Feature 35: a loss costs
+ * nothing and is read by no scoring rule. A history that hid losses, or shaded
+ * them red, would make them cost something after all — so the spec asserts that
+ * a loss is PRESENT and styled the same as a win, which is the half that would
+ * quietly rot the first time somebody "improved" the list.
+ */
+test.describe('the game history', () => {
+  const LOG_KEY = 'mcc:progress:v1';
+
+  async function seedGames(page: Page, log: unknown[]) {
+    await page.addInitScript(
+      ([key, value]) => {
+        try {
+          window.localStorage.setItem(key as string, value as string);
+        } catch {
+          /* the page must work anyway; other specs assert that */
+        }
+      },
+      [
+        LOG_KEY,
+        JSON.stringify({ exercises: {}, games: {}, announced: [], awards: [], log }),
+      ],
+    );
+  }
+
+  test('with no games it says so, and shows no empty heading', async ({ page }) => {
+    await page.goto('/progres/');
+
+    /* ⚠️ A HEADING OVER NOTHING IS THE FAILURE HERE. The block is hidden and a
+       single line explains — rather than an empty list under "Tes parties",
+       which reads as broken rather than as new. */
+    await expect(page.locator('[data-games-block]')).toBeHidden();
+    await expect(page.locator('[data-games-empty]')).toBeVisible();
+  });
+
+  test('it lists what was played, newest first, with the level named', async ({ page }) => {
+    await seedGames(page, [
+      { at: '2026-03-02T10:00:00.000Z', level: 'avance', outcome: 'win' },
+      { at: '2026-03-01T10:00:00.000Z', level: 'debutant', outcome: 'loss' },
+      { at: '2026-02-28T10:00:00.000Z', level: 'intermediaire', outcome: 'draw' },
+    ]);
+    await page.goto('/progres/');
+
+    const block = page.locator('[data-games-block]');
+    await expect(block).toBeVisible();
+    await expect(page.locator('[data-games-empty]')).toBeHidden();
+
+    const rows = page.locator('[data-game-log] .game-row');
+    await expect(rows).toHaveCount(3);
+
+    /* Insertion order is the order — see `gameLog()`. The newest seeded row is
+       first, and the level is NAMED rather than printed as its id. */
+    await expect(rows.nth(0)).toContainText(/Avanc|Advanced/i);
+    await expect(rows.nth(0)).toContainText(/Gagn|Won/i);
+
+    /* ⚠️ THE LOSS IS HERE. Not hidden, not last, not apologised for. */
+    await expect(rows.nth(1)).toContainText(/Perdue|Lost/i);
+    await expect(rows.nth(2)).toContainText(/Nulle|Drawn/i);
+
+    await expect(page.locator('[data-games-count]')).toContainText('3');
+  });
+
+  /**
+   * ⚠️ ALL THREE OUTCOMES LOOK THE SAME, AND THAT IS ASSERTED RATHER THAN
+   * TRUSTED TO A COMMENT.
+   *
+   * The obvious "improvement" to this list is to tint a loss red. On a site
+   * whose rules say a loss costs nothing, that is how it starts costing
+   * something. Comparing the computed colour is what makes the rule survive
+   * somebody's good intentions.
+   */
+  test('a loss is not styled differently from a win', async ({ page }) => {
+    await seedGames(page, [
+      { at: '2026-03-02T10:00:00.000Z', level: 'avance', outcome: 'win' },
+      { at: '2026-03-01T10:00:00.000Z', level: 'avance', outcome: 'loss' },
+    ]);
+    await page.goto('/progres/');
+
+    const colours = await page
+      .locator('[data-game-log] .game-outcome')
+      .evaluateAll((els) => els.map((el) => getComputedStyle(el).color));
+
+    expect(colours).toHaveLength(2);
+    expect(colours[0], 'a loss must not be a different colour from a win').toBe(colours[1]);
+  });
+
+  test('a row with no timestamp still renders, without an invalid date', async ({ page }) => {
+    /* A record written before timestamps existed, or by a device with no
+       usable clock. The game happened; only the date is unknown. */
+    await seedGames(page, [{ at: null, level: 'debutant', outcome: 'win' }]);
+    await page.goto('/progres/');
+
+    const row = page.locator('[data-game-log] .game-row').first();
+    await expect(row).toBeVisible();
+    await expect(row).not.toContainText(/Invalid Date/i);
+    await expect(row.locator('.award-when')).toHaveCount(0);
+  });
+
+  test('a garbage row is dropped and the rest still render', async ({ page }) => {
+    await seedGames(page, [
+      { at: '2026-03-02T10:00:00.000Z', level: 'avance', outcome: 'win' },
+      { outcome: 'not-an-outcome', level: 'avance' },
+      'nonsense',
+      { at: '2026-03-01T10:00:00.000Z', level: 'debutant', outcome: 'loss' },
+    ]);
+    await page.goto('/progres/');
+
+    /* ⚠️ TWO, NOT FOUR AND NOT ZERO. `progress.ts` normalises field by field
+       and never lets one bad row cost the reader the others — the same rule
+       every other record on this page follows. */
+    await expect(page.locator('[data-game-log] .game-row')).toHaveCount(2);
+  });
+});
+
+/* ═══ The weekly habit mark ═════════════════════════════════════════════ */
+
+/**
+ * ⚠️ IT COUNTS PRESENCES AND MUST NEVER COUNT ABSENCES.
+ *
+ * Critical Feature 34 rules out a daily streak because the club meets weekly
+ * and a daily counter punishes the normal rhythm. A consecutive-WEEK counter
+ * would reintroduce exactly that one rhythm up — miss a holiday, lose a run —
+ * so this counts weeks that HAPPENED and nothing else. The win-streak
+ * alternative was rejected on the same grounds: a mechanic that breaks on a
+ * loss is what Critical Feature 35 exists to prevent.
+ *
+ * ⚠️ DERIVED, NOT STORED. `activeWeeks()` reads the timestamps that already
+ * exist — `solvedAt` and the game log — so these tests seed those and never a
+ * "weeks" counter, because there is not one to seed.
+ */
+test.describe('the weekly habit mark', () => {
+  const KEY = 'mcc:progress:v1';
+
+  async function seed(page: Page, store: Record<string, unknown>) {
+    await page.addInitScript(
+      ([key, value]) => {
+        try {
+          window.localStorage.setItem(key as string, value as string);
+        } catch {
+          /* the page must work anyway */
+        }
+      },
+      [KEY, JSON.stringify({ exercises: {}, games: {}, announced: [], awards: [], log: [], ...store })],
+    );
+  }
+
+  test('with nothing done it invites rather than reporting a zero', async ({ page }) => {
+    await page.goto('/progres/');
+
+    await expect(page.locator('[data-habit-block]')).toBeHidden();
+    const empty = page.locator('[data-habit-empty]');
+    await expect(empty).toBeVisible();
+    /* ⚠️ NOT "0 semaines". A zero is a score; this is a first step. */
+    await expect(empty).not.toContainText('0');
+  });
+
+  test('a solved exercise and a game in the same week count as ONE week', async ({ page }) => {
+    /* Saturday and the Sunday after it — a single club weekend. ⚠️ THIS IS THE
+       CASE ISO WEEKS EXIST FOR HERE: a Sunday-start week would split one visit
+       across two marks and flatter the count. */
+    await seed(page, {
+      exercises: {
+        'mat-du-couloir': {
+          solved: true,
+          attempts: 0,
+          hintUsed: false,
+          solvedAt: '2026-08-22T10:00:00.000Z',
+        },
+      },
+      log: [{ at: '2026-08-23T10:00:00.000Z', level: 'debutant', outcome: 'loss' }],
+    });
+    await page.goto('/progres/');
+
+    await expect(page.locator('[data-habit-block]')).toBeVisible();
+    await expect(page.locator('[data-habit-count]')).toContainText('1');
+  });
+
+  test('two different weeks count as two', async ({ page }) => {
+    await seed(page, {
+      log: [
+        { at: '2026-08-24T10:00:00.000Z', level: 'debutant', outcome: 'win' },
+        { at: '2026-08-23T10:00:00.000Z', level: 'debutant', outcome: 'win' },
+      ],
+    });
+    await page.goto('/progres/');
+
+    await expect(page.locator('[data-habit-count]')).toContainText('2');
+  });
+
+  /**
+   * ⚠️ THE UNMARKED WEEK IS THE WHOLE RISK, AND IT IS ASSERTED BY MEANING
+   * RATHER THAN BY WORDING.
+   *
+   * A student who has not played this week must be offered something to do,
+   * never told what they failed to do. `data-marked` carries the state so this
+   * can check it without pinning prose — and the text is checked for the words
+   * a scold would use.
+   */
+  test('an unmarked week offers an action and never reports a loss', async ({ page }) => {
+    /* Long ago, so "this week" is certainly not marked. */
+    await seed(page, {
+      log: [{ at: '2024-01-10T10:00:00.000Z', level: 'debutant', outcome: 'win' }],
+    });
+    await page.goto('/progres/');
+
+    const line = page.locator('[data-habit-this]');
+    await expect(line).toHaveAttribute('data-marked', 'false');
+    await expect(line).not.toBeEmpty();
+    /* No "perdu", no "série", no "raté" — nothing that frames an absence as a
+       failure. If this ever fails, read the new wording before changing it. */
+    await expect(line).not.toContainText(/perdu|série|raté|lost|streak|missed/i);
+  });
+
+  test('a marked week says so, and looks the same as an unmarked one', async ({ page }) => {
+    const now = new Date().toISOString();
+    await seed(page, { log: [{ at: now, level: 'avance', outcome: 'win' }] });
+    await page.goto('/progres/');
+
+    const line = page.locator('[data-habit-this]');
+    await expect(line).toHaveAttribute('data-marked', 'true');
+
+    /* ⚠️ NO COLOUR DIFFERENCE BETWEEN MARKED AND UNMARKED. An unmarked week has
+       not happened YET; styling it as absent is how a count of presences turns
+       into a record of failures. */
+    const marked = await line.evaluate((el) => getComputedStyle(el).color);
+
+    await page.addInitScript(() => {
+      try {
+        window.localStorage.removeItem('mcc:progress:v1');
+      } catch {
+        /* nothing to do */
+      }
+    });
+    await seed(page, {
+      log: [{ at: '2024-01-10T10:00:00.000Z', level: 'debutant', outcome: 'win' }],
+    });
+    await page.goto('/progres/');
+    const unmarked = await page
+      .locator('[data-habit-this]')
+      .evaluate((el) => getComputedStyle(el).color);
+
+    expect(marked, 'a marked and an unmarked week must not differ by colour').toBe(unmarked);
+  });
+
+  /**
+   * ⚠️ THE MECHANIC MUST NOT HAVE SMUGGLED A STREAK IN. There is no
+   * "consecutive weeks" anywhere, and a gap between two active weeks must cost
+   * nothing — both still count.
+   */
+  test('a gap between two active weeks costs neither of them', async ({ page }) => {
+    await seed(page, {
+      log: [
+        { at: '2026-08-24T10:00:00.000Z', level: 'debutant', outcome: 'win' },
+        /* six weeks earlier — a holiday */
+        { at: '2026-07-13T10:00:00.000Z', level: 'debutant', outcome: 'win' },
+      ],
+    });
+    await page.goto('/progres/');
+
+    await expect(page.locator('[data-habit-count]')).toContainText('2');
+  });
+});

@@ -54,9 +54,59 @@ export interface ExerciseFilter {
 export const filterPath = (filter: ExerciseFilter, locale: Locale): string =>
   localizePath(`/exercices/${filter.kind}/${filter.value}/`, locale);
 
-/** The published exercises, in the SAME order the index lists them. */
+/**
+ * The published exercises, in THE order — the index lists them in it and
+ * prev/next walks them in it.
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️ THE ORDER IS: LEVEL, THEN PRIMARY THEME, THEN SLUG. Decided rather than
+ * inherited, so it is written down here.
+ *
+ * It used to be slug alphabetical, which put `attraction-avec-sacrifice` — an
+ * INTERMEDIATE exercise — first on the index, and interleaved the two levels
+ * all the way down. A beginner reading the list top to bottom met a
+ * queen-sacrifice combination before a one-move fork.
+ *
+ * ⚠️ ONE ORDER, NOT TWO, AND THAT IS THE LOAD-BEARING PART. A pager that
+ * walked a different sequence from the list the reader had just been looking
+ * at would be its own small betrayal: they chose an exercise from a list, and
+ * "next" would take them somewhere the list did not imply. The comment that
+ * used to sit here already asked for this ("in the SAME order the index lists
+ * them"); making the pager use the same function is what keeps it true.
+ *
+ * ⚠️ "PRIMARY THEME" IS `themes[0]`, AND THAT IS A REAL CONVENTION IN THE
+ * CONTENT RATHER THAN AN ASSUMPTION ABOUT ARRAY ORDER. Checked across all 27:
+ * the first theme is always the MOTIF — `fourchette`, `mat`, `clouage`,
+ * `decouverte`, `surcharge` — with the pieces and `tactique` after it. The
+ * result groups the five forks, then the nine mates, then each intermediate
+ * motif in turn. ⚠️ **Reordering a `themes` array therefore moves an exercise
+ * in the sequence**, which is worth knowing before tidying one.
+ *
+ * ⚠️ ALPHABETICAL BY MOTIF IS DETERMINISTIC, NOT PEDAGOGICAL. `attraction`
+ * before `clouage` before `decouverte` is an accident of French spelling, not
+ * a claim about which is easier. The upgrade is a curated motif sequence — a
+ * list somebody maintains — and it is deliberately not done here, because an
+ * uncurated order that is stable beats a curated one that silently rots when
+ * a new theme arrives and nobody adds it to the list.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+const LEVEL_RANK: Readonly<Record<string, number>> = {
+  debutant: 0,
+  intermediaire: 1,
+  avance: 2,
+};
+
 export const sortExercises = (entries: Exercise[]): Exercise[] =>
-  [...entries].sort((a, b) => a.data.slug.localeCompare(b.data.slug));
+  [...entries].sort((a, b) => {
+    /* An unknown level sorts last rather than first: a typo should not put an
+       exercise at the top of a beginner's list. */
+    const level =
+      (LEVEL_RANK[a.data.level] ?? 99) - (LEVEL_RANK[b.data.level] ?? 99);
+    if (level !== 0) return level;
+    const theme = (a.data.themes[0] ?? '').localeCompare(b.data.themes[0] ?? '');
+    if (theme !== 0) return theme;
+    return a.data.slug.localeCompare(b.data.slug);
+  });
 
 /** Does this exercise belong on that filter's page? */
 export function matches(entry: Exercise, filter: ExerciseFilter): boolean {

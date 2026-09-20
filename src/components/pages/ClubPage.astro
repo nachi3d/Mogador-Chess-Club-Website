@@ -1,0 +1,97 @@
+---
+/**
+ * /club — the club section's landing screen (M4, second revision).
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️ THE SECTION A PHONE COULD NOT REACH.
+ *
+ * The agenda, contact and about pages lived under "Le club" in the desktop
+ * header and under nothing at all below 768px — a mobile reader could only
+ * arrive from the home page. That is the mirror image of the `/progres/`
+ * defect Critical Feature 36 was written for: not one page missing from
+ * desktop, but a whole section missing from mobile.
+ *
+ * ⚠️ IT IS A CHOOSER, NOT A MENU (Critical Feature 65). Every card carries a
+ * name, one line of what is behind it, and the reader's own state wherever any
+ * exists — otherwise the landing is a second menu after the bar and has not
+ * earned the tap it costs.
+ *
+ * ⚠️ THE AGENDA CARD'S STATE LINE IS A FACT, NOT A TALLY. Nothing tracks which
+ * sessions a guest has attended — there is no such record and inventing one to
+ * fill the slot is how a surface starts lying — so it counts what is ANNOUNCED,
+ * which is the thing the reader actually came to find out. Same rule as
+ * `learn.traps.count`.
+ *
+ * ⚠️ AND IT NEVER PRINTS A ZERO IT HAS NOT COMPUTED (Critical Feature 30 /
+ * 61). With no sessions baked it says so in words rather than rendering
+ * "0 séances annoncées", which reads as a broken page rather than an empty
+ * calendar.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+import type { Locale } from '@config/site';
+import { localizePath } from '@i18n/paths';
+import { useTranslations } from '@i18n/ui';
+import BaseLayout from '@layouts/BaseLayout.astro';
+import PageIntro from '@components/PageIntro.astro';
+import HubCard from '@components/nav/HubCard.astro';
+import { publicSessions } from '@lib/agenda';
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const t = useTranslations(locale);
+
+/* Baked at build time, like everything else that reads the agenda — a public
+   page makes no request to any third party (Critical Feature 9). */
+const announced = publicSessions().length;
+const agendaFact =
+  announced > 0 ? t('club.agenda.count').replace('%s', String(announced)) : t('club.agenda.none');
+---
+
+<BaseLayout locale={locale} title={t('club.title')} description={t('club.intro')}>
+  <PageIntro title={t('club.title')} intro={t('club.intro')} />
+
+  <ul class="hub-grid" data-testid="club-hub">
+    <HubCard
+      href={localizePath('/agenda/', locale)}
+      name={t('club.agenda.name')}
+      body={t('club.agenda.body')}
+      testid="hub-agenda"
+      fact={agendaFact}
+    />
+    <HubCard
+      href={localizePath('/contact/', locale)}
+      name={t('club.contact.name')}
+      body={t('club.contact.body')}
+      testid="hub-contact"
+    />
+    <HubCard
+      href={localizePath('/a-propos/', locale)}
+      name={t('club.about.name')}
+      body={t('club.about.body')}
+      testid="hub-about"
+    />
+  </ul>
+</BaseLayout>
+
+<style>
+  /* ⚠️ THE SAME GRID AS `/apprendre/` AND `/moi/`, spelled again rather than
+     shared, exactly as those two spell it. Three section landings that looked
+     different would read as three different kinds of screen. */
+  .hub-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.85rem;
+    padding: 0;
+    margin: 0 0 2rem;
+    list-style: none;
+  }
+
+  @media (min-width: 34rem) {
+    .hub-grid {
+      grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+    }
+  }
+</style>

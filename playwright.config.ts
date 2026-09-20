@@ -1,5 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
 import { assertNotProduction, loadE2EEnv } from './tests/e2e/env';
+import { LANES, globs } from './scripts/lanes.mjs';
 
 /**
  * ⚠️ THE PRODUCTION-SAFETY INTERLOCK, AT CONFIG LOAD.
@@ -22,9 +23,13 @@ assertNotProduction();
  *
  * CLAUDE.md → Testing → Verification policy:
  *   - feature branches merge to `dev` on `--project=chromium` alone;
- *   - the FULL matrix is the release gate for any merge to `main`, and is
- *     required for any change touching i18n routing, the board island, the
- *     exercise validator or the service worker.
+ *   - the release gate for a merge to `main` is chromium over the WHOLE suite
+ *     plus the four LANES below, in ONE flag shape, plus a two-minute
+ *     accounts-OFF sliver. See the lane block.
+ *
+ * ⚠️ THE "CRITICAL PATH" TRIGGER IS GONE and did not come back with the lanes.
+ * It read as prudence and functioned as a loophole, because almost everything
+ * here touches the board island, i18n routing or the service worker.
  *
  * SERVER: `astro preview` over the real `dist/` build.
  * This project ships FULLY STATIC output — no SSR, no Pages Functions — so
@@ -40,13 +45,46 @@ assertNotProduction();
 const PORT = 4321;
 const BASE_URL = `http://localhost:${PORT}`;
 
+/**
+ * ⚠️ THE LANES LIVE IN `scripts/lanes.mjs`, NOT HERE.
+ *
+ * Two consumers need them — this config, which turns them into `testMatch`,
+ * and `scripts/check-lanes.mjs`, which advises about an unclassified spec.
+ * Two copies would drift, which is the same reasoning that put the spec map in
+ * its own module. The RULE, the three measurements behind it and the defect
+ * each lane was earned by are all in that file's header — read it before
+ * adding a spec to a lane or removing one.
+ *
+ * ⚠️ `chromium` TAKES NO `testMatch`: it runs every spec in the directory,
+ * including one nobody has classified. The lanes are the opt-IN; chromium is
+ * the floor.
+ */
+
 export default defineConfig({
   testDir: './tests/e2e',
   fullyParallel: true,
   forbidOnly: Boolean(process.env['CI']),
   retries: process.env['CI'] ? 2 : 0,
   workers: process.env['CI'] ? 1 : undefined,
-  reporter: process.env['CI'] ? [['list'], ['html', { open: 'never' }]] : [['list']],
+  /* ⚠️ `preserve-artefacts` IS ON BOTH SHAPES AND MUST STAY ON BOTH. It keeps
+     failure artefacts for runs started directly with `npx playwright test` —
+     which is what the CI gate does and what debugging a single spec does — and
+     stands down when a wrapper has already handled them. Removing it from the
+     local shape re-opens the hole in the place it was actually lost. */
+  /* ⚠️ `github` IS NOT DECORATION — IT IS THE ONLY FAILURE DETAIL READABLE
+     WITHOUT A TOKEN. It emits ::error:: annotations carrying the test title and
+     the assertion, and those surface on the PUBLIC check-runs annotations API.
+     Uploaded artefacts and job logs both need authentication, so a gate that
+     goes red is otherwise opaque to anyone without repo credentials — which is
+     exactly the position a diagnosis was stuck in at run #8. */
+  reporter: process.env['CI']
+    ? [
+        ['list'],
+        ['github'],
+        ['html', { open: 'never' }],
+        ['./tests/e2e/reporters/preserve-artefacts.ts'],
+      ]
+    : [['list'], ['./tests/e2e/reporters/preserve-artefacts.ts']],
 
   use: {
     baseURL: BASE_URL,
@@ -55,6 +93,10 @@ export default defineConfig({
   },
 
   projects: [
+    /* ⚠️ THE BACKBONE — NO `testMatch`, DELIBERATELY. Chromium runs every spec
+       in the directory, including any new one, so a spec is never invisible to
+       the gate merely because nobody added it to a list. The lanes below are
+       the opt-IN; this is the floor. */
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
 
     /**
@@ -86,6 +128,7 @@ export default defineConfig({
      */
     {
       name: 'firefox',
+      testMatch: globs(LANES.firefox),
       retries: process.env['CI'] ? 2 : 1,
       use: { ...devices['Desktop Firefox'] },
     },
@@ -115,16 +158,18 @@ export default defineConfig({
      */
     {
       name: 'webkit',
+      testMatch: globs(LANES.webkit),
       fullyParallel: false,
       retries: process.env['CI'] ? 2 : 1,
       use: { ...devices['Desktop Safari'] },
     },
 
     // Club members will overwhelmingly arrive on a phone.
-    { name: 'pixel-5', use: { ...devices['Pixel 5'] } },
+    { name: 'pixel-5', testMatch: globs(LANES['pixel-5']), use: { ...devices['Pixel 5'] } },
     // WebKit-based — same constraint as above.
     {
       name: 'iphone-13',
+      testMatch: globs(LANES['iphone-13']),
       fullyParallel: false,
       retries: process.env['CI'] ? 2 : 1,
       use: { ...devices['iPhone 13'] },

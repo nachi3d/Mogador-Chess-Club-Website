@@ -315,10 +315,13 @@ Do it on a **real phone**, in French, at arm's length. `npm run demo -- --host`.
 
 ### The bar
 
-- [ ] Five entries: **Accueil · Apprendre · Jouer · Moi · Réglages**
+- [ ] Five entries: **Accueil · Apprendre · Jouer · Club · Moi**
 - [ ] Every one is comfortably thumb-sized. ⚠️ **No label is clipped or
-      ellipsised** — check "Apprendre" and "Réglages" specifically, and check EN
-      where "Settings" is the long one
+      ellipsised** — check "Apprendre" specifically, which is the longest label
+      in either locale (56.6px in a 72px cell at 360px)
+- [ ] ⚠️ **"Réglages" is NOT in the bar any more, and that is deliberate.** If
+      you go looking for it: it is inside **Moi**, plus the gear in the desktop
+      header and the footer link
 - [ ] It does not move or hide when you scroll
 - [ ] Nothing on any page hides behind it, including the last footer line
 - [ ] On a notched phone the bar's background reaches into the gesture area —
@@ -334,7 +337,17 @@ Do it on a **real phone**, in French, at arm's length. `npm run demo -- --host`.
 - [ ] Solve an exercise, come back: the exercises card counts it
 - [ ] **Moi** lands on a chooser: Ma progression, Réglages, and Mon compte when
       accounts are on
-- [ ] **Réglages** lands on the settings page — theme, sound
+- [ ] **Club** lands on a chooser: Agenda, Contact, À propos
+- [ ] The Agenda card states what is announced — "3 séances annoncées", or
+      "Aucune séance annoncée pour l'instant". ⚠️ **It must never read "0
+      séances annoncées"**, which looks like a broken page rather than an empty
+      calendar
+- [ ] **À propos** opens a real page about the club, and ⚠️ **the venue named on
+      it is the one in `src/config/site.ts`** — if you changed the venue in
+      config, this page must have changed with it. A hardcoded "Dar Souiri"
+      here is a venue-portability break
+- [ ] Its two buttons at the bottom go to the agenda and to contact, and both
+      sit clear of the bar at 360px
 - [ ] Every card opens something. ⚠️ **A card that does nothing is worse than an
       absent one**
 
@@ -342,6 +355,12 @@ Do it on a **real phone**, in French, at arm's length. `npm run demo -- --host`.
 
 Walk down and watch the bar, without tapping it:
 
+- [ ] `/club/`, `/agenda/`, `/contact/` and `/a-propos/` → **Club** lit.
+      ⚠️ **Before this revision all four lit nothing at all** — the club had no
+      bar entry, so the agenda was a page with no location signal whatsoever
+- [ ] `/parametres/` → **Moi** lit, and the page now carries a trail reading
+      "‹ Moi". ⚠️ It used to be a section landing, which deliberately has no
+      trail; a page that stops being a landing must stop behaving like one
 - [ ] `/apprendre/` → **Apprendre** lit
 - [ ] Leçons → a course → a lesson inside it → **Apprendre** still lit, three
       levels down
@@ -405,6 +424,257 @@ Walk down and watch the bar, without tapping it:
       a stranger, and nothing on the page would look broken.*
 
 ---
+
+### ⚠️ The browser must not offer to translate the page
+
+*Chess notation is single letters that read as ordinary words to a translator —
+a French `Fc4` or `Cxe5` is exactly what one rewrites, and the moves stop
+matching the board beside them.*
+
+⚠️ **Do this in Chrome with English as your browser language, on a FRENCH page.**
+That mismatch is when the prompt appears; on the page that matches your own
+language it never would, so testing there proves nothing.
+
+- [ ] Open `/pieges/legal/` — no "Translate this page?" prompt, and no
+      translate icon offered in the address bar
+- [ ] ⚠️ **Repeat it in Safari and/or Edge if you have one to hand.** They
+      ignore both Google signals and honour `translate="no"` instead — and
+      **no test in the suite can tell the three apart**, so this manual check
+      is the only thing that covers those two browsers at all
+- [ ] Right-click the page — ⚠️ **"Translate to English" may still be offered
+      there**; that is the reader asking explicitly, which we do not block. What
+      must not happen is the site *offering* it unprompted
+- [ ] The language switcher still works and still swaps FR ↔ EN
+- [ ] ⚠️ **Check a screen reader still reads French in a French voice** on
+      `/pieges/legal/` — `lang="fr"` must have survived. Suppressing
+      translation by weakening `lang` would be a real regression traded for a
+      small annoyance
+
+### ⚠️⚠️ BEFORE FLIPPING `PUBLIC_GOOGLE_AUTH_ENABLED` ON: the OAuth client's PUBLISHING STATUS
+
+*This is the check most likely to be skipped and most likely to bite, because a
+client in **Testing** works perfectly for the person who set it up and fails for
+everyone else. It cannot be checked from this repository or from Supabase — only
+from Google Cloud.*
+
+**Where to look, exactly:**
+
+1. Go to **console.cloud.google.com** and select the project that owns the OAuth
+   client. ⚠️ **Check the project picker at the top** — an account with several
+   projects lands in the last one used, not necessarily this one.
+2. Left menu → **APIs & Services** → **OAuth consent screen**
+   *(newer console: **APIs & Services** → **Branding**, with publishing status
+   under **Audience**).*
+3. Read **Publishing status**. It says either **Testing** or **In production**.
+
+**What each means for a reader on `mogadorchess.nachi3dlabs.com`:**
+
+| Status | What happens to a parent pressing "Continuer avec Google" |
+|---|---|
+| **Testing** | ⚠️ **Only addresses on the Test users list can sign in.** Everyone else is refused at Google's own screen with "app has not completed verification" or "access blocked" — **before** they ever return to the site, so nothing we log or render can soften it. The list is capped at 100 addresses. |
+| **In production** | Anyone with a Google account can sign in. |
+
+- [ ] **Publishing status is "In production"** — not "Testing"
+- [ ] If it is in Testing and you are keeping it that way for now, ⚠️ **do NOT
+      flip the flag**: the button would work for you and fail for the club
+- [ ] **User type** is **External** (Internal only exists for Workspace
+      organisations and would refuse every parent)
+
+**⚠️ AND THE SAME CLIENT SERVES BOTH PROJECTS.** Measured 2026-08-23: production
+and the test project return the **same `client_id`** from
+`/auth/v1/authorize?provider=google`. So there is one consent screen, one
+publishing status and one redirect-URI list covering both — a change made for
+testing lands on production too.
+
+- [ ] **Authorised redirect URIs** contains **both** callbacks:
+      - [ ] `https://vtestpaufxmrvdhgrrsy.supabase.co/auth/v1/callback` (production)
+      - [ ] `https://puhhrqbgcobblowengii.supabase.co/auth/v1/callback` (test)
+- [ ] ⚠️ **These are the SUPABASE callbacks, not the site's.** Google redirects
+      to Supabase, and Supabase then redirects to `…/auth/callback` on the site.
+      Putting the site URL here instead is the classic misconfiguration, and it
+      fails with `redirect_uri_mismatch` at Google.
+- [ ] Supabase → **Authentication → URL Configuration → Redirect URLs** lists
+      `https://mogadorchess.nachi3dlabs.com/auth/callback`. ⚠️ **If it does not,
+      Supabase falls back to SITE_URL silently** and the reader lands on the
+      wrong page having apparently signed in.
+
+**⚠️ Consider a separate OAuth client for the test project** rather than sharing
+one. It is free, it stops a test-time change reaching production, and it means
+the consent screen a parent sees can be named for the club rather than for
+whatever the shared client is called.
+
+### ⚠️ Google sign-in — ONLY AFTER THE PROVIDER IS CONFIGURED
+
+*The button is not rendered at all unless `PUBLIC_GOOGLE_AUTH_ENABLED=true`,
+and it must not be turned on until the Supabase provider and the Google Cloud
+OAuth client both exist. Nothing in the build can check them — this checklist
+is the only thing that can.*
+
+Before flipping the flag:
+
+- [ ] Supabase → Authentication → Providers → **Google** is enabled, with the
+      client ID and secret filled in
+- [ ] Google Cloud → the OAuth client lists
+      `https://mogadorchess.nachi3dlabs.com/auth/callback` as a redirect URI
+- [ ] Supabase → Authentication → URL Configuration lists the same callback in
+      **Redirect URLs**. ⚠️ If it does not, Supabase falls back to SITE_URL
+      **silently** and the reader lands on the wrong locale
+
+After flipping it, on the real site:
+
+- [ ] `/connexion/` shows "Continuer avec Google", then the line **"Utilisez
+      la même adresse que votre lien e-mail"**, then a rule reading "ou", and
+      the email form is **still there underneath**. ⚠️ **If that line is
+      missing, stop** — it is the only thing preventing a reader from silently
+      creating a second, empty account. ⚠️ **If the email form
+      is gone, stop** — that locks out every reader without a Google account
+- [ ] Pressing it reaches Google, and coming back lands you signed in
+- [ ] `/en/connexion/` reads "Continue with Google" and behaves the same
+- [ ] ⚠️ **Cancel at the Google screen and come back.** You should land on
+      `/connexion/` able to try again — not on a dead page, and not signed in
+- [ ] The first Google sign-in creates the account, and `/bienvenue/` appears
+      once. ⚠️ Check the child profile is **not** named from the Google
+      address's local part (Critical Feature 53)
+
+### ⚠️ Exercises: prev / next, and the order
+
+- [ ] Open any exercise. At the bottom, below the share/back links, there is a
+      prev / next pair that **NAMES the destination** — "Mat en 1 — le couloir,
+      avec la dame", never a bare "Suivant"
+- [ ] The FIRST exercise has no "previous" and the LAST has no "next", and in
+      both cases the remaining link stays on its own side. ⚠️ **If "next" jumps
+      to the left on the first exercise**, the empty cell has been removed
+- [ ] ⚠️ **The index order and the pager order AGREE.** Open `/exercices/`,
+      note the order, then walk it with "next". Beginner exercises come first,
+      grouped by motif — the five forks, then the mates
+- [ ] Both work in EN
+
+### ⚠️ Ranks moved — a student may see their rank DROP
+
+*Thresholds were re-spaced against today's content (full marks is 965; Dame was
+sitting at 23% of the site). This is expected and was Seàn's call — but it is
+the kind of change a student notices and nobody explains.*
+
+- [ ] `/progres/` shows a rank consistent with the points beside it
+- [ ] ⚠️ **If a student says their rank went down, that is this change** — their
+      work is intact; points are derived, so nothing was deleted
+
+### ⚠️ The game history
+
+- [ ] Play a game at `/jouer/` to the end (win, lose or draw), then open
+      `/progres/` — the game is listed with its level and the date
+- [ ] ⚠️ **A LOSS APPEARS, in the same colour and weight as a win.** If losses
+      are hidden, or red, that is a regression: a loss costs nothing here
+- [ ] Before any game has been played the block is **absent**, with one line
+      saying so — not an empty list under a heading
+- [ ] Play several; the newest is at the top
+
+### ⚠️ Teacher awards above 50
+
+- [ ] In `/admin/eleve/?id=…`, award **80 points** with a reason. It is
+      accepted — the 50 cap was removed in migration 0014
+- [ ] ⚠️ **The student's `/progres/` shows all 80**, and the total includes
+      them. If the award appears in the admin list but not in the student's
+      total, a read-side cap has survived somewhere
+- [ ] A **negative** number is still refused, and a blank reason is still refused
+
+## 1a. The brand mark — LOOK AT IT SMALL, ON A REAL SCREEN
+
+⚠️ **This is the one thing in this checklist a spec genuinely cannot judge.**
+Every assertion available is "an image element exists"; whether the mark is
+*legible* is an eye test.
+
+- [ ] **The header mark** — on desktop it is 36px, on a phone 28px. It should
+      read as a **rook**: square battlements, a dome, a gold star. If it reads
+      as a queen or a crown, the crown's walls have lost their vertical sides.
+- [ ] **It is the LIGHT mark on the header**, and the header is dark in every
+      theme. Cycle all four themes in `/parametres/`, light and dark. The mark
+      must never be a dark shape on a dark bar.
+- [ ] **The favicon in the tab strip.** Then switch the OS to dark mode and
+      look again — it should flip to cream rather than disappear. (Chrome and
+      Firefox honour this; Safari may not, which is why `favicon-32.png` exists.)
+- [ ] **Add to home screen on a phone.** The installed icon must be the
+      DETAILED artwork on a cream plate, and a round launcher mask must crop
+      into cream, never into the rook.
+- [ ] **The mark is decorative** — `alt=""` and `aria-hidden`. A screen reader
+      should announce the club name once, not twice.
+
+
+## 1a-bis. Chooser cards go where they say, and cards have air
+
+- [ ] **Solve one tutorial step**, then open `/moi/`. "Ma progression" must go to
+      `/progres/` — NOT to the next unsolved step. Same on `/apprendre/`:
+      "Exercices" goes to the exercise index, not into an exercise.
+      ⚠️ **With no progress at all this cannot fail** — there is nothing to
+      resume, so nothing to retarget. Solve something first.
+- [ ] **`/progres/` after playing a game** — "Tes parties" must be rows with the
+      level on the left, the date under it and the result on the right. Run
+      together as one line means a script-built row has lost its stylesheet
+      again; read `src/styles/progress-rows.css`.
+- [ ] **A tutorial step and a course page in each of the four themes** — text
+      must not touch the card frame. 20px all round is the intended figure.
+
+
+## 1a-ter. Desktop width — the 1440px layouts
+
+⚠️ **Everything here is behind a 1440px media query.** On a smaller laptop the
+pages are unchanged, and that is correct, not a failure to apply.
+
+- [ ] **A tutorial step at 1440px or wider** — prose in a column on the left,
+      the board and its controls beside it on the right. At 1440×900 the whole
+      step should sit above the fold.
+- [ ] **A lesson at 1440px** — each board sits beside the paragraph it
+      illustrates, not under it. The final paragraph, which has no board, keeps
+      the left column.
+- [ ] **`/progres/` at 1440px** — two balanced columns. ⚠️ **No block may be
+      split across the column break** (half an achievements list at the bottom
+      of column one). That is `break-inside` having been lost.
+- [ ] **Prose is still readable, not stretched** — a line of lesson text should
+      run 60–70 characters, not the full width of the window.
+- [ ] **Then narrow the window below 1440px** and confirm everything returns to
+      a single column with no jump in the text size.
+
+
+## 1a-quater. Nothing scrolls sideways on a phone
+
+⚠️ **Test at 360px, not only at 390px.** 360 is where the narrowest column on
+the site — a tutorial step — runs out of room first, and it is the width that
+was broken while every phone test passed.
+
+- [ ] **A tutorial step, a lesson and an exercise at 360px** — swipe left and
+      right. The page must not move horizontally at all.
+- [ ] **The board on a tutorial step is the same size as on `/exercices/`** at
+      the same phone width. A visibly smaller board on the step means the
+      edge-to-edge bleed has been lost.
+- [ ] **The move-entry field and its "Jouer" button** stay on one row and inside
+      the screen. That row is what pushed the layout wide in the first place.
+
+
+## 1a-quinquies. Space, alignment and depth on a wide screen
+
+⚠️ **Use a window at least 1440px wide, and preferably ~1800px.** Everything
+here is invisible on a laptop at 1280px, which is where it went unnoticed.
+
+- [ ] **`/a-propos/` and `/parametres/` at 1800px** — the whole block is
+      centred, and the **title lines up with the text under it**. A title at
+      the far left with centred body text below is the half-done state.
+- [ ] **Every page's title sits close to its content** — about 48px, not an
+      empty band. Check a card index, a chooser and a prose page.
+- [ ] **`/agenda/` at 1440px** — sessions are cards side by side, each as dense
+      as an `/apprendre/` chooser card. A session with no level badge and no
+      note is SHORTER than one with both; it must not leave a hole.
+- [ ] **The booking control is still the last thing in a session card**, after
+      the venue and the note. That is the path a parent takes; tidying must not
+      have moved it.
+- [ ] **The page background is not a flat fill** — in all four themes, both
+      modes. ⚠️ **Terminal dark is the one to check**: its scanlines were
+      invisible for several releases because they were black on near-black.
+- [ ] **Cards read as lifted, not outlined** — again in dark mode especially,
+      where a black shadow does nothing.
+- [ ] **One brass figure per card, not several.** On an agenda card it is the
+      places count. If two things on one card are brass, the accent has stopped
+      meaning anything.
+
 
 ## 1b. Navigation menu and board coordinates
 
@@ -1181,6 +1451,55 @@ On any exercise, and on `/jouer/` — **without touching the board at all**:
 - [ ] Moves work by **dragging**, by **tapping**, and from the **keyboard field**
 - [ ] The move list fills in correctly, White and Black in the right columns
 - [ ] While the computer is thinking the board does not accept moves and says so
+
+#### ⚠️ The setup form on a SLOW connection — the press that used to vanish
+
+*Found chasing a test flake, but it is a reader's defect: the form is
+server-rendered, so until the island's JS arrives the button has no handler
+behind it. Pressing it did nothing at all — no start, no error, no
+acknowledgement. Throttle the network in DevTools ("Slow 3G") and reload
+`/jouer/` to see this window.*
+
+- [ ] **While the page is still loading, the "Commencer la partie" button is
+      visibly DISABLED** — not enabled-looking and dead
+- [ ] The colour and level choices are **disabled in the same window**, and do
+      not snap back to "Les blancs" under your hand once the page finishes
+      loading
+- [ ] Once loading finishes, everything becomes usable and a single press
+      starts the game. ⚠️ *If you ever press it and nothing whatsoever happens,
+      that is the regression — say so*
+
+#### ⚠️ AND THE SAME TEST ON A TRAP, A LESSON AND AN EXERCISE — v0.20.0
+
+*The `/jouer/` check above was written when only that one control had been
+fixed. The audit that followed found **560 more, on 132 pages**: the replayer's
+launch button, its transport controls and every move-list button, plus the
+exercise hint button. Same cause, same window, same "Slow 3G" reload — and the
+board here starts below the fold on a phone, so **scroll to it, which is what
+opens the window**.*
+
+On `/pieges/legal/` and on a lesson page with a demonstration board:
+
+- [ ] **"Lancer la démonstration" is visibly DISABLED while the page loads** —
+      greyed, not enabled-looking and dead
+- [ ] **"Coup suivant" and "Position finale" are disabled in the same window**,
+      and so is **every move in the list on the right** — tapping a move must
+      not silently do nothing
+- [ ] Once loading finishes all of them become usable, and one press of
+      "Lancer la démonstration" plays the first move
+- [ ] ⚠️ *Press each one DURING the load. If anything at all responds by doing
+      nothing, that is the regression — say so*
+
+On `/exercices/mat-du-couloir/`:
+
+- [ ] **"Afficher l'indice" is disabled while the board is loading** — this is
+      the one a stuck student reaches for, and a dead press reads as "I am not
+      even allowed to ask"
+- [ ] The move-entry field is disabled in the same window *(it always was —
+      confirm it still is)*
+- [ ] Once the board is ready, the hint button reveals the hint on one press
+
+
 ### Difficulty — the thing that was wrong until v0.6.0
 
 Until v0.6.0 all three levels were effectively **one opponent**, and a club
@@ -1201,8 +1520,16 @@ human has to agree with the numbers.
       real regression, not a taste question
 - [ ] **Intermédiaire**: you should have to play accurately. Beatable, but it
       punishes a hung piece
+- [ ] ⚠️ **Intermédiaire has a TARGET, not just a feel — about one game in
+      three for a student who has finished course 3 and plays accurately.**
+      Retuned 2026-08-21 (blunder 0.25 → **0.20**) because it was losing more
+      than half its games. *If it now feels like a wall, that is the regression;
+      if it hangs a piece most games, so is that. Say which.*
 - [ ] **Avancé**: it should never hand you anything, and should punish a real
       mistake
+- [ ] ⚠️ **Avancé must not make mistakes of its own.** Retuned 2026-08-21
+      (`Skill Level` 14 → **20**) — its old errors were second-best moves, not
+      blunders. *A clean piece drop from Avancé is a real regression*
 - [ ] The three feel **clearly different from each other** — that ordering is
       the fix. If two feel the same, say so
       *(these are win rates against crude reference bots, NOT Elo — the UI
@@ -2151,7 +2478,11 @@ axe covers a lot of this automatically; these are the parts it cannot judge.
 - [ ] `npm run build` — clean
 - [ ] `node scripts/check-content.mjs` — green
 - [ ] `node scripts/check-contrast.mjs` — green
-- [ ] `npx playwright test` — full matrix (see CLAUDE.md for the known environmental flakes)
+- [ ] `PUBLIC_AUTH_ENABLED=true npm run test:release` — the gate: chromium over
+      the whole suite, the four lanes, and the accounts-OFF sliver. ~25 min.
+      ⚠️ Check the sliver ran — it prints as `chromium (OFF)` and it is the only
+      thing proving Critical Feature 18
+- [ ] `node scripts/check-lanes.mjs` — advisory, read it; never gate on it
 - [ ] This checklist, worked through on desktop **and** a real phone
 - [ ] Lighthouse ≥ 90 on Performance, Accessibility and SEO
 - [ ] ⚠️ **No test fixture is live** — after deploying, `npm run smoke:prod`
@@ -2184,3 +2515,98 @@ minute and it is the whole safety margin the fast path trades away.
 
 If any of these is wrong, revert the commit rather than fixing forward — the
 same rule as the fast path itself.
+
+### 7e. Réservation d’une séance (0013)
+
+⚠️ **À faire sur un vrai téléphone.** C’est le format que la fonctionnalité
+vise : un parent réserve debout, d’une main, souvent en retard.
+
+Pré-requis : `npm run demo:accounts`, un compte avec **deux** profils enfants,
+et une séance publiée dans plus de 2 heures.
+
+⚠️ **Une partie de cette section est désormais automatisée** —
+`tests/e2e/booking-ui.spec.ts`, sur chromium **et** dans la voie webkit : le
+zéro-requête déconnecté, la réservation confirmée en base, l’annulation, la
+re-réservation sans rechargement, et le refus d’une séance déjà commencée.
+**Ce qui reste manuel est ce qu’aucun spec ne voit** : le confort à une main sur
+un vrai téléphone, la lisibilité au soleil, et la taille réelle des cibles.
+
+| # | Étape | Résultat attendu |
+|---|---|---|
+| 1 | `/agenda/` **déconnecté** | La carte montre « 12 places » (la capacité) et « Connectez-vous pour réserver ». ⚠️ **Aucune requête réseau vers Supabase** — vérifier dans l’onglet Réseau, filtre `supabase`. Zéro. |
+| 2 | Se connecter, revenir sur `/agenda/` | Le nombre devient le **compte réel** (« 14 places restantes »), et un bouton **Réserver** apparaît par enfant |
+| 3 | Réserver le premier enfant | Le bouton devient **Annuler**, l’étiquette « Réservé » s’affiche, le compte baisse de 1, et le message dit « C’est réservé. » |
+| 4 | Réserver le second enfant | Idem. ⚠️ **Deux réservations distinctes** — une par profil, jamais une pour le compte |
+| 5 | Annuler le premier | Le bouton redevient **Réserver**, le compte remonte de 1 |
+| 6 | Re-réserver le même enfant | Accepté. ⚠️ C’est l’index unique partiel : une annulation libère vraiment la place |
+| 7 | Recharger la page | L’état survit — il vient de la base, pas du navigateur |
+| 8 | Passer la séance à moins de 2 h (via `/admin/seances`, changer la date) puis recharger | Le bouton **Annuler** est **désactivé** et son infobulle dit pourquoi. ⚠️ Jamais un bouton qui ne fait rien |
+| 9 | Sur `/en/agenda/` | Tout est en anglais, y compris les messages de refus |
+
+#### 7e-bis. La page périmée — le cas qui compte
+
+| # | Étape | Résultat attendu |
+|---|---|---|
+| 1 | Ouvrir `/agenda/` sur le téléphone, ne pas recharger | La carte affiche des places libres |
+| 2 | Sur un autre appareil, remplir la séance (réserver jusqu’à `capacité + marge`) | — |
+| 3 | Sur le téléphone **sans recharger**, appuyer sur **Réserver** | ⚠️ **« Cette séance est complète. »** puis la carte se met à jour toute seule. **Jamais** un bouton qui ne réagit pas, jamais une erreur technique |
+
+#### 7e-ter. Côté prof — `/admin/seances`
+
+| # | Étape | Résultat attendu |
+|---|---|---|
+| 1 | Le formulaire « Programmer une séance » | Champs **Places** (12) et **Marge de surréservation** (2), avec l’explication : 12 + 2 = 14 réservations acceptées |
+| 2 | Choisir une séance dans **Présences** | Le bloc **Inscrits — N** liste les enfants réservés avec le **téléphone du parent**, cliquable |
+| 3 | Le registre en dessous | Les enfants **inscrits sont en tête**, marqués par un liseré. ⚠️ Toute la classe reste listée — un enfant qui vient sans avoir réservé se marque sans rien retaper |
+| 4 | Annuler la séance | Les réservations passent à **annulée**, avec « séance annulée » comme motif. ⚠️ Jamais orphelines |
+| 5 | Vérifier le nombre de rebuilds | ⚠️ Une réservation ne déclenche **aucun** rebuild ; annuler la séance en déclenche **un** |
+
+#### 7e-quater. Modifier une séance et lire le remplissage (0013)
+
+| # | Étape | Résultat attendu |
+|---|---|---|
+| 1 | `/admin/seances`, regarder la liste | Chaque carte affiche **« 9 / 14 places »**. ⚠️ Le dénominateur est **capacité + marge**, pas la capacité seule |
+| 2 | Une séance sans réservation | « 0 / 14 places ». Une base antérieure à 0013 ou un chargement en cours affiche **« — »**, jamais 0 |
+| 3 | Appuyer sur **Modifier** | Le formulaire se remplit, la bannière « Modification d’une séance existante » apparaît, le bouton devient **Enregistrer**, et la page défile jusqu’au formulaire |
+| 4 | Vérifier la date et l’heure | ⚠️ Elles doivent être **remplies et justes** — pas un champ vide. C’est le piège de `datetime-local` |
+| 5 | Changer **Places** de 12 à 20, enregistrer | La carte affiche « n / 20 » (ou « n / 22 » avec la marge). ⚠️ Le bandeau de fraîcheur de l’agenda passe à « non déployé » — la capacité est publique |
+| 6 | Modifier une séance **publiée** | Elle reste publiée. ⚠️ Modifier un **brouillon** ne le publie pas |
+| 7 | Le sélecteur « Répétition » pendant une modification | La zone de prévisualisation dit que la répétition ne s’applique qu’à la création |
+| 8 | **Annuler la modification** | Le formulaire se vide et revient en mode création (**Créer**) |
+| 9 | Modifier une séance d’une **série** | ⚠️ Seule cette séance change. Une série est une étiquette, jamais une règle |
+
+#### 7e-quinquies. `db:push --dry-run` ne ment plus
+
+| # | Étape | Résultat attendu |
+|---|---|---|
+| 1 | `npm run db:push -- --dry-run` avec une migration en attente | Liste les migrations en attente puis **« ✓ dry run — NOTHING was applied. »** |
+| 2 | Relancer la même commande | ⚠️ La migration est **toujours en attente** — c’est la preuve que rien n’a été appliqué |
+| 3 | `npm run db:push -- --dryrun` (faute de frappe) | ⚠️ **Refus**, code de sortie 1. Un argument non reconnu n’est jamais ignoré |
+
+### 7f. Contenance — sur un téléphone, sans chercher
+
+⚠️ **LA QUESTION EST CELLE-CI, ET ELLE SE POSE SUR UN VRAI TÉLÉPHONE : un prof
+peut-il créer une séance et marquer un appel sans chercher ?** Le reste de cette
+section n’est qu’une façon d’y répondre. Si la réponse est « oui, mais… », c’est
+un défaut, pas un détail.
+
+Pré-requis : `npm run demo:accounts`, un compte prof, une séance publiée.
+
+| # | Étape | Résultat attendu |
+|---|---|---|
+| 1 | `/admin/seances/` sur un téléphone | Trois **blocs distincts**, chacun sur sa propre surface, avec un titre, un sous-titre et un filet. On voit où chaque bloc commence et finit **sans lire** |
+| 2 | Regarder ce qui est visible en arrivant | **Présences en haut**, puis « Nouvelle séance » **repliée**, puis la liste. ⚠️ **Les dix champs ne sont plus entre les deux choses qu’on vient faire** |
+| 3 | Ouvrir « Nouvelle séance » | Les champs sont groupés : **Quand, Quoi, Combien, Visibilité**. Chaque champ a un **fond distinct de la carte**, une étiquette au-dessus avec de l’air, l’aide **sous** le champ |
+| 4 | Le bouton « Créer » | **Toute la largeur de la carte**, haut, impossible à manquer. Un seul bouton principal par carte |
+| 5 | Sur une carte de séance, comparer « Modifier » et « Annuler la séance » | ⚠️ **Ils ne se ressemblent plus.** Annuler est en contour rouge ; modifier est discret. Annuler une séance prévient une salle d’enfants que ça n’a pas lieu |
+| 6 | Appuyer sur « Modifier » | Le formulaire **s’ouvre tout seul** et défile jusqu’à lui. ⚠️ Il ne doit **jamais** se remplir en restant replié — ce serait « Modifier » qui ne fait rien |
+| 7 | `/compte/` | Trois cartes de **même facture** : profils, réglages, options avancées. Espacement **régulier** entre elles — plus de 40px ici et 200px là |
+| 8 | `/compte/` déconnecté | ⚠️⚠️ **RIEN du panneau connecté n’apparaît** : ni l’adresse, ni les profils, ni la suppression. Seulement l’invitation à se connecter |
+| 9 | `/agenda/` | Les séances sont des cartes fermées. ⚠️ **Aucune n’a de liseré de couleur à gauche** — ce liseré ne sert qu’à marquer **une** carte par page, l’action principale |
+| 10 | Les quatre thèmes, clair et sombre, sur `/admin/seances/` | Les cartes se détachent de la page dans **chaque** thème. Les champs se détachent des cartes. Aucun bord ne disparaît |
+
+⚠️ **Ce qui est déjà automatisé** : l’absence de débordement à 360 et 390px, les
+cibles ≥48px dans le contenu admin, les paires de contraste des nouvelles
+surfaces (371 assertions), et axe sur les pages touchées. **Ce qui reste
+manuel** est ce qu’aucun spec ne voit : est-ce que ça se *tient*, à bout de bras,
+dans une salle.

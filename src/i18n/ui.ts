@@ -21,18 +21,27 @@ const fr = {
   'nav.play': 'Jouer',
   'nav.agenda': 'Agenda',
   'nav.contact': 'Contact',
+  'nav.about': 'À propos',
   'nav.group.learn': 'Apprendre',
   'nav.group.practise': "S'entraîner",
   'nav.group.club': 'Le club',
   'nav.basics': 'Les bases',
-  /* ── The five SECTIONS (M4) ───────────────────────────────────────────
+  /* ── The five SECTIONS (M4, revised) ──────────────────────────────────
      ⚠️ THESE ARE SECTIONS, NOT SHORTCUTS. Each has a landing screen, which is
      what makes a fifth bar entry defensible after M1 capped it at four: the
      bar stopped being a row of links to leaf pages and became a map of the
-     site. "Réglages" earns its slot as the home of theme, language and sound
-     rather than as a link to one settings page. */
+     site.
+
+     ⚠️ "RÉGLAGES" LEFT THE BAR AND IS NOT GONE — it is inside Moi, where it
+     always also lived, plus the desktop header gear and the footer. It held a
+     slot as "the home of theme, language and sound", which is true and was
+     still the weakest claim of the five: one page, reached rarely, sitting
+     permanently in the most valuable strip of a phone screen. "Club" took the
+     slot because the club itself — when it meets, how to reach it, what it is
+     — had no home at all on a phone. `nav.settings` went with it; `/paramètres`
+     is named by `me.settings.name` in the chooser that now owns it. */
   'nav.me': 'Moi',
-  'nav.settings': 'Réglages',
+  'nav.club': 'Club',
   /* The section landing, seen from inside the desktop "Apprendre" group —
      "Apprendre › Apprendre" would read as a mistake. */
   'nav.overview': 'Vue d’ensemble',
@@ -83,6 +92,51 @@ const fr = {
   'me.account.signedOut': 'Se connecter pour retrouver ta progression sur tous tes appareils.',
   'me.settings.name': 'Réglages',
   'me.settings.body': 'Thème, langue et sons.',
+
+  /* ── /club — the club chooser ───────────────────────────────────────────
+     ⚠️ THE ONE SECTION THAT IS NOT ABOUT LEARNING. Everything else in the bar
+     is the site; this is the club — when it meets, how to reach it, and what
+     it actually is. On a phone that had no home at all: the agenda and contact
+     sat under "Le club" in the desktop header and nowhere below 768px. */
+  'club.title': 'Le club',
+  'club.intro': 'Quand on se retrouve, comment nous joindre, et qui nous sommes.',
+  'club.agenda.name': 'Agenda',
+  'club.agenda.body': 'Les prochaines séances, avec le lieu et l’horaire.',
+  'club.contact.name': 'Contact',
+  'club.contact.body': 'Nous écrire sur WhatsApp, ou nous suivre sur Instagram.',
+  'club.about.name': 'À propos',
+  'club.about.body': 'Le club, l’association qui le porte, et comment nous rejoindre.',
+  /* ⚠️ A FACT, NOT A TALLY — the same rule as `learn.traps.count`. Nothing
+     tracks "sessions attended" for a guest, so the card states what is coming
+     rather than inventing a counter to fill the slot. */
+  'club.agenda.count': '%s séances annoncées',
+  'club.agenda.none': 'Aucune séance annoncée pour l’instant',
+
+  /* ── /a-propos ──────────────────────────────────────────────────────────
+     ⚠️ EVERY FACT HERE THAT COULD MOVE IS DATA, NOT PROSE. The venue, the
+     WhatsApp number and the association's handle come from `src/config/site.ts`
+     through the page, never from these strings — venue portability is a hard
+     rule and a sentence naming Dar Souiri would break it silently. What lives
+     here is only the wording around those values. */
+  'about.title': 'À propos',
+  'about.intro': 'Un club d’échecs à Essaouira, et un site pour continuer entre les séances.',
+  'about.club.heading': 'Le club',
+  'about.club.body':
+    'Le Mogador Chess Club réunit chaque semaine des joueuses et des joueurs de tous niveaux, des débutants complets aux joueurs de club. Les séances sont encadrées, le matériel est fourni, et il n’est pas nécessaire de savoir jouer pour venir la première fois.',
+  'about.who.heading': 'Pour qui',
+  'about.who.body':
+    'Le club accueille surtout des enfants et des adolescents, et les adultes sont les bienvenus. On y vient pour apprendre, pour jouer, ou simplement pour voir.',
+  'about.site.heading': 'Et ce site',
+  'about.site.body':
+    'Ce site existe pour la semaine entre deux séances : des cours progressifs, une bibliothèque de pièges d’ouverture, des exercices à résoudre et une partie contre l’ordinateur. Tout fonctionne sans compte, et rien n’est envoyé nulle part.',
+  'about.association.heading': 'L’association',
+  'about.association.body':
+    'Le club est porté par l’Association Essaouira Mogador, qui accueille les séances et soutient le projet.',
+  'about.join.heading': 'Nous rejoindre',
+  'about.join.body':
+    'Le plus simple est de venir à une séance — l’agenda dit quand et où. Pour poser une question avant, écrivez-nous.',
+  'about.join.agenda': 'Voir l’agenda',
+  'about.join.contact': 'Nous contacter',
 
   'nav.label': 'Navigation principale',
   'nav.skipToContent': 'Aller au contenu principal',
@@ -214,6 +268,42 @@ const fr = {
      number is not a record being kept about them, which is exactly why there
      is no daily streak — see progress.ts. */
   'score.streak.value': '%s exercices d’affilée dans cette session',
+  /* ── The game history (/progres/) ───────────────────────────────────────
+     ⚠️ IT NAMES THE OUTCOME PLAINLY AND DOES NOT DRESS UP A LOSS. Critical
+     Feature 35: a loss costs nothing and is read by no scoring rule. A history
+     that said "défaite" in red, or hid losses, would turn a record of play into
+     a record of failure — which is the one thing this site's progression rules
+     exist to prevent. Wins are not congratulated here either; the points block
+     above already does that. */
+  /* ── The weekly habit mark (/progres/) ───────────────────────────────────
+     ⚠️ IT COUNTS PRESENCES AND NEVER A STREAK, and the wording is where that
+     is either kept or thrown away. There is no "vous avez perdu votre série",
+     because there is no série: a missed week is a week not in the list, and
+     costs one mark rather than a run. Critical Feature 34 rules out a daily
+     streak for exactly this reason and a consecutive-WEEK counter would
+     reintroduce it in the club's own rhythm.
+
+     ⚠️ THE UNMARKED WEEK IS AN INVITATION WITH AN ACTION IN IT, not a scold and
+     not a blank. "Un exercice ou une partie" tells a student precisely what
+     would mark it, which is the difference between encouragement and nagging. */
+  'habit.title': 'Tes semaines',
+  'habit.intro': 'Une semaine est marquée dès que tu résous un exercice ou joues une partie.',
+  'habit.count': '%s semaines',
+  'habit.countOne': '1 semaine',
+  'habit.thisWeek.done': 'Cette semaine est marquée.',
+  'habit.thisWeek.open': 'Un exercice ou une partie, et cette semaine est marquée.',
+  'habit.none': 'Aucune semaine marquée pour l’instant — la première t’attend.',
+  'games.title': 'Tes parties',
+  'games.intro': 'Les parties jouées contre l’ordinateur, la plus récente en premier.',
+  'games.none': 'Aucune partie pour l’instant. Une partie contre l’ordinateur, et elle apparaîtra ici.',
+  'games.win': 'Gagnée',
+  'games.draw': 'Nulle',
+  'games.loss': 'Perdue',
+  /* "%s parties" — the count above the list. */
+  'games.count': '%s parties',
+  'games.countOne': '1 partie',
+  /* Shown when the log is full and older games have fallen off the end. */
+  'games.trimmed': 'Les %s dernières.',
   'score.achievements': 'Accomplissements',
   'score.achievements.count': '%s sur %s',
   'score.achievements.locked': 'Pas encore',
@@ -406,6 +496,45 @@ const fr = {
      wonders whether they misremembered — which only works if it SAYS so. */
   'agenda.cancelled': 'Séance annulée',
 
+  /* ── Réservation (0013) ───────────────────────────────────────────────
+     ⚠️ EVERY `booking.code.*` KEY MIRRORS A CODE RETURNED BY
+     `create_booking()` / `cancel_booking()`. The database returns a code and
+     never a sentence, precisely so both languages exist — see src/lib/booking.ts.
+     A code with no key here would render as `booking.code.error`, which is a
+     refusal the reader can act on; it must never be a silent no-op. */
+  'booking.places': 'places restantes',
+  'booking.places.one': 'place restante',
+  'booking.capacity': '{n} places',
+  'booking.full': 'Complet',
+  'booking.book': 'Réserver',
+  'booking.booking': 'Réservation…',
+  'booking.booked': 'Réservé',
+  'booking.cancel': 'Annuler',
+  'booking.cancelling': 'Annulation…',
+  'booking.signedOut': 'Connectez-vous pour réserver une place.',
+  'booking.signIn': 'Se connecter',
+  'booking.noChildren': 'Ajoutez un profil pour réserver une place.',
+  'booking.forWhom': 'Pour qui ?',
+  /* ⚠️ The cutoff is mirrored from the database rule, never invented here. */
+  'booking.cutoff': 'Annulation possible jusqu’à 2 h avant la séance.',
+  'booking.cutoffPassed': 'Trop tard pour annuler — prévenez le club.',
+  'booking.sessionCancelled': 'La séance a été annulée.',
+  'booking.youCancelled': 'Vous avez annulé cette réservation.',
+
+  'booking.code.ok': 'C’est réservé.',
+  /* ⚠️ THE STALE-PAGE SENTENCE. `/agenda/` is baked, so a reader can press a
+     button that a moment ago said there was room. This is what they must read
+     — never a silent failure. */
+  'booking.code.full': 'Cette séance est complète.',
+  'booking.code.already': 'Cette place est déjà réservée.',
+  'booking.code.past': 'Cette séance a déjà commencé.',
+  'booking.code.too_late': 'Trop tard pour annuler — prévenez le club.',
+  'booking.code.not_published': 'Cette séance n’est plus ouverte à la réservation.',
+  'booking.code.forbidden': 'Vous ne pouvez pas réserver pour ce profil.',
+  'booking.code.no_session': 'Cette séance n’existe plus.',
+  'booking.code.no_booking': 'Cette réservation n’existe plus.',
+  'booking.code.error': 'La réservation n’a pas pu aboutir. Réessayez.',
+
   'contact.title': 'Contact',
   'contact.intro': 'Une question, une inscription, une envie de jouer ? Écrivez-nous.',
   'contact.whatsapp': 'Écrire sur WhatsApp',
@@ -539,6 +668,26 @@ const fr = {
      jamais. */
   'login.hpLabel': 'Laissez ce champ vide',
   'login.retry': 'Vérification impossible. Appuyez à nouveau sur le bouton.',
+  /* ── Google (v2-S2) ─────────────────────────────────────────────────────
+     ⚠️ "Continuer avec", not "Se connecter avec" — the same button creates the
+     account the first time and signs in every time after, and Google's own
+     guidelines say the label must not promise one or the other. */
+  'login.google': 'Continuer avec Google',
+  'login.or': 'ou',
+  /* Its own message rather than reusing `login.error`: that one says the link
+     could not be sent, which is about email and would be nonsense here. */
+  'login.googleError': "La connexion avec Google n'a pas pu démarrer. Réessayez, ou utilisez le lien par e-mail.",
+  /* ⚠️ THE ONE LINE THAT PREVENTS A SILENT SECOND ACCOUNT — see the note in
+     LoginPage.astro. Automatic linking keys on the ADDRESS, so a reader who
+     signed up as one address and presses Google while signed into another gets
+     a new account with an empty ledger, while their real progress sits intact
+     and invisible on the first. It looks like data loss and is not, which is
+     the worst combination. This says the one thing that avoids it.
+     ⚠️ It names the CONSEQUENCE, not the mechanism: "sinon vous créerez un
+     second compte" is what a parent can act on; "l'identité ne sera pas liée"
+     is true and useless. */
+  'login.googleSameAddress':
+    'Utilisez la même adresse que votre lien e-mail — sinon vous créerez un second compte, vide.',
   /* ── Pseudo + mot de passe (v0.18.0) ─────────────────────────────────────
      ⚠️ C'EST LE CHEMIN PRINCIPAL, ET LE LIEN E-MAIL RESTE. Les élèves du club
      sont des adolescents d'Essaouira : beaucoup n'ont pas d'adresse e-mail
@@ -1013,13 +1162,14 @@ const en: Record<keyof typeof fr, string> = {
   'nav.play': 'Play',
   'nav.agenda': 'Schedule',
   'nav.contact': 'Contact',
+  'nav.about': 'About',
   'nav.group.learn': 'Learn',
   'nav.group.practise': 'Practise',
   'nav.group.club': 'The club',
   'nav.basics': 'The basics',
   /* ── The five SECTIONS (M4). See the FR note. ─────────────────────── */
   'nav.me': 'Me',
-  'nav.settings': 'Settings',
+  'nav.club': 'Club',
   'nav.overview': 'Overview',
 
   /* ── The trail (M4). See the FR note. ─────────────────────────────── */
@@ -1053,6 +1203,39 @@ const en: Record<keyof typeof fr, string> = {
   'me.account.signedOut': 'Sign in to keep your progress across all your devices.',
   'me.settings.name': 'Settings',
   'me.settings.body': 'Theme, language and sound.',
+
+  /* ── /club — the club chooser. See the FR note. ────────────────────── */
+  'club.title': 'The club',
+  'club.intro': 'When we meet, how to reach us, and who we are.',
+  'club.agenda.name': 'Agenda',
+  'club.agenda.body': 'The next sessions, with the place and the time.',
+  'club.contact.name': 'Contact',
+  'club.contact.body': 'Message us on WhatsApp, or follow us on Instagram.',
+  'club.about.name': 'About',
+  'club.about.body': 'The club, the association behind it, and how to join us.',
+  'club.agenda.count': '%s sessions announced',
+  'club.agenda.none': 'No sessions announced yet',
+
+  /* ── /a-propos. See the FR note — the venue and the handles are DATA. ── */
+  'about.title': 'About',
+  'about.intro': 'A chess club in Essaouira, and a site to keep going between sessions.',
+  'about.club.heading': 'The club',
+  'about.club.body':
+    'Mogador Chess Club meets every week and welcomes players of every level, from complete beginners to club players. Sessions are taught, sets are provided, and you do not need to know how to play to come the first time.',
+  'about.who.heading': 'Who it is for',
+  'about.who.body':
+    'The club is mostly children and teenagers, and adults are welcome too. People come to learn, to play, or simply to watch.',
+  'about.site.heading': 'And this site',
+  'about.site.body':
+    'This site exists for the week between two sessions: progressive lessons, a library of opening traps, exercises to solve and a game against the computer. All of it works without an account, and nothing is sent anywhere.',
+  'about.association.heading': 'The association',
+  'about.association.body':
+    'The club is run under Association Essaouira Mogador, which hosts the sessions and supports the project.',
+  'about.join.heading': 'Joining us',
+  'about.join.body':
+    'The simplest way is to come to a session — the agenda says when and where. To ask something first, write to us.',
+  'about.join.agenda': 'See the agenda',
+  'about.join.contact': 'Contact us',
 
   'nav.label': 'Main navigation',
   'nav.skipToContent': 'Skip to main content',
@@ -1146,6 +1329,24 @@ const en: Record<keyof typeof fr, string> = {
   'score.earnedTitle': 'Points earned',
   'score.streak.title': 'Current run',
   'score.streak.value': '%s exercises in a row this session',
+  /* ── The game history (/progres/). See the FR note. ─────────────────── */
+  /* ── The weekly habit mark (/progres/). See the FR note. ────────────── */
+  'habit.title': 'Your weeks',
+  'habit.intro': 'A week is marked as soon as you solve an exercise or play a game.',
+  'habit.count': '%s weeks',
+  'habit.countOne': '1 week',
+  'habit.thisWeek.done': 'This week is marked.',
+  'habit.thisWeek.open': 'One exercise or one game, and this week is marked.',
+  'habit.none': 'No weeks marked yet — the first one is waiting.',
+  'games.title': 'Your games',
+  'games.intro': 'Games played against the computer, most recent first.',
+  'games.none': 'No games yet. Play one against the computer and it will appear here.',
+  'games.win': 'Won',
+  'games.draw': 'Drawn',
+  'games.loss': 'Lost',
+  'games.count': '%s games',
+  'games.countOne': '1 game',
+  'games.trimmed': 'The last %s.',
   'score.achievements': 'Achievements',
   'score.achievements.count': '%s of %s',
   'score.achievements.locked': 'Not yet',
@@ -1301,6 +1502,35 @@ const en: Record<keyof typeof fr, string> = {
   'agenda.empty': 'No sessions scheduled at the moment.',
   'agenda.cancelled': 'Session cancelled',
 
+  'booking.places': 'places left',
+  'booking.places.one': 'place left',
+  'booking.capacity': '{n} places',
+  'booking.full': 'Full',
+  'booking.book': 'Book',
+  'booking.booking': 'Booking…',
+  'booking.booked': 'Booked',
+  'booking.cancel': 'Cancel',
+  'booking.cancelling': 'Cancelling…',
+  'booking.signedOut': 'Sign in to book a place.',
+  'booking.signIn': 'Sign in',
+  'booking.noChildren': 'Add a profile to book a place.',
+  'booking.forWhom': 'Who for?',
+  'booking.cutoff': 'You can cancel up to 2 hours before the session.',
+  'booking.cutoffPassed': 'Too late to cancel — please tell the club.',
+  'booking.sessionCancelled': 'This session was cancelled.',
+  'booking.youCancelled': 'You cancelled this booking.',
+
+  'booking.code.ok': "That's booked.",
+  'booking.code.full': 'This session is full.',
+  'booking.code.already': 'That place is already booked.',
+  'booking.code.past': 'This session has already started.',
+  'booking.code.too_late': 'Too late to cancel — please tell the club.',
+  'booking.code.not_published': 'This session is no longer open for booking.',
+  'booking.code.forbidden': 'You cannot book for that profile.',
+  'booking.code.no_session': 'That session no longer exists.',
+  'booking.code.no_booking': 'That booking no longer exists.',
+  'booking.code.error': 'The booking could not be completed. Please try again.',
+
   'contact.title': 'Contact',
   'contact.intro': 'A question, a sign-up, or just want a game? Get in touch.',
   'contact.whatsapp': 'Message us on WhatsApp',
@@ -1419,6 +1649,13 @@ const en: Record<keyof typeof fr, string> = {
   /* ⚠️ Noise reduction, NOT security — the anon key is public. See the FR note. */
   'login.hpLabel': 'Leave this field empty',
   'login.retry': 'Could not verify. Press the button again.',
+  /* ── Google (v2-S2). See the FR note. ────────────────────────────────── */
+  'login.google': 'Continue with Google',
+  'login.or': 'or',
+  'login.googleError': 'Google sign-in could not start. Try again, or use the email link.',
+  /* See the FR note — it names the consequence, not the mechanism. */
+  'login.googleSameAddress':
+    'Use the same address as your email link — otherwise you will create a second, empty account.',
   /* ⚠️ The pseudo is the PRIMARY path and the email link stays. See the FR note
      for why — many of the club's students have no inbox at all. */
   'login.pseudo.heading': 'With a username',
@@ -1838,8 +2075,17 @@ export const NAV_GROUPS = [
     key: 'nav.group.club',
     id: 'club',
     items: [
+      /* ⚠️ THE LANDING COMES FIRST, AND CRITICAL FEATURE 36 IS WHY IT IS HERE
+         AT ALL. `/club/` is a bottom-bar destination, so the desktop header
+         must reach it or a desktop reader has a section they cannot open —
+         and `mobile-app.spec.ts` reads the list off the bar, so omitting this
+         fails the gate rather than shipping quietly. Labelled `nav.overview`
+         for the same reason Apprendre is: a group called "Le club" whose first
+         item is also "Le club" reads as a mistake. */
+      { path: '/club/', key: 'nav.overview' },
       { path: '/agenda/', key: 'nav.agenda' },
       { path: '/contact/', key: 'nav.contact' },
+      { path: '/a-propos/', key: 'nav.about' },
     ],
   },
 ] as const satisfies readonly {

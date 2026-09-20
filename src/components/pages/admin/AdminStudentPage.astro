@@ -31,7 +31,7 @@
 import AdminShell from '@components/admin/AdminShell.astro';
 import { scoreCatalogue } from '@lib/scoreboard';
 import { RANKS } from '@lib/points';
-import { AWARD_MAX } from '@lib/progress';
+
 
 const catalogue = await scoreCatalogue('fr');
 const ranks = RANKS.map((r) => ({ id: r.id, min: r.min }));
@@ -74,15 +74,15 @@ const rankLabels: Record<string, string> = {
       <li class="admin-tile"><b data-stat="lessons">0</b><span>leçons terminées</span></li>
     </ul>
 
-    <section class="admin-block">
+    <section class="admin-block mcc-card">
       <h2 class="admin-block-title">D’où viennent les points</h2>
       <ul class="mark-list" data-sources></ul>
     </section>
 
     {/* ── Awarding ──────────────────────────────────────────────────────
         ⚠️ THE REASON IS REQUIRED HERE BECAUSE IT IS REQUIRED IN THE DATABASE,
-        not the other way round. Migration 0004 carries
-        `length(btrim(reason)) >= 3` and `points > 0 and points <= 50` as CHECK
+        not the other way round. Migrations 0004 and 0014 carry
+        `length(btrim(reason)) >= 3` and `points > 0` as CHECK
         constraints, and `role-separation.spec.ts` proves the database refuses a
         blank reason with this form nowhere in the picture. What the form adds
         is a useful message before a round trip — it is the half a future admin
@@ -90,13 +90,21 @@ const rankLabels: Record<string, string> = {
 
         The hint says the student will see the reason, because they will: it is
         printed beside the award on their own progress page. */}
-    <section class="admin-block">
+    <section class="admin-block mcc-card">
       <h2 class="admin-block-title">Attribuer des points</h2>
       <form class="admin-form" data-award-form>
         <div class="admin-field">
           <label for="award-points">Points</label>
-          <input id="award-points" type="number" min="1" max={AWARD_MAX} value="5" required />
-          <p class="admin-field-hint">Entre 1 et {AWARD_MAX}. Toujours positifs.</p>
+          {/* ⚠️ NO `max` SINCE MIGRATION 0014. The ceiling was removed because
+              the size of an award is a teaching judgement, not a schema rule.
+              An input that still refused 60 would be a second policy quietly
+              outliving the first. `min="1"` stays: the floor is still a CHECK
+              in the database, and a negative award would make the ledger a
+              disciplinary instrument. */}
+          <input id="award-points" type="number" min="1" value="5" required />
+          <p class="admin-field-hint">
+            Toujours positifs. La raison est obligatoire — l’élève la verra.
+          </p>
         </div>
         <div class="admin-field">
           <label for="award-reason">Raison</label>
@@ -112,7 +120,7 @@ const rankLabels: Record<string, string> = {
       <ul class="mark-list" data-award-list></ul>
     </section>
 
-    <section class="admin-block">
+    <section class="admin-block mcc-card">
       <h2 class="admin-block-title">Présences</h2>
       <div data-attendance><p class="admin-empty">Chargement…</p></div>
     </section>

@@ -150,48 +150,2284 @@ Saturday at Dar Souiri.
     committed generated assets (icons, fonts, `fonts.css`, piece sets, the
     vendored engine, `agenda.fallback.json`) are **checked, never regenerated**.
 
+## [0.29.0] — 2026-09-01
+
 ### Changed
 
-- **CLAUDE.md split — 120,226 → 112,903 characters (75% of the limit, down from
-  80%).** It had crossed the size guard's warning threshold. Per the rule, the
-  remedy is to **split, not to trim**: fourteen blocks of reasoning, measurement
-  and incident narrative moved **verbatim** into the reference file for their
-  area, each leaving the rule and a pointer behind.
-  - Moved: the `progress.ts` migration-point detail → `progression.md`; the
-    `onlyMove` implementation and policing → `content.md`; the test-fixture
-    mechanism → `video.md`; the matrix worker-cap, feature-branch and
-    "critical path" policies, the environment-symptom table and
-    `quick.mjs`'s refusal → `testing.md`; the release gate and the two
-    configuration invariants → `deployment.md`; the long-lived-process sweep →
-    `dev-environment.md`; the v2 locked decisions and the superseded
-    2026-08-15 schema reading → `supabase.md`; the EN legal-notice segment
-    rationale → `ui-navigation.md`.
-  - ⚠️ **`node scripts/check-split.mjs` is green: 1,209 lines stayed, 171 moved,
-    nothing lost, and NO new obsolete declarations were needed.**
-    `docs/reference/.split-obsolete.txt` is unchanged — the ten entries in it
-    are from the previous split.
-  - ⚠️ **Two contradictory claims about production's schema were standing three
-    lines apart** — "current through 0009" (2026-08-15) and "current through
-    0012" (2026-08-18). The superseded one is **moved, not deleted**, because
-    the *technique* in it is still the answer: the error code PostgREST returns
-    tells a missing table (`PGRST205`) from a forbidden one (`42501`).
-  - ⚠️ **A verbatim move keeps the block's original relative links**, which were
-    written from the repository root, so inside a reference file a
-    `./docs/reference/…` path and the occasional pointer back to the file you
-    are already reading are the seam showing. Each moved block now carries a
-    preamble saying so — the preamble is new text, so it may be worded freely;
-    the block may not.
-  - **Declined deliberately**, because a session could break each without going
-    looking: the Critical Features list, the board file-role table, the
-    add-a-table migration checklist, the admin-surface rules, and the PLY 0
-    warning.
-- **CLAUDE.md's reference index gains a row for `docs/SETUP-NEW-MACHINE.md`** —
-  added *after* the split, on the principle the split exists to serve: a
-  document nobody is pointed at is not read.
+- ⚠️⚠️ **A CAPPED COLUMN IS ALSO A CENTRED ONE, AND THREE PAGES HAD ONLY THE
+  CAP.** `44rem` was written out three times — `/a-propos/`, `/parametres/`,
+  `/progres/` — and none of the three centred it. Measured at 1800px: a 704px
+  column with **268px of margin on the left and 828px on the right**.
+  `--mcc-measure` now holds the figure and `.mcc-column` in global.css does
+  both halves, so a fourth page cannot take one without the other.
+  - ⚠️ **THE PAGE HEAD IS INSIDE THE COLUMN, AND THE FIRST ATTEMPT LEFT IT
+    OUT.** Centring only the content put the title at the container's left edge
+    with its body centred beneath it — a heading that no longer lined up with
+    what it announced, which is worse than the off-centre column it replaced.
+    Caught by measuring the intro's left edge, not by looking.
+- ⚠️ **THE PAGE HEAD'S GAP WAS `--mcc-section-gap` (96px) ON EVERY PAGE.** A
+  title and the thing under it are one unit, not two sections; it is
+  `--mcc-space-xl` (48px) now. **One change, in `PageIntro.astro`** — the gap
+  belongs to the head, so no page overrides it.
+- **The agenda is a grid of cards, not a stack of full-width rows.** Each
+  session was a 1264px card holding ~600px of content with the date in a 16rem
+  column that was empty below its two lines. Same `auto-fit`/`minmax` shape as
+  `/apprendre/`'s chooser cards, which is the surface this was asked to match.
+  ⚠️ **The reading order is untouched** — `auto-fit` reflows cards, the DOM
+  inside each is unchanged, so the path to the booking control is as it was.
+  - ⚠️ **THE BOX MODEL WAS NOT THE PROBLEM, AND THE BRIEF SAID IT WAS.** A
+    cancelled session already rendered at 97px against a full one's 217px, and
+    the only slack under the content was the card's own 21px padding. Absent
+    optional content already shortened the card; the card was simply too wide.
+
+### Added
+
+- **`tests/e2e/page-texture.spec.ts` — the contrast check `check-contrast.mjs`
+  structurally cannot do.** That script proves a token pair; the page paints
+  `--mcc-page-texture` on top of the audited surface, and no token holds the
+  colour a letter actually sits on. This samples the rendered background, takes
+  the **worst pixel**, and holds the ink to AA against it — for all four themes
+  in both modes.
+  - ⚠️ **IT ALSO ASSERTS THE TEXTURE IS THERE AT ALL**, which is how it caught
+    **terminal/dark rendering completely flat** (luminance range 0.67 against
+    souiri's 22): its scanline was BLACK over a page already within 12/255 of
+    black. A phosphor tube glows — the line is the theme's own green now.
+  - ⚠️ **A FIRST VERSION PARSED THE STYLESHEETS AND WAS WRONG.** Every theme
+    block is written `:is(:root, .theme-x)…`, so a substring matcher for
+    ":root" matched all four and the last one silently won — identical figures
+    for every theme, and a *negative* drop. Sampling pixels has no such failure
+    mode. It was deleted rather than fixed.
+
+- **Depth, measured rather than eyeballed** (luminance range across a patch of
+  bare page, 0–255):
+
+  | theme | before | after |
+  |---|---|---|
+  | bois/light **(the default)** | 5.0 | **14.3** |
+  | bois/dark | 4.0 | **11.0** |
+  | terminal/dark | **0.67** | **12.0** |
+  | marbre/light · souiri/light · souiri/dark | 14 · 22 · 15 | unchanged |
+  | marbre/dark · terminal/light | 6 · 7 | unchanged, and the weakest left |
+
+- **`--shadow-lift` is three stops instead of two**, and dark mode gets its
+  own. ⚠️ **A black cast on a near-black page is not a shadow** — the light
+  figure could be raised indefinitely and a dark-mode card would still read as
+  flat. Dark gets a deeper cast plus a hairline of light along the top edge.
+- **One brass figure per agenda card** — the places count, which had no styling
+  at all. Same treatment `.hub-card-state` gives the chooser cards, through
+  `--mcc-accent-text`, which is already an audited pair.
+
+### Fixed
+
+- ⚠️ **A MOBILE REGRESSION I INTRODUCED AND CAUGHT BEFORE MERGE.** The agenda
+  grid's `minmax(22rem, …)` floor is a hard minimum: at 360px the column
+  insisted on 352px inside 320px and the page scrolled sideways by **12px**,
+  one release after that exact class of bug was fixed. It is
+  `minmax(min(22rem, 100%), 1fr)` now. Verified 0 overflow at 360 and 390 on
+  all four pages.
+
+
+## [0.28.0] — 2026-09-01
+
+### Fixed
+
+- ⚠️⚠️ **A PHONE SCROLLED SIDEWAYS, AND THE CAUSE WAS THREE IMPLICIT `auto` GRID
+  TRACKS.** At 360px a tutorial step overflowed by **26px**, a lesson by **5px**
+  and — found by the new tests, not reported — **an exercise page by 5px too**.
+  - An `auto` track is sized by its item's **min-content**. The move-entry row
+    (a field plus a "Jouer" button) has a min-content of **330px**, so
+    `.mcc-exercise`, `.mcc-exercise-side` and `.mcc-move-input` each grew their
+    column past the screen, and the board — `width: 100%` — stretched to match.
+  - ⚠️ **`min-width: 0` ON THE ITEM WAS ALREADY THERE AND LOOKS AS IF IT SHOULD
+    BE ENOUGH.** It constrains the ITEM; the TRACK is sized separately and needs
+    `minmax(0, …)`. Both are required — removing either brings it back.
+  - Verified in the browser before writing any CSS: `max-width`, `width` and
+    `overflow` on the item all left it at 330px; declaring the track fixed it.
+- **The board on a tutorial step keeps its size, which the fix initially cost
+  it.** Once the grid stopped overflowing, the board sized honestly to the
+  narrowest column on the site — a card's padding inside the page gutter — and
+  fell to **263px at 360px, 28px squares**, against 34px on `/exercices/`.
+  ⚠️ **Critical Feature 28 says the controls compact and the board does not**,
+  so the board now bleeds to the card's edges below 768px: **303px at 360px and
+  333px at 390px**, matching the exercise page. The text keeps its padding.
+
+### Added
+
+- ⚠️⚠️ **`mobile-fit.spec.ts` NOW ASSERTS HORIZONTAL OVERFLOW, WHICH IS WHY THIS
+  SHIPPED.** Every assertion in that file measured HEIGHT — on a file whose
+  whole subject is "does this fit a phone", running at exactly the width that
+  was broken.
+  - Three pages × three phone sizes. ⚠️ **The PAGES matter as much as the
+    widths:** `/exercices/` has the widest column on the site and barely
+    overflowed; the tutorial step has the narrowest and broke first, and it was
+    not being measured at all.
+  - The failure message **names the widest element and its right edge**, so the
+    next person starts from the culprit rather than bisecting the DOM.
+  - Watched to fail first: 26px, 5px and 5px, each naming
+    `div.mcc-exercise-board`.
+
+
+## [0.27.0] — 2026-09-01
+
+### Changed
+
+- ⚠️⚠️ **THE READABLE MEASURE WAS ON THE CARD, NOT ON THE PROSE — SO THE BOARD
+  WAS HELD TO A WIDTH CHOSEN FOR SENTENCES.** `.step` was `max-width: 60ch` and
+  `.lesson` was `66ch`, capping the whole article, boards and exercise controls
+  included. The cap now sits on the text blocks; the board takes its own width.
+- **`--mcc-container-max` grows once, at 1440px**, from 74rem to 84rem. It was
+  74rem at every width above 768px, so a 1690px window showed 1184px of page
+  and ~500px of nothing. ⚠️ **It does not widen prose** — every text block keeps
+  its own measure, and `themes.spec.ts` still asserts 60–70 characters.
+  ⚠️ **1440px and no lower:** below it there is not room for a full measure AND
+  a board side by side, and no spec runs above 1280px, so nothing below the
+  line moves.
+- **A tutorial step is two columns at 1440px and up** — prose left, board and
+  its controls right — and **fits above the fold at 1440×900**.
+- **A lesson pairs each prose chunk with the board it illustrates.** The pair is
+  now a real element rather than a fragment; DOM order is unchanged, so reading
+  order is unchanged.
+- **`/progres/` flows into two columns.** ⚠️ **MULTICOL, NOT A GRID, AND THE GRID
+  WAS TRIED FIRST**: grid rows align, so the ten-row achievements block took a
+  row to itself and left ~500px of empty column beside it — two columns wide and
+  nearly as tall. `break-inside: avoid` is load-bearing.
+
+**Measured at 1440px, before → after** (document height, and screens at 900px):
+
+  | page   | before | after | screens |
+  |--------|--------|-------|---------|
+  | step   | 1659px | **1281px** | 1.84 → **1.42** |
+  | lesson | 2613px | **1988px** | 2.90 → **2.21** |
+  | progres| 2722px | **1794px** | 3.02 → **1.99** |
+
+  Prose measures after: step **60 characters**, lesson **66** — both inside the
+  60–70 rule. Card padding stays **20px** on `.step`, `.lesson-card` and `.card`
+  at the new width.
+
+### Notes
+
+- ⚠️ **MOBILE IS BYTE-FOR-BYTE UNCHANGED**, verified by measuring the same
+  numbers with the change stashed: 360px and 390px, all three pages, identical
+  overflow and identical card widths. Everything here is behind a 1440px media
+  query.
+- ⚠️ **A PRE-EXISTING 360px OVERFLOW IS RECORDED RATHER THAN FIXED.** A tutorial
+  step scrolls sideways by **26px** at 360px, and a lesson by **5px** — the same
+  before this change as after. The cause is the board block: `.mcc-exercise-board`
+  measures **330px inside a 280px content area**. It is board geometry, which
+  CLAUDE.md says to read `docs/reference/board.md` before touching, and it wants
+  its own change. ⚠️ `mobile-fit.spec.ts` covers 360×640 but measures HEIGHT, so
+  horizontal overflow at that width is untested.
+- **No animation was added and no library was considered.** Nothing here moves;
+  it is layout. (GSAP remains rejected on licence grounds — see E1.)
+
+
+## [0.26.0] — 2026-09-01
+
+### Fixed
+
+- ⚠️⚠️ **"MA PROGRESSION" WENT TO THE NEXT UNSOLVED EXERCISE, NOT TO
+  `/progres/`** — on both layouts, for any reader who had started something.
+  The card declared a journey so it could print "8 sur 24", and
+  `data-resume-for` meant BOTH "give me a count" and "retarget my link". The
+  resolver duly pointed the card at the next step.
+  - **`data-resume-keep-href`** now separates the two, and `HubCard` sets it for
+    every chooser card. A landing is a chooser (Critical Feature 65), so its
+    cards go where they say; resuming stays with the resume surfaces — the home
+    "Reprendre" link, `ResumeCard`, and the progress page's own rows.
+  - ⚠️ **THE SAME DEFECT WAS LIVE ON `/apprendre/`** and nobody had reported it:
+    "Les bases", "Leçons" and "Exercices" were retargeted too, so a reader who
+    had begun anything never reached those indexes from the chooser. Fixed by
+    the same rule.
+  - ⚠️ **NOTHING FAILED, BECAUSE THE SPEC ASKED THE WRONG QUESTION.**
+    `wayfinding.spec.ts` asserted the href **resolved 200** — which a retargeted
+    exercise URL does. **Reachability is not identity.** The spec now names the
+    destination, and ⚠️ **it had to be seeded with a key the journey actually
+    contains**: the first version seeded an exercise slug, `hub-everything` is
+    keyed `tutorial:…`/`lesson:…`, so there was nothing to resume and the test
+    passed against the broken code. Watched to fail first, on
+    `/apprendre-les-bases/la-tour/`.
+
+- ⚠️⚠️ **THE GAME HISTORY ON `/progres/` HAS BEEN RENDERING UNSTYLED** — three
+  games as run-together text, "Débutant20 août 2026Gagnée", directly beneath
+  server-rendered rows that were proper cards. Found while reporting what the
+  page shows; it had looked finished since the log landed.
+  - **The cause is the documented scoped-style trap.** Astro compiles
+    `.progress-row` to `.progress-row[data-astro-cid-…]`; the game rows and the
+    award rows are built with `document.createElement`, so they carry the class
+    and not the attribute and every rule missed them.
+  - **`src/styles/progress-rows.css`** now holds the six rules those rows need,
+    prefixed with `.progress-block` so the cascade is settled by specificity
+    rather than by stylesheet order. The awards list was broken the same way
+    and is fixed by the same move.
+
+- **Card padding is defined once, in `cards.css`, instead of per page.** The
+  shared rule owned the surface, border, radius and press and left every page
+  to pad its own card — so `.card` had 1.25rem, `.lesson-card` 1rem 1.25rem,
+  `.auth-card` 1.5rem, and ⚠️ **`.step` had none at all**, which is why tutorial
+  steps set their text hard against the frame.
+  - It takes `--mcc-card-pad`, which **already existed** in `tokens.css` (=
+    `--mcc-space-md`, 20px) and was used only by `surfaces.css`. Every gap comes
+    from the scale, so a card's own gap does too.
+  - The duplicated declarations in `CardGrid` and `NumberedCard` are gone;
+    `.auth-card` keeps its roomier 1.5rem deliberately. Measured at 20px on
+    `.step` and `.lesson-card` in **all four themes**.
+
+
+## [0.25.0] — 2026-08-27
+
+### Added
+
+- **The commissioned brand mark is in** — a rook with a Souiri dome and an
+  eight-point star, replacing the placeholder board-in-a-brass-frame.
+  ⚠️ **IT SHIPS AS TWO ASSETS, AND THE SPLIT WAS MEASURED RATHER THAN
+  ASSUMED.** Rendered and looked at:
+  - **180px** — every detail reads: shoulder windows, central arch, all eight
+    star points, the gold band.
+  - **48px** — the star's points are gone, the windows have closed, the band is
+    a smear.
+  - **32px** — a dark blob with a gold speck.
+  - It is also **tall (0.59 w/h)**, so a square icon is mostly margin: at 32px
+    the rook is only **~19px wide**.
+  - So `src/assets/brand/mark.svg` is a **simplified** mark — hand-authored from
+    a row-profile of the artwork, keeping the silhouette and the star, dropping
+    what closes up, enlarging the star from 21% to 33% of the width, and sitting
+    squarer (0.80). `mark-detailed.png` — the artwork, with the cream keyed out
+    to transparency — drives every raster from 180px up.
+  - ⚠️ **A first attempt tapered the crown straight into the body and read as a
+    QUEEN'S CORONET.** The crown needs vertical walls and square battlements to
+    read as a rook. Caught by looking at it.
+- **A light variant, `mark-light.svg`**, because the mark is dark-green ink with
+  no frame of its own. `--mcc-surface-inverse` is a **dark colour in all eight
+  theme/mode combinations**, so the header takes the light mark.
+- **The favicon carries its own `prefers-color-scheme` rule.** The site's theme
+  cannot reach a favicon, and a dark rook is invisible in a dark tab strip.
+
+### Fixed
+
+- ⚠️⚠️ **TWO CALL SITES WOULD HAVE GONE SILENTLY BLANK, AND NEITHER WOULD HAVE
+  FAILED ANYTHING.** The placeholder mark carried its own green panel, so it
+  read on any ground; the new one is transparent dark-green ink.
+  - **The maskable icon flooded with `themeColor` (green-800)** and composited a
+    dark-green rook onto it. The plate is now **cream-100**, which is the logo's
+    own field *and* was already the manifest's `background_color` — so the two
+    now agree instead of quietly disagreeing.
+  - **`fetch-video-posters.mjs` drew the mark on `HOUSE` (#101a14)**, which with
+    the new ink is about **1.3:1**. It takes the light mark now. Nothing would
+    have errored — the poster would have shipped with an empty corner.
+- **`icon-192` and `icon-512` are opaque rather than transparent.** A launcher
+  that puts a transparent dark rook on dark chrome shows nothing, and we do not
+  get to choose the chrome.
+
+
+## [0.24.0] — 2026-08-27
+
+### Fixed
+
+- ⚠️⚠️ **THE WEBKIT BOOKING FAILURE WAS NOT WEBKIT, AND NOT THE APPLICATION —
+  ONE JOB WAS DELETING ANOTHER JOB'S SESSION.** Gate runs #8 and #10 went red on
+  `booking-ui.spec.ts`, webkit only, both booking tests, all three attempts,
+  with chromium green on the same specs. That is the exact profile of the
+  "Créer" click-synthesis defect, and it was none of it.
+  - **The click reached the handler and the refusal was truthful.** The page
+    said « Cette séance n'existe plus. » on every attempt; `[data-booking-cancel]`
+    was correctly absent because no booking was made. The `error-context.md`
+    snapshot settled it — the second time this release that reading the artefact
+    beat reasoning about the symptom.
+  - **The mechanism:** `booking.spec.ts` creates **bare** sessions (no title, no
+    notes) at runtime and runs in **chromium only**. `booking-ui.spec.ts` drives
+    the **baked** agenda (Critical Feature 49), so it books whatever the build
+    captured — and runs in **chromium and webkit**. As separate jobs, webkit's
+    build baked one of chromium's in-flight rows, chromium deleted it, webkit
+    pressed Réserver.
+  - ⚠️ **AND THE PER-JOB `E2E_EMAIL_DOMAIN` DOES NOT COVER THIS.** It isolates
+    **users**; `sessions` have no owner column, and `purgeLeakedSessions()`
+    deletes every bare row **globally** in both phases of every run. The note
+    added earlier this release said "there is no third option", which read as
+    though the domain isolated the whole project. Corrected.
+  - **The fix:** `bookablePanel()` now refuses any row matching the purge
+    predicate — a seeded session says something in at least one of `title_fr`,
+    `note_fr`, `note_en`; a transient one says nothing in any of them. It still
+    **skips rather than guesses**, so a vacuous pass is still impossible.
+  - ⚠️ **THOSE TWO PLACES ARE ONE RULE IN TWO FILES** — `helpers/purge.ts` and
+    `bookablePanel()`. Change one and change the other; both now say so.
+- ⚠️⚠️ **THE RATE LIMIT IS PER IP ADDRESS, THE DASHBOARD SAYS SO, AND THAT
+  REVERSED THE PREVIOUS FIX — WHICH IS REVERTED HERE.** The entry above merged
+  chromium and webkit into one job so they would stop "contending" for one
+  Supabase project's auth budget. **They were never contending.** The setting is
+  **"Rate limit for token verifications", per IP address, per 5 minutes,
+  default 30**, and two CI runners are two IPs and two buckets.
+  - **Each lane was independently over the old default**, with nothing else
+    running: chromium peaks near **65** verifications per 5 minutes, webkit near
+    **45**, against a ceiling of **30**.
+  - **So runs #3 and #4 were over the line too** and survived on Playwright's
+    retries; run #5 did not. **Retry luck, not a concurrency threshold.**
+  - **The merge cost 9m 33s** (15m 25s → 24m 58s, both measured and green) and
+    fixed nothing that was broken. chromium and webkit run in parallel again.
+  - **The actual fix was the ceiling**, raised by Seàn to **300 per 5 minutes**
+    on the TEST project — ~4.6× chromium's peak.
+  - ⚠️ **THE RULE THAT REPLACES THE WRONG ONE: watch ONE job's verification
+    rate, never how many jobs run.** A single lane that grows enough auth specs
+    can exhaust its own bucket with nothing else running anywhere.
+  - ⚠️⚠️ **AND THE LESSON IS NOT ABOUT SUPABASE.** A number was recorded without
+    its method, reached **six files**, and a fix was then designed against the
+    half of it that had never been checked — while the answer was printed on the
+    dashboard next to the setting. **Read the source of a limit before modelling
+    it.**
+- ⚠️⚠️ **ARTEFACT PRESERVATION LIVED IN THE WRAPPERS, AND THE GATE DOES NOT USE
+  THE WRAPPERS.** `test-branch.mjs` and `test-release.mjs` each copy
+  `test-results/` into `gate-logs/` when they go red — which covers the two
+  commands a session is *told* to run, and covers nothing at all when Playwright
+  is invoked directly. `.github/workflows/gate.yml` invokes it directly
+  (`npx playwright test --project=…`), and so does anybody debugging one spec.
+  - ⚠️ **Playwright clears `test-results/` at the START of every run**, so on
+    that path the evidence survives exactly until the next invocation — and
+    re-running is the first instinct after a red run. It destroyed the
+    diagnosis of gate run #5 **twice in one session**, by the same person who
+    had just built the wrapper-side preservation.
+  - **`tests/e2e/reporters/preserve-artefacts.ts`** is a reporter, which is the
+    one place a run cannot bypass: it is part of the run rather than part of
+    what started it. Wired into `playwright.config.ts` in **both** shapes.
+  - ⚠️ **ONE MECHANISM PER RUN.** The wrappers label their copies better, so
+    they set `MCC_ARTEFACTS_HANDLED=1` and the reporter stands down. Proved by
+    running all three cases: preserved on the direct path, **survived a
+    re-run**, silent under the handshake.
+  - ⚠️⚠️ **AND A TRAP FOUND BY WATCHING IT FAIL: `--reporter=` ON THE COMMAND
+    LINE REPLACES THE CONFIG'S REPORTERS ENTIRELY.** The first probe passed
+    `--reporter=line` and kept nothing, silently. That is also why
+    `test-release.mjs` still needs its own copy — it passes `--reporter=line,json`,
+    so the config's reporters never load there at all.
+  - ⚠️ **`config.rootDir` IS THE TEST ROOT, NOT THE REPO ROOT.** The first
+    version wrote `tests/e2e/gate-logs/`. It now walks up to the directory that
+    owns `package.json`.
+- ⚠️ **BOTH TEST SCRIPTS STILL TOLD YOU A LOCAL RUN WAS THE RELEASE GATE.**
+  Moving the matrix to CI changed what a promotion rests on and changed no
+  message anywhere, so `test:branch` signed off every run with *"It runs once,
+  at promotion, via `npm run test:release`"* and `test-release.mjs` opened with
+  *"the release gate"* and *"THIS IS THE ONLY PLACE THE GATE BELONGS"*.
+  - **Both now name the `gate` workflow and the file it lives in.**
+    `test:branch` also says what starts it — a push to `dev` or `main`, or a
+    pull request into either — because "CI runs it" is not actionable if you do
+    not know what triggers it.
+  - ⚠️ **`test-release.mjs` is described as still correct and still maintained**,
+    not deprecated. It is the right thing for a developer who wants the matrix
+    on their own machine; it is simply not what a promotion may rest on.
+  - ⚠️ **Its header now records why serialising there does not contradict
+    parallelising in CI** — memory, per-runner — **and that the serialisation
+    also handed the shared test Supabase project one run at a time**, pointing
+    at `docs/reference/testing.md`. That is where somebody parallelising the
+    next thing will actually be reading.
+  - **Not a quick change:** `scripts/(lanes|test-release|test-branch|spec-map)`
+    is on `quick.mjs`'s FORBIDDEN list as *"what the release gate runs"*. The
+    pattern cannot tell a message string from a spec-selection edit, which is
+    the point — the fast path must never be able to shorten the gate that
+    polices it. Normal branch, full `test:branch`.
+- ⚠️⚠️ **SIX PARALLEL CI JOBS PURGED EACH OTHER'S USERS, AND THE GUARANTEE THEY
+  BROKE HAD NEVER BEEN WRITTEN DOWN.** `global-setup.ts` purges the shared test
+  Supabase project before every suite and treats residue as a **hard failure**;
+  `global-teardown.ts` purges after. Two concurrent runs therefore delete each
+  other's in-flight users, and whichever starts second dies before a single
+  test. Gate run #2: `webkit` failed in **32 seconds** with no test having run,
+  while `iphone-13` — **the same browser engine** — passed in 310s.
+  - ⚠️ **`test-release.mjs` had been providing that serialisation BY ACCIDENT.**
+    It runs one project at a time for **memory** — 80 processes, 6.68 GB, four
+    red gates — and every word written about it says memory. It also happened
+    to mean only one run ever touched Supabase at a time. Never the reason,
+    never recorded, load-bearing anyway.
+  - **The fix needed no code.** `purge.ts` matches an **exact** email domain and
+    `e2eEmail()` mints on it, so a per-job `E2E_EMAIL_DOMAIN`
+    (`<job>.mcc-e2e.test`) partitions the project: each run only ever sees, and
+    only ever deletes, its own users.
+  - ⚠️ **The rule is now in `docs/reference/testing.md`:** anything running the
+    suite concurrently must either serialise access or give each run its own
+    domain. There is no third option.
+- ⚠️⚠️ **THE AUTH-HEAVY LANES NO LONGER OVERLAP — chromium AND webkit SHARE ONE
+  JOB.** They are the only two lanes carrying auth specs (**168** and **89**
+  tests), and run concurrently they put **~257 magic-link verifications through
+  one Supabase project in ~14 minutes**. Gate run #5 died on
+  `429 over_request_rate_limit`; runs #3 and #4 survived identical load, which
+  is a threshold seen from underneath.
+  - ⚠️ **ONE PLAYWRIGHT INVOCATION, NOT `max-parallel`.** A scheduler hint asks
+    GitHub not to overlap them; `npx playwright test --project=chromium
+    --project=webkit --workers=1` makes overlapping impossible. It also builds
+    the site once instead of twice and purges the test project once.
+  - ⚠️ **`--workers=1` IS WRITTEN IN THE WORKFLOW even though the config already
+    sets it under CI**, because for this job it is the guarantee rather than a
+    performance setting — and a guarantee living only in another file is the
+    exact shape of the dependency that broke run #2.
+  - **The other three lanes carry zero auth specs and stay fully parallel.**
+- ⚠️⚠️ **THE RECORDED RATE-LIMIT FIGURE WAS HALF WRONG, AND IT HAD REACHED SIX
+  FILES.** "22 verifications in 7 seconds, clearing a couple of minutes later,
+  enforced per IP and per project" was written as though one number described
+  the limit. **It describes the ONSET of a cold burst.** Gate run #5 disproved
+  the rest within a day: `followMagicLink()` backs off 0/10s/30s and **exhausts
+  with the project still limited**, so the window is longer than 40s under real
+  load; and the **scope was asserted, never tested**. Every copy now states the
+  method beside the number and lists what is still **unmeasured** — the window,
+  the budget, the scope, and the highest safe sustained rate.
+- ⚠️⚠️ **THE SLIVER JOB RAN WITHOUT CREDENTIALS, WHICH MADE CRITICAL FEATURE 18
+  TRIVIALLY TRUE RATHER THAN PROVEN.** The first version of the workflow left
+  `.env.test` out of the accounts-OFF job, reasoning that a shape with no
+  account routes has nothing to sign in to. True, and it misses what the sliver
+  is for: `auth-disabled.spec.ts` proves **no Supabase ref survives anywhere in
+  `dist/`**, and with no credentials in the build there is nothing that COULD
+  leak — it passes because the ref never existed, not because the flag kept it
+  out. The sliver now writes `.env.test` and runs the preflight like every
+  other job, so the guarantee is tested with something real to keep out.
+- **That also removed an expiry trap in the same change**, which is the half
+  that was asked for: without `.env.test` the sliver's build fell back to
+  `agenda.fallback.json`, whose v0.23.0 expiry guard would have failed it after
+  **2026-09-12**.
+
+### Notes
+
+- ⚠️ **A WARNING FROM THE PREVIOUS ENTRY WAS WRONG AND IS CORRECTED HERE.** It
+  said the CI build has no Supabase build variables and therefore bakes the
+  fallback, so the gate would start failing after 12 September.
+  **`playwright.config.ts` passes the TEST project's `PUBLIC_SUPABASE_URL` and
+  `PUBLIC_SUPABASE_ANON_KEY` into the build it starts**, so `fetch-agenda.mjs`
+  reads the real `sessions` table. Measured with the gate's own env: **3
+  sessions baked, newest 2027-01-08**, fallback untouched.
+  - The wrong version came from testing `npm run build` standalone, which does
+    use the fallback, and assuming the gate built the same way. It does not.
+  - ⚠️ **The real condition is "has `.env.test`", not "is CI"** — which is
+    exactly why the sliver was affected and nothing else was. The guard stays;
+    a stale agenda is worse than an empty one.
+
+### Added
+
+- ⚠️⚠️ **THE RELEASE GATE MOVED TO GITHUB ACTIONS, AND CI IS NOW THE GATE OF
+  RECORD.** `.github/workflows/gate.yml` runs the five projects **in parallel**
+  plus the accounts-OFF sliver on `ubuntu-latest`, where Smart App Control does
+  not exist.
+  - **Why:** SAC blocked WebKit on the only machine that could run the matrix,
+    **twice** — v0.18.0 and v0.23.0 both shipped on transferred evidence. The
+    v0.19.0 remedy (re-download) stopped working, and disabling SAC is
+    documented as one-way.
+  - ⚠️ **`npm run test:release` still works and is unchanged.** It remains the
+    right thing for a developer who wants the whole matrix locally; it is
+    simply no longer what a promotion rests on.
+  - ⚠️ **Parallel here does NOT contradict the local serialisation.**
+    `test-release.mjs` runs one project at a time under a worker cap because
+    this machine runs out of RAM — measured, and the cause of four red gates.
+    Every CI job is its own runner with its own memory.
+  - **Artefacts upload on failure**, 30-day retention, per project. That is the
+    whole reason this release's artefact work exists: three consecutive gates
+    ended in "probably environmental" with the evidence already deleted.
+
+- **`scripts/ci-preflight.mjs`** — asserts, in **every** job, that the
+  credentials are present and are **not** production.
+  - ⚠️⚠️ **IT EXISTS BECAUSE A MISSING `.env.test` IS DELIBERATELY NOT AN
+    ABORT.** `assertNotProduction()` treats an absent file as safe, and that is
+    correct locally: with no file there is no reachable project of any kind, and
+    aborting would brick ~750 specs for every checkout without a test project.
+    In CI the same behaviour is a silent hole — a mistyped secret produces no
+    file, every auth spec SKIPS, and the gate reports success. Same class as a
+    zero-test sliver, which the gate already treats as fatal.
+  - ⚠️ **It does not widen `env.ts`.** CLAUDE.md forbids letting the loader fall
+    back to `process.env` — that edit is what would let production credentials
+    into a suite that purges by pattern. The workflow **writes `.env.test`** from
+    secrets instead and this checks the result; the loader is untouched.
+  - It calls `assertNotProduction()` rather than reimplementing it, so it cannot
+    drift from what Playwright's config actually enforces.
+
+### Notes
+
+- ⚠️ **THE INTERLOCK WAS VERIFIED BY MAKING IT FAIL, on the same code path CI
+  runs.** With `SUPABASE_PRODUCTION_REF` set equal to the test ref, both the
+  preflight **and** Playwright's config load abort with *"the test project ref
+  … IS the production ref. Refusing."* — exit 1, before a browser starts. With
+  the file removed entirely, the preflight fails naming all five secrets. With
+  the real credentials, it passes and reports that auth specs will RUN.
+- ⚠️ **MEASURED ON CI AT LAST — 15m 25s, GREEN, ALL SEVEN JOBS.** Gate run #3
+  (`507e2b2`). The estimate was ~10-15 min; it landed just outside it. Compare
+  the local matrix at **21.9 min** on a quiet machine, and 4.8 hours before the
+  lane audit.
+  - ⚠️ **The wall-clock is set by the SLOWEST JOB, not the sum**, because the
+    projects run in parallel — chromium runs the whole suite and is the long
+    pole. Adding a lane is close to free in time; adding specs to chromium is
+    not.
+  - ⚠️ **THE FIRST TWO RUNS FAILED, AND NEITHER WAS THE APPLICATION.** Run #1
+    was the sliver's missing credentials; run #2 was the shared test project
+    being purged out from under six parallel jobs. Both are recorded in
+    `docs/reference/testing.md` — the second as a guarantee nobody had written
+    down.
+- ⚠️ **THE FIRST RUN WILL FAIL AT PREFLIGHT** until the five repository secrets
+  are set, naming each one that is missing. That is the intended first signal
+  rather than a defect — the alternative, skipping quietly when credentials are
+  absent, is precisely the hole the preflight closes.
+- ⚠️ **KNOWN INTERACTION WITH THIS RELEASE'S OWN AGENDA GUARD:** the CI build
+  has no Supabase build variables, so it bakes `agenda.fallback.json` — whose
+  expiry guard starts warning around **2026-08-29** and **fails the build after
+  2026-09-12**. That is the guard working, and in CI it blocks the gate for a
+  reason unrelated to the change under test. Refresh the fallback, or give the
+  workflow read-only agenda credentials. **Do not remove the guard** — a stale
+  agenda is worse than an empty one and `smoke:prod` cannot see it.
+
+## [0.23.0] — 2026-08-25
+
+**The release in one line:** the exercises became a sequence you can walk, the
+progress page finally shows what a student has actually done, and two checks
+that had been lying stopped.
+
+- **Prev / next between exercises**, naming the destination. The order is
+  decided and written down — level, then primary theme, then slug — and the
+  index and the pager share it.
+- **Three duplicate exercises cut** (24 remain), from an audit that reported
+  before it changed anything.
+- **Rank thresholds re-spaced: 0 / 75 / 200 / 450 / 740.** ⚠️ **AGAINST A
+  MEASURED CEILING OF 900**, not the 965 quoted mid-session: 965 was the figure
+  *before* the three cuts, and removing 65 points of content moved it. The
+  thresholds were re-spaced **twice in this release** for exactly that reason —
+  see the note below.
+- **A game history on `/progres/`**, and **the weekly habit mark** beside it.
+- **The 50-point cap on a teacher award removed** (migration 0014).
+- **`test:branch` preserves its failure artefacts too**, after the gate fix
+  covered only `test:release`.
+- **The browser no longer offers to machine-translate the site** (three
+  signals), and **Google sign-in is built behind its own flag** — still OFF in
+  production.
+
+### Verification
+
+⚠️⚠️ **PROMOTED ON PARTIALLY TRANSFERRED EVIDENCE. THIS IS A DECLARED EXCEPTION
+AND IT IS THE SECOND OCCURRENCE.** v0.18.0 was the first.
+
+**What ran on THIS tree** — `PUBLIC_AUTH_ENABLED=true`, 2026-08-25 07:54 and
+after:
+
+| project | result | evidence |
+|---|---|---|
+| chromium | **760 passed** | this tree |
+| firefox | **145 passed** | this tree |
+| pixel-5 | **106 passed** | this tree, run separately |
+| chromium (OFF) sliver | **21 passed, 32 run** | this tree, run separately — Critical Feature 18 proved |
+| webkit | 160 passed, 4 skipped | ⚠️ **v0.22.0's tree** |
+| iphone-13 | 120 passed | ⚠️ **v0.22.0's tree** |
+
+⚠️ **THE GAP IS THE TWO WEBKIT-BASED PROJECTS AND NOTHING ELSE.** `pixel-5` is
+Chromium and was never blocked — it simply never got its turn, because the
+matrix aborted at webkit. It and the sliver were run on their own afterwards,
+so the transferred half is as small as it can be made rather than "the matrix
+did not finish".
+
+**Why the matrix aborted: Smart App Control, again.** `VerifiedAndReputable­PolicyState = 1`,
+and **302** `browserType.launch: Target page, context or browser has been closed`
+on webkit — the browser failing to START. `playwright install --force webkit`
+reports `icuuc77.dll`, `icutu77.dll` and `jxl_cms.dll` as missing host
+dependencies while **all three are present on disk** (1.8 MB, 222 KB, 115 KB in
+`webkit-2336`). Present and unloadable: the block is on **loading**, not on the
+files. ⚠️ **The v0.19.0 remedy — delete and re-download — no longer works.**
+
+**Why the webkit evidence transfers, established rather than assumed:**
+
+- ⚠️ **`playwright.config.ts` and `scripts/lanes.mjs` are BYTE-IDENTICAL** to
+  the tree that last passed a full webkit lane (v0.22.0). The lane is the same
+  twelve spec files it was when it passed 160.
+- ⚠️ **Eleven of those twelve spec files are byte-identical.** The only one that
+  changed is `auth.spec.ts`, and only by ADDITIVE assertions on the
+  same-address note. In the gate's flag shape the single new assertion that
+  executes is `toHaveCount(0)` — that an element is ABSENT.
+- **Two lane specs load a page this release changed, and both are accounted
+  for:** `auth` visits `/connexion/`, where the Google button and its note are
+  both absent with the flag off, so the rendered HTML matches v0.22.0; and
+  `sound` visits `/progres/`, where its only assertion is that an inline script
+  still contains `mcc:achievement` — `ScoreResolver`'s event name, which this
+  release did not touch, and which passed on chromium AND firefox on this tree.
+- **No change touches a mechanism the webkit lane exists for.** No
+  click-synthesis-during-`change`, no pointer geometry, no Web Audio, no
+  iframe. The new date handling parses ISO-8601 only.
+
+⚠️ **THIS IS WEAKER THAN v0.18.0's TRANSFER AND SHOULD BE READ AS SUCH.** There
+the diff against the passing tree was EMPTY — the same bytes. Here it is a whole
+release, and what carries the argument is that the LANE's inputs are unchanged,
+not that the tree is. That is an argument, not a measurement.
+
+⚠️⚠️ **DO NOT PROMOTE PAST A THIRD OCCURRENCE WITHOUT MOVING THE MATRIX OFF
+THIS MACHINE.** Seàn's condition, recorded here so it binds the next release
+rather than living in one person's memory. The costing is in BACKLOG.
+
+**`verify:deploy` will discriminate**, proved before the deploy: the live
+v0.22.0 tree carries **zero** occurrences of `exercise-nav`, `data-habit-block`
+and `data-game-log`; this tree carries all three, on **two of the three**
+compared documents.
+
+**Production catalog**, asked per migration, read-only with the anon key: every
+anon-visible migration present. ⚠️ **0014 is a CHECK-constraint removal and an
+anon key cannot see constraints** — Seàn confirmed it is applied and registered,
+and that is taken on his word rather than verified here.
+
+### Removed
+
+- **Three duplicate exercises cut**, on Seàn's decision from the audit:
+  `mat-du-couloir-dame` (two back-rank mates-in-one already teach it),
+  `decouverte-qui-gagne-la-dame` (identical jig to `decouverte-simple`;
+  `echec-double` earns its place because double check is a distinct rule), and
+  `mat-etouffe-cavalier` (it is the final position of `attraction-puis-mat`, so
+  a student meets it twice). **24 exercises remain.** Kept deliberately: both
+  surviving couloir siblings, all the forks and both deflection-mates — same
+  tactic, different geometry, and drilling a motif twice is the point.
+  - ⚠️ **The cut broke a spec that was working perfectly.**
+    `exercise-filters.spec.ts` pinned `>= 27` as a floor, written so that
+    ADDING an exercise would not fail an unrelated test — a one-way ratchet
+    that had never considered a cut. Now a named `EXERCISE_FLOOR` with the
+    two-directional reasoning beside it.
+
+### Changed
+
+- **CLAUDE.md split from 82% to 78% of the size guard** — 123,159 → 116,643
+  characters, so it stops warning on every build. Nine blocks moved **verbatim**
+  into the reference file for their area, each with a **Read when** line, and a
+  rule plus a pointer left behind:
+  - the PowerShell round-trip encoding trap → `dev-environment.md`
+  - content validity and the "a legal position is not a correct one" narrative
+    → `content.md`
+  - the accounts-OFF sliver, `check-lanes.mjs`, "do not run the matrix on a
+    feature branch", and "passing serially is not a clean bill" →`testing.md`
+  - Play mode's level-purpose and two-levers narrative → `engine.md`
+  - "why static, and why no Supabase" → `roadmap.md`
+  - the add-a-table migration checklist → `supabase.md`
+  - ⚠️ **`scripts/check-split.mjs` reports `✓ Nothing was lost`** — 1,286 lines
+    stayed, 170 moved into `docs/`, nothing newly declared obsolete. **No line
+    was reworded on its way out**, which is the one thing that makes that check
+    meaningful.
+  - ⚠️ **The margin is now ~3,400 characters, which is thin.** The next
+    candidates, in order, are `## Routes`, `## Stack overview` and the
+    `## Content model` detail — but not the Critical Features list, which is the
+    canonical numbered set and belongs in the file that is always loaded.
+- ⚠️⚠️ **THE RANK THRESHOLDS MOVED AGAIN, IN THE SAME RELEASE, AND THAT IS THE
+  POINT RATHER THAN CHURN.** Cutting 65 points of content dropped full marks
+  from 965 to **900** (780 learning + 120 games) — which pushed Dame (then 800)
+  **above the learning ceiling of 780**, quietly making the top rank
+  unreachable without games. That is the one property the table is not allowed
+  to lose, and it was lost by deleting three JSON files.
+  - Now **0 / 75 / 200 / 450 / 740**. Dame at 740 against 780 restores the
+    40-point slack for hinted exercises, and studying everything is enough
+    again.
+  - **Cavalier stays at 75** — the tutorial did not change, and a threshold
+    pinned to a specific body of work should not drift when unrelated content
+    moves.
+  - ⚠️ **The rule now says to check Dame against the LEARNING ceiling**, not
+    just to recompute the total. That single comparison is what this
+    re-spacing existed to restore, and recomputing alone would not have caught
+    it.
+
+### Added
+
+- **The weekly habit mark on `/progres/`** — the retention mechanic, chosen by
+  Seàn from the three proposed. ⚠️ **The win streak was explicitly rejected**:
+  a mechanic that breaks on a loss is what Critical Feature 35 exists to
+  prevent.
+  - **It counts weeks that HAPPENED and never weeks that did not.** There is no
+    "consecutive weeks" and there must not be: Critical Feature 34 rules out a
+    daily streak because the club meets weekly, and a consecutive-WEEK counter
+    reintroduces the same punishment one rhythm up. A missed week costs a mark,
+    not a run — asserted by a spec that seeds a six-week gap and checks both
+    weeks still count.
+  - ⚠️ **NOTHING IS STORED FOR IT.** `activeWeeks()` derives from timestamps
+    that already exist — `solvedAt` and the game log — for the same reason
+    points are derived: a stored counter can disagree with the records behind
+    it.
+  - ⚠️ **ISO WEEKS, WHICH START ON MONDAY, AND THAT IS LOAD-BEARING HERE.** The
+    club meets at the weekend, so a Saturday session and the Sunday after it
+    must be ONE mark. Verified against six known dates including that pair, the
+    2026-W01 boundary and a 1 January that belongs to the previous year.
+  - ⚠️ **THE UNMARKED WEEK NAMES AN ACTION, NOT AN ABSENCE** — "un exercice ou
+    une partie, et cette semaine est marquée". A spec asserts the line never
+    contains *perdu*, *série*, *raté*, *streak* or *missed*, and that a marked
+    and an unmarked week are **the same colour**.
+  - ⚠️ **It is an UNDERCOUNT by construction**, and that is the safe direction:
+    `solvedAt` keeps the first solve, so a week spent re-solving leaves no
+    trace, and the game log is bounded. It can fail to credit a week; it can
+    never invent one.
+
+### Fixed
+
+- **`test:branch` preserves its failure artefacts too**, into
+  `gate-logs/branch-<stamp>/`, and **names the path before the advice** on a red
+  run. ⚠️ **It needed this more than the gate did**, which is not where the fix
+  landed first: the branch runner runs one project, so nothing clears
+  `test-results/` mid-run — which made it look safe. The artefacts survive only
+  until the NEXT run, and the next run is the most natural response to a red
+  branch gate.
+  - ⚠️ **This was not hypothetical.** In the session that shipped the gate fix,
+    a branch run failed two `tutorial.spec.ts` axe checks and the very next
+    command was another `test:branch` — the evidence was gone before anyone
+    read it, and the failure was written up as a theory rather than a finding.
+  - ⚠️ **Watched to work**, and it immediately earned itself: forcing a failure
+    preserved **four** artefact directories, three of which turned out to be
+    the `exercise-filters` breakage above rather than the deliberate probe — a
+    real regression that would otherwise have been discovered later, or blamed
+    on something else.
+
+### Added
+
+- **Prev / next between exercises**, at the end of every exercise, naming the
+  destination rather than saying "suivant" — same shape as the lesson and
+  tutorial pagers (Critical Feature 62). Finishing an exercise used to mean
+  going back to the index and picking again, on the one surface where a student
+  does several in a row.
+  - ⚠️ **THE ORDER IS DECIDED AND WRITTEN DOWN: LEVEL, THEN PRIMARY THEME, THEN
+    SLUG.** It used to be slug-alphabetical, which put an *intermediate*
+    queen-sacrifice combination first on the index and interleaved the two
+    levels all the way down.
+  - ⚠️ **ONE ORDER, NOT TWO.** The pager walks the same `sortExercises` the
+    index lists with — a pager that walked a different sequence from the list
+    the reader just chose from would take them somewhere the list did not
+    imply. The comment on that function already asked for this.
+  - ⚠️ **"Primary theme" is `themes[0]`, and that is a real convention in the
+    content** — checked across all 27, the first theme is always the motif.
+    Reordering a `themes` array therefore moves an exercise in the sequence.
+  - Alphabetical-by-motif is **deterministic, not pedagogical**; a curated motif
+    sequence is the upgrade and is deliberately not done, because an uncurated
+    order that is stable beats a curated one that rots when a theme is added and
+    nobody updates the list.
+- **A game history on `/progres/`** — date, level, outcome, newest first.
+  ⚠️ **Games have been recorded since E3 and shown nowhere**: the ledger knew a
+  student had won twice at Intermédiaire and the page never said when, against
+  which level, or that they had played at all.
+  - **A new bounded per-game log in `progress.ts`** (`GAME_LOG_MAX = 50`).
+    ⚠️ **The counters could not produce a history** — folding a game into
+    `{wins, draws, losses}` destroys its date. The counter stays the thing that
+    SCORES; nothing in `points.ts` reads the log, and it must stay that way.
+  - ⚠️ **IT IS A RECORD, NOT A REPORT CARD.** Losses and draws render exactly as
+    wins do, same weight, same colour — Critical Feature 35 says a loss costs
+    nothing, and a red loss is how it starts costing something. **A spec compares
+    the computed colour**, because "tint the losses" is the obvious next edit.
+  - Renders from `localStorage`, so a guest has one too.
+
+### Changed
+
+- **The rank thresholds are re-spaced: 0 / 75 / 220 / 480 / 800.**
+  ⚠️ **MEASURED, NOT ESTIMATED — full marks today is 965** (845 learning + 120
+  games), read off the built catalogue: 13 tutorial steps, 19 lessons, 27
+  exercises. They were set at E3 against a ceiling of **350**, so **Dame sat at
+  23% of the site** — the top rank was reachable without two thirds of the
+  teaching, which is precisely what the E3 note said it must never be.
+  - **What each rank is FOR** is now written beside its number: Pion, you turned
+    up; Cavalier, you have the rules; Fou, you have started properly; Tour, you
+    are a serious student; Dame, you have done very nearly all of it.
+  - ⚠️ **Dame still does NOT require games** — 845 > 800, so a student who only
+    studies can reach it. The 45-point gap is the slack for four or five hinted
+    exercises, and play can cover it instead. That is what "more play" means
+    here: the natural way to close the gap, never a requirement.
+  - ⚠️⚠️ **THIS DEMOTES EXISTING READERS, AND THAT IS THE ACCEPTED COST.** The
+    rule that stood said thresholds may only rise "alongside a `v2` progress
+    key" — but a `v2` key **deletes every reader's records** to protect a badge.
+    Demotion is the lesser harm. A reader on 250 was Tour and is Fou; **nothing
+    they did is lost**, because points are derived (Critical Feature 33).
+- **The 50-point cap on a teacher award is removed** (migration 0014, Seàn's
+  call). Positive-only and reason-required both stay, in the database.
+  - The cap's reasoning was sound and is not what was disputed. What changed is
+    **who decides**: the size of an award is a teaching judgement about a
+    particular student, and a schema constant took that from the person in the
+    room. What replaces it is **attribution** — `awarded_by` and a required
+    `reason`, both visible on the student's own page.
+  - ⚠️⚠️ **REMOVING IT MEANT REMOVING IT IN THREE PLACES, AND TWO WOULD HAVE
+    EATEN A REAL AWARD SILENTLY.** `normalizeAwards` in `progress.ts` and the
+    summation in `ScoreResolver.astro` both DISCARDED rows over 50 on read: the
+    first award above the old ceiling would have been accepted by the database,
+    mirrored down, and then vanished from the page.
+  - ⚠️ **`computeLedger()` was already uncapped**, so those two summations would
+    have disagreed the moment the migration landed — a prof and a student
+    reading different totals, which is exactly what Critical Feature 47 exists
+    to prevent.
+
+### Notes
+
+- **The 27 exercises were audited for duplicates and NOTHING was cut** — the
+  brief was to report first. Found by two methods, because ⚠️ **neither is
+  sufficient alone**: comparing FEN piece placements mechanically, and reading
+  the solution sequences for shared mechanisms. Three exercises share one jig
+  (`decouverte-simple` / `decouverte-qui-gagne-la-dame` / `echec-double`), two
+  share an identical black position (`mat-du-couloir` / `mat-du-couloir-dame`),
+  and two share a mechanism the position check does **not** flag
+  (`fourchette-de-cavalier` / `fourchette-roi-tour`, both N→f6 then N×d7). Full
+  findings, including the pairs checked and CLEARED, are in BACKLOG for Seàn.
+- **Three retention mechanics are proposed and none is built**, as asked. All
+  weekly-shaped, because Critical Feature 34 rules out daily streaks: a win
+  streak (cheapest, and the only one that can punish), a weekly habit mark (the
+  one I would build — it cannot punish and matches the club's rhythm), and a
+  named "come back for this" (least game-like, most useful, works on the first
+  visit back). In BACKLOG with costs and risks.
+
+### Fixed
+
+- ⚠️⚠️ **The gate no longer destroys the failure artefacts it tells you to
+  read.** Playwright clears `test-results/` at the start of every run and the
+  gate runs six times, so only the LAST run's artefacts survived — measured at
+  the v0.20.0 gate, which ended with **0 entries** after four flaky tests.
+  **Three consecutive gates then ended in "probably environmental" with nothing
+  left to check.** `test-release.mjs` now copies each project's artefacts into
+  `gate-logs/artefacts-<shape>-<stamp>/<project>/` immediately after that
+  project runs.
+  - ⚠️ **`preserveOutput` alone was not the fix**, and it is the obvious one: it
+    governs output for PASSING tests and does not stop the next run clearing the
+    directory. The artefacts have to LEAVE `test-results/` between runs.
+  - ⚠️ **The sweep was checked rather than assumed** — the backlog row warned it
+    might delete the copy. `demo.mjs --sweep-only` kills processes and touches no
+    files.
+  - ⚠️ **Watched to work against a deliberate failure**: an `error-context.md`
+    and its screenshot preserved and read back, and the green path confirmed to
+    report "no failure artefacts".
+  - ⚠️⚠️ **AND THE FIRST VERSION PRINTED THE POINTER ONLY ON THE GREEN PATH** —
+    exactly backwards, since the gate exits before it when something fails, so
+    the path was missing precisely when somebody needed it. Found by running the
+    real script against a failure rather than by reading it.
+  - It **never fails the gate**: a copy that throws is reported and the run
+    continues. Evidence-keeping must not turn a green matrix red.
+- **`verify:deploy` now names the edge-cache status on a mismatch.**
+  ⚠️⚠️ **BOTH CURES THIS PROJECT HAD FILED WERE TRIED AND MEASURED FAILING,
+  INCLUDING THE RECOMMENDED ONE.** The backlog said "prefer the nonce": a
+  cache-busting query nonce was measured still returning **`CF-Cache-Status:
+  HIT`** on a never-before-seen query, because Workers static assets normalise
+  the query away. The request `Cache-Control: no-cache` was already being sent
+  and Cloudflare ignores client cache directives by design. **The cache cannot
+  be busted from the client**, so the script reports what it saw instead of
+  pretending to defeat it — and ⚠️ **it still fails**, with no retry, because a
+  retry would mask a genuinely half-propagated deploy.
+
+### Notes
+
+- ⚠️⚠️ **A ONE-FILE WEBKIT RE-RUN CANNOT REPRODUCE THE GATE'S CONTENTION**, and
+  it has already produced a wrong conclusion once. `fullyParallel: false` on
+  `webkit` and `iphone-13` means tests **within a file** run in sequence and
+  only FILES run concurrently — so one spec file is **one worker** whatever
+  `--workers` says, and the re-run is serial. At the v0.22.0 gate that was very
+  nearly reported as strong evidence a flaky row was environmental. Recorded in
+  `docs/reference/testing.md` with the multi-file command that does reproduce it.
+
+### Added
+
+- **The same-address line beside the Google button** — option (a) from the
+  fork filing, implemented on its own rather than waiting for the rest.
+  *"Utilisez la même adresse que votre lien e-mail — sinon vous créerez un
+  second compte, vide."*
+  - ⚠️ **BEFORE THE PRESS, NOT AFTER.** A message shown once the fork has
+    happened is an explanation; this is a prevention, and it is the whole of the
+    cheap half.
+  - ⚠️ **It names the CONSEQUENCE, not the mechanism.** "Vous créerez un second
+    compte" is something a parent can act on; "l'identité ne sera pas liée" is
+    true and useless.
+  - **Secondary text, not a warning banner** — it must be read, but styling
+    guidance as an alert makes the ordinary path look dangerous and teaches
+    readers to skip everything. No `opacity` on it either: the colour is an
+    audited token and an alpha on top is invisible to `check-contrast.mjs`.
+  - **The spec asserts it travels with the button** in both flag shapes —
+    **visible** when on, because a note nobody can see prevents nothing, and
+    **absent** when off, because a warning about a button that is not there is
+    noise on the page every reader actually sees today.
+
+### Fixed
+
+- ⚠️⚠️ **The v0.22.0 entry was FALSE and is corrected in place.** It said the
+  Google provider was *"configured on the test project only"*. It is not:
+  production reports `external.google: true` and
+  `/auth/v1/authorize?provider=google` returns **302 to Google**. The flag hides
+  the **button, not the endpoint**. Corrected inside the `[0.22.0]` section,
+  marked as a post-tag correction with the date and the measurement — rather
+  than only appended here, because a reader checking what that release did would
+  otherwise find the false version and stop reading.
+
+### Notes
+
+- **`docs/MANUAL-TESTS.md` gained the Google Cloud pre-flight**, which is the
+  check most likely to be skipped and most likely to bite: **APIs & Services →
+  OAuth consent screen → Publishing status**. ⚠️ **A client in "Testing" works
+  perfectly for whoever set it up and refuses everyone else**, at Google's own
+  screen, before the reader ever returns to the site — so nothing this codebase
+  renders can soften it. Also recorded there: the redirect URIs are the
+  **Supabase** callbacks and not the site's, and ⚠️ **one OAuth client currently
+  serves BOTH projects**, so its publishing status and URI list cover production
+  and test together. A separate client for test is suggested.
+
+### Added
+
+- **`scripts/check-identity-linking.mjs`** — does a Google sign-in LINK onto an
+  existing magic-link account, or fork a second one? Test project only, through
+  the same interlock as the e2e suite, failing closed; unrecognised flags are
+  fatal.
+  - ⚠️ **IT INSPECTS, IT DOES NOT SIMULATE.** Nothing can complete a real Google
+    consent screen from a script, so the Google half is done by a human and this
+    reports what the database ended up holding. A script that faked the OAuth
+    half would be testing its own fake.
+  - ⚠️⚠️ **ITS FIRST VERSION WAS WRONG IN THE WORST POSSIBLE DIRECTION, AND ONLY
+    TESTING THE INSTRUMENT FOUND IT.** The admin **list** endpoint returns
+    `identities: []` for every user, always. Measured on one user created with a
+    password, which unambiguously has an `email` identity: the create response
+    says `["email"]`, `GET /admin/users/{id}` says `["email"]`, and the list says
+    `[]`. A verdict computed from the list could **never** have reported LINKED
+    and would have called a correctly-linked account **FORKED** — the exact
+    wrong answer on the only question the script exists to answer, while looking
+    like it worked. It now uses the list to find candidates by address and
+    hydrates each by id.
+  - ⚠️ **`--seed` is plumbing, not the faithful test**, and says so on screen:
+    admin-creating a user with only an address yields `identities: []` — no
+    `email` identity at all until it actually signs in. The faithful run is a
+    real magic-link sign-in in the browser, then Google, then this script.
+
+### Notes
+
+- ✅ **"Confirm email" is ON on the production project.** `GET
+  /auth/v1/settings` reports `mailer_autoconfirm: false` — read-only, anon key.
+  That is the precondition automatic linking hangs off, and there is no separate
+  toggle for linking itself.
+- ⚠️⚠️ **AND GOOGLE IS ALREADY LIVE ON PRODUCTION, which contradicts what
+  v0.22.0 was promoted believing.** That release's CHANGELOG says the provider
+  is configured on the test project only. Measured: production reports
+  `external.google: true` and `/auth/v1/authorize?provider=google` returns
+  **302 to accounts.google.com**. `PUBLIC_GOOGLE_AUTH_ENABLED=false` hides the
+  **button, not the endpoint**. Not a new capability — sign-up is already open —
+  but it is not what the record said. ⚠️ **Both projects also share one Google
+  `client_id`**, so they are not isolated at the Google layer, and a client
+  still in Testing mode in Google Cloud would fail silently for everyone not on
+  its test-user list. Filed for decision.
+- ⚠️ **The different-address case is filed as the thing to fix BEFORE the flag
+  is flipped.** A reader whose Google address differs from their magic-link one
+  silently gets a second account with an empty ledger, while their real progress
+  sits intact and invisible on the first. It looks like data loss and is not,
+  which is the worst combination. One line of copy beside the button prevents
+  most of it; the detection and manual-linking options are recorded beside it.
+
+## [0.22.0] — 2026-08-23
+
+**The release in one line:** a second way in, built but not switched on, and the
+browser stops offering to rewrite the chess notation.
+
+- **Google sign-in, behind `PUBLIC_GOOGLE_AUTH_ENABLED`.** ⚠️⚠️ **THE FLAG
+  STAYS OFF IN PRODUCTION IN THIS RELEASE**, and the button is **absent rather
+  than disabled** where it is not configured. So this ships the code, not the
+  feature: `/connexion/` in production is unchanged, still email magic link.
+  Verified end to end on the test project, including the cancel-at-Google path.
+
+  > ⚠️⚠️ **CORRECTED 2026-08-23, AFTER THIS RELEASE WAS TAGGED AND DEPLOYED.**
+  > This entry originally said *"the Google provider is configured on the test
+  > project only"*. **That was false**, and it was written from an assumption
+  > rather than a measurement. Checked read-only against production
+  > (`vtestpaufxmrvdhgrrsy`): `GET /auth/v1/settings` reports
+  > `external.google: true`, and `GET /auth/v1/authorize?provider=google`
+  > returns **302 to `accounts.google.com`**. The provider answers on
+  > production and did so throughout this release.
+  >
+  > ⚠️ **THE FLAG HIDES THE BUTTON, NOT THE ENDPOINT.** Everything else in this
+  > entry stands — no button is rendered, `/connexion/` is unchanged — but the
+  > authorize endpoint is reachable by anyone who constructs the URL. That is
+  > **not a new capability** (sign-up is already open via magic link,
+  > `disable_signup: false`), and it is **not what the record said**.
+  >
+  > The claim is corrected here rather than only appended to a later release,
+  > because a reader checking what v0.22.0 did would otherwise find the false
+  > version and stop. The open decisions it raises — including that production
+  > and test share one Google `client_id` — are in BACKLOG.
+- **The browser no longer offers to machine-translate the site** — three
+  signals, because each reaches a different browser and none reaches all.
+- **Passwords re-examined and re-rejected**, with the three reasons recorded so
+  the question is not re-litigated from scratch.
+- **A stale fallback agenda now fails the build**, which `smoke:prod` is
+  structurally blind to.
+- **`verify:deploy` no longer false-fails on `/`.**
+
+### Verification
+
+**`PUBLIC_AUTH_ENABLED=true npm run test:release` — 2026-08-23 14:46, green:
+1,302 passed, 0 failed, 1 flaky, 21.7 min.** Gated on the promoted tree itself.
+
+| project | result | trough |
+|---|---|---|
+| chromium | 749 passed, 21 skipped | 1.68 GB |
+| firefox | 145 passed | 0.90 GB |
+| webkit | 161 passed, 1 flaky, 4 skipped | 2.55 GB |
+| pixel-5 | 106 passed | 2.81 GB |
+| iphone-13 | 120 passed | 2.42 GB |
+| chromium (OFF) sliver | 21 passed, 32 run | — |
+
+- ⚠️ **The sliver ran 32 tests, not zero** — Critical Feature 18 proved.
+- ✅ WebKit launched and ran.
+
+**⚠️ WHAT THE GATE DOES *NOT* PROVE, STATED SO "GREEN" IS NOT READ AS MORE THAN
+IT IS.** The gate runs the shape production serves, which for this release means
+`PUBLIC_GOOGLE_AUTH_ENABLED` **off** — so it exercises the *absent* branch of
+the Google flag spec and never the present one. The present branch was proved
+twice by hand against a flag-on build, and end to end on the test project
+including the cancel-at-Google path. **There is no automated coverage of the
+flag-on artefact in the gate**, by the same argument that makes the accounts-OFF
+sliver irreducible: you cannot inspect an artefact you did not produce. If the
+flag is ever turned on in production, that gap should be closed the way the
+sliver closed its own.
+
+**The one flaky — `[webkit] account-deletion.spec.ts:112`.**
+
+- ⚠️⚠️ **THE FIRST RE-RUN WAS SERIAL AND PROVED LITTLE, WHICH IS WORTH RECORDING
+  BECAUSE IT LOOKED LIKE IT PROVED A LOT.** Passing the single spec file with
+  `--workers=3` still ran on **one** worker: `playwright.config.ts` sets
+  `fullyParallel: false` on webkit and iphone-13, so tests *within a file* run
+  in sequence and only FILES run concurrently. A one-file re-run therefore
+  cannot reproduce the gate's contention no matter what `--workers` says — and
+  a serial pass is exactly the arbiter this project has already learned not to
+  trust.
+- **Re-run faithfully instead:** four webkit spec files together
+  (`account-deletion`, `family`, `onboarding`, `auth`) — **53 passed**.
+- **And the structural argument, which is the half no re-run can give.** In the
+  gate's flag shape the Google button is not rendered, so `LoginPage` and the
+  flag files are inert. What remains in the diff is two static attributes in
+  `BaseLayout`, three strings in `ui.ts`, and a **new, uncalled** export in
+  `supabase.ts` plus its stub. Account deletion touches none of it. **There is
+  no path from this release to that spec.**
+- ⚠️ **No 429 appears in the gate log**, so the standing auth-rate-limit
+  hypothesis is a hypothesis and is not claimed as the cause. ⚠️ **This is the
+  third consecutive gate whose flaky artefact was destroyed before it could be
+  read** — the BACKLOG entry about `test-results/` being cleared per project is
+  what would settle this class of question, and it is now the highest-value one
+  open.
+
+**`verify:deploy` will discriminate, proved before the deploy.** The live
+v0.21.0 tree serves `<html lang="fr" data-astro-cid-…>` with **zero**
+occurrences of `notranslate` and **zero** of `translate="no"`; this tree carries
+both. `BaseLayout` renders on every page, so the marker is on **all three**
+compared documents.
+
+**No migrations.** `git diff main HEAD -- supabase/` is empty.
+
+### Added
+
+- **Google sign-in on `/connexion/`, behind `PUBLIC_GOOGLE_AUTH_ENABLED`
+  (default OFF).** Part of backlog row v2-S2, and the half that needed no
+  decision reversed — it is the locked plan (*"magic-link + Google"*).
+  - ⚠️⚠️ **THE CODE LANDS BEFORE THE CONFIGURATION, ON PURPOSE.** Google
+    sign-in needs the provider switched on in the Supabase dashboard **and** an
+    OAuth client in Google Cloud with this origin in its redirect list. Neither
+    lives in this repository, so **no build here can check either**. Shipping
+    the button ahead of them gives a reader a control that is present, looks
+    live, and fails when pressed — Critical Feature 76 wearing a different hat,
+    and **worse than the hydration case it was written for**, because that one
+    resolves by itself after a second and this one never would.
+  - ⚠️ **ABSENT, NOT DISABLED.** `disabled` says "not yet"; without the
+    configuration there is no "yet", so the button is not rendered at all.
+  - **`signInWithGoogle()` resolves only on FAILURE** — on success the tab has
+    already left, and the session arrives on the next load through
+    `completeSignIn()`. The handler restores the button on the failure path and
+    has deliberately no success branch.
+  - **Implicit flow, same as the magic link.** OAuth returns to the same
+    browser so PKCE would work here, but the client is configured once for
+    both, and `detectSessionInUrl` already parses the fragment on
+    `/auth/callback/`. Two flows in one client is a second path to keep correct
+    for nothing a reader can perceive.
+  - **The spec asserts BOTH shapes**, gated on the same flag the build reads.
+    ⚠️ The first version asserted absence unconditionally and was watched to
+    fail correctly against a flag-on build (`Expected: 0 / Received: 1`) — which
+    is exactly the problem: it would have gone red the day somebody enabled the
+    feature, training a person to edit the test rather than read it.
+  - ⚠️ **And that the magic link SURVIVES it**, which is the failure this would
+    most plausibly ship: a Google button that quietly replaces the email form
+    rather than joining it would lock out every reader without a Google account.
+
+### Notes
+
+- ⚠️⚠️ **PASSWORDS WERE RE-EXAMINED AND RE-REJECTED — the reasoning is in
+  BACKLOG so it is not re-litigated.** "Identifier + password" was raised as a
+  way in for readers with no email. Three specific grounds, not "it was already
+  decided": **Supabase has no username auth** (`signInWithPassword` takes an
+  email or a phone, so an identifier needs a synthetic unroutable address, and
+  phone routes recovery through the SMS the same decision rejects); **a
+  synthetic address collides with Critical Feature 53**, which derives a child's
+  placeholder name from the email local part and would put it on the attendance
+  sheet; and **the account cannot recover itself** — no address, no reset, in a
+  volunteer club with no support desk, for users who are children.
+  - **What covers the real cases instead:** children are already covered by the
+    parent/child model; the **autonomous teenager** is an account holding
+    exactly one child and graduation is one FK update (CF40/41), so they can sit
+    on a parent's account until they have an address; and someone with neither
+    belongs to **prof-created accounts**, in the same backlog row as Google.
+- **For Seàn, before the flag can be flipped:** configure the Google provider in
+  the Supabase dashboard, create the OAuth client in Google Cloud with
+  `https://mogadorchess.nachi3dlabs.com/auth/callback` in its redirect list,
+  complete one real sign-in, and only then set the build variable.
+
+### Added
+
+- **The browser is told not to offer a machine translation.**
+  `<meta name="google" content="notranslate">` in the head and
+  `class="notranslate"` on `<html>`, on all **224** pages.
+  - ⚠️ **THE REASON IS THE NOTATION, NOT TIDINESS.** The site is already
+    properly bilingual with its own switcher, so a translation layer on top is
+    noise — and it is worse than noise on the content that matters most here.
+    Chess notation is single letters that read as ordinary words to a
+    translator: `e4` survives, but a French `Fc4` (fou) or `Cxe5` (cavalier) is
+    exactly the token a translator rewrites. A reader who accepts the prompt
+    gets a page whose moves no longer refer to the position on the board beside
+    them.
+  - ⚠️ **`lang` IS UNTOUCHED AND THE SPEC ASSERTS BOTH TOGETHER.** `notranslate`
+    says "do not offer to translate"; `lang` says "this is what it is written
+    in", which is what a screen reader picks its voice from and what the
+    hreflang alternates agree with. Suppressing the prompt by weakening `lang`
+    would trade a small annoyance for a real accessibility regression.
+  - **Verified on both locales**, because ⚠️ **the prompt appears when `lang`
+    disagrees with the reader's own language** — the FR page served to an
+    English speaker is the actual case, so testing only the default would test
+    the wrong one.
+  - ⚠️ **The class is safe next to the theme script** because that script uses
+    `classList.add`, which preserves what is already there — measured live, the
+    attribute reads `notranslate js theme-bois board-bois pieces-merida`. A
+    script assigning `className` would silently drop it.
+
+### Notes
+
+- ⚠️ **THE QUICK PATH REFUSED THIS, AND THE REFUSAL WAS RIGHT.** It was asked
+  for as a quick change; `scripts/quick.mjs` exited non-zero naming
+  `src/layouts/` — *"the page shell, including the anti-FOUC theme script"*. The
+  full branch gate was run instead. Two attributes in the file every page is
+  built from is exactly the shape the exclusion exists for, and the run proved
+  it: the first version of the spec shipped **two literal backspace characters**
+  inside its regex, which the fast path's narrower spec selection could plausibly
+  have carried through.
+- ⚠️ **THE GOOGLE SIGNALS DO NOT REACH EVERY BROWSER, SO A THIRD WAS ADDED.**
+  `class="notranslate"` and `<meta name="google">` cover Chrome and the Google
+  Translate widget and nothing else; Safari and Edge honour the HTML standard
+  attribute, `translate="no"`. All three now ship on all 224 pages, and the
+  spec asserts all three together with `lang`.
+  - ⚠️⚠️ **THEY ARE NOT REDUNDANT AND MUST NOT BE "CONSOLIDATED".** Each reaches
+    something the others do not, and ⚠️ **no engine in this suite can tell them
+    apart** — so deleting any one of them leaves every test green while
+    silently dropping a browser's worth of readers. The assertion is about the
+    CONTRACT, not an observable behaviour, and that is stated beside it.
+  - The three-signal version was watched to fail first: with `translate="no"`
+    removed the spec reports `Expected: "no" / Received: ""` on both locales.
+
+## [0.21.0] — 2026-08-22
+
+**The release in one line:** the club is reachable on a phone, and two checks
+that had been lying stopped.
+
+- **Mobile bar, second revision — Accueil · Apprendre · Jouer · Club · Moi.**
+  "Réglages" left the bar (it is still in Moi, the desktop gear and the
+  footer); **Club** took the slot. ⚠️ **Réglages passed the letter of Critical
+  Feature 27 and failed its spirit** — it had a landing, so the rule as written
+  would have kept it forever, while it was really one rarely-opened page
+  holding a fifth of the most valuable strip on a phone. **CF27 is now sharper:
+  would this section otherwise be unreachable on a phone?**
+- **`/club/` and `/a-propos/`** — a chooser for the club, and a real page about
+  it with **not one venue string in the component**.
+- **Trails corrected on three pages.** `/parametres/` stopped being a landing
+  and had to stop behaving like one; `/agenda/` and `/contact/` named "Accueil"
+  because they had no section and now name "‹ Le club".
+- **`verify:deploy` no longer false-fails on `/`** — it had become a check that
+  cried wolf on every correct deploy, which is the state that teaches an
+  operator to skip the one check standing between them and shipping v0.13.0
+  again.
+- **A stale fallback agenda now fails the build**, because `smoke:prod` is
+  structurally blind to it: a stale agenda is not an empty one, so it counts the
+  rows, sees one, and passes while the site names a day that has gone by.
+
+### Verification
+
+**`PUBLIC_AUTH_ENABLED=true npm run test:release` — 2026-08-22 18:13, green:
+1,297 passed, 0 failed, **0 flaky**, 23.8 min.** Gated on the promoted tree
+itself.
+
+| project | result | trough |
+|---|---|---|
+| chromium | 745 passed, 21 skipped | 1.91 GB |
+| firefox | 145 passed | **0.77 GB** |
+| webkit | 160 passed, 4 skipped | 2.54 GB |
+| pixel-5 | 106 passed | 2.44 GB |
+| iphone-13 | 120 passed | 2.49 GB |
+| chromium (OFF) sliver | 21 passed, 32 run | — |
+
+- ⚠️ **THE SLIVER RAN 32 TESTS, NOT ZERO** — Critical Feature 18 proved.
+- ✅ **WebKit launched and ran**, so the lane that caught the "Créer" bug
+  covered this tree. The Smart App Control row stays open regardless: it is a
+  claim about the host and it has reversed mid-session before.
+- ⚠️ **ZERO FLAKY, ON A MACHINE THAT WAS TIGHTER THAN LAST RELEASE, NOT
+  LOOSER.** Every project ran under the 3 GB advisory line and firefox troughed
+  at **0.77 GB** — deep inside the starvation regime — and still returned
+  145/145. v0.20.0 had four flaky at *higher* troughs. **That is worth
+  recording precisely because it cuts against the memory explanation**: it does
+  not refute it (a trough is a minimum, not a duration), but a clean run in
+  worse conditions is evidence the v0.20.0 flakes were not simply "the machine
+  was busy", and the artefact gap filed in BACKLOG is what would settle it.
+
+**`verify:deploy` will discriminate this release, proved before the deploy.**
+The live v0.20.0 tree serves `data-testid="mobilenav-sliders"` and **zero**
+occurrences of `mobilenav-calendar`; this tree is the reverse. ⚠️ **And because
+`MobileNav` renders from `BaseLayout`, the marker is on ALL THREE compared
+documents** — `/`, `/exercices/mat-du-couloir/` and `/progres/` — rather than
+the single document v0.20.0 had. This is the least blind release of the last
+four.
+
+**No migrations.** `git diff main HEAD -- supabase/` is empty.
+
+### Changed
+
+- **The mobile bottom bar, second revision — Accueil · Apprendre · Jouer ·
+  Club · Moi.** "Réglages" left the bar; "Club" took the slot.
+  - ⚠️ **RÉGLAGES PASSED THE LETTER OF THE SECTION RULE AND FAILED ITS SPIRIT.**
+    Critical Feature 27 asks that every entry be a section with a landing, and
+    Réglages had one — so the rule as written would have kept it forever. What
+    it actually was: one page, opened rarely, holding a fifth of the most
+    valuable strip on a phone. CF27 now carries the sharper test — **would this
+    section otherwise be unreachable on a phone?**
+  - ⚠️ **AND THAT TEST IS WHY CLUB WON.** The agenda, contact and about pages
+    sat under "Le club" in the desktop header and under **nothing** below
+    768px — a mobile reader could reach them only from the home page. **That is
+    the mirror of the `/progres/` defect Critical Feature 36 exists for:** not
+    one page missing from desktop, but a whole section missing from mobile.
+  - **Réglages is not gone** — it is inside Moi, plus the desktop header gear
+    and the footer. Nothing was lost but the slot.
+- **`/parametres/` stopped being a section landing, and had to stop behaving
+  like one.** It gained a trail reading "‹ Moi" (Critical Feature 62 — a
+  landing deliberately has none), and it now lights **Moi** in the bar. ⚠️
+  **Without the second half it would have lit nothing at all**, which is
+  precisely the defect Critical Feature 63 names.
+- **`/agenda/` and `/contact/` now trail to "‹ Le club", not "‹ Accueil".**
+  They named home because they had no section; naming home from two levels down
+  is the bare-"Retour" failure wearing a different word.
+
+### Added
+
+- **`/club/` and `/en/club/` — the club section landing.** A chooser, not a
+  menu (Critical Feature 65): Agenda, Contact, À propos, each with a line
+  saying what is behind it. ⚠️ **The agenda card states what is ANNOUNCED, not
+  a tally** — nothing records which sessions a guest attended, and inventing a
+  counter to fill the slot is how a surface starts lying. With nothing baked it
+  says so in words rather than printing "0 séances annoncées" (Critical
+  Features 30 and 61).
+- **`/a-propos/` and `/en/a-propos/` — what the club is, who runs it, how to
+  join.** ⚠️ **Not one venue string, handle or number lives in the component.**
+  The association, the venue block and the socials all come from
+  `src/config/site.ts`; `src/i18n/ui.ts` holds only the wording around them. An
+  about page is the single most tempting place to break venue portability —
+  "the club meets at Dar Souiri" is exactly the sentence somebody wants to
+  write here, and it would turn a one-commit venue change into a prose edit.
+  `hasVenue()` still makes the venue block disappear rather than render an
+  empty heading.
+- The desktop header's "Le club" group gained `/club/` (labelled "Vue
+  d'ensemble", as Apprendre does) and `/a-propos/`. ⚠️ **Critical Feature 36
+  forced this**: `mobile-app.spec.ts` reads the destination list **off the
+  bar**, so a bar entry with no desktop home fails the gate rather than
+  shipping quietly. It did fail first.
+
+### Notes
+
+- ⚠️ **MEASURED, AT BOTH WIDTHS AND IN BOTH LOCALES — the revision GAINED
+  headroom rather than spending it.** Cells are **72×52 at 360px** and **78×52
+  at 390px**, so every target clears 48px in both dimensions, and measured
+  overflow is **0 on all ten cells**. "Club" is **24.6px** in both locales,
+  against the "Réglages"/"Settings" it replaced. The worst case is unchanged
+  and is still "Apprendre" at 56.6px — **15.4px clear at 360px**.
+- **The desktop home menu was deliberately left alone.** Its "Le club" entry
+  still points at `/agenda/` rather than the new landing, because the E5 menu's
+  group entries all point at their most-wanted child (`nav.group.learn` →
+  `/cours/`, not `/apprendre/`). Repointing only this one would have broken
+  that pattern to satisfy a symmetry nobody asked for.
+
+### Fixed
+
+- **`verify:deploy` no longer fails on `/` for every correct deploy.** `/`
+  prints "Prochaine séance" from the baked agenda, and a local build cannot read
+  the `sessions` table — `.env.local` never reaches `fetch-agenda.mjs` — so it
+  bakes `agenda.fallback.json` while Cloudflare bakes the live table. The
+  comparison was structurally unable to pass. The next-session **value** is now
+  normalised away, exactly as `/_astro` fingerprints already are.
+  - ⚠️ **`/` was kept, deliberately.** Swapping it for a quieter document was
+    the obvious fix and is the wrong one: `/` is the page most releases touch,
+    which makes it the most valuable of the three.
+  - ⚠️ **Only the VALUE is dropped, never the structure.** The label, the
+    classes, the venue span and the surrounding `<a>` are still compared, so a
+    release that changes how the block is *built* is still caught.
+  - ⚠️ **The normalisation cannot silently become a no-op.** It counts its own
+    matches on both sides and says so if it ever gets zero — verified by
+    renaming the class and watching the warning fire. A normalisation nobody has
+    seen fire is one that may not work.
+  - Measured before and after against the live v0.20.0 build: `/` went from
+    *"the live build is NOT this tree"* to **66,358 bytes match**, with the
+    other two documents unchanged.
+
+### Added
+
+- **`fetch-agenda.mjs` refuses an EXPIRED fallback agenda.** If the committed
+  fallback is used *and every session in it has passed*, the build **fails**.
+  - ⚠️ **A stale agenda is worse than a blank one, and nothing else catches
+    it.** An empty agenda already fails `smoke:prod`; a fallback whose sessions
+    have all gone by is *not* empty, so `smoke:prod` counts the rows, prints
+    "at least one session listed" and goes green — while the site names a day
+    that has passed, to the families the site exists for.
+  - ⚠️ **It is fatal on the same reasoning that makes an empty agenda fatal**,
+    and the message names both ways out: set the Supabase env (what Cloudflare
+    does), or refresh the fallback.
+  - **It warns for fourteen days first**, so the hard failure is never the first
+    anyone hears of it.
+  - Both paths were watched to fire: expired → **exit 1**; five days out →
+    warning at exit 0.
+
+### Changed
+
+- **`src/data/agenda.fallback.json` refreshed from the live table — 1 session →
+  3.** ⚠️ **It was not WRONG, it was INCOMPLETE**, which is the more misleading
+  failure: its 12 September session is real, but it was missing the two nearer
+  ones, so the dashboard's "Prochaine séance" named **12 September** when the
+  true next session is **29 August**.
+  - ⚠️ **Reconstructed from the DEPLOYED agenda, not from the table directly**,
+    because this machine has no agenda credentials. That is one step removed and
+    the limits are stated rather than glossed: it cannot see a `draft` session
+    (correctly — a draft must never leak) and it is current only as of the
+    v0.20.0 build.
+  - **Two fields are inferences.** `titleFr` is not rendered by the agenda
+    template at all, and `overbookMargin` is not exposed publicly; both are set
+    from the schema default and from the one record whose true values were
+    already committed. ⚠️ **That record is what calibrates the rest** — for the
+    12 September session the page renders a level badge and a note and the known
+    record has both, while the two new cards render neither, which is what makes
+    `level: null` and `noteFr: null` a reading rather than a guess.
+
+### Notes
+
+- **v0.20.0 was deployed and verified on 2026-08-22.** Recorded here rather than
+  inside the tagged `[0.20.0]` section, so the tag keeps saying exactly what it
+  said when it was cut.
+  - ✅ **`npm run smoke:prod` green** — every route 200 with its structural
+    sentinel, canonical and og agreeing, both video fixtures **404**, the
+    manifest and `sw.js` correct with the engine not precached, and `/agenda/`
+    listing **3 sessions** rather than blank.
+  - ⚠️ **`npm run verify:deploy` reported a FAILURE on `/`, and it was a FALSE
+    one.** `/exercices/mat-du-couloir/` (54,074 bytes) and `/progres/` (86,356
+    bytes) matched exactly; the entire difference on `/` was the dashboard's
+    next-session block, because a local build bakes `agenda.fallback.json`
+    while Cloudflare bakes the live table. Filed in BACKLOG — ⚠️ **the risk is
+    that a check which cries wolf every release is one somebody learns to
+    skip**, and this is the check that exists because v0.13.0 was merged,
+    tagged and never served.
+  - **The deploy verdict was therefore reached by hand, and it is
+    unambiguous:** the two clean documents matched byte-for-byte, and the live
+    site carries every marker this release introduced — `disabled` on the
+    exercise hint button, on the replayer's launch button and transport
+    controls, on all **thirteen** move-list buttons, and on `play-start` with
+    `data-ready="false"`.
+  - ⚠️ **The discriminator did its job.** Proved absent from the old tree before
+    the deploy and present after, inside one of `verify:deploy`'s own three
+    documents — the first release in three where that check could discriminate
+    at all.
+
+## [0.20.0] — 2026-08-22
+
+**The release in one line:** the engine plays at the strength each level was
+*meant* to have, and no board control lies about being ready.
+
+- **Engine retuned.** Intermédiaire `blunderChance` **0.25 → 0.20**; Avancé
+  `Skill Level` **14 → 20**. ⚠️ **The real fault at Avancé was not blundering
+  at all** — its `blunderChance` was already 0 and a spec pins it there. It was
+  `Skill Level`'s **deliberate root-move error**, bounded by `Skill Level
+  Maximum Error` (200 cp in this build): at skill 14 it agreed with a
+  depth-matched reference only **46%** of the time. Two different levers, two
+  different faults; conflating them is what sent the previous look in the wrong
+  direction.
+- **560 pre-hydration controls fixed across 132 pages**, and the rule that was
+  already written down is now **enforced at build time** — Critical Feature 76,
+  `scripts/check-island-controls.mjs`.
+- **The `/jouer/` start-button race diagnosed and regression-tested** after
+  three gates of being written off as machine contention.
+
+### Verification
+
+**`PUBLIC_AUTH_ENABLED=true npm run test:release` — 2026-08-22 13:14, green:
+1,277 passed, 0 failed, 4 flaky, 32.5 min.** Gated on the promoted tree itself,
+not on transferred evidence.
+
+| project | result | trough |
+|---|---|---|
+| chromium | 737 passed, 21 skipped | **1.98 GB** |
+| firefox | 144 passed, 1 flaky | **1.58 GB** |
+| webkit | 157 passed, 3 flaky, 4 skipped | 3.38 GB |
+| pixel-5 | 102 passed | 3.19 GB |
+| iphone-13 | 116 passed | 3.29 GB |
+| chromium (OFF) sliver | 21 passed, 32 run | — |
+
+- ⚠️ **THE SLIVER RAN 32 TESTS, NOT ZERO** — Critical Feature 18 is actually
+  proved, which is the item most easily missed.
+- ✅ **WEBKIT LAUNCHED AND RAN.** The Smart App Control block that forced
+  v0.18.0 onto transferred evidence has not returned, so the lane that caught
+  the "Créer" bug ran on this tree. ⚠️ **The backlog row stays open anyway** —
+  it is a claim about the host and it has reversed mid-session before.
+
+**The four flaky, and why they were chased rather than waved through.**
+`[firefox] agenda:30`, `[webkit] family:355`, `[webkit] onboarding:362`,
+`[webkit] recurring-sessions:419`. ⚠️ **The last is the "Créer"
+click-synthesis spec that earned the webkit lane** — and this release is
+entirely about controls that look live and do not work, which is far too close
+to accept on a retry.
+
+- **Re-run at `--workers=3`** — the same fan-out as the gate, which the backlog
+  names as the discriminator between a concurrency-sensitive defect and a
+  one-off, and a stronger check than a serial pass. **28 passed**, including
+  `recurring-sessions:419` (9.5s), `family:355` (8.7s), `onboarding:362`
+  (18.6s).
+- **And a structural no-path argument, which is what the re-run alone cannot
+  give.** This release changed board-island files only; `/agenda/` contains
+  **zero** `<astro-island>` elements and the account surfaces carry no board.
+  ⚠️ **That is the difference from the `play.spec.ts` case** — there the flakes
+  were inside the very island being changed, and the serial pass was wrong.
+  Here there is no path from the diff to any of the four.
+- **Environment corroborates:** the run took **32.5 min against a 21.9 min
+  baseline** (48% over) with chromium and firefox troughs **under 2 GB**, i.e.
+  inside the starvation regime. ⚠️ **It does not explain webkit**, whose trough
+  was 3.38 GB — which is why the re-run was done rather than assumed.
+
+**`verify:deploy` will discriminate this release, and that is proved, not
+assumed.** The live v0.19.0 tree serves
+`<button type="button" class="mcc-exercise-button" data-testid="exercise-hint-button">`;
+this tree serves the same button carrying `disabled`. It sits inside
+`/exercices/mat-du-couloir/`, one of `verify:deploy`'s own three compared
+documents — so the marker is **proved absent from the old tree** and the check
+is not blind, for the first time in three releases.
+
+**No migrations.** `git diff main HEAD -- supabase/` is empty, so nothing had to
+reach production before the deploy.
+
+### Changed
+
+- **CLAUDE.md split — 124,481 → 119,510 characters (83% → 80% of the guard).**
+  Three blocks moved **verbatim** into existing reference files, each with a
+  **Read when** line and a note saying it was moved rather than reworded:
+  - the **gate audit** — the 4.8-hours-to-22-minutes measurements, what each
+    lane was *earned by*, the accounts-OFF sliver's irreducibility, the
+    `check-lanes.mjs` blind spot and the memory diagnosis → `testing.md`
+    (7,065 chars). The rules stayed: chromium is the backbone, a spec joins a
+    lane for a named reason, `--workers=3` is not a tuning knob, a zero-test
+    sliver fails the gate, `check-lanes` never gates, and never run the matrix
+    on a feature branch.
+  - the **three-gate hydration-race diagnosis** → `testing.md` (2,837 chars).
+    The rules stayed, now as a short list: a hydration race has the signature of
+    contention, the artefact is the discriminator, `data-ready` is the
+    convention, and a helper waits on readiness rather than a proxy for it.
+  - the **dated "production's schema is current through 0013" paragraph** and
+    the two accounts-OFF build-leak incidents → `deployment.md`. ⚠️ A claim
+    about the outside world that **expires** is exactly what should not sit in a
+    file loaded into every session.
+- ⚠️ **`node scripts/check-split.mjs` passes: 1,345 lines stayed, 136 moved,
+  nothing missing.** Run against a copy of the pre-split file, as the ceremony
+  requires.
+- ⚠️ **NOTHING WAS DECLARED OBSOLETE, and that is written into
+  `.split-obsolete.txt` rather than left as an absent section** — "no entries"
+  and "nobody checked" look identical from the outside. Every block was moved
+  verbatim, so no licence to lose a line was needed.
+
+### Notes
+
+- ⚠️ **THE STRUCTURAL QUESTION THE BACKLOG RESERVED FOR SEÀN IS STILL OPEN, AND
+  IT IS WHY THIS LANDED AT 80% RATHER THAN 60%.** What remains is index-shaped:
+  the two largest blocks are **Critical Features (14,877)** and the **routes
+  table (4,860)**, and both are things a session breaks *without going looking*,
+  which is the test for staying. Everything narrative that had a home has now
+  been moved. ⚠️ **A further reduction would be a TRIM, which the rule forbids**
+  — so the next move is the structural one: does the Critical Features list
+  become a linked file carrying only its headlines inline, accepting that a rule
+  one click away is a rule some sessions will not read? **Do not answer it by
+  shaving prose.**
+- At the current rate this buys roughly two or three sessions before it warns
+  again. It is a reprieve, not a fix.
+
+### Fixed
+
+- **Every board island shipped controls that looked live and did nothing until
+  it hydrated — 560 of them, on 132 pages.** Astro server-renders an island, so
+  a control inside one is markup with its handler attached to nothing until the
+  chunk lands; a press in that window does nothing at all — no action, no
+  error, no acknowledgement. `client:visible` puts the window exactly where a
+  reader arrives, because hydration is not requested until the board scrolls
+  into view.
+  - **The replayer was the worst of it.** The launch button, "coup suivant",
+    "position finale" and **every move-list button** — sixteen inert controls
+    on every trap page and every lesson page. ⚠️ **The launch button is the one
+    that stings**: `replayer.css` records that it exists *because* four small
+    glyph buttons did not read as pressable and the site's own author reached
+    for the pieces instead. It was built to attract the eye and be pressed
+    first, which made it the control most likely to be pressed while dead.
+  - **The exercise hint button**, which a student presses precisely when they
+    are stuck — the moment a silent non-response reads as "I am not even
+    allowed to ask". `MoveInput` was already guarded and stays that way.
+  - `ReplayView` gains `data-ready` (it had **no** readiness signal at all) and
+    disables every control until it is true; `ExerciseView`'s hint button hangs
+    off the `engine` flag it already publishes as `data-ready`, so the island
+    keeps one meaning of ready.
+  - ⚠️ **"start" and "prev" were already disabled and were still wrong.** They
+    were disabled because `atStart` happens to be true on arrival — a fact
+    about cursor state, not readiness. Both now carry `atStart || !hydrated`: a
+    guard that is accidentally correct evaporates the first time the
+    surrounding state changes.
+
+### Added
+
+- **`scripts/check-island-controls.mjs`, a build step** — every `<button>`,
+  `<input>`, `<select>` and `<textarea>` inside an `<astro-island>` must ship
+  `disabled`, directly or via a disabled `<fieldset>`. It reads `dist/`, not the
+  source, because the defect exists only in the artefact.
+  - ⚠️ **It was watched to FAIL first** — 560 controls across 132 pages — then
+    pass. A check that has never been seen red is a green tick that proves
+    nothing (the `check-lanes.mjs` trap).
+  - Now **Critical Feature 76**.
+- **Regression tests for both islands**, in `replayer.spec.ts` and
+  `exercise.spec.ts`, on the pattern `play.spec.ts` established: hold the island
+  chunk back 3s with `page.route` to force the window open, assert every control
+  disabled and `data-ready="false"`, then assert it works once ready. All three
+  new "before hydration" tests were watched to fail against the un-fixed
+  components (`Expected: disabled / Received: enabled`).
+
+### Changed
+
+- **`openReplayer` and `readyBoards` now wait on `data-ready`, not on
+  `<cg-board>` alone.** ⚠️ `BoardSurface` is a **child**, and child effects run
+  first, so the board element appears a render BEFORE the parent view publishes
+  readiness. Waiting on the board proved the child had mounted and nothing about
+  the parent.
+
+### Notes
+
+- ⚠️ **THE RULE ALREADY EXISTED IN PROSE AND WAS BEING BROKEN THE WHOLE TIME.**
+  "No control inside a hydrating island may look usable before it is" was
+  written into CLAUDE.md one release ago, when `/jouer/`'s start button was
+  fixed. It was applied to that one control — the one a flaking test happened to
+  point at — and to nothing else, and no test anywhere went red. That is the
+  argument for the build step rather than a longer paragraph.
+- ⚠️ **NO TEST WAS FAILING, AND NONE COULD HAVE BEEN.** Every spec waits for
+  something a reader does not have — `<cg-board>`, `data-ready`, an
+  actionability check. The suite is structurally blind to a control that is
+  inert only before those waits resolve. Two of the three instances were found
+  by accident; this one was found by reading `dist/` on purpose.
+- **`useMoveSource.ts` is clear.** The backlog row that sent three gates looking
+  at focus modality has been rewritten: its `play.spec.ts` half is closed with
+  the real cause (the hydration race), and the webkit `touch-focus.spec.ts:230`
+  half stays open with what is actually known. That half is **not** explained by
+  this fix — it drives the exercise island, whose move field and board were
+  already correctly guarded.
+- ⚠️ **CLAUDE.md is at 83% of the size guard** (124 k / 150 k). Still warning;
+  still the wrong branch to split it on.
+
+### Fixed
+
+- **`/jouer/`: the start button was live-looking and inert until the island
+  hydrated, and a press in that window was swallowed in silence.** No start, no
+  error, no acknowledgement — the reader is simply ignored. The setup form is
+  server-rendered and the island is `client:visible`, so the window is between
+  "the form is readable" and "the form works", and it widens on a slow
+  connection. `PlayView` now exposes `data-ready` (the same convention as the
+  exercise board) and disables the button until it is true.
+- **The colour and level radios were the half nearly missed.** Disabling only
+  the button leaves the choices live, and a colour picked before hydration is
+  discarded when Preact attaches — the control snaps back to "Les blancs" under
+  the reader's hand. Visible rather than silent, so milder, but a form is
+  either working or it is not. Both fieldsets are now disabled until ready.
+- ⚠️ **This is what `play.spec.ts` had been flaking on for THREE CONSECUTIVE
+  GATES**, and it was written off as machine contention all three times. It was
+  a real application defect throughout.
+
+### Changed
+
+- **Engine levels retuned — Intermédiaire and Avancé.** Seàn reported mistakes
+  at both that should not happen there. Débutant is correctly calibrated and
+  does not move.
+  - **Intermédiaire: `blunderChance` 0.25 → 0.20.** At 0.25 it scored **48%**
+    against `novice` — losing more than half to a bot whose only virtue is not
+    hanging pieces.
+  - **Avancé: `Skill Level` 14 → 20.** ⚠️ **Its `blunderChance` was already 0
+    and a spec pins it there**, so the brief could not have been describing the
+    blunder path at all. The fault was `Skill Level 14`: Stockfish picks a
+    deliberately worse root move bounded by `Skill Level Maximum Error`,
+    default 200 centipawns. Best-move agreement against a depth-**matched**
+    reference: skill 14 agreed **46%**, returning 3 different moves in nearly
+    every position; only skill 20 is effectively deterministic.
+- **Measured, 60 games per pairing, colours alternating** — Débutant 66% /
+  **18%**, Intermédiaire 97% / **66%**, Avancé 100% / **100%** against
+  `greedy` / `novice`. Ladder: Avancé **100%** over Intermédiaire,
+  Intermédiaire **95%** over Débutant. Strictly ordered, which is the property
+  that matters.
+- ⚠️ **0.15 was measured and rejected, on the level's PURPOSE rather than its
+  win rate.** It scores 80%, leaving a student one game in five. Intermédiaire
+  is meant to be winnable **one game in three** by someone who has finished
+  course 3 and plays accurately — `novice` is the stand-in for that student and
+  0.20 gives it **34%**. That target is now written next to the numbers in
+  CLAUDE.md, so the next person tuning this knows what the level is *for*.
+
+### Added
+
+- `scripts/engine-lab --accuracy` — best-move agreement against a
+  depth-matched reference, which is what separated Avancé's *inaccuracy* from
+  Débutant's *weakness*. ⚠️ Its first run was confounded (reference at depth 16
+  vs candidates at depth 12) and was thrown away rather than reported.
+
+### Fixed
+
+- Documentation, `docs/reference/engine.md`: the preset table held the
+  **pre-retune** figures. Replaced rather than appended, per the brief.
+
+### Notes
+
+- ⚠️ **40 games cannot separate neighbouring rates.** Two 40-game samples of
+  the *same* configuration came out **76% and 86%** — the engine keeps its hash
+  between games and searches are movetime-bounded, so runs are not
+  reproducible. Tuning was redone at 120 games; the shipped 66% replicated at
+  both 60 and 120, which is why it is trusted.
+- ⚠️ **CLAUDE.md is at 81% of the size guard** (121 k / 150 k) and warning
+  again. Not split in this session — an engine branch is the wrong place for
+  it. Flagged rather than trimmed.
+- ⚠️ **"Passing serially" is no longer accepted as proof that a flake is
+  environmental**, and CLAUDE.md now says so. A hydration race needs load to
+  widen its window and evaporates under `--workers=1`, which is exactly the
+  signature the old rule read as contention. **The discriminator is the failure
+  artefact** — `error-context.md` named the cause at every one of the three
+  gates that waved it through.
+- ⚠️ **The exercise and replay islands were NOT audited** for the same defect.
+  They are the same shape — server-rendered controls inside a `client:visible`
+  island. Assume it until measured.
+- The regression test **throttles the island chunk on purpose** (`page.route`,
+  4 s). At its natural rate the defect reproduced once in sixty runs, which is
+  not something a suite can hold; forced open it fails 100% of the time, and it
+  was watched to fail against the un-fixed component first.
 
 ---
 
-## [0.17.0] — 2026-08-18
+## [0.19.0] — 2026-08-21
+
+**UI containment: closed cards, form fields as objects with grouping, section
+headers, and a constant vertical rhythm. Structure only — the palette, the four
+themes and the old-chess-club identity do not move.**
+
+The app surfaces stopped floating. `/compte/` and `/admin/seances/` had blocks
+with no boundaries and form fields the colour of the page behind them; they are
+now closed objects with one card, one field, one section header and one spacing
+scale.
+
+**Component consolidation: 8 card treatments → 1, 9 `.btn-primary` → 1, 6
+`.btn-ghost` → 1.** ⚠️ **And it found four LIVE phantom custom properties**, one
+of which had left five admin blocks with **no background at all** — invisible
+precisely because the page had no surfaces either. `scripts/check-css-dupes.mjs`
+now gates on phantoms. Two contrast pairs were corrected where controls moved
+onto cards.
+
+### Changed
+
+- ⚠️⚠️ **CONTAINMENT — THE APP SURFACES BECAME CLOSED OBJECTS, AND EIGHT CARD
+  TREATMENTS BECAME ONE.** Structure only: the palette, the four themes and the
+  old-chess-club identity do not move. `src/styles/surfaces.css` is the source —
+  one card, one form field, one section header, one spacing rhythm.
+  - **What was there:** `.admin-block` was `margin-block-end: 2rem` and **no
+    surface at all**, so every block on `/admin/seances/` bled into the page;
+    `.admin-field input` was filled with `--mcc-surface-page`, the same colour
+    as the page behind it; and `/compte/` carried **three different treatments
+    for three cards** with 40px and 200px gaps that no rule connected.
+  - **A card is closed on all four sides** — `.mcc-card`: its own surface, a
+    full border, `--mcc-radius-app`, a real shadow, one padding. ⚠️ **A left
+    border closes nothing.**
+  - ⚠️ **THE GOLD EDGE IS NOW AN ACCENT ON ONE CARD PER PAGE — THE PRIMARY
+    ACTION.** It was on **every** `/agenda/` session and on `/compte/`'s
+    **danger** block, in the accent colour: meaningless because everything had
+    it, and wrong because gold says "press this" rather than "this deletes your
+    account". `/compte/` keeps it on the one card that is a primary action, the
+    staff link.
+  - ⚠️ **CONTENT CARDS WERE NOT TOUCHED.** `.card`, `.lesson-card` and `.step`
+    keep `--radius-card` (3px), which `tokens.css` calls "club stationery, not a
+    SaaS dashboard". **That 3px is the identity.** Generous radius applies where
+    a reader operates a tool, not where they read.
+  - **Form fields are objects** — `.mcc-field`: 48px, a fill distinct from the
+    card, label above with air at body size, hint below the control it belongs
+    to, selects styled like inputs with a CSS-drawn chevron (no asset, no
+    request).
+  - **`/admin/seances/`'s ten fields became four groups** — Quand, Quoi,
+    Combien, Visibilité — and **the creation form moved behind a "Nouvelle
+    séance" disclosure**. A prof opens that page weekly to mark a register and
+    read the list; ten fields sat permanently between the two things they came
+    for. Native `<details>`, and `startEdit()` opens it, because filling a
+    closed form would look exactly like "Modifier" doing nothing.
+  - **The primary action fills its card** (`.btn-block`), one per card; **and
+    destructive is no longer routine** — *Modifier* and *Annuler la séance*
+    shipped at identical weight, and cancelling a session tells a room of
+    children not to come.
+  - **Every gap comes from a scale** — `--mcc-space-2xs … xl` and
+    `--mcc-card-gap` in `tokens.css`.
+- ⚠️ **`.btn-primary` WAS DEFINED IN NINE FILES; IT IS NOW DEFINED IN ONE.**
+  `controls.css` already owned the structure and deliberately left "just the
+  colours" to each page — **that boundary did not hold**: a colour needs a
+  border to sit against, a border needs a radius, and by this audit there were
+  seven scoped copies with three different paddings and two min-heights, plus
+  `admin.css`. Appearance came home; what a page may still set is margin.
+- **Touch targets on the admin surfaces are ≥48px**, scoped to `.admin`. The
+  site-wide floor stays 44px — the extra 4px is for a prof standing up in a room
+  at Dar Souiri, which is the argument the attendance buttons already made.
+
+### Fixed
+
+- ⚠️⚠️ **FOUR LIVE PHANTOM CUSTOM PROPERTIES, FOUND BY THE NEW CHECK AND
+  REPAIRED.** An unknown custom property invalidates the **whole** declaration
+  at computed-value time — silently.
+  - **`--mcc-surface-card`, used FIVE times in `admin.css`, painted nothing.**
+    `.mark-button`, `.repeat-preview`, `.series-card`, `.session-card` and
+    `.admin-tile` all shipped with **no background at all**. ⚠️ It was invisible
+    *because the page had no surfaces either* — against one flat colour an
+    unpainted card looks deliberate. Making the blocks real cards is what
+    exposed it.
+  - **`--mcc-on-primary` meant the booking button's label colour never
+    applied** — on the member-facing control shipped in v0.18.0.
+  - **`--radius-control`**, four uses across `admin.css` and `booking.css`.
+- ⚠️ **Two contrast pairs were under the floor once text moved onto cards**, and
+  `check-contrast.mjs` caught both: `--mcc-border-strong` at **2.78:1 on a
+  raised surface (bois/dark)** and **3.00:1 on its own field fill
+  (marbre/light)**, against a 3:1 requirement for non-text UI. Corrected by 7
+  and 2 steps per channel respectively — the strength of a control edge, not a
+  palette move. The dark value had been measured at 3.1:1 against the **page**,
+  a floor that stopped holding the moment controls moved onto cards.
+
+### Added
+
+- **`scripts/check-css-dupes.mjs`** — finds a component defined in several files
+  and a custom property that does not exist.
+  - ⚠️ **Its phantom half GATES and its duplicate half ADVISES**, and the split
+    is whether the finding can be wrong: a class in two files is often correct
+    (a page owns its margins), but a `var()` with no declaration is a fact.
+  - **It reads scoped `<style>` blocks**, which is the only reason it finds
+    nine `.btn-primary` rather than one.
+  - ⚠️ **It learned two false-positive classes the hard way:** `var(--x, 60ms)`
+    with a fallback is never a phantom, and a property set with
+    `setProperty()` is declared. Its first version also flagged
+    `LessonPage.astro` for a **comment describing a historical phantom** — a
+    check that flags a file for correctly documenting a fixed bug is one people
+    learn to mute.
+- **Seven new contrast pairs** for text and borders on raised and field
+  surfaces. **371 assertions, up from 315.**
+
+### Documentation
+
+- **CLAUDE.md** carries the containment rules; the audit, the counts, the two
+  contrast corrections and the field grouping are in
+  [`docs/reference/theming.md`](./docs/reference/theming.md).
+- ⚠️ **`docs/MANUAL-TESTS.md` gains the question this work is answerable to:**
+  *on a phone, can a prof create a session and mark a register without
+  hunting?*
+
+- ⚠️⚠️ **A LOCAL `npm run build` BAKES THE COMMITTED FALLBACK AGENDA, BECAUSE
+  `.env.local` NEVER REACHES `fetch-agenda.mjs`** — recorded in
+  [`docs/reference/deployment.md`](./docs/reference/deployment.md) after it cost
+  a diagnosis at the v0.18.0 deploy. The script runs **before Astro**, as plain
+  Node, and reads `process.env`; Astro's dotenv loading is for Astro's own build
+  and never reaches a script earlier in the `&&` chain. **Cloudflare is
+  unaffected** — its build variables are real environment variables — so the
+  divergence is local only, and only for the agenda.
+  - ⚠️ **IT PRESENTS AS A FAILED DEPLOY.** `verify:deploy` reported `/` as *"the
+    live build is NOT this tree"* minutes after a deploy that had demonstrably
+    landed. The differing bytes were the home dashboard's next-session line —
+    local `2026-09-12` against live `2026-08-29` — because the local `dist/`
+    held the committed one-session snapshot and production held the three real
+    rows. The other two documents matched, so the report was one third red for a
+    reason that had nothing to do with the deploy.
+  - ⚠️ **Export the two variables and STRIP THE QUOTES.** `.env.local` quotes its
+    values, and exported verbatim the URL keeps them and the fetch dies with
+    `Failed to parse URL from "https://….supabase.co"` — a message that reads
+    like a network fault and is a quoting fault.
+  - ✅ **The guard itself is correct and was NOT softened:** with credentials
+    configured and the read failing, `fetch-agenda.mjs` **fails the build**
+    rather than falling back. Silent fallback is reserved for a machine with no
+    credentials at all, which is a dev build by definition.
+
+---
+
+## [0.18.0] — 2026-08-21
+
+**Session booking: a member reserves a place for a child, and capacity is a
+property of Postgres rather than of the page. Migration 0013 — per-session
+capacity and an overbooking margin, a row lock taken before the count, and a
+two-hour cancellation cutoff that lives in the database rather than in a
+disabled button.**
+
+The agenda stops informing and starts enrolling. On the prof's side a session
+can now be edited rather than only created, and every card carries its own
+filling. `db:push --dry-run` stopped lying, and the PowerShell round-trip that
+silently double-encodes accented French is now a hard rule.
+
+**And the release gate that verifies it went from 4.8 hours to 21.9 minutes** —
+chromium over the whole suite plus four named cross-browser lanes, one flag
+shape, and a two-minute accounts-OFF sliver. ⚠️ **The audit that shrank it found
+a gap rather than only a saving:** the booking controls this release ships had
+**no browser test on any engine**, because `booking.spec.ts` never opens a page.
+The gate change and the release it first gates land together, deliberately —
+a gate that arrives one release after the feature it was meant to verify has
+verified nothing.
+
+### Added
+
+- **Session booking — a member reserves a place for a child, and capacity is a
+  property of POSTGRES rather than of the page.** Migration **0013**:
+  `sessions.capacity` (default 12) and `sessions.overbook_margin` (default 2),
+  a `bookings` table, and `create_booking()` / `cancel_booking()` /
+  `session_availability()`.
+  - ⚠️ **THERE IS NO INSERT POLICY FOR A PARENT, AND THAT IS THE ENFORCEMENT.**
+    Rows arrive only from `create_booking()`, which is SECURITY DEFINER and
+    checks ownership itself. A parent who bypasses the UI gets `42501`, not an
+    overbooked session — asserted with a real token.
+  - ⚠️ **THE LOCK IS TAKEN BEFORE THE COUNT, AND ON THE SESSION ROW.**
+    `select … for update` serialises two parents going for the last place;
+    counting first and locking after would let both read 13 of 14 and both
+    insert. **Measured: six concurrent bookings for three places produce
+    exactly three `ok` and three `full`**, and the row count is then asked of
+    the database rather than inferred from the replies.
+  - ⚠️⚠️ **A BOOKING WRITES NOTHING TO `sessions`, AND A SPEC COUNTS IT.** 0011
+    hangs statement-level rebuild triggers on that table, so a denormalised
+    `bookings_count` column — the obvious optimisation — would turn every
+    reservation into a Cloudflare build. A lock is not a write; the count is
+    derived by counting. `booking.spec.ts` compares `rebuild_requests` across a
+    booking and a cancellation and expects **no change**.
+  - ⚠️ **CANCELLATION FREES THE PLACE VIA A PARTIAL UNIQUE INDEX** —
+    `unique (session_id, child_id) where status <> 'cancelled'`. A plain unique
+    constraint would let a child cancel once and never re-book.
+  - ⚠️ **THE OVERBOOKING MARGIN IS A FEATURE AND WILL LOOK LIKE A BUG.**
+    Capacity 12 + margin 2 accepts **fourteen**. Cancellations are frequent and
+    the venue absorbs the overflow, so nobody is turned away. The reason is on
+    the admin form, not only in the migration.
+  - ⚠️ **THE TWO-HOUR CUTOFF LIVES IN THE DATABASE**; `cancellable()` only greys
+    the button. **Staff are exempt** — "after that the prof handles it" means
+    the prof can. The boundary is closed against the member so the button and
+    the rule cannot disagree.
+  - **A cancelled session cancels its bookings** with `cancel_reason =
+    'session_cancelled'`, via a row trigger that **swallows every failure**: it
+    may never block a prof from cancelling (Critical Feature 70).
+  - ⚠️ **`session_availability()` EXISTS BECAUSE A PARENT CANNOT COUNT.**
+    `bookings_select_own` shows them their own rows, so `count(*)` would return
+    their own bookings. Numbers only, never a name, and **not granted to
+    `anon`** — which is what stops a page calling it on load and breaking the
+    guest zero-request rule.
+  - **Live RLS/GRANT audit against the TEST project: 28 assertions, all
+    passing**, exercised with real tokens rather than by re-reading the
+    migration. ⚠️ **The two failures it did find were in the AUDIT**: setting
+    `profiles.role` with a direct `UPDATE` as `service_role` silently does
+    nothing, because a guard trigger refuses a role write when `auth.uid()` is
+    null. The sanctioned path is `admin_set_role()`. The column being genuinely
+    un-writable is the feature.
+- **The member surface, FR/EN** — places restantes and a book button per child
+  on `/agenda/`, "Réservé" with cancel until the cutoff, and «Complet» on a full
+  session.
+  - ⚠️ **A SIGNED-OUT READER STILL CAUSES ZERO REQUESTS.** `hasStoredSession()`
+    reads `localStorage` for supabase-js's own token key and **imports nothing**
+    — asking Supabase whether we are signed in is already the violation, because
+    constructing the client can refresh a token. No token, no import, no
+    request; the server-rendered invitation to sign in is what stays on screen.
+  - ⚠️ **THE DATABASE RETURNS A CODE, NEVER A SENTENCE** (Critical Feature 74).
+    A French string from Postgres could not be rendered for an English reader,
+    so `create_booking()` returns `full` / `already` / `past` / … and
+    `src/i18n/ui.ts` owns both wordings. **An unknown code renders the generic
+    refusal — never a silent no-op.**
+  - ⚠️ **`src/styles/booking.css` IS NOT SCOPED**, because the per-child buttons
+    are built by script and carry no `data-astro-cid` attribute. Same lesson as
+    `admin.css`, `family.css` and `video.css`.
+- **The prof surface** — capacity and margin on the session form, an **attendee
+  list carrying the parent's phone as a `tel:` link**, and booked children
+  leading the register.
+  - ⚠️ **THE REGISTER STILL LISTS THE WHOLE CLASS.** Only the ORDER changes. A
+    child who turns up without booking must be markable without anyone retyping
+    them — attendance is the record of who came, not of who said they would.
+  - ⚠️ **BOTH READS RUN UNDER THE SAME GENERATION COUNTER**, so a stale roster
+    cannot sit above a fresh register.
+
+### Fixed
+
+- ⚠️⚠️ **`npm run db:push -- --dry-run` APPLIED THE MIGRATION AND REPORTED THAT
+  IT HAD NOT.** `scripts/db-push.mjs` read `process.argv` **not at all**: it ran
+  a `--dry-run` probe to find the pooler host, printed the pending list, then
+  applied unconditionally with `--include-all`. The flag was accepted, ignored,
+  and contradicted by the script's own output (`"dryRun":false` beside
+  *"Applying migration…"*).
+  - ⚠️ **A DRY-RUN FLAG THAT LIES IS WORSE THAN NO FLAG.** The whole purpose of
+    this wrapper is that it refuses production; a flag someone learns to trust
+    for "just checking" is the one they reach for when they are least sure what
+    they are pointed at. Found at the 0013 gate, where the migration was wanted
+    anyway — which is exactly the luck that lets a defect like this survive.
+  - **`--dry-run` now stops after the probe**, having changed nothing, and says
+    so. ⚠️ **And an unrecognised argument now FAILS CLOSED** — `--dryrun`, a
+    typo or anything else refuses with exit 1, because silently discarding an
+    argument is what caused this in the first place.
+  - **Verified by watching it not happen:** a throwaway pending migration stayed
+    pending across a `--dry-run`, and `--dryrun` was refused.
+
+### Added
+
+- **A session EDIT form on `/admin/seances`, which is the missing half of
+  "capacity is set by the prof".** The fields were on the write path but no form
+  reached them, so a prof could set capacity at creation and never change it.
+  - ⚠️ **ONE FORM, TWO MODES — not a second form.** A separate edit form is a
+    second place for the field list to be wrong, and capacity reaching the
+    create form alone is precisely how this gap appeared.
+  - ⚠️ **EDIT MODE SHORT-CIRCUITS THE REPEAT PREVIEW.** Repetition creates rows;
+    editing changes one. Leaving the cadence live would offer "modify this
+    session, thirteen times" — and 0012's rule is that a series is a LABEL, so
+    editing a member edits that member only.
+  - ⚠️ **`datetime-local` WANTS LOCAL WALL-CLOCK, NOT AN ISO INSTANT.** Assigning
+    the stored `…Z` string leaves the field silently empty in every browser, so
+    the value is rebuilt from local parts.
+  - ⚠️ **A cancelled session is not offered as a form state.** Un-cancelling has
+    consequences for everyone who was told it was off; it is not a dropdown.
+  - The status is sent as-is, so editing a draft never accidentally announces it.
+- **Occupancy on each admin session card — "9 / 14 places".**
+  - ⚠️ **THE DENOMINATOR IS `capacity + margin`, THE NUMBER THAT ACTUALLY
+    REFUSES.** Printing "9 / 12" beside a session that accepts fourteen would
+    make the margin invisible again, and a prof counting fourteen children
+    against a card reading 12 is the confusion the form's hint exists to prevent.
+  - ⚠️ **AN ABSENT COUNT PRINTS "—", NEVER 0** (the same rule as Critical
+    Feature 30): `capacity` is null on a pre-0013 database and availability is
+    empty until it loads, and neither of those is zero.
+  - It reads **the same `session_availability()` the member surface calls**, so a
+    prof and a parent can never see different occupancy for one session — the
+    lesson `computeLedger()` already carries.
+
+### Changed
+
+- ⚠️⚠️ **`scripts/fetch-agenda.mjs` GAINED A COLUMN LADDER, AND IT IS THE
+  HIGHEST-STAKES ONE IN THE REPOSITORY.** It now names `capacity` and
+  `overbook_margin`; an explicit select naming a column the database lacks
+  returns `42703`, which that script treats as a fatal read and **exits 1** —
+  so a Cloudflare build against a production database without 0013 would fail
+  the whole build. The ladder degrades to the pre-0013 columns instead. ⚠️ **Only
+  a missing column earns the retry**: a network error, a bad key or an RLS
+  refusal stays fatal, because degrading those would hide the failures the
+  script exists to surface.
+- **`SESSION_COLUMNS` gained a rung** for the same reason, and `SessionInput`
+  omits capacity rather than sending null — reads degrade, writes fail loudly.
+- ⚠️ **`sessionFingerprint()` NOW COVERS `capacity` AND `overbookMargin`, AND
+  DELIBERATELY NOT THE BOOKING COUNT.** Both halves follow the same rule.
+  Capacity is a field a prof edits and a reader sees, so editing it must raise
+  the staleness banner. The live count is not a session field at all — it
+  changes on every booking, which fires no rebuild, so baking it would mark the
+  deployed agenda **permanently** stale and train a prof to ignore the warning.
+  The baked page therefore never claims a remaining count: a signed-in member
+  reads the live number, a signed-out one sees the capacity.
+  - The type system enforced this on its own — adding the fields to
+    `FingerprintableSession` broke the build until `AdminSession` carried them,
+    which is the guard working as designed.
+
+### Documentation
+
+- ⚠️⚠️ **CLAUDE.md → Conventions → Shell: NEVER ROUND-TRIP A SOURCE FILE THROUGH
+  `Get-Content` / `Set-Content`.** Windows PowerShell 5.1 reads a BOM-less file
+  as the system ANSI codepage and writes UTF-8, so a read-modify-write
+  **double-encodes every non-ASCII character** — `séances` → `sÃ©ances`. This
+  repository is full of accented French, so the damage is silent and
+  widespread: one three-line edit corrupted **141 sequences** in
+  `AdminSessionsPage.astro` and turned a small change into a 536-line diff.
+  - ✅ **Appends are safe.** The corruption comes from the READ, not the write.
+  - ⚠️ **The gate caught it, and only because an assertion read the TEXT.**
+    `recurring-sessions.spec.ts` expects `toContainText('13 séances')`. A spec
+    checking structure rather than content would have passed while every accent
+    on the page was mangled.
+  - ⚠️⚠️ **Reversing the double-encoding is NOT the repair when the file is
+    mixed** — and it is mixed whenever an edit landed after the bad write.
+    Measured on the real case: **357 characters would have been lost**, because
+    cp1252 cannot represent `⚠`, `’` or `—`. **Restore from git and re-apply.**
+- ⚠️ **The CLAUDE.md size guard was WARNING again — 120,306 characters (80%) —
+  and this release SPLIT it: 120,306 → 111,582 characters (80% → 74%).** The
+  warning was recorded in BACKLOG rather than papered over with a trim, per the
+  rule, and cleared here as its own first act rather than squeezed into the end
+  of the feature work.
+  - **Seventeen blocks moved VERBATIM** into the reference set, each under a
+    **Read when** line: the account surfaces, the admin surfaces, the baked
+    agenda, session booking, the migration checklist, self-deletion, the
+    test-environment interlock and `demo:accounts` to
+    [`docs/reference/supabase.md`](./docs/reference/supabase.md); the
+    anon-key schema probe to
+    [`docs/reference/deployment.md`](./docs/reference/deployment.md); the
+    environment-symptom tells, the four board-driving gates, why the gate runs
+    twice, why the matrix runs one project at a time and the removed
+    "critical path" trigger to
+    [`docs/reference/testing.md`](./docs/reference/testing.md); the facade
+    rules and the fixture rules to
+    [`docs/reference/video.md`](./docs/reference/video.md); and the 768px
+    divergence rules to
+    [`docs/reference/ui-navigation.md`](./docs/reference/ui-navigation.md).
+  - ⚠️ **`check-split.mjs` proves it lost nothing: 344 lines moved, 1,090
+    stayed, and NOTHING was newly declared obsolete** —
+    `.split-obsolete.txt` is unchanged from v0.17.0.
+  - ⚠️ **THE BINDING RULE STAYED IN CLAUDE.md IN EVERY CASE**, with a pointer
+    saying when the detail matters. Where a state-of-the-world claim was moved
+    (the v0.17.0 schema probe), the **superseding v0.18.0 claim was written
+    beside it in the reference file** rather than the old one being edited in
+    place — the block is evidence of what was verified when, and rewording a
+    moved block is what `check-split.mjs` reads as a lost line.
+  - ⚠️ **THE HEADROOM IS STILL ONLY ~8,400 CHARACTERS, AND THE NEXT SPLIT WILL
+    BE HARDER.** What remains is no longer narrative: the two largest blocks are
+    **Critical Features (14,377)** and the **routes table (4,945)**, and both are
+    indexes of rules that a session could break without going looking — exactly
+    the test for staying. A further reduction would be a **trim**, not a split,
+    and the rule forbids it. If the file warns again, the question for Seàn is
+    structural (does the Critical Features list become a linked file?), not
+    editorial.
+- ⚠️⚠️ **`verify:deploy`'s residual gap FIRED FOR REAL at the v0.17.0 deploy, and
+  the incident is now recorded** in `docs/reference/deployment.md`. The gap had
+  been written down narrowly — "a release that changes only island JavaScript" —
+  which read as a rare curiosity. **The real condition is broader: any release
+  whose changes do not reach the three compared documents**, and an **admin-only
+  release is exactly that case**.
+  - v0.17.0 changed four source files, all admin. `/`,
+    `/exercices/mat-du-couloir/` and `/progres/` are **byte-identical** between
+    the old and new tree once `/_astro` fingerprints are normalised away.
+  - **The live site served the OLD build for ~4 minutes after the push** (both
+    new markers absent at 17:03, present at 17:07:54). Run in that window,
+    `verify:deploy` would have reported "serving this exact build" — **true of a
+    build that predated the release**.
+  - **What caught it was a content check with a discriminator**, and the
+    checklist now carries the step: ask whether the release touched any of the
+    three documents, and if not, verify by a marker from a document it *did*
+    change — **proved absent from the old tree before being relied on**, with a
+    **negative control** that must not match. ⚠️ **The tool cannot substitute for
+    this, and it is the step a hurried operator skips because a green tick
+    already printed.**
+- **CLAUDE.md's production-schema note re-verified and dated 2026-08-20**, at the
+  v0.17.0 gate: `account_shape` `42501` (0010), `rebuild_requests` `42501` rather
+  than `PGRST205` (0011), `series_id` 200 (0012).
+  - ⚠️ **The gap in that probe is now stated: PostgREST sees tables and columns,
+    NOT triggers or functions.** `trigger_count = 3` and
+    `request_site_rebuild(text,integer)` **remain unverified** from a machine
+    holding only the anon key — the SQL editor needs credentials that are
+    deliberately not on a developer machine. ⚠️ **0011 is precisely the migration
+    whose value lives in its trigger**, so "the table exists" is weaker evidence
+    than it looks.
+  - ⚠️ **The controls that make a `42501` mean "present" are recorded**, because
+    the reading is otherwise wrong in the dangerous direction: a table that
+    cannot exist returns `PGRST205`, and a bad column on a *denied* table returns
+    **`42703`, not `42501`** — column validation runs **before** the permission
+    check.
+- ✅ **PRODUCTION'S SCHEMA IS NOW CURRENT THROUGH 0013, AND v0.17.0's OPEN ITEM
+  IS CLOSED.** Verified against the catalog at this gate: `bookings`,
+  `sessions.capacity`, `sessions.overbook_margin`, `create_booking()` and both
+  booking policies are present, **and the half an anon key cannot reach was
+  answered** — `trigger_count = 3` and `request_site_rebuild(text,integer)`
+  exist. CLAUDE.md's note is updated to say so, and still says **re-ask rather
+  than trust it**: it is a claim about the outside world and it expires.
+  - ⚠️ **Still outstanding, and still not a deploy blocker:**
+    `supabase_migrations.schema_migrations` lists `0001, 0002` on a database
+    holding everything through 0013. **Registering is bookkeeping, not proof** —
+    the backfill SQL stays in
+    [`docs/reference/deployment.md`](./docs/reference/deployment.md) and the row
+    stays in BACKLOG.
+
+### Changed
+
+- ⚠️⚠️ **THE RELEASE GATE WENT FROM 4.8 HOURS TO ~25 MINUTES, AND THE
+  VERIFICATION POLICY IN CLAUDE.md CHANGED WITH IT** — in the same commit, per
+  the rule that exists for exactly this. It was five projects × every spec ×
+  both flag shapes: **~6,700 test executions, measured at 115.6 + 172.1
+  minutes**, for a static teaching site.
+  - **Chromium is now the backbone** — it runs the WHOLE suite, proving all 42
+    spec files once, in a **measured 7.1 minutes**.
+  - **The other four projects became LANES**, each pinned to the engine that
+    caught a real, user-facing defect: **webkit** (the "Créer" click-synthesis
+    bug, `956b05a`, one release earlier), **firefox** (the agenda axe violation
+    Gecko's accessibility tree produced), **iphone-13** (the tap-versus-bar
+    collision), **pixel-5** (the same touch surface, other engine).
+  - **`scripts/lanes.mjs` is the ONE definition**, read by both
+    `playwright.config.ts` and `scripts/check-lanes.mjs` — same reasoning that
+    put the spec map in its own module.
+  - **Measured GREEN end to end: 21.9 min, 1,277 passed, 0 failed**, sliver
+    included. Per lane: chromium 7.1 min, webkit 5.1, firefox 5.6, iphone-13
+    3.6, pixel-5 1.1. **1,279 test executions against ~6,700 — 81% fewer.**
+    ⚠️ Troughs were **0.51-2.03 GB free**, i.e. the starvation regime §9a
+    describes — **the bad case, not the good one.**
+- ⚠️ **THE GATE RUNS ONE FLAG SHAPE — ACCOUNTS ON, BECAUSE THAT IS WHAT
+  PRODUCTION SERVES** — and ends with a **two-minute accounts-OFF sliver** that
+  is not a second matrix.
+  - **29 of the 41 spec files ran IDENTICALLY in both shapes**, proved by
+    run/skip status rather than inferred. The second matrix re-ran **~3,000
+    tests that could not answer anything new.**
+  - What the OFF shape uniquely proves is exactly two files —
+    `auth-disabled.spec.ts` (Critical Feature 18) and `admin.spec.ts`'s "the
+    admin surfaces are NOT BUILT" describe. ⚠️ **The second BUILD is
+    irreducible — you cannot inspect an artefact you did not produce** — but
+    the tests take seconds, on chromium alone.
+  - ⚠️ **A sliver that runs zero tests FAILS the gate**, naming Critical
+    Feature 18. A gate that quietly stops proving the flag still works is the
+    failure this change could most easily have introduced.
+  - ⚠️ **The sliver is preceded by a sweep**, because the accounts-ON preview
+    server is still listening and `reuseExistingServer` would otherwise run the
+    OFF specs against the ON build.
+
+- ⚠️⚠️ **`test:branch` NOW FOLLOWS THE SELECTION'S FLAG SHAPE — A HOLE IN THE
+  DAILY LOOP, WHICH IS WHERE DEFECTS ARE CHEAPEST TO CATCH.** With the release
+  gate moved to accounts-ON, `test-branch.mjs` still set no flag: every branch
+  build was OFF, so **every auth, admin, family, onboarding and booking spec
+  SKIPPED**. A session touching the booking UI got no coverage at all until
+  promotion — the branch gate answering a question nobody asked.
+  - **The smallest fix that closes it:** `NEEDS_ACCOUNTS_ON` moves into
+    `scripts/lanes.mjs` (one list, two consumers) and the branch runner builds
+    ON when the selection contains any of them. **The cost is paid only by
+    branches that touch account code** — everything else still builds OFF and
+    is unchanged; those that do pay a slightly longer build and some of
+    Supabase's per-IP verify quota, which `--workers=2` already exists to
+    survive.
+  - ⚠️ **The old copy of that list, inline in `test-branch.mjs`, was missing
+    `booking`, `booking-ui` and `recurring-sessions`** — exactly the drift that
+    a second copy always produces.
+  - ⚠️ **An explicit `PUBLIC_AUTH_ENABLED` in the environment still wins**, and
+    a selection that wants BOTH shapes says so out loud rather than being
+    silently half-covered.
+- ⚠️ **`booking-ui.spec.ts` is mapped in `spec-map.mjs`**, so it runs on the
+  branch that changes the booking painter, its page or its stylesheet. **A spec
+  mapped from nothing only runs at the release gate**, which would have undone
+  most of the point of adding it.
+- ⚠️ **`scripts/quick.mjs` now REFUSES a change to what the gate runs** —
+  `lanes.mjs`, `test-release.mjs`, `test-branch.mjs` and `spec-map.mjs` joined
+  the FORBIDDEN list. The lane design made this reachable: removing one name
+  from `lanes.mjs` is a one-line edit that looks like a tidy-up and silently
+  deletes a browser's worth of coverage. **The fast path must never be able to
+  shorten the gate that polices it.**
+
+### Added
+
+- ⚠️⚠️ **`tests/e2e/booking-ui.spec.ts` — THE BOOKING CONTROLS HAD NO BROWSER
+  TEST ON ANY ENGINE, AND THAT IS THE REAL FINDING OF THIS AUDIT.**
+  `booking.spec.ts` is 14 tests of `rpc()` calls, capacity under concurrency,
+  RLS and the rebuild-trigger count — and it **never opens a page**. So the
+  per-child controls on `/agenda/`, which are **painted by script**, shipped in
+  v0.18.0 untested, and `booking.spec.ts` would have stayed green throughout.
+  - ⚠️ **They are the same surface class as the "Créer" button**, which did
+    nothing at all on WebKit for a whole release. The new spec is in the
+    **webkit lane** for that reason.
+  - It drives the real controls: the signed-out invitation with **zero Supabase
+    requests** (FR and EN), an account with no child profile, a booking
+    **confirmed against the database rather than against the button's label**,
+    a **stale past session refusing in words** (Critical Feature 74), and — the
+    regression it exists for — **book, cancel, book with no reload**, so every
+    press lands on a control the previous press rebuilt.
+  - ⚠️ **It reads the roster back rather than seeding one**, and the comment
+    says why: `/compte/` adopts a child asynchronously, so seeding around it
+    raced the adoption, left two children of the same name, and produced a spec
+    that failed while the feature worked. The page said *"C'est réservé."*, the
+    database agreed, and only the spec was wrong.
+  - **6/6 green on chromium and 6/6 on webkit.**
+- **`scripts/check-lanes.mjs` — ADVISORY, and it says so in its own output.**
+  It scores each spec for signals a different engine could answer differently
+  and reports the chromium-only ones.
+  - ⚠️⚠️ **IT ALWAYS EXITS 0 AND MUST NEVER BECOME A GATE**, and the reason is
+    a fact about this repository rather than caution:
+    **`recurring-sessions.spec.ts` scores ZERO on every signal it measures —
+    and it is the spec that caught the Créer bug.** The score sees what a spec
+    *asserts*; that defect lived in how the spec *drives* the page, a plain
+    `fill()` then a plain `click()`. No pattern added to the list would find
+    it. A green tick would read as "the lanes are complete", which is the exact
+    false confidence that lets the next one through.
+  - It also lists the four specs that **never take the `page` fixture** —
+    `booking`, `child-profiles`, `engine-levels`, `role-separation` — which
+    between them spawned **255 browser contexts per release** for `rpc()` calls
+    and arithmetic.
+- **`missingLaneSpecs()` — the one lane check that IS a gate.** A lane naming a
+  spec that does not exist makes `testMatch` match **nothing**, so the project
+  runs zero tests and the gate goes green having proved less than it claims —
+  the one failure mode the lane design introduces. It is a fact about the
+  filesystem, so it is checked exactly, and `test-release.mjs` refuses before a
+  browser starts.
+
+### Fixed
+
+- ⚠️⚠️ **`booking.spec.ts` COUNTED A GLOBAL LOG AND SO COULD FAIL WHILE THE RULE
+  IT GUARDS WAS INTACT — it now watches the session ROW.** "A booking and a
+  cancellation fire no rebuild at all" took a before/after count of
+  `rebuild_requests`, which is one log for the whole database.
+  `test.describe.configure({ mode: 'serial' })` serialises only the tests in
+  that file; `recurring-sessions`, `admin` and `attendance-timing` create and
+  cancel sessions in **other** files, concurrently, and each of those
+  legitimately fires a rebuild.
+  - **It failed the first run of the new gate at `1868` vs `1870`** — two
+    firings the test did not cause. ⚠️ **A serial re-run of the file passed
+    14/14**, which is this project's own arbiter for "not deterministic", so the
+    rule (Critical Feature 72) was never in question.
+  - **The session row is isolated and tests the rule more directly:** CF72 says
+    a booking must never WRITE to `sessions`, and the regression it names — a
+    denormalised `bookings_count` — changes that row. `select … for update` is a
+    lock and leaves no trace.
+  - ⚠️ **What it gives up is stated in the spec rather than hidden:** an UPDATE
+    writing the same values back would fire the trigger and leave the row equal.
+    Nothing plausible does that, and nothing isolated could see it.
+  - **Watched to fail before being trusted**, per the house rule: with a
+    one-line write to the session row injected, it fails naming CF72; without
+    it, 14/14 green.
+- ⚠️ **TWO CONTROL BYTES WERE SITTING IN `scripts/spec-map.mjs`, AND THEY GOT
+  THERE THE SAME WAY THE MOJIBAKE DOES.** A `0x07` (BEL) stood where the `a` of
+  `agenda.spec.ts` belonged and a `0x08` (BS) where the `b` of `bookings` did —
+  i.e. `\a` and `\b` interpreted as C escapes by whatever wrote the file. Found
+  by a byte scan while adding a mapping; harmless (both are inside comments) and
+  repaired in Node, which is byte-honest.
+  - ⚠️ **The lesson is the one CLAUDE.md already draws about PowerShell,
+    widened:** a scripted edit can corrupt a source file in more than one
+    encoding-shaped way, and neither the build, the linter nor a diff review
+    would ever have flagged these. **A byte scan is cheap; add it to the check
+    when a scripted edit is unavoidable.** The rest of the repo is clean —
+    every other control byte found is a deliberate ANSI colour escape.
+- **`test-release.mjs`'s arithmetic check no longer compares the projects to
+  each other.** That was right while every project ran every spec; under the
+  lanes, disagreement is the design. It now asserts that **no project ran zero**
+  and that **chromium — the superset — is never the smaller run**, which is
+  aimed at the mistyped-lane failure instead.
+
+### Documentation
+
+- **The full audit is in [`docs/reference/testing.md`](./docs/reference/testing.md)** —
+  the before/after cost per project, the per-spec chromium cost table, the
+  flag-shape classification, the lane table with what each is earned by, **what
+  was cut and the risk of each cut**, and why the heuristic's blind spot cannot
+  be tuned away.
+  - ⚠️ **The risk is stated in both directions.** The last two full matrices
+    found **zero** genuine cross-browser defects — every failure and flake was
+    memory starvation cleared by a serial re-run. But the matrix caught a real
+    WebKit defect **one release earlier**. The redundancy that produced nothing
+    is what was cut; the coverage that produced defects is what the lanes keep.
+  - ⚠️ **The biggest accepted risk is named rather than buried:** `exercise`,
+    `replayer`, `play` and `tutorial` drop to chromium. Their engine-sensitive
+    surface is the board, which stays covered on webkit and both mobile
+    projects through `board-pointer`, `board-frame`, `board-affordance` and
+    `nav-coords`.
+- **`docs/MANUAL-TESTS.md`** — the gate line now names the real command, and
+  §7e says which half of the booking walkthrough is automated so the manual
+  pass can spend its time on what no spec sees: one-handed use on a real phone,
+  readability in sunlight, and real target sizes.
+
+### Verification
+
+⚠️⚠️ **THIS RELEASE WAS PROMOTED ON A GREEN GATE FROM AN EQUIVALENT TREE, NOT
+FROM THE PROMOTED TREE ITSELF. THAT IS AN EXCEPTION, AND IT IS RECORDED HERE
+RATHER THAN MADE SILENTLY.**
+
+**What was green.** `PUBLIC_AUTH_ENABLED=true npm run test:release` at
+**2026-08-21 09:27 — 1,277 passed, 0 failed, 21.9 min**: chromium 732, firefox
+145, **webkit 161**, pixel-5 102, **iphone-13 116**, plus the accounts-OFF
+sliver (21 passed, Critical Feature 18 proved).
+
+**What then broke, and it was the machine.** A later run of the same gate came
+back with **265 failures, every one of them `browserType.launch: Target page,
+context or browser has been closed`** — the browser never started. Diagnosis:
+
+- **Smart App Control is ENFORCED on this machine and blocks Playwright's
+  unsigned `zlib1.dll`** — `PrintDeps.exe` reports *"An Application Control
+  policy has blocked this file"*.
+- Chromium and Firefox keep working because SAC is **reputation**-based, not
+  signature-based; their binaries are unsigned too but far more widely seen.
+- Deleting and re-downloading `webkit-2336` restored every file
+  (`JavaScriptCore.dll`, `WebCore.dll`, `WebKit2.dll`, `zlib1.dll` all present
+  and a valid x64 PE) and changed nothing: the block is on **loading**, not on
+  the files.
+- ⚠️ **It changed mid-session.** The same lane was green two hours earlier on
+  this machine.
+
+**Why the earlier green transfers.** `git diff` between the gate's tree
+(`e51d9cc`) and the promoted tree is **empty** for `src/`, `tests/`, `public/`,
+`playwright.config.ts`, `package.json`, `supabase/` and `astro.config.mjs`, and
+**no lane membership changed**. The only differences are `scripts/spec-map.mjs`
+and `scripts/test-branch.mjs` — branch tooling the release gate never invokes —
+and additive exports in `scripts/lanes.mjs`. Nothing between the two trees can
+alter what the site does or what the WebKit lane runs.
+
+⚠️ **WHAT THIS DOES NOT COVER, STATED PLAINLY:** no gate ran on the exact
+promoted commit. The argument above is a mechanical equivalence, not a run, and
+a future session must not read it as licence to re-argue a red gate. **A red
+gate is still a finding.** The exception here is that the redness was proved to
+be the host, with the browser failing to launch at all and the same code green
+on the same machine hours earlier.
+
+⚠️ **NOT DONE, AND NOT CLAIMED:** the `docs/MANUAL-TESTS.md` pass on a real
+phone, and Lighthouse ≥ 90. Both are on the release gate and both are Seàn's.
+
+---
+
+## [0.17.0] — 2026-08-20
 
 **Recurring sessions with `series_id`, single-statement bulk writes so a
 thirteen-session creation triggers ONE rebuild, and migrations 0011 (the rebuild
@@ -246,6 +2482,49 @@ living only in the production database.
   shapes and with no credentials at all.
 - **`tests/e2e/recurring-sessions.spec.ts`** — six arithmetic tests plus two that
   drive the real UI against the real database and **count the trigger firings**.
+- **`docs/SETUP-NEW-MACHINE.md` — bringing the project up on a fresh Windows
+  machine, in order, with a verification after each step.** Written because the
+  project is moving to another PC and four things live on this machine and not
+  in the repository: the toolchain, `node_modules/`, the Playwright browsers,
+  and the two gitignored env files — of which **only the env files cannot be
+  regenerated**.
+  - It records **which secrets come from where**: the `PUBLIC_*` pair from the
+    Supabase dashboards, the Cloudflare **build variables** from the Cloudflare
+    dashboard (where `PUBLIC_AUTH_ENABLED=true` lives, and nothing in this
+    repository says so), and the **deploy hook URL from Supabase Vault only** —
+    never a table, never `.env`, never a migration, because this repository is
+    public (Critical Feature 68).
+  - ⚠️ **It names three variables in the old `.env.local` that MUST NOT be
+    copied**: `SUPABASE_SERVICE_ROLE`, `SUPABASE_PASSWORD` and `WEBHOOK_URL`.
+    **Nothing in the repository reads any of them** — the suite and `db:push`
+    take the `TEST_`-prefixed pair out of `.env.test`, and the deploy hook lives
+    in the vault. Two of the three are production credentials and the first
+    **bypasses RLS entirely**; `.env.example` says in its own header that the
+    service role key "is NOT here and must never be", so the file on this
+    machine contradicts its own template. They are fetched from the dashboard
+    when a hand-run task needs them and deleted after.
+  - ⚠️ **A credential nothing depends on is the hard one to notice**, because
+    nothing ever fails to remind you it is there.
+  - Also records what is **per-machine rather than copied** (SSH key, browsers,
+    `node_modules/`, `wrangler` login, the non-default
+    `PLAYWRIGHT_BROWSERS_PATH` — which is a preference, not a requirement, since
+    `scripts/demo.mjs` already reads it first and falls back), and that the
+    committed generated assets (icons, fonts, `fonts.css`, piece sets, the
+    vendored engine, `agenda.fallback.json`) are **checked, never regenerated**.
+- **`docs/SETUP-NEW-MACHINE.md` §9a — "Before a matrix run: quiet the machine
+  first", with the cost of each background process MEASURED rather than
+  asserted.** Added after the gate was re-run on the new laptop and **all ten
+  project-runs tripped the under-3 GB warning**. The list names what to close
+  (OneDrive pause, Dell TechHub, SupportAssist, Waves, a Defender path
+  exclusion) with the working set each was holding, so it can be **argued with
+  and re-measured** rather than followed as superstition.
+  - ⚠️ **`ServiceShell.exe` (973 MB) is listed as UNIDENTIFIED**, deliberately:
+    it is the largest single consumer and its path was unreadable without
+    elevation. The instruction is to identify it before acting, because
+    "close the biggest thing" is how a machine gets broken.
+  - ⚠️ **`--workers=3` is explicitly NOT the knob to turn** — the alternatives
+    are already measured in `scripts/test-release.mjs`, and lowering it trades
+    one slow run for a slower one without fixing the baseline.
 
 ### Changed
 
@@ -289,6 +2568,57 @@ living only in the production database.
 - `docs/MANUAL-TESTS.md` §7d-5 no longer says the agenda is "still the git
   collection"; it has not been since v0.15.0, and since this release publishing
   asks for a rebuild rather than waiting for one.
+- ⚠️⚠️ **The release gate's evidence moved OUT of `node_modules/.cache` into
+  `gate-logs/`** — gitignored, but real. Per-run naming (added earlier in this
+  release) stopped a second *run* erasing the first's log; it did nothing about
+  the directory the logs lived in, and that is the half that actually bit.
+  **`npm ci` deletes `node_modules/` outright**, so a dependency bump, a broken
+  install or a move to another machine takes every matrix log and memory trace
+  with it.
+  - ⚠️ **What it cost:** the three unadjudicated failures carried over from the
+    previous machine — one webkit in the OFF shape, one webkit and one
+    iphone-13 in the ON shape — **could not be re-read**, because the logs
+    naming them went with that machine's `node_modules/`. Establishing that
+    none of the three reproduced meant re-running both shapes from scratch,
+    ~4.8 hours.
+  - `gate-logs/` is ignored rather than committed: evidence is per machine and
+    per run, and a log in git is a merge conflict waiting to happen.
+- **CLAUDE.md split — 120,226 → 112,903 characters (75% of the limit, down from
+  80%).** It had crossed the size guard's warning threshold. Per the rule, the
+  remedy is to **split, not to trim**: fourteen blocks of reasoning, measurement
+  and incident narrative moved **verbatim** into the reference file for their
+  area, each leaving the rule and a pointer behind.
+  - Moved: the `progress.ts` migration-point detail → `progression.md`; the
+    `onlyMove` implementation and policing → `content.md`; the test-fixture
+    mechanism → `video.md`; the matrix worker-cap, feature-branch and
+    "critical path" policies, the environment-symptom table and
+    `quick.mjs`'s refusal → `testing.md`; the release gate and the two
+    configuration invariants → `deployment.md`; the long-lived-process sweep →
+    `dev-environment.md`; the v2 locked decisions and the superseded
+    2026-08-15 schema reading → `supabase.md`; the EN legal-notice segment
+    rationale → `ui-navigation.md`.
+  - ⚠️ **`node scripts/check-split.mjs` is green: 1,209 lines stayed, 171 moved,
+    nothing lost, and NO new obsolete declarations were needed.**
+    `docs/reference/.split-obsolete.txt` is unchanged — the ten entries in it
+    are from the previous split.
+  - ⚠️ **Two contradictory claims about production's schema were standing three
+    lines apart** — "current through 0009" (2026-08-15) and "current through
+    0012" (2026-08-18). The superseded one is **moved, not deleted**, because
+    the *technique* in it is still the answer: the error code PostgREST returns
+    tells a missing table (`PGRST205`) from a forbidden one (`42501`).
+  - ⚠️ **A verbatim move keeps the block's original relative links**, which were
+    written from the repository root, so inside a reference file a
+    `./docs/reference/…` path and the occasional pointer back to the file you
+    are already reading are the seam showing. Each moved block now carries a
+    preamble saying so — the preamble is new text, so it may be worded freely;
+    the block may not.
+  - **Declined deliberately**, because a session could break each without going
+    looking: the Critical Features list, the board file-role table, the
+    add-a-table migration checklist, the admin-surface rules, and the PLY 0
+    warning.
+- **CLAUDE.md's reference index gains a row for `docs/SETUP-NEW-MACHINE.md`** —
+  added *after* the split, on the principle the split exists to serve: a
+  document nobody is pointed at is not read.
 
 ### Fixed
 
@@ -384,6 +2714,50 @@ re-run of the identical thirteen spec files passed 192/192; the file also passes
 alone. It is logged in BACKLOG with the likely mechanism (a second, legitimately
 newer `loadRegister()` repainting from a read that predates some taps) rather
 than left as folklore.
+
+#### ⚠️ THE FULL MATRIX WAS RE-RUN ON A SECOND MACHINE, BOTH SHAPES, AT THE GATE
+
+The promotion gate for this release ran on a **different laptop** from the one
+the release was developed on, from a clean `npm ci` and a fresh Playwright
+install. Both flag shapes, as the verification policy requires:
+
+| Shape | Result | Duration |
+|---|---|---|
+| `npm run test:release` (accounts **OFF**) | 3163 passed, **1 failed**, 4 flaky | 115.6 min |
+| the failing spec at `--workers=1`, **OFF** | **green — 31 passed** | 2.3 min |
+| the four flaky specs at `--workers=1`, **OFF** | **green — 85 passed, 0 flaky** | 2.6 min |
+| `PUBLIC_AUTH_ENABLED=true npm run test:release` (accounts **ON**) | **green — 3525 passed**, 8 flaky, 0 failed | 172.1 min |
+
+⚠️ **THE THREE FAILURES CARRIED OVER FROM THE FIRST MACHINE DID NOT REPRODUCE.**
+Those were one webkit failure in the OFF shape (3166 passed) and one webkit plus
+one iphone-13 in the ON shape (3523 passed). On the second machine the ON shape
+came back **green on all five projects**, and 3525 passed is exactly the earlier
+3523 plus those two. The OFF shape reproduced the *shape* — 3163 passed, one
+webkit failure — and the arbiter cleared it: the failing test
+(`exercise.spec.ts` → "exercise EN has no axe violations once solved") ran in
+**4.6 s** against its 30 s timeout when re-run serially.
+
+⚠️ **MEMORY STARVATION IS DOCUMENTED AS THIS MACHINE'S BASELINE, NOT A DEFECT.**
+All ten project-runs tripped the under-3 GB warning — troughs of **0.39–2.14 GB**
+against the first machine's **3.85–6.43 GB**, on comparable total RAM (15.69 vs
+15.85 GB). Every failure and flake in both shapes was a **bare timeout** or a
+`browserContext.close` protocol error; **not one named a value**, which is the
+signature `scripts/test-release.mjs` already calls a starved browser. The tell
+that the box was thrashing rather than merely loaded: the memory sampler, a
+2-second `setInterval`, was firing **once every ~23 seconds** during the ON
+firefox project — which itself took **2.1 hours** against 23.2 minutes in the OFF
+shape. The remedy is `docs/SETUP-NEW-MACHINE.md` §9a, not a code change.
+
+⚠️ **`ENGINE_TIMEOUT` (60 s) WAS CHECKED AND IS NOT MARGINAL ON THIS CPU.** Two
+`play.spec.ts` tests flaked under `test:branch --all`, which raised the question.
+The distribution answers it: the failing attempts took **exactly 60.0 s** (the
+ceiling) and their retries **2.2 s and 4.1 s**, with every other play test in the
+same run at 0.7–3.1 s and iphone-13 across both matrices at **max 9.9 s, mean
+4.3 s, zero over 60 s**. A marginal timeout produces creep — 45 s, 55 s, 62 s.
+This is bimodal, so it is a **stall in engine boot, not slow boot**, and raising
+the number would not fix it. It never occurred in either matrix (ten
+project-runs, zero play.spec failures or flakes); it is specific to the
+`test:branch` path, and it is logged rather than absorbed.
 
 ### Documentation
 
@@ -5245,7 +7619,19 @@ Foundation only: no real content, no interactive board yet.
   `url()` references unresolved and the fonts silently 404 into a Georgia
   fallback. `scripts/build-fonts.mjs` self-hosts them instead. See CLAUDE.md.
 
-[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.17.0...HEAD
+[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.29.0...HEAD
+[0.29.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.28.0...v0.29.0
+[0.28.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.27.0...v0.28.0
+[0.27.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.26.0...v0.27.0
+[0.26.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.25.0...v0.26.0
+[0.25.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.24.0...v0.25.0
+[0.24.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.23.0...v0.24.0
+[0.23.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.22.0...v0.23.0
+[0.22.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.21.0...v0.22.0
+[0.21.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.20.0...v0.21.0
+[0.20.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.19.0...v0.20.0
+[0.19.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.18.0...v0.19.0
+[0.18.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.14.0...v0.15.0

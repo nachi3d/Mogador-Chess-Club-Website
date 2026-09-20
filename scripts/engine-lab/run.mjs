@@ -6,6 +6,7 @@
  *   node scripts/engine-lab/run.mjs --bots         validate the yardstick
  *   node scripts/engine-lab/run.mjs --verify       measure the SHIPPED presets
  *   node scripts/engine-lab/run.mjs --candidates   measure a candidate table
+ *   node scripts/engine-lab/run.mjs --accuracy     best-move agreement per skill
  *     [--games N]
  *
  * ⚠️ This is a MEASUREMENT tool, not part of the build. Nothing in `npm run
@@ -169,12 +170,11 @@ async function table(e, levels, title, log) {
 /** Find the blunder rate that makes a given search genuinely beatable. */
 async function sweep(e, log) {
   const cases = [
-    // Round 2. Round 1 established: debutant d1/skill0 lands at 33% (blunder
-    // 30) and 30% (blunder 40) against `novice`; intermediaire d4/skill3 was
-    // still 90% at blunder 15, i.e. nowhere near "an accurate student beats it".
-    ['debutant  skill 0 d1 mt50', { skill: 0, depth: 1, movetimeMs: 50 }, [0.35, 0.4], 'greedy'],
-    ['intermed. skill 3 d4 mt500', { skill: 3, depth: 4, movetimeMs: 500 }, [0.25, 0.3], 'novice'],
-    ['intermed. skill 2 d3 mt400', { skill: 2, depth: 3, movetimeMs: 400 }, [0.2], 'novice'],
+    // Round 4 — tightening the chosen point. Two 40-game samples of the SAME
+    // configuration (blunder 15% vs novice) came out 76% and 86%, so 40 games
+    // is not enough to separate neighbouring rates. 120 games per point.
+    ['intermed. skill 3 d4 mt500', { skill: 3, depth: 4, movetimeMs: 500 }, [0.15, 0.2], 'novice'],
+    ['intermed. skill 3 d4 mt500', { skill: 3, depth: 4, movetimeMs: 500 }, [0.15, 0.2], 'greedy'],
   ];
   for (const [label, base, rates, botKey] of cases) {
     log(`\n=== blunder sweep: ${label} vs ${botKey}, ${GAMES} games each ===\n`);
@@ -185,6 +185,97 @@ async function sweep(e, log) {
   }
 }
 
+/**
+ * ⚠️ HOW OFTEN DOES A LEVEL PLAY THE BEST MOVE? — the metric a win rate cannot
+ * give you.
+ *
+ * Avancé scores ~100% against both reference bots. That saturates: it cannot
+ * tell "strong" from "stronger", so it cannot answer the one question Seàn
+ * actually asked, which is whether Avancé makes mistakes OF ITS OWN.
+ *
+ * ⚠️ AND ITS `blunderChance` IS ALREADY 0, so there is nothing there to turn
+ * down. Any error it makes comes from Stockfish's own `Skill Level`, which
+ * below 20 deliberately picks a WORSE root move — bounded by `Skill Level
+ * Maximum Error`, which this build defaults to 200 CENTIPAWNS. That is two
+ * pawns of licence to go wrong, per move.
+ *
+ * So: take a set of real positions, ask a strong reference (skill 20, deeper)
+ * what the move is, then ask the candidate and count agreement. A level that
+ * "punishes real mistakes rather than making its own" agrees with the
+ * reference nearly always.
+ *
+ * ⚠️ THE REFERENCE IS THE SAME ENGINE, DELIBERATELY. Agreement with a
+ * different engine would measure taste as well as accuracy. This measures only
+ * "did the weakening change the move".
+ */
+const ACCURACY_POSITIONS = [
+  // Opening, quiet: many reasonable moves, so a weak setting spreads.
+  'r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R b KQkq - 3 3',
+  // Middlegame with a concrete tactic available.
+  'r2q1rk1/ppp2ppp/2n1bn2/2bpp3/4P3/2PP1N2/PP1NBPPP/R1BQ1RK1 w - - 0 9',
+  // An opponent has just hung material — this is the "punish it" case.
+  'r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/5N2/PPPP1PPP/RNBQ1RK1 b kq - 5 4',
+  // Sharp, unbalanced middlegame.
+  'r1b1k2r/ppppqppp/2n2n2/2b5/3NP3/2N5/PPP2PPP/R1BQKB1R w KQkq - 0 7',
+  // A simple endgame: one accurate move, many losing ones.
+  '8/8/4k3/8/8/4K3/4P3/8 w - - 0 1',
+  // Rook endgame — technique, where a 200cp error is a lost half point.
+  '8/8/8/4k3/8/8/4KP2/4R3 w - - 0 1',
+];
+
+async function accuracy(e, log) {
+  const REPEATS = 8;
+  /* ⚠️ THE REFERENCE SEARCHES TO THE SAME DEPTH AS THE CANDIDATES, ON PURPOSE.
+     A deeper reference (16) disagrees with a depth-12 candidate for reasons
+     that have nothing to do with skill — the extra plies simply find a
+     different move — and that confound inflated the first run's error rate.
+     Same depth, more time, skill 20: now the ONLY difference is the deliberate
+     weakening, so disagreement IS injected error. */
+  const REFERENCE = { skill: 20, depth: 12, movetimeMs: 4000 };
+
+  log('\n=== BEST-MOVE AGREEMENT — how often a level plays the reference move ===');
+  log(`    reference: skill 20, depth 16, 3000ms · ${ACCURACY_POSITIONS.length} positions × ${REPEATS} searches\n`);
+
+  const best = [];
+  for (const fen of ACCURACY_POSITIONS) {
+    await configure(e, { skill: REFERENCE.skill });
+    best.push(await bestMove(e, fen, REFERENCE));
+  }
+
+  const rows = [];
+  for (const [label, cfg] of Object.entries(SKILLS_UNDER_TEST)) {
+    await configure(e, { skill: cfg.skill });
+    let agree = 0;
+    let total = 0;
+    const distinct = [];
+    for (const [i, fen] of ACCURACY_POSITIONS.entries()) {
+      const seen = new Set();
+      for (let r = 0; r < REPEATS; r++) {
+        const mv = await bestMove(e, fen, cfg);
+        seen.add(mv);
+        if (mv === best[i]) agree += 1;
+        total += 1;
+      }
+      distinct.push(seen.size);
+    }
+    const pct = ((agree / total) * 100).toFixed(0);
+    rows.push(
+      `  ${label.padEnd(26)} agrees ${String(pct).padStart(3)}%   distinct moves per position: ${distinct.join(' ')}`,
+    );
+  }
+  for (const r of rows) log(r);
+  log('\n    100% and all-ones means it never invents an error of its own.');
+}
+
+/** Candidate searches for the accuracy run. Edit and re-run. */
+const SKILLS_UNDER_TEST = {
+  'avance NOW  skill 14 d12': { skill: 14, depth: 12, movetimeMs: 1500 },
+  'candidate   skill 17 d12': { skill: 17, depth: 12, movetimeMs: 1500 },
+  'candidate   skill 19 d12': { skill: 19, depth: 12, movetimeMs: 1500 },
+  'candidate   skill 20 d12': { skill: 20, depth: 12, movetimeMs: 1500 },
+  'intermed NOW skill 3 d4 ': { skill: 3, depth: 4, movetimeMs: 500 },
+};
+
 const e = boot();
 await e.ask('uci', (l) => l === 'uciok', 'uciok');
 const log = e.realLog;
@@ -194,6 +285,7 @@ if (has('--bots')) botSanity(log);
 if (has('--verify')) await table(e, shippedLevels(), 'SHIPPED presets', log);
 if (has('--candidates')) await table(e, CANDIDATES, 'CANDIDATE presets', log);
 if (has('--sweep')) await sweep(e, log);
+if (has('--accuracy')) await accuracy(e, log);
 if (has('--ladder')) {
   const levels = has('--shipped') ? shippedLevels() : CANDIDATES;
   const e2 = boot();
@@ -204,6 +296,6 @@ if (has('--ladder')) {
   log(await ladder(e, 'intermediaire', levels.intermediaire, e2, 'debutant', levels.debutant, GAMES));
   log(await ladder(e, 'avance', levels.avance, e2, 'debutant', levels.debutant, GAMES));
 }
-if (!argv.length) log('nothing to do — pass --probe, --bots, --verify, --candidates, --sweep or --ladder');
+if (!argv.length) log('nothing to do — pass --probe, --bots, --verify, --candidates, --sweep, --accuracy or --ladder');
 
 process.exit(0);

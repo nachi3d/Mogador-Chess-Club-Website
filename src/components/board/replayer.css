@@ -120,8 +120,22 @@
   cursor: pointer;
 }
 
-.mcc-move:hover {
+.mcc-move:hover:not(:disabled) {
   background-color: var(--mcc-surface-sunken);
+}
+
+/* Pre-hydration only — see `hydrated` in ReplayView.tsx. The move list is in
+   the server's HTML with no handlers behind it, so it ships disabled and
+   enables when the island reports ready.
+
+   ⚠️ Deliberately the SAME treatment as `.mcc-controls button:disabled`
+   below: opacity on a disabled control is the established vocabulary in this
+   file, and WCAG 2.2 exempts disabled controls from the contrast minimum. It
+   is not a counter-example to the "never opacity on text over an audited
+   fill" rule, which is about text a reader is expected to READ. */
+.mcc-move:disabled {
+  opacity: 0.4;
+  cursor: progress;
 }
 
 /* Current move: fill + weight, not colour alone. */
@@ -197,8 +211,15 @@
   cursor: pointer;
 }
 
-.mcc-replay-launch:hover {
+.mcc-replay-launch:hover:not(:disabled) {
   background-color: var(--mcc-primary-hover);
+}
+
+/* Pre-hydration only, same as `.mcc-move:disabled` above. `progress` rather
+   than `not-allowed`: the control is not forbidden, it is not ready yet. */
+.mcc-replay-launch:disabled {
+  opacity: 0.6;
+  cursor: progress;
 }
 
 .mcc-replay-launch:focus-visible {

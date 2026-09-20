@@ -420,3 +420,92 @@ has something real to drive. Today that is
 pipeline and its three sources, the measured Lighthouse before/after, the
 accessibility decisions, the house plate, and the fixture that was watched to
 fail. **Read it before touching the facade or adding any third-party embed.**
+
+---
+
+## The video facade — every rule that binds it
+
+**Read when:** touching `VideoFacade.astro`, a poster, `/mentions-legales/#video`, or adding ANY third-party embed.
+
+⚠️ **Moved verbatim out of CLAUDE.md at the v0.18.0 split.**
+`scripts/check-split.mjs` compares normalised lines, so nothing inside the
+block below may be reworded. Relative links like `./docs/reference/…` are
+written from the repository root — CLAUDE.md's position, not this file's.
+
+- ⚠️ **A PLAIN IFRAME CONTACTS GOOGLE ON PAGE LOAD, NOT ON PLAY** — youtube.com,
+  google.com, googlevideo.com, plus cookies, for every reader including the ones
+  who never press anything. That is Critical Feature 9, on a site for children,
+  against a privacy notice that says the site contacts nobody.
+- ⚠️⚠️ **AND SO DOES `<img src="https://i.ytimg.com/…">`.** It is a Google
+  origin carrying the reader's IP and Referer on page load — **the same
+  violation wearing a hostname nobody thinks of as YouTube**, and *more*
+  tempting than the iframe because it deletes a build step. Every poster is a
+  committed file in `public/video/`, written by
+  `scripts/fetch-video-posters.mjs`. ⚠️ **`check-content.mjs` FAILS THE BUILD**
+  when an id has no poster, because the obvious repair for a missing file is the
+  hot-link.
+- ⚠️ **The zero-request spec filters on `hostname !== localhost`, NEVER on
+  `includes('youtube')`.** A youtube-only filter passes a hot-linked poster
+  cleanly — which is the exact case it exists to catch.
+- ⚠️ **NO `preconnect` OR `dns-prefetch` FOR YOUTUBE, EVER.** It looks like a
+  free performance win and it resolves DNS and completes a TLS handshake with
+  Google before the reader has decided anything.
+- ⚠️ **THE POSTER SCRIPT IS RUN BY HAND, LIKE `build-icons.mjs`** — never part
+  of `npm run build`. A Cloudflare build must need no image toolchain and no
+  reach to Google. ⚠️ **A thumbnail is a frame of the video**, so fetching one
+  from YouTube is for the club's OWN videos; anybody else's takes an
+  author-supplied still under `src/assets/video/`.
+- ⚠️ **PLACEMENT IS ONE RULE, BOTH PAGES: BELOW the page's primary content,
+  above the way onward.** After the replayer on a trap, after the lesson list on
+  a course. A 16:9 facade above the board costs ~200px on a phone before the
+  reader reaches the position the page is named after — the same defect M3
+  measured in the control stack, from the other direction. Asserted at 390px and
+  360px, not trusted.
+- ⚠️ **`src/styles/video.css` IS IMPORTED BY `global.css`, AND IS NOT SCOPED.**
+  Two independent reasons: a scoped rule cannot reach the script-created iframe
+  (no `data-astro-cid`), and the component is on twenty pages so a scoped block
+  inlines into all of them. Same two lessons as `admin.css` and `score.css`.
+- ⚠️ **`/mentions-legales/#video` STATES WHAT A CLICK SENDS, and deliberately
+  UNDERSELLS `youtube-nocookie.com`** — the domain name invites "no data", which
+  is false. Every facade links to it **before** the click. If that section ever
+  reads like reassurance rather than disclosure, it is wrong.
+- ⚠️⚠️ **NO PUBLISHED CONTENT CARRIES A `youtube` ID TODAY.** The facade's
+  exercised path is a **FIXTURE**, not live content — see the rule below. The
+  first version shipped a placeholder id on `/pieges/legal/`, which handed a
+  reader "video unavailable" on a real trap; **do not put a placeholder back on
+  published content to give a spec something to drive.**
+
+
+---
+
+## Test fixtures — routable, never listed, never in production
+
+**Read when:** adding content that exists only so a spec has something to drive, or touching `src/config/fixtures.ts`.
+
+⚠️ **Moved verbatim out of CLAUDE.md at the v0.18.0 split.**
+`scripts/check-split.mjs` compares normalised lines, so nothing inside the
+block below may be reworded. Relative links like `./docs/reference/…` are
+written from the repository root — CLAUDE.md's position, not this file's.
+
+### ⚠️ TEST FIXTURES — ROUTABLE, NEVER LISTED, NEVER IN PRODUCTION
+
+`src/config/fixtures.ts`. A fixture is content that exists **only** so a spec has
+something real to drive.
+
+- ⚠️ **TWO PREDICATES, AND THE SPLIT IS THE WHOLE DESIGN.** `isRoutable()` decides
+  whether a page is emitted (fixtures: only when `PUBLIC_FIXTURES=true`);
+  `isListed()` decides whether a reader can find it (fixtures: **never, in any
+  build**). Collapsing them puts the fixture on `/pieges/` in every test build.
+- ⚠️ **`fixture` IS A SEPARATE FIELD FROM `draft`.** A draft will one day be
+  published; a fixture must never be.
+- ⚠️ **THE DEFAULT IS OFF, BECAUSE THE DEFAULT MUST BE WHAT PRODUCTION SHIPS**, and
+  ⚠️ **`PUBLIC_FIXTURES` MUST NEVER GO IN `.env.local`** — same rule as
+  `PUBLIC_AUTH_ENABLED`. By hand: `PUBLIC_FIXTURES=true npm run demo`.
+- ⚠️ **NO LOCAL SPEC CAN PROVE THE OFF SHAPE**, because the build under test is by
+  construction the ON one. `npm run smoke:prod` fails if a fixture route answers
+  anything but 404 on the live site, and that is on the promotion checklist.
+
+**➡️ [`docs/reference/video.md`](./docs/reference/video.md)** — the poster
+pipeline and its three sources, the measured Lighthouse before/after, the
+accessibility decisions, the house plate, and the fixture that was watched to
+fail. **Read it before touching the facade or adding any third-party embed.**

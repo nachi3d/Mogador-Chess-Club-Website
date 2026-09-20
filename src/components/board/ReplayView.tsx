@@ -96,6 +96,34 @@ export default function ReplayView(props: ReplayViewProps) {
   /** Carries `data-keys="bound"` once the document key handler is attached. */
   const rootRef = useRef<HTMLDivElement | null>(null);
 
+  /**
+   * ⚠️ FALSE UNTIL THIS ISLAND HAS HYDRATED, AND EVERY CONTROL BELOW DEPENDS
+   * ON IT.
+   *
+   * Astro server-renders this whole component, so the launch button, the four
+   * transport controls and all thirteen move-list buttons are in the HTML
+   * before any JavaScript arrives — with their `onClick` handlers attached to
+   * nothing. Measured on the built page (`dist/pieges/legal/index.html`):
+   * sixteen enabled, live-looking, inert buttons.
+   *
+   * ⚠️ THIS IS A READER'S DEFECT BEFORE IT IS A TEST'S. `client:visible` means
+   * hydration is not even REQUESTED until the board scrolls into view, so on a
+   * phone the window sits exactly where a student arrives, looks at the
+   * diagram, and presses the one big named control that was designed to
+   * attract their eye. The press does nothing at all: no move, no error, no
+   * acknowledgement. Only a fast local build hides it.
+   *
+   * The keyboard half of this same fault was already found and fixed — see
+   * `data-keys` below, whose comment describes the identical window for
+   * ArrowRight. The pointer half was left, and this closes it.
+   *
+   * ⚠️ `data-keys` IS NOT A SUBSTITUTE AND THE TWO MEAN DIFFERENT THINGS:
+   * `data-ready` says the CONTROLS are live, `data-keys` says the document key
+   * listener is bound. Both are needed; neither implies the other.
+   */
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => setHydrated(true), []);
+
   const last = plies.length - 1;
   const atStart = cursor <= START;
   const atEnd = cursor >= last;
@@ -222,6 +250,10 @@ export default function ReplayView(props: ReplayViewProps) {
         class="mcc-move"
         data-current={isCurrent ? 'true' : 'false'}
         aria-current={isCurrent ? 'true' : undefined}
+        /* Thirteen of these ship in the HTML of a trap page, every one of them
+           inert until hydration. Jumping to a move is the second thing a
+           reader tries after the launch button. */
+        disabled={!hydrated}
         onClick={() => step(() => index, true)}
       >
         {ply.san}
@@ -230,7 +262,15 @@ export default function ReplayView(props: ReplayViewProps) {
   };
 
   return (
-    <div class="mcc-replayer" data-testid="replayer" ref={rootRef}>
+    <div
+      class="mcc-replayer"
+      data-testid="replayer"
+      ref={rootRef}
+      /* The island's own readiness signal — see `hydrated` above. A spec that
+         waits on `[data-testid="replayer"]` is waiting on the SERVER's HTML
+         and has proved nothing; this is the attribute to wait on. */
+      data-ready={hydrated ? 'true' : 'false'}
+    >
       <div class="mcc-replayer-board">
         <BoardSurface
           fen={fen}
@@ -263,6 +303,11 @@ export default function ReplayView(props: ReplayViewProps) {
           <button
             type="button"
             class="mcc-replay-launch"
+            /* ⚠️ THE MOST-PRESSED CONTROL ON THE PAGE, AND THE ONE THE COMMENT
+               ABOVE SAYS WAS BUILT TO ATTRACT THE EYE — so it is also the one
+               most likely to be pressed inside the hydration window. Disabled
+               is the honest state: it says "not yet" instead of lying. */
+            disabled={!hydrated}
             onClick={() => step((p) => p + 1, false)}
             data-testid="replay-launch"
           >
@@ -278,11 +323,17 @@ export default function ReplayView(props: ReplayViewProps) {
             navigation specs that legitimately expect the controls to be there
             on arrival. The launch button adds a prominent entry point; it does
             not gate the rest. */}
+        {/* ⚠️ EVERY ONE OF THESE CARRIES `!hydrated`, INCLUDING THE TWO THAT
+            LOOK ALREADY COVERED. `atStart` is true on arrival, so "start" and
+            "prev" ship disabled — but by ACCIDENT of cursor state, not because
+            anything checked readiness. Left on `atStart` alone, the guard
+            disappears silently the day this ever renders at a non-zero
+            cursor. */}
         <div class="mcc-controls" role="group" aria-label={labels.controls} hidden={plies.length === 0}>
           <button
             type="button"
             onClick={() => step(() => START, true)}
-            disabled={atStart}
+            disabled={atStart || !hydrated}
             aria-label={labels.start}
             data-testid="replay-start"
           >
@@ -291,7 +342,7 @@ export default function ReplayView(props: ReplayViewProps) {
           <button
             type="button"
             onClick={() => step((p) => p - 1, false)}
-            disabled={atStart}
+            disabled={atStart || !hydrated}
             aria-label={labels.prev}
             data-testid="replay-prev"
           >
@@ -300,7 +351,7 @@ export default function ReplayView(props: ReplayViewProps) {
           <button
             type="button"
             onClick={() => step((p) => p + 1, false)}
-            disabled={atEnd}
+            disabled={atEnd || !hydrated}
             aria-label={labels.next}
             data-testid="replay-next"
           >
@@ -309,7 +360,7 @@ export default function ReplayView(props: ReplayViewProps) {
           <button
             type="button"
             onClick={() => step(() => plies.length - 1, true)}
-            disabled={atEnd}
+            disabled={atEnd || !hydrated}
             aria-label={labels.end}
             data-testid="replay-end"
           >

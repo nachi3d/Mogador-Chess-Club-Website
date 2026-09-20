@@ -1,0 +1,381 @@
+# ════════════════════════════════════════════════════════════════════════════
+# THE RELEASE GATE — five projects in four jobs, plus the accounts-OFF
+# sliver, on Linux.
+#
+# ⚠️ THIS EXISTS BECAUSE SMART APP CONTROL BLOCKED WEBKIT TWICE ON THE ONLY
+# MACHINE THAT COULD RUN THE MATRIX.
+#
+# v0.18.0 and v0.23.0 both shipped on transferred evidence: `browserType.launch`
+# failing before a single test, 302 times in the second case, with WebKit's own
+# DLLs present on disk and refused at load. Re-downloading fixed it once and
+# does not any more, and disabling Smart App Control is documented by Microsoft
+# as one-way. A Linux runner has no such policy, so the lane that caught the
+# "Créer" click-synthesis bug — invisible in Blink and Gecko — becomes reliable
+# again.
+#
+# ⚠️ CI IS THE GATE OF RECORD. `npm run test:release` still works locally and is
+# still the right thing for a developer who wants the whole matrix in one go;
+# it is no longer what a promotion rests on.
+#
+# ⚠️ THE JOBS RUN IN PARALLEL HERE, AND THAT IS NOT A DISAGREEMENT WITH
+# `test-release.mjs`. That script runs the projects ONE AT A TIME under a worker
+# cap because the local machine runs out of RAM — measured, and the reason four
+# gates went red. Every job below is its own runner with its own memory, so the
+# constraint the local serialisation exists for does not exist here.
+#
+# ⚠️⚠️ ONE CONSTRAINT IS SHARED AND ONE IS NOT, AND THEY WERE CONFUSED ONCE.
+# The test Supabase project is shared by every runner — its PURGE needs a
+# per-job E2E_EMAIL_DOMAIN, which is real and stays. Its AUTH RATE LIMIT is
+# not shared: the dashboard states it is per IP address, so each runner has
+# its own bucket. Do not "fix" a 429 by reducing how many jobs run; look at
+# the verification rate of the ONE job that failed.
+# ════════════════════════════════════════════════════════════════════════════
+name: gate
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+  workflow_dispatch:
+
+# A second push supersedes the first — a gate for a tree nobody is promoting
+# any more is just queue time.
+concurrency:
+  group: gate-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Node 22.12 is the floor in package.json `engines`.
+  NODE_VERSION: '22'
+
+# ⚠️⚠️ EVERY JOB GETS ITS OWN `E2E_EMAIL_DOMAIN`, AND THE GATE DOES NOT WORK
+# WITHOUT IT. Learned from run #2, which failed in 32 seconds.
+#
+# `globalSetup` PURGES the shared test project before every suite and treats
+# leftover users as a HARD FAILURE; `globalTeardown` purges again after. Six
+# jobs against one Supabase project therefore fight: A's purge deletes B's
+# in-flight users, and a job starting while another is running sees the other's
+# users as residue and dies before a single test.
+#
+# ⚠️ THE LOCAL MATRIX HID THIS. `test-release.mjs` runs projects ONE AT A TIME —
+# for memory reasons — which incidentally serialised access to the shared
+# project. Parallelising for CI removed a guarantee nothing had written down.
+#
+# The purge matches on an EXACT email domain (`purge.ts`) and `e2eEmail()`
+# mints on that same domain, so a per-job domain isolates them completely with
+# no code change. ⚠️ These are `.test` addresses that are never delivered to —
+# users are created and links minted through the admin API — so a subdomain
+# costs nothing and needs to resolve nowhere.
+#
+# ⚠️ WHAT THIS DOES NOT FIX: the auth RATE LIMIT is per project, not per domain.
+# `workers: 1` under CI keeps it far below the measured 22-verifications-in-7s
+# ceiling, but if auth specs start failing across jobs at once, that is the
+# cause, and the answer is to serialise the auth-heavy jobs rather than to
+# widen the domains further.
+#
+# ⚠️ THE AGENDA IS NOT AN EXPIRY TRAP HERE, AND AN EARLIER VERSION OF THIS
+# COMMENT SAID IT WAS. Recorded because the wrong version was more plausible
+# than the right one.
+#
+# `playwright.config.ts` passes the TEST project's `PUBLIC_SUPABASE_URL` and
+# `PUBLIC_SUPABASE_ANON_KEY` into the build it starts, so `fetch-agenda.mjs`
+# reads the real `sessions` table and never touches `agenda.fallback.json`.
+# Measured with the gate's own env: 3 sessions baked, newest 2027-01-08. The
+# fallback's expiry guard (v0.23.0) therefore never fires in a job that has
+# `.env.test` — which, since the sliver was fixed below, is every job.
+#
+# ⚠️ THE CONDITION IS "HAS `.env.test`", NOT "IS CI". A job without it builds
+# with no Supabase config at all, falls back, and WOULD hit the guard after
+# 2026-09-12. That is the guard working; do not remove it — a stale agenda is
+# worse than an empty one and `smoke:prod` is structurally blind to it.
+
+jobs:
+  # ──────────────────────────────────────────────────────────────────────────
+  # ⚠️ PREFLIGHT RUNS FIRST AND EVERYTHING DEPENDS ON IT.
+  #
+  # Two things that are cheap here and expensive later: a lane naming a spec
+  # that does not exist makes `testMatch` match NOTHING, so the project runs
+  # zero tests and goes green having proved less than it claims; and a missing
+  # secret produces no `.env.test`, which makes every auth spec SKIP while the
+  # gate still passes. Both are "quietly stopped proving something", which is
+  # the failure this whole gate design is shaped around.
+  # ──────────────────────────────────────────────────────────────────────────
+  preflight:
+    name: preflight
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+
+      # ⚠️ WRITTEN, NOT EXPORTED. `tests/e2e/env.ts` reads ONLY this file and
+      # never `process.env` — deliberately, because a loader that fell back to
+      # the environment is what would let production credentials into a suite
+      # that purges by pattern. CLAUDE.md forbids widening it, so CI produces
+      # the file the loader already expects and changes no code.
+      #
+      # ⚠️ The values are interpolated through `env:` rather than written into
+      # the script body, so they are never part of a command line.
+      - name: Write .env.test from secrets
+        env:
+          TEST_PUBLIC_SUPABASE_URL: ${{ secrets.TEST_PUBLIC_SUPABASE_URL }}
+          TEST_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.TEST_PUBLIC_SUPABASE_ANON_KEY }}
+          TEST_SUPABASE_SERVICE_ROLE: ${{ secrets.TEST_SUPABASE_SERVICE_ROLE }}
+          TEST_SUPABASE_PASSWORD: ${{ secrets.TEST_SUPABASE_PASSWORD }}
+          SUPABASE_PRODUCTION_REF: ${{ secrets.SUPABASE_PRODUCTION_REF }}
+          E2E_EMAIL_DOMAIN: preflight.mcc-e2e.test
+        run: |
+          umask 077
+          {
+            printf 'TEST_PUBLIC_SUPABASE_URL=%s\n' "$TEST_PUBLIC_SUPABASE_URL"
+            printf 'TEST_PUBLIC_SUPABASE_ANON_KEY=%s\n' "$TEST_PUBLIC_SUPABASE_ANON_KEY"
+            printf 'TEST_SUPABASE_SERVICE_ROLE=%s\n' "$TEST_SUPABASE_SERVICE_ROLE"
+            printf 'TEST_SUPABASE_PASSWORD=%s\n' "$TEST_SUPABASE_PASSWORD"
+            printf 'SUPABASE_PRODUCTION_REF=%s\n' "$SUPABASE_PRODUCTION_REF"
+            printf 'E2E_EMAIL_DOMAIN=%s\n' "$E2E_EMAIL_DOMAIN"
+          } > .env.test
+
+      # ⚠️ THE INTERLOCK, CALLED RATHER THAN REIMPLEMENTED. Fails the whole
+      # gate when the refs match, when a secret is missing, or when the file
+      # would leave auth specs skipping silently. See scripts/ci-preflight.mjs.
+      - name: Preflight — credentials present, and NOT production
+        run: node scripts/ci-preflight.mjs
+
+      # Advisory by design and must never gate — but `missingLaneSpecs()`
+      # inside it IS a fact about the filesystem, and test-release checks it
+      # before a browser starts. Same reasoning here.
+      - name: Lane membership names specs that exist
+        run: node scripts/check-lanes.mjs
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # THE MATRIX — accounts ON, because that is what production serves.
+  # ──────────────────────────────────────────────────────────────────────────
+  matrix:
+    name: ${{ matrix.name }}
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      # ⚠️ NOT fail-fast. One project dying must not cancel the other four:
+      # the whole point of the lanes is that they answer different questions,
+      # and a cancelled run cannot tell you whether webkit was also broken.
+      fail-fast: false
+      matrix:
+        include:
+          # ⚠️⚠️ chromium AND webkit RUN IN PARALLEL AGAIN, AND THE REASON THEY
+          # WERE BRIEFLY MERGED WAS A WRONG DIAGNOSIS — KEPT HERE SO IT IS NOT
+          # REPEATED. Gate run #5 died on 429 over_request_rate_limit and the
+          # fix applied was to stop these two overlapping, on the theory that
+          # ~257 magic-link verifications were contending for one project's
+          # budget. The Supabase dashboard states the limit is **per IP
+          # address**. Two runners are two IPs and two buckets, so they were
+          # never contending: each job was independently over the old default
+          # of 30 verifications per 5 minutes (chromium peaks near 65, webkit
+          # near 45). Merging them reduced project-wide concurrency, which that
+          # limit does not measure, and cost 9m33s of wall clock for it.
+          #
+          # The actual fix was the ceiling: token verifications raised to 300
+          # per 5 minutes on the TEST project, which is ~4.6x chromium's peak.
+          #
+          # ⚠️ SO THE THING TO WATCH IS PER-JOB RATE, NOT HOW MANY JOBS RUN.
+          # A single lane that grows enough auth specs can exhaust its own
+          # bucket with nothing else running.
+          - name: chromium
+            slug: chromium
+            projects: --project=chromium
+            browsers: chromium
+          - name: webkit
+            slug: webkit
+            projects: --project=webkit
+            browsers: webkit
+          - name: firefox
+            slug: firefox
+            projects: --project=firefox
+            browsers: firefox
+          - name: pixel-5
+            slug: pixel-5
+            projects: --project=pixel-5
+            browsers: chromium
+          - name: iphone-13
+            slug: iphone-13
+            projects: --project=iphone-13
+            browsers: webkit
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+
+      # Only the browser this project needs. `--with-deps` is what installs the
+      # system libraries WebKit needs on Linux — the step that has no analogue
+      # on the Windows machine, and the reason this works here.
+      - name: Install ${{ matrix.browsers }}
+        run: npx playwright install --with-deps ${{ matrix.browsers }}
+
+      - name: Write .env.test from secrets
+        env:
+          TEST_PUBLIC_SUPABASE_URL: ${{ secrets.TEST_PUBLIC_SUPABASE_URL }}
+          TEST_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.TEST_PUBLIC_SUPABASE_ANON_KEY }}
+          TEST_SUPABASE_SERVICE_ROLE: ${{ secrets.TEST_SUPABASE_SERVICE_ROLE }}
+          TEST_SUPABASE_PASSWORD: ${{ secrets.TEST_SUPABASE_PASSWORD }}
+          SUPABASE_PRODUCTION_REF: ${{ secrets.SUPABASE_PRODUCTION_REF }}
+          E2E_EMAIL_DOMAIN: ${{ matrix.slug }}.mcc-e2e.test
+        run: |
+          umask 077
+          {
+            printf 'TEST_PUBLIC_SUPABASE_URL=%s\n' "$TEST_PUBLIC_SUPABASE_URL"
+            printf 'TEST_PUBLIC_SUPABASE_ANON_KEY=%s\n' "$TEST_PUBLIC_SUPABASE_ANON_KEY"
+            printf 'TEST_SUPABASE_SERVICE_ROLE=%s\n' "$TEST_SUPABASE_SERVICE_ROLE"
+            printf 'TEST_SUPABASE_PASSWORD=%s\n' "$TEST_SUPABASE_PASSWORD"
+            printf 'SUPABASE_PRODUCTION_REF=%s\n' "$SUPABASE_PRODUCTION_REF"
+            printf 'E2E_EMAIL_DOMAIN=%s\n' "$E2E_EMAIL_DOMAIN"
+          } > .env.test
+
+      # ⚠️ EVERY JOB RE-ASSERTS IT. The preflight job proved the secrets were
+      # right on ITS runner; this is a different machine with a different
+      # checkout, and "it was fine over there" is not a property of this one.
+      - name: Preflight — credentials present, and NOT production
+        run: node scripts/ci-preflight.mjs
+
+      # Playwright's `webServer` builds and serves; PUBLIC_AUTH_ENABLED reaches
+      # the build through it.
+      # ⚠️ ONE WORKER COMES FROM playwright.config.ts UNDER CI, and it is what
+      # keeps a single job's verification rate inside its own per-IP bucket.
+      # Raising it to go faster is not a free speed-up — see the rate-limit
+      # section of docs/reference/testing.md before touching it.
+      - name: ${{ matrix.name }} — accounts ON
+        env:
+          CI: 'true'
+          PUBLIC_AUTH_ENABLED: 'true'
+        run: npx playwright test ${{ matrix.projects }}
+
+      # ⚠️ ON FAILURE ONLY, AND THIS IS THE WHOLE REASON THE ARTEFACT WORK
+      # EXISTS. Three consecutive gates ended in "probably environmental" with
+      # the evidence deleted before anyone read it. `error-context.md` carries
+      # the page state at the moment of failure, and a trace is attached on the
+      # first retry — read those BEFORE calling a row environmental.
+      - name: Keep the failure artefacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: artefacts-${{ matrix.slug }}
+          path: test-results/
+          retention-days: 30
+          if-no-files-found: ignore
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # ⚠️ THE ACCOUNTS-OFF SLIVER IS NOT A SECOND MATRIX.
+  #
+  # Exactly two specs can only be proved by an accounts-OFF BUILD, because they
+  # are claims about the artefact that shape produces: `auth-disabled` (no route
+  # emitted, no Supabase ref anywhere in the bundle) and `admin`'s "the admin
+  # surfaces are NOT BUILT" describe. The second build is irreducible — you
+  # cannot inspect an artefact you did not produce — and it is the whole cost:
+  # chromium only, because neither is engine-sensitive.
+  #
+  # It is a separate JOB rather than a step, so it gets a clean runner and can
+  # never attach to the accounts-ON preview server. Locally that hazard is real
+  # and `test-release.mjs` sweeps between the two for exactly this reason.
+  # ──────────────────────────────────────────────────────────────────────────
+  sliver:
+    name: accounts-OFF sliver
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+
+      # ⚠️⚠️ THE SLIVER GETS CREDENTIALS TOO, AND OMITTING THEM WAS A REAL BUG
+      # IN THE FIRST VERSION OF THIS WORKFLOW.
+      #
+      # The reasoning for leaving them out was that this shape has no account
+      # routes, so there is nothing to sign in to. True, and it misses what the
+      # sliver is FOR: `auth-disabled.spec.ts` proves no Supabase ref survives
+      # anywhere in `dist/`. With no credentials in the build there is nothing
+      # that COULD leak, so the proof is trivially true — it passes because the
+      # ref never existed, not because the flag kept it out. With credentials
+      # present and the flag off, it proves the thing Critical Feature 18
+      # actually claims.
+      #
+      # ⚠️ It also removes an expiry trap. `playwright.config.ts` passes the
+      # test project's URL and key into the BUILD, so `fetch-agenda.mjs` reads
+      # the real sessions table. Without `.env.test` it falls back to
+      # `agenda.fallback.json` — whose expiry guard would have failed this job's
+      # build after 2026-09-12, for a reason with nothing to do with the change
+      # under test.
+      - name: Write .env.test from secrets
+        env:
+          TEST_PUBLIC_SUPABASE_URL: ${{ secrets.TEST_PUBLIC_SUPABASE_URL }}
+          TEST_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.TEST_PUBLIC_SUPABASE_ANON_KEY }}
+          TEST_SUPABASE_SERVICE_ROLE: ${{ secrets.TEST_SUPABASE_SERVICE_ROLE }}
+          TEST_SUPABASE_PASSWORD: ${{ secrets.TEST_SUPABASE_PASSWORD }}
+          SUPABASE_PRODUCTION_REF: ${{ secrets.SUPABASE_PRODUCTION_REF }}
+          E2E_EMAIL_DOMAIN: sliver.mcc-e2e.test
+        run: |
+          umask 077
+          {
+            printf 'TEST_PUBLIC_SUPABASE_URL=%s\n' "$TEST_PUBLIC_SUPABASE_URL"
+            printf 'TEST_PUBLIC_SUPABASE_ANON_KEY=%s\n' "$TEST_PUBLIC_SUPABASE_ANON_KEY"
+            printf 'TEST_SUPABASE_SERVICE_ROLE=%s\n' "$TEST_SUPABASE_SERVICE_ROLE"
+            printf 'TEST_SUPABASE_PASSWORD=%s\n' "$TEST_SUPABASE_PASSWORD"
+            printf 'SUPABASE_PRODUCTION_REF=%s\n' "$SUPABASE_PRODUCTION_REF"
+            printf 'E2E_EMAIL_DOMAIN=%s\n' "$E2E_EMAIL_DOMAIN"
+          } > .env.test
+
+      - name: Preflight — credentials present, and NOT production
+        run: node scripts/ci-preflight.mjs
+
+      # ⚠️ PUBLIC_AUTH_ENABLED is EMPTY, not unset-by-deletion —
+      # `playwright.config.ts` reads it with `?? ''` and passes it to the
+      # build, so an empty string IS the OFF shape.
+      - name: auth-disabled + admin — accounts OFF
+        env:
+          CI: 'true'
+          PUBLIC_AUTH_ENABLED: ''
+        run: npx playwright test --project=chromium tests/e2e/auth-disabled.spec.ts tests/e2e/admin.spec.ts
+
+      - name: Keep the failure artefacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: artefacts-sliver
+          path: test-results/
+          retention-days: 30
+          if-no-files-found: ignore
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # ⚠️ ONE PLACE THAT SAYS "THE GATE IS GREEN", so a promotion has a single
+  # thing to look at rather than six. It fails if ANY job failed — including a
+  # job that was cancelled or skipped, because a gate that did not run is not a
+  # gate that passed.
+  # ──────────────────────────────────────────────────────────────────────────
+  gate:
+    name: gate
+    if: always()
+    needs: [preflight, matrix, sliver]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every job succeeded
+        run: |
+          echo "preflight: ${{ needs.preflight.result }}"
+          echo "matrix:    ${{ needs.matrix.result }}"
+          echo "sliver:    ${{ needs.sliver.result }}"
+          if [ "${{ needs.preflight.result }}" != "success" ] \
+            || [ "${{ needs.matrix.result }}" != "success" ] \
+            || [ "${{ needs.sliver.result }}" != "success" ]; then
+            echo "::error::The gate is NOT green. Read the failing job's artefacts before calling it environmental."
+            exit 1
+          fi
+          echo "Gate green — five projects and the accounts-OFF sliver."

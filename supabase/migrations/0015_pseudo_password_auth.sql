@@ -1,7 +1,15 @@
 -- ════════════════════════════════════════════════════════════════════════════
--- 0013 — signing in with a PSEUDO and a PASSWORD
+-- 0015 — signing in with a PSEUDO and a PASSWORD
 --
--- ⚠️ MIGRATIONS ARE NUMBERED AND NEVER EDITED AFTER MERGE. A fix is 0014.
+-- ⚠️ MIGRATIONS ARE NUMBERED AND NEVER EDITED AFTER MERGE. A fix is 0016.
+--
+-- ⚠️ THIS WAS WRITTEN AS 0013 AND RENUMBERED BEFORE IT WAS EVER APPLIED.
+-- 0013 (session booking) and 0014 (the award cap) reached `main` while this was
+-- being built on a stale `dev`. Nothing here overlaps them — booking adds
+-- `bookings` and four functions and touches neither `profiles` nor
+-- `admin_list_accounts()` — but the NUMBER is the identity a database records
+-- in `supabase_migrations.schema_migrations`, and two files claiming 0013 is
+-- how `db push` silently skips one of them.
 --
 -- ────────────────────────────────────────────────────────────────────────────
 -- WHY THIS EXISTS AT ALL — the magic link was written for the wrong reader
@@ -138,7 +146,7 @@ create unique index if not exists profiles_pseudo_key on public.profiles (pseudo
 comment on column public.profiles.pseudo is
   'The name the reader signs in with. Lowercase, unique, IMMUTABLE once set — '
   'the synthetic auth address is derived from it. NULL on every magic-link '
-  'account, and that null IS the discriminator. See migration 0013.';
+  'account, and that null IS the discriminator. See migration 0015.';
 
 -- ⚠️ SEPARATE FROM THE AUTH IDENTITY, WHICH IS THE WHOLE POINT OF THE FIELD.
 -- A pseudo account's `auth.users.email` is the synthetic address; this is the
@@ -158,7 +166,7 @@ alter table public.profiles
 
 comment on column public.profiles.must_change_password is
   'True between an admin reset and the reader choosing their own password. '
-  'Never client-writable — see the grant list in migration 0013.';
+  'Never client-writable — see the grant list in migration 0015.';
 
 -- ⚠️ ADDITIVE TO 0001/0009/0010's COLUMN GRANT LIST, WHICH IS WHAT ACTUALLY
 -- STOPS A CLIENT WRITING `role` (RLS operates on ROWS and would happily allow
@@ -234,7 +242,7 @@ begin
   if new.email is not null
      and new.email like ('%@' || public.pseudo_email_domain())
      and coalesce(current_setting('mcc.pseudo_signup', true), '') <> 'on' then
-    raise exception 'the pseudo namespace is reserved (migration 0013)';
+    raise exception 'the pseudo namespace is reserved (migration 0015)';
   end if;
   return new;
 end;
@@ -316,7 +324,7 @@ end;
 $$;
 
 comment on function public.normalize_whatsapp(text) is
-  'E.164 or NULL. A bare leading 0 is read as Moroccan (+212) — see 0013.';
+  'E.164 or NULL. A bare leading 0 is read as Moroccan (+212) — see 0015.';
 
 -- ────────────────────────────────────────────────────────────────────────────
 -- 6. password_resets — who reset, when, FOR WHOM
@@ -350,7 +358,7 @@ create table if not exists public.password_resets (
 
 comment on table public.password_resets is
   'Audit of ADMIN password resets: who reset, when, for whom. Never the '
-  'password. Cascades away with the account — see migration 0013.';
+  'password. Cascades away with the account — see migration 0015.';
 
 -- ⚠️ STEP 0 — before any grant. The project's default privileges have already
 -- handed `anon` the full set by the time this line is reached (see 0008).

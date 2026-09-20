@@ -635,3 +635,116 @@ position), and a `➡️` pointer back to this same file is the move showing its
 seam, not a mistake.
 
 ⚠️ **The EN legal notice is `/en/mentions-legales/`, not `/en/legal-notice/`.** The Session 3 brief asked for the translated segment; it is deliberately not implemented that way, because the no-translated-segments rule above is what makes the switcher a pure prefix swap that *cannot* fail to find its counterpart. A translated segment needs a lookup map, and a missing entry 404s a reader mid-visit — on the one page whose whole job is to be findable. The visible link label **is** translated ("Mentions légales" / "Legal notice"); the URL is structural. Flagged for Seàn: it is a one-line change in `paths.ts` plus a map if he wants the English URL, and the site is unlaunched so it is still cheap to reverse.
+
+---
+
+## The 768px divergence — every rule that binds it
+
+**Read when:** touching the header, the mobile bottom bar, the home page, a trail or the resume resolver.
+
+⚠️ **Moved verbatim out of CLAUDE.md at the v0.18.0 split.**
+`scripts/check-split.mjs` compares normalised lines, so nothing inside the
+block below may be reworded. Relative links like `./docs/reference/…` are
+written from the repository root — CLAUDE.md's position, not this file's.
+
+- **The bottom bar has exactly FIVE SECTIONS and never hides on scroll** —
+  Accueil, Apprendre, Jouer, Moi, Réglages. No page may hide content behind the
+  bar; `env(safe-area-inset-bottom)` is needed in **two** places.
+  ⚠️ **EVERY ENTRY HAS A LANDING SCREEN** (Critical Feature 27). M1 capped this
+  at four on the grounds that five labels truncate at 390px; that was a guess
+  and it is now measured — **78×52px per cell at 390px, 72×52 at 360px, longest
+  label 56.6px**, nothing clipped in either locale. Settings earned its slot by
+  becoming a section rather than a link to one page, and "Progrès" lost its slot
+  by being a leaf with nothing underneath.
+- ⚠️ **A LABEL THAT STOPS FITTING IS A COPY PROBLEM, NOT A LAYOUT ONE.** Shorten
+  the word; never shrink the target and never ellipsise. The spec measures the
+  rendered text against its own cell so this arrives as a failure.
+- ⚠️ **NO ROUTE MAY EXIST ON ONE LAYOUT ONLY** (Critical Feature 36). Every
+  destination the bar reaches must be reachable from the desktop header, and the
+  spec **reads the list off the bar** rather than hard-coding it. `/progres/`
+  shipped reachable from the bar and from nothing at all on desktop: the page
+  built, rendered and passed every one of its own specs.
+- **Below 768px the exercise controls compact; the board never does.** The board
+  is the thing being taught with. It is **CSS only** — the dense row is built with
+  flex `order`, so the DOM (and the screen-reader reading order, and the ≥768px
+  layout) is untouched.
+- ⚠️ **KNOWING WHERE YOU ARE IS TWO SIGNALS, AND THE SITE ONLY HAD ONE (M4).**
+  The bar's active tab locates you to within a *quarter of the site*; it says
+  "Apprendre" from the courses index, from a course, from a lesson three levels
+  down and from a trap. The second signal is the **trail**: every page below a
+  section landing carries a back affordance that **NAMES ITS PARENT**
+  (Critical Feature 62) — « ‹ Bien ouvrir une partie », not « Retour » and not
+  « Toutes les leçons ». `src/components/nav/Trail.astro` is the only one.
+  ⚠️ **A LINK, NEVER `history.back()`** — a reader who arrived from a shared
+  link has no history, and a control that does nothing is worse than none.
+  ⚠️ **THE FIVE LANDINGS AND `/` HAVE NO TRAIL**, deliberately: the bar is
+  already their way out. "Add one everywhere" is not the fix.
+  ⚠️ **PREV/NEXT IS NOT THE WAY UP** (Critical Feature 64). Both survive on a
+  lesson, and collapsing them traps a reader inside a sequence.
+- **Every long route ends with a way onward**, clear of the fixed bar, from the
+  **same i18n key** as the link at the top.
+- **The home menu's labels ARE the nav's labels**, from the same `nav.*` keys
+  (Critical Feature 20). Never a second string for one destination. The spec reads
+  the header's own labels off the page rather than hard-coding words.
+- **The home menu works with no JavaScript** (five entries, not six — "Reprendre"
+  is a claim about stored progress) and fits one screen on a phone.
+- ⚠️ **There is ONE resume rule** (`ResumeResolver.astro`) **and ONE key scheme**
+  (`src/lib/journey.ts`). Four surfaces read them; a second copy of either is how
+  two pages come to disagree about what a reader has done.
+- ⚠️ **NEVER PUT `opacity` ON TEXT OVER AN AUDITED FILL.** `check-contrast.mjs`
+  proves the token pair and cannot see an alpha applied on top of it: 0.9 dropped
+  a proved pair to 4.42:1 and cost a Lighthouse regression the whole Playwright
+  suite passed. Differentiate by size, weight and letter-spacing.
+- Navigation is **disclosure semantics, not `role="menu"`**; panels open on
+  **click, never hover**; the `html.js` gate means no layout shift and no no-JS
+  trap.
+
+---
+
+## The route table (moved from CLAUDE.md, v0.30.0)
+
+**Read when** adding, moving, gating or renaming a route — and before assuming a
+route exists in a build. CLAUDE.md keeps the rules (FR at the root, segments are
+never translated, every account route is gated, the two-line shell); this is the
+inventory they apply to.
+
+FR at the root, EN under `/en/...`. **Route segments are not translated**
+(`/en/pieges/`, not `/en/traps/`) — one segment vocabulary means the language
+switcher is a pure prefix swap that can never fail to find its counterpart.
+
+| Route | EN | Notes |
+|---|---|---|
+| `/` | `/en/` | Home — the **main menu** (E5) above 768px, the **dashboard** below; descriptive content under the fold |
+| `/apprendre/` | `/en/apprendre/` | **Section landing (M4)** — the Apprendre chooser: Les bases, Leçons, Exercices, Pièges. ⚠️ Distinct from `/apprendre-les-bases/` only by the trailing slash |
+| `/moi/` | `/en/moi/` | **Section landing (M4)** — the personal chooser: Ma progression, Mon compte (accounts on only), Réglages |
+| `/club/` | `/en/club/` | **Section landing (M4, second revision)** — the club chooser: Agenda, Contact, À propos. ⚠️ Took the bar slot Réglages held; before it, the club was unreachable on a phone except from home |
+| `/a-propos/` | `/en/a-propos/` | What the club is, who runs it, how to join. ⚠️ **Not one venue string, handle or number in the component** — all of it from `src/config/site.ts`; the segment is NOT translated |
+| `/cours/` | `/en/cours/` | Course index (cards) |
+| `/pieges/` | `/en/pieges/` | Trap index (cards, ECO + theme chips) — **no board mounted here** |
+| `/pieges/[slug]/` | `/en/pieges/[slug]/` | Trap detail — the replayer, commentary, outbound WhatsApp share |
+| `/exercices/` | `/en/exercices/` | Exercise index — **no board mounted here**; solved ticks from `localStorage` |
+| `/exercices/niveau/[niveau]/`<br>`/exercices/theme/[theme]/` | same, `/en/` prefixed | ⚠️ **The exercise filters are ROUTES, not `?niveau=`.** Static output leaves no server to read a query string, and a browser-side filter would leave the chips dead with JS off — a spec runs them with JavaScript disabled. ⚠️ **The values are DERIVED from the content**, so an empty filter page cannot exist and there is no empty state; an unknown value 404s. Segments are **not** translated. See `src/lib/exercise-filters.ts` |
+| `/exercices/[slug]/` | `/en/exercices/[slug]/` | Exercise detail — the interactive board, hint, attempts, outbound WhatsApp share |
+| `/jouer/` | `/en/jouer/` | Play the computer. Engine loaded on a click, never before. |
+| `/agenda/` | `/en/agenda/` | Sessions, **from the `sessions` table, baked at build**. Venue falls back to site config. See the agenda rule below |
+| `/contact/` | `/en/contact/` | WhatsApp CTA, venue, socials |
+| `/mentions-legales/` | `/en/mentions-legales/` | Legal notice + credits. **Footer only, not in the nav.** |
+| `/parametres/` | `/en/parametres/` | Appearance settings. Reachable from the **desktop header** (gear, beside the theme toggle) and the footer. |
+| `/progres/` | `/en/progres/` | Local progress: three group bars, exercises by level and by theme, what is left, and a resume card. Read from `localStorage`, no account. **Rank and points are DERIVED and printed** — the "bientôt" placeholder went with E3, and Critical Feature 30 is the rule that replaced it. Inside the **Moi** section since M4 |
+| `/connexion/` | `/en/connexion/` | **NOT EMITTED by default** — see the account flag below |
+| `/compte/` | `/en/compte/` | **NOT EMITTED by default** — see the account flag below |
+| `/bienvenue/` | `/en/bienvenue/` | **NOT EMITTED by default.** The first-run screen, once per account. ⚠️ The segment is NOT translated |
+| `/inscription/` | `/en/inscription/` | **NOT EMITTED by default.** Sign-up: prénom, pseudo, mot de passe, **numéro WhatsApp** (required), optional contact e-mail |
+| `/mot-de-passe/` | `/en/mot-de-passe/` | **NOT EMITTED by default.** Changing a password — forced after a reset, voluntary from `/compte/`. The current password is required in **both** cases |
+| `/auth/callback/` | — | **NOT EMITTED by default.** The only unlocalised route |
+| `/admin/` | — | **NOT EMITTED by default.** Staff dashboard. **FR only** — see Critical Feature 43 |
+| `/admin/eleves/` | — | **NOT EMITTED by default.** The class list — **children, not accounts** |
+| `/admin/eleve/` | — | **NOT EMITTED by default.** One learner, by `?id=` — a query param, not a segment, and forced by the static build |
+| `/admin/seances/` | — | **NOT EMITTED by default.** Sessions + the attendance register |
+| `/admin/comptes/` | — | **NOT EMITTED by default.** Sign-ups + account removal. ⚠️ **ADMIN only**, not prof |
+| `/manifest.webmanifest` | — | Generated from `src/config/site.ts` |
+
+⚠️ **`/auth/callback/` is no longer the only unlocalised route** — the four
+`/admin*` routes are unlocalised too, for a different reason. The callback is
+machinery a reader never navigates to; `/admin*` is French **content** for a
+single-operator audience. Neither is a precedent for a public page.

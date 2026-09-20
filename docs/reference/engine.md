@@ -77,17 +77,66 @@ Done this way because **importing chess.js here would land it in the engine chun
 
 | Preset | Skill | depth | movetime | blunder | vs `greedy` | vs `novice` |
 |---|---|---|---|---|---|---|
-| Débutant | 0 | 1 | 50 ms | **40%** | 60% | **38%** |
-| Intermédiaire | 3 | 4 | 500 ms | **25%** | 98% | **65%** |
-| Avancé | 14 | 12 | 1500 ms | 0% | 100% | 98% |
+| Débutant | 0 | 1 | 50 ms | **40%** | 66% | **18%** |
+| Intermédiaire | 3 | 4 | 500 ms | **20%** | 97% | **66%** |
+| Avancé | **20** | 12 | 1500 ms | 0% | 100% | **100%** |
 
-Head-to-head, which is what proves the **order** (both bots saturate at the top):
+60 games per pairing, colours alternating. Head-to-head, which is what proves
+the **order** (both bots saturate at the top):
 
 ```
 avance        vs intermediaire   100%
-intermediaire vs debutant         85%
+intermediaire vs debutant         95%
 avance        vs debutant        100%
 ```
+
+##### ⚠️ THE RETUNE THAT PRODUCED THOSE NUMBERS (2026-08-21), AND THE TWO THINGS IT GOT WRONG FIRST
+
+Seàn reported Intermédiaire and Avancé making mistakes that should not happen
+at those levels. **The two levels turned out to have different faults, and the
+first instinct — turn `blunderChance` down on both — was right for one of them
+and looking in entirely the wrong place for the other.**
+
+**Intermédiaire: `blunderChance` 0.25 → 0.20.** 0.25 measured **48%** against
+`novice`; it was losing more than half its games to an opponent whose only
+virtue is not hanging pieces, which is exactly what the complaint looks like as
+a number. The curve, `novice` at 120 games per point: `0.25`→48%, `0.20`→66%,
+`0.15`→80%, `0.10`→90%, `0.05`→96%.
+
+⚠️ **0.15 WAS MEASURED, LOOKED BETTER, AND WAS REJECTED — ON THE TARGET, NOT ON
+THE WIN RATE.** The level exists to be winnable by a student who has finished
+course 3 and plays accurately, about **one game in three**. `novice` is the
+stand-in for that student, so ~33% for the bot is the goal. 0.20 gives it 34%;
+0.15 gives it 20%, one game in five. Seàn's call, and it is the reason the
+number is not simply "as low as it can go".
+
+**Avancé: `Skill Level` 14 → 20, and `blunderChance` never moved.** It was
+already 0, and `engine-levels.spec.ts` pins it there — so the retune brief
+("blunder too often") could not have been describing `blunderChance` at all.
+The fault was `Skill Level 14`: Stockfish deliberately picks a worse root move
+bounded by `Skill Level Maximum Error`, **default 200 centipawns in this
+build**. Measured as best-move agreement against a depth-**matched** reference
+(skill 20, depth 12, 4000 ms) over six positions:
+
+| under test | agreed with reference | distinct moves returned |
+|---|---|---|
+| skill 14, d12 | **46%** | 3 in nearly every position |
+| skill 17, d12 | still spread | |
+| skill 19, d12 | still spread | |
+| **skill 20, d12** | effectively deterministic | `1 3 1 1 1 1` |
+
+⚠️ **THE FIRST RUN OF THAT MEASUREMENT WAS CONFOUNDED AND HAD TO BE THROWN
+AWAY** — it used a reference at depth 16 against candidates at depth 12, so
+"disagreement" mixed the depth difference into the skill error and could not
+attribute either. Match the reference depth to the candidate's.
+
+⚠️ **AND 40 GAMES CANNOT SEPARATE NEIGHBOURING RATES.** Two 40-game samples of
+the *same* configuration (skill 3, d4, 0.15, vs `novice`) came out **76% and
+86%**. The engine keeps its hash between games and every search is
+movetime-bounded, so runs are not reproducible. The shipped figures above are
+60 games; the tuning curve was 120. Re-tune at 120 or do not believe the
+difference — the 66% in the table replicated at both 60 and 120 games, which is
+why it is trusted.
 
 The reference opponents are in `scripts/engine-lab/bots.mjs`:
 
@@ -147,3 +196,83 @@ The site makes **zero** requests to any third-party origin on load. Fonts are se
 This is now a **standing rule, not an accident of not having added anything yet**: any embed that talks to another origin must be a click-to-load facade, and must make no request at all until the reader clicks.
 
 The concrete case is the `youtube` field on `traps` and `cours` (Session 3 decision): when it lands it renders a **facade on `youtube-nocookie.com`** — a static poster plus a play button, with the iframe injected only on click. A plain iframe sets third-party cookies at page load, which would break both the privacy posture stated on `/mentions-legales/` and the specs above.
+
+---
+
+## Play mode — Stockfish in a Worker
+
+**Read when:** touching /jouer/, the Stockfish worker, or ANY level preset — and before re-tuning a level, always.
+
+
+`/jouer/`. A full game against the engine, entirely in the browser. Nothing is
+sent anywhere. The rules that bind other work:
+
+- ⚠️ **The engine loads on a CLICK.** `@lib/engine/stockfish` is reached by
+  `await import()` **inside the start handler**. Never hoist it, and never let
+  `PlayBoard.astro` reference it — Vite would pull 3.6 MB into the page's module
+  graph. `tests/e2e/play.spec.ts` asserts it against the network log.
+- ⚠️ **Stockfish is NEVER precached** (Critical Feature 6). `globIgnores` keeps it
+  out; a runtime `CacheFirst` rule caches it after the first game.
+- ⚠️ **The level presets are MEASURED, not reasoned.** Current, and every number
+  here is an output of `scripts/engine-lab`, **60 games per pairing**, colours
+  alternating:
+
+  | | skill | depth | movetime | blunder | vs `greedy` | vs `novice` |
+  |---|---|---|---|---|---|---|
+  | Débutant | 0 | 1 | 50ms | **0.4** | 66% | **18%** |
+  | Intermédiaire | 3 | 4 | 500ms | **0.20** | 97% | **66%** |
+  | Avancé | **20** | 12 | 1500ms | **0** | 100% | **100%** |
+
+  Ladder, head to head, 60 games: **Avancé 100% over Intermédiaire, Intermédiaire
+  95% over Débutant, Avancé 100% over Débutant.** Strictly ordered is the
+  property that matters — the bots saturate at the top, so this is what proves it.
+
+- ⚠️⚠️ **WHAT EACH LEVEL IS FOR, WHICH A WIN RATE CANNOT TELL YOU — READ THIS
+  BEFORE RE-TUNING ONE.** A number with no target behind it gets moved by
+  whoever last found the engine annoying.
+  - **Intermédiaire is the level with a stated target: a student who has
+    finished course 3 and plays accurately should win about ONE GAME IN THREE.**
+    Not one in ten — a wall teaches nothing. Not one in two — that is not a step
+    up from Débutant. `novice` (a 2-ply material bot that takes what is free and
+    will not hang a piece to a single capture) is the stand-in for that student,
+    so the target is **`novice` scoring ~33%**, and 0.20 hits it at **34%**.
+    ⚠️ **0.15 was measured and rejected at the target, not at the win rate** —
+    it scores 80%, leaving the student one game in five.
+  - **Avancé's job is to PUNISH REAL MISTAKES, not to make its own.** It is not
+    meant to be beatable by an accurate club player, and 100% against both bots
+    is the intended reading, not a tuning failure.
+  - **Débutant is the one that may look absurd, and it is correct.** It loses to
+    `novice` — it plays a random legal move 40% of the time, which is what a
+    beginner needs to be able to win against.
+
+- ⚠️ **THE TWO LEVERS ARE DIFFERENT AND ARE NOT INTERCHANGEABLE. Getting this
+  wrong is what sent a retune looking in the wrong place.**
+  - **`blunderChance` makes a level WEAK.** It plays a random legal move that
+    often. `Skill Level` alone cannot: every Stockfish search ends in a
+    quiescence search, so no `(skill, depth)` pair will ever hang a piece.
+    **0.4 is a ceiling, not a dial to turn up** — at 0.5 the games stop
+    resembling chess.
+  - ⚠️ **`skill` below 20 makes a level INACCURATE, and that is a separate
+    fault.** Stockfish deliberately picks a worse root move, bounded by
+    `Skill Level Maximum Error` — **default 200 centipawns in this build**.
+    Measured as best-move agreement at matched depth; the table is in
+    [`docs/reference/engine.md`](./docs/reference/engine.md).
+  - **So a level that blunders wants `blunderChance` changed, and a level that
+    plays second-best moves wants `skill` changed.** Avancé's `blunderChance`
+    has always been 0 and a spec pins it there; its old mistakes were skill 14.
+
+  Re-measure with `scripts/engine-lab` — `--verify`, `--ladder --shipped`,
+  `--sweep` for a blunder rate and `--accuracy` for move quality. Do not
+  re-reason.
+- ⚠️ **The engine is just a `MoveProvider`** (`src/lib/chess/opponent.ts`) — a
+  position goes in, a move comes out. That interface is the v2 online-play seam,
+  and `PlayView` must talk to nothing else.
+- `stockfish` is **not** a project dependency; the engine is vendored under
+  `public/engine`, which must stay **out of the TypeScript project** (it kills
+  `astro check` with a V8 heap OOM naming no file).
+
+**➡️ [`docs/reference/engine.md`](./docs/reference/engine.md)** — why Stockfish 11,
+the measured preset table and the reference bots, the fixed 64 MiB memory, and
+the random-move implementation. **Read it before re-tuning a level.**
+
+---

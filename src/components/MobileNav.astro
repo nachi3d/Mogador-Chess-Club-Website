@@ -9,20 +9,26 @@
  *
  * M1 capped this at four and gave two reasons: five targets across 390px is
  * 78px each "which is where labels truncate", and settings "is not a
- * destination". The first was a guess and is now measured; the second stopped
- * being true when Réglages became a section rather than a link to one page.
+ * destination". The first was a guess and is now measured; the second turned
+ * out to be right, and the second revision acted on it.
  *
  * ⚠️ MEASURED, NOT REASONED — that guess was the whole M1 objection:
  *
  *              cell        longest label            headroom
  *   390px   78.0 × 52   "Apprendre" 56.6px           21.4px
  *   360px   72.0 × 52   "Apprendre" 56.6px           15.4px
- *   (EN)                "Settings"  43.9px
+ *   (EN)                "Home"      31.3px           40.7px
  *
- * Nothing truncates at either width in either locale, and every target clears
- * 48px in BOTH dimensions — 52px tall, from --mcc-bottom-nav. The spec measures
+ * Nothing truncates at either width in either locale — measured overflow is 0
+ * on all ten cells — and every target clears 48px in BOTH dimensions: 72×52 at
+ * 360px, 78×52 at 390px, the height from --mcc-bottom-nav. The spec measures
  * each label against its own cell rather than trusting this comment, so the day
  * a longer word arrives it fails here instead of shipping as an ellipsis.
+ *
+ * ⚠️ THE SECOND REVISION SPENT NONE OF THAT HEADROOM — it GAINED some.
+ * Re-measured after the swap: "Club" is 24.6px in both locales, against the
+ * "Réglages"/"Settings" it replaced. The worst case is unchanged and is still
+ * "Apprendre" at 56.6px, 15.4px clear at 360px.
  *
  * ⚠️ THE RULE THAT REPLACES "FOUR": EVERY ENTRY IS A SECTION WITH A LANDING
  * SCREEN, never a shortcut to a leaf page. That is what makes five defensible
@@ -30,6 +36,21 @@
  * than a row of favourites. "Progrès" was the counter-example that proved the
  * point: a leaf page sitting in the bar with nothing underneath it. It now
  * lives inside Moi.
+ *
+ * ⚠️ SECOND REVISION: RÉGLAGES OUT, CLUB IN. Réglages passed the letter of the
+ * section rule — it has a landing — and failed its spirit: one page, opened
+ * rarely, holding a fifth of the most valuable strip on a phone. It kept its
+ * slot on the strength of "theme, language and sound", which is a list of what
+ * is on one screen rather than a part of the site. It is still reachable from
+ * Moi, from the desktop header gear and from the footer, so nothing was lost
+ * but the slot.
+ *
+ * What took it is the part of the site that a phone had no route to at all:
+ * the CLUB. The agenda, contact and about pages sat under "Le club" in the
+ * desktop header and under nothing below 768px — reachable only from the home
+ * page. ⚠️ That is the mirror of the `/progres/` defect Critical Feature 36
+ * exists for: not a page missing from desktop, but a whole section missing
+ * from mobile.
  *
  * ⚠️ THE SHAPE NEVER CHANGES. Signed out, "Moi" still leads to Moi — the
  * chooser offers sign-in instead of the account. A bar whose entries come and
@@ -64,9 +85,9 @@ const t = useTranslations(locale);
 const current = stripLocale(pathname);
 
 /**
- * The four. `key` is a `nav.*` key wherever a nav counterpart exists, for the
+ * The five. `key` is a `nav.*` key wherever a nav counterpart exists, for the
  * same reason the E5 menu reuses them — two names for one destination reads as
- * two different sites. Only "Progrès" is new, because nothing else names it.
+ * two different sites.
  *
  * `match` decides the active state: a section is active when the reader is
  * anywhere inside it, not only on its index. Someone reading a trap is inside
@@ -89,15 +110,28 @@ const entries = [
   },
   { key: 'nav.play', href: '/jouer/', icon: 'piece', match: ['/jouer/'] },
   {
+    key: 'nav.club',
+    href: '/club/',
+    icon: 'calendar',
+    /* ⚠️ THE SUBTREE, NOT JUST THE LANDING — same rule as Apprendre. A reader
+       on `/agenda/` or `/contact/` is inside Club and the bar has to say so,
+       or the active tab goes silent exactly where a leaf page has no other
+       location signal (Critical Feature 63). */
+    match: ['/club/', '/agenda/', '/contact/', '/a-propos/'],
+  },
+  {
     key: 'nav.me',
     href: '/moi/',
     icon: 'person',
     /* The account routes are not emitted while accounts are off. Listing them
        is harmless — nothing can be on a page that does not exist — and means
-       the bar is already correct the day the flag flips. */
-    match: ['/moi/', '/progres/', '/compte/', '/connexion/', '/bienvenue/'],
+       the bar is already correct the day the flag flips.
+       ⚠️ `/parametres/` IS HERE NOW. Réglages left the bar and lives inside
+       Moi, so a reader on the settings page must still see which section they
+       are in — without this the settings page lights nothing at all, which is
+       the defect Critical Feature 63 names. */
+    match: ['/moi/', '/progres/', '/parametres/', '/compte/', '/connexion/', '/bienvenue/'],
   },
-  { key: 'nav.settings', href: '/parametres/', icon: 'sliders', match: ['/parametres/'] },
 ] as const;
 
 /** Home matches exactly; every other section matches its whole subtree. */
@@ -146,14 +180,20 @@ function isActive(match: readonly string[]): boolean {
                     <path d="M4.8 20.5a7.2 7.2 0 0 1 14.4 0" />
                   </svg>
                 )}
-                {entry.icon === 'sliders' && (
+                {entry.icon === 'calendar' && (
+                  /* ⚠️ A CALENDAR, NOT A SECOND PERSON. "Club" is people, so a
+                     group-of-figures glyph is the obvious choice and the wrong
+                     one: beside `person` for Moi it is two similar silhouettes
+                     at 22px, which is a distinction nobody makes at a glance
+                     on a moving bus. The calendar names the thing a reader
+                     actually comes here for — when we meet — and shares no
+                     silhouette with the home, the book, the knight or the
+                     person. */
                   <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M4 7h8" />
-                    <path d="M16 7h4" />
-                    <circle cx="14" cy="7" r="2" />
-                    <path d="M4 17h4" />
-                    <path d="M12 17h8" />
-                    <circle cx="10" cy="17" r="2" />
+                    <rect x="3.5" y="5" width="17" height="15.5" rx="2" />
+                    <path d="M3.5 9.5h17" />
+                    <path d="M8 3.5v3" />
+                    <path d="M16 3.5v3" />
                   </svg>
                 )}
               </span>

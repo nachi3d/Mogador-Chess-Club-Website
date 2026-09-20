@@ -9,7 +9,7 @@
  *
  * ⚠️ EVERY RULE HERE IS A MIRROR. The database is what refuses — the regex is a
  * CHECK constraint, the uniqueness is an index, the password floor is a `raise`
- * inside `register_with_pseudo()` (migration 0013). What is here exists so the
+ * inside `register_with_pseudo()` (migration 0015). What is here exists so the
  * form can say "trop court" without a round trip, exactly like `admin.ts`
  * mirroring the award constraints. `pseudo-auth.spec.ts` asserts the two agree
  * by asking the database to build the same address this file builds; if they
@@ -57,7 +57,7 @@ export function normalizePseudo(raw: string): string {
  * ASCII, 3–20, opening on a letter or a digit. An address that would need
  * quoting is an address that gets typed wrong at a table in Dar Souiri.
  *
- * Mirrors `profiles_pseudo_check` in migration 0013, character for character.
+ * Mirrors `profiles_pseudo_check` in migration 0015, character for character.
  */
 const PSEUDO_RE = /^[a-z0-9][a-z0-9._-]{2,19}$/;
 

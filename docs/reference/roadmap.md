@@ -51,3 +51,31 @@
 - Printable handouts from the PGN
 
 ---
+
+---
+
+## Why static, and why no Supabase (v1)
+
+**Read when:** re-opening the "should v1 have a backend?" question, or wondering why progress is device-local.
+
+
+The whole v1 product is *content plus a chess engine in the browser*. There is no per-user data worth a server: lesson progress is one visitor's private state, so it lives in `localStorage`. There are no capacity-constrained bookings (Baby Club's reason for Supabase), no transactions, no roles. Adding a database would mean auth, a privacy policy, and a monthly bill in exchange for nothing a visitor can perceive.
+
+Consequence to respect: **progress is device-local and can be cleared by the browser.** Never build a feature whose value depends on progress surviving — no streaks that punish loss, no "resume where you left off" as the only way to reach a lesson.
+
+#### `src/lib/progress.ts` — the single migration point
+
+All of it lives behind that one module. **Nothing else in the codebase may touch `localStorage` or know the key.** If accounts ever arrive, swapping the backing store is a rewrite of that file and nothing else — the same containment trick as `BoardSurface.tsx`.
+
+⚠️ Five properties hold it up, and each was chosen against a specific failure:
+the **version is in the key** (`mcc:progress:v1`); **every access is guarded and
+fails silent**; records are **normalised field by field on read, never cast**; a
+bad stored value is **never deleted**; and `resetAttempts()` clears the counter
+and **never the solve**.
+
+⚠️ **The solved ticks on `/exercices/` are a plain `<script>`, not an island.**
+The one-board-island rule is about hydrated framework components, and this must
+stay on the right side of that line.
+
+**➡️ The key, the shape, and the reason behind each of those five:
+[`docs/reference/progression.md`](./docs/reference/progression.md).**

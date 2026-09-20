@@ -69,7 +69,7 @@ export interface Profile {
    * ⚠️ THIS NULL IS THE DISCRIMINATOR FOR THE WHOLE FEATURE. "Does this account
    * have a password?" is answered here and nowhere else — there is no second
    * column and no `auth_kind` enum that could disagree with reality. See
-   * migration 0013.
+   * migration 0015.
    */
   readonly pseudo: string | null;
   /** An optional REAL address, for contact only. Never an auth channel. */
@@ -194,7 +194,7 @@ export async function signInWithMagicLink(
   }
 }
 
-/* ══ The pseudo + password path (migration 0013) ═════════════════════════════
+/* ══ The pseudo + password path (migration 0015) ═════════════════════════════
  *
  * ⚠️ THE MAGIC LINK ABOVE IS NOT LEGACY. Two paths, both first-class: an inbox
  * is what works for Seàn and Michael, a pseudo is what works for a teenager in
@@ -275,7 +275,7 @@ function pseudoError(message: string | undefined): PseudoError {
  * ⚠️ REGISTRATION IS AN RPC, NOT `signUp()`, AND THAT IS NOT A STYLE CHOICE.
  * `signUp()` with the synthetic address makes GoTrue send a confirmation
  * message to an address that can never receive one, and the account is born
- * locked. Migration 0013 explains the whole reasoning; do not "simplify" this
+ * locked. Migration 0015 explains the whole reasoning; do not "simplify" this
  * back into `auth.signUp`.
  *
  * ⚠️ IT SIGNS IN IMMEDIATELY AFTERWARDS, on purpose. A sign-up that ends on a
@@ -374,7 +374,7 @@ export async function changeOwnPassword(
  * Update the recovery channel.
  *
  * ⚠️ A FUNCTION RATHER THAN A COLUMN UPDATE, so that ONE normaliser decides
- * what a phone number is — see migration 0013. A pseudo account may not empty
+ * what a phone number is — see migration 0015. A pseudo account may not empty
  * it: it is the only way back in after a forgotten password.
  */
 export async function updateOwnContact(
@@ -391,6 +391,49 @@ export async function updateOwnContact(
     return { ok: true };
   } catch (e) {
     return { ok: false, error: pseudoError(e instanceof Error ? e.message : String(e)) };
+  }
+}
+
+/**
+ * Start a Google sign-in.
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️ IT REDIRECTS THE WHOLE TAB AND DOES NOT RETURN. Everything after the
+ * call is unreachable on the success path, which is why this resolves only to
+ * report a FAILURE — a caller that awaits it expecting a session will wait
+ * forever, because the session arrives on the next page load through
+ * `completeSignIn()`.
+ *
+ * ⚠️ SAME IMPLICIT FLOW AS THE MAGIC LINK, AND FOR A DIFFERENT REASON.
+ * The magic link is implicit because email is routinely opened in another
+ * browser, so a PKCE verifier stranded in the requesting one would break it.
+ * OAuth comes back to the same browser, so PKCE would work here — but the
+ * client is configured once, for both, and `detectSessionInUrl` already
+ * parses the fragment on `/auth/callback/`. Two flows in one client is a
+ * second code path to keep correct for no gain a reader can perceive.
+ *
+ * ⚠️ THE PROVIDER MUST BE CONFIGURED IN SUPABASE **AND** IN GOOGLE CLOUD, and
+ * nothing in this repository can check either. See `GOOGLE_AUTH_ENABLED` in
+ * `src/config/auth.ts` for why the button is behind its own flag.
+ *
+ * `redirectTo` must be an absolute URL listed in the project's allowed
+ * redirect URLs, exactly as for the magic link, or Supabase silently falls
+ * back to SITE_URL and the reader lands on the wrong locale.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+export async function signInWithGoogle(
+  redirectTo: string,
+): Promise<{ ok: false; message: string }> {
+  try {
+    const sb = await getSupabase();
+    const { error } = await sb.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo },
+    });
+    /* Reached only when the redirect could not be started at all. */
+    return { ok: false, message: error?.message ?? 'redirect did not start' };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : String(e) };
   }
 }
 
@@ -545,7 +588,7 @@ export async function deleteOwnAccount(): Promise<{ ok: true } | { ok: false; me
  */
 const PROFILE_COLUMNS: readonly string[] = [
   'id, role, display_name, locale, guardian_phone, onboarded_at, account_shape, pseudo, contact_email, must_change_password',
-  /* Pre-0013 — before a pseudo and a password were a way in. */
+  /* Pre-0015 — before a pseudo and a password were a way in. */
   'id, role, display_name, locale, guardian_phone, onboarded_at, account_shape',
   /* Pre-0010 — before the welcome screen asked who the account is for. */
   'id, role, display_name, locale, guardian_phone, onboarded_at',
@@ -571,7 +614,7 @@ export async function getProfile(): Promise<Profile | null> {
           ...(row as unknown as Profile),
           onboarded_at: (row['onboarded_at'] as string | null | undefined) ?? null,
           account_shape: (row['account_shape'] as string | null | undefined) ?? null,
-          /* ⚠️ A DATABASE WITHOUT 0013 READS AS "no pseudo account", which is
+          /* ⚠️ A DATABASE WITHOUT 0015 READS AS "no pseudo account", which is
              exactly what it is — every account on such a database signs in by
              magic link. Degrade, never repair. */
           pseudo: (row['pseudo'] as string | null | undefined) ?? null,

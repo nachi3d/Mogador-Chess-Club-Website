@@ -38,6 +38,13 @@
    owns its whole definition in one file. */
 @import './cards.css';
 
+/* Containment — the ONE app card, form field, section header and spacing
+   rhythm. After cards.css, which owns the CONTENT card and its stationery
+   3px radius; this file is the app/admin vocabulary and does not touch it.
+   Shared rather than scoped for the same reason score.css is: the pages that
+   use it are many, and a scoped block is inlined into every one of them. */
+@import './surfaces.css';
+
 /* The achievement toast (E3). Shared rather than scoped: the resolver that
    renders it is on ~62 pages, and a scoped block is inlined into each one. */
 @import './score.css';
@@ -54,6 +61,13 @@
    iframe is created by script at click time and carries no `data-astro-cid`
    attribute, so a scoped rule could not reach it. See the file's own header. */
 @import './video.css';
+
+/* Booking controls on the agenda (0013). Shared rather than scoped for the
+   same reason video.css is, and the reason is the stronger of the two here:
+   the per-child buttons are BUILT BY SCRIPT, so they carry no
+   `data-astro-cid` attribute and a scoped rule could not reach them at all.
+   See the file's own header. */
+@import './booking.css';
 
 @layer base {
   html {
@@ -133,6 +147,15 @@
 }
 
 @layer components {
+  /* ⚠️ A CAPPED COLUMN IS ALSO A CENTRED ONE. Capping without centring is
+     what left three pages pinned to the left of a wide screen; they had the
+     max-width and nobody had written the margin. Both halves live here so the
+     next page cannot take one without the other. */
+  .mcc-column {
+    max-inline-size: var(--mcc-measure);
+    margin-inline: auto;
+  }
+
   .container-page {
     width: 100%;
     max-width: var(--mcc-container-max);

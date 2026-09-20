@@ -84,6 +84,44 @@ if (env.testRef === env.productionRef) {
   process.exit(1);
 }
 
+/**
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️⚠️ ARGUMENTS ARE PARSED, AND ANYTHING UNRECOGNISED IS A REFUSAL.
+ *
+ * This script used to read `process.argv` NOT AT ALL. It ran a `--dry-run`
+ * probe to find the pooler host, then applied unconditionally — so
+ * `npm run db:push -- --dry-run` printed `"dryRun":false`, applied the
+ * migration, and reported success. The flag was accepted, ignored, and
+ * contradicted by the script's own output.
+ *
+ * ⚠️ A DRY-RUN FLAG THAT LIES IS WORSE THAN NO FLAG. The whole point of this
+ * wrapper is that it refuses production; a flag someone learns to trust for
+ * "just checking" is the one they will reach for when they are least sure
+ * what they are pointed at. Caught at the 0013 gate, where the migration was
+ * wanted anyway — which is exactly the kind of luck that lets a defect like
+ * this survive.
+ *
+ * ⚠️ AND UNKNOWN ARGUMENTS NOW FAIL CLOSED. Silently discarding an argument
+ * is what caused this, so `--dryrun`, `--dry` or a typo'd flag stops the run
+ * rather than quietly applying. There is no argument this script accepts that
+ * is safe to get wrong.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+const args = process.argv.slice(2);
+const DRY_RUN = args.includes('--dry-run');
+const unknown = args.filter((a) => a !== '--dry-run');
+if (unknown.length > 0) {
+  console.error(red(`\ndb:push — refusing: unrecognised argument(s) ${unknown.join(' ')}.`));
+  console.error(
+    dim(
+      '\n  The only accepted flag is --dry-run. An argument this script does not\n' +
+        '  understand is not ignored, because ignoring one is how --dry-run came\n' +
+        '  to apply migrations while reporting that it had not.\n',
+    ),
+  );
+  process.exit(1);
+}
+
 const password = encodeURIComponent(env.dbPassword);
 const redact = (text) => String(text ?? '').split(password).join('***').split(env.dbPassword).join('***');
 const urlFor = (host) => `postgresql://postgres.${env.testRef}:${password}@${host}:5432/postgres`;
@@ -130,6 +168,16 @@ if (!host) {
       '    (Supabase dashboard → Connect → Session pooler).\n',
   );
   process.exit(1);
+}
+
+/* ⚠️ THE DRY RUN STOPS HERE, HAVING CHANGED NOTHING. The probe above is
+   itself `supabase db push --dry-run`, so the pending list printed a moment
+   ago is the real answer to "what would this apply?" — and no `--include-all`
+   has been run. */
+if (DRY_RUN) {
+  console.log(green('  ✓ dry run — NOTHING was applied.\n'));
+  console.log(dim(`  Re-run without --dry-run to apply the above to "${env.testRef}".\n`));
+  process.exit(0);
 }
 
 console.log(yellow('  applying…\n'));

@@ -68,6 +68,23 @@
  *      [data-resume-title]  ← the resumable step's own name
  *      the element's <a>    ← href, title, aria-label
  *
+ *    ⚠️⚠️ `data-resume-keep-href` OPTS OUT OF THE HREF REWRITE, AND A CHOOSER
+ *    CARD MUST SET IT. Asking for a COUNT and having your DESTINATION changed
+ *    were the same request until v0.25.0, and that shipped a real defect: the
+ *    "Ma progression" card on `/moi/` declared a journey so it could say
+ *    "8 sur 24", and the resolver duly pointed it at the next unsolved
+ *    exercise. A card whose entire purpose is the progress page sent readers
+ *    somewhere else, on both layouts.
+ *
+ *    ⚠️ NOTHING FAILED, AND THAT IS THE INSTRUCTIVE PART. `wayfinding.spec.ts`
+ *    asserted the href RESOLVED 200 — which a retargeted exercise URL does.
+ *    Reachability is not identity; the spec now names the destination.
+ *
+ *    `HubCard.astro` sets it for every chooser card (Critical Feature 65 — a
+ *    landing is a chooser, so its cards go where they say). The dedicated
+ *    resume surfaces — `ResumeCard`, the home "Reprendre" link, the progress
+ *    page's own rows — do not set it and are retargeted as before.
+ *
  *    ⚠️ COUNTS AND BARS ARE FILLED WHETHER OR NOT THERE IS A STEP TO RESUME;
  *    the link, the title and the un-hiding happen only when there is one.
  *    That split is what lets ONE contract serve both a statistic ("2 / 13",
@@ -230,7 +247,7 @@ const ids = Object.keys(journeys);
           if (!step) return;
 
           var link = mount.tagName === 'A' ? mount : mount.querySelector('a');
-          if (link) {
+          if (link && !mount.hasAttribute('data-resume-keep-href')) {
             link.setAttribute('href', step.u);
             /* The label may stay a bare word (the E5 menu is one line), so the
                destination is announced rather than printed. */

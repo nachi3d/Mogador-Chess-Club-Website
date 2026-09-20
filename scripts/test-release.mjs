@@ -1,13 +1,51 @@
 #!/usr/bin/env node
 /**
- * `npm run test:release` — the FULL matrix. Run ONCE, when promoting to main.
+ * `npm run test:release` — the WHOLE matrix, locally, in one command.
  *
  * ─────────────────────────────────────────────────────────────────────────
- * ⚠️ THIS IS THE ONLY PLACE THE MATRIX BELONGS.
+ * ⚠️⚠️ THIS IS NO LONGER THE GATE OF RECORD — THE `gate` WORKFLOW ON GITHUB
+ * ACTIONS IS, SINCE v0.24.0. Smart App Control blocked WebKit on this machine
+ * twice, and both releases shipped on transferred evidence; a Linux runner has
+ * no such policy. A promotion rests on `.github/workflows/gate.yml`.
  *
- * Five projects — chromium, firefox, webkit, pixel-5, iphone-13. That cost is
- * worth paying once per release and is not worth paying once per session, which
- * is what was happening. Feature branches run `npm run test:branch`.
+ * ⚠️ THIS SCRIPT IS STILL CORRECT AND STILL MAINTAINED. It is the right thing
+ * for a developer who wants the matrix on their own machine — it is simply not
+ * what a promotion is allowed to rest on any more.
+ *
+ * ⚠️ IT SERIALISES THE FIVE PROJECTS FOR MEMORY, and that is why CI can run
+ * them in parallel without contradicting it: each runner has its own RAM.
+ * ⚠️ THE SERIALISATION ALSO GAVE THE SHARED TEST SUPABASE PROJECT ONE RUN AT A
+ * TIME — never the reason, never written down, and load-bearing anyway. See
+ * `docs/reference/testing.md` before parallelising anything that runs the suite.
+ *
+ * Chromium over the WHOLE suite, then four LANES on the other four projects,
+ * then a two-minute accounts-OFF sliver. One flag shape. Feature branches run
+ * `npm run test:branch`.
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️ IT USED TO BE FIVE PROJECTS × EVERY SPEC × BOTH FLAG SHAPES, AND THAT WAS
+ * MEASURED AT 4.8 HOURS FOR A STATIC TEACHING SITE.
+ *
+ * The gate audit (`docs/reference/testing.md`) found three things:
+ *
+ *   - 29 of the 41 spec files run IDENTICALLY in both flag shapes, proved by
+ *     run/skip status — so the second matrix re-ran ~3,000 tests that could
+ *     not answer anything new;
+ *   - four spec files never open a browser at all, yet spawned 255 browser
+ *     contexts per release between them;
+ *   - chromium runs the whole suite in 7.1 minutes and proves every spec once.
+ *
+ * ⚠️ WHAT WAS KEPT IS WHAT HAS ACTUALLY CAUGHT DEFECTS. Each lane is pinned to
+ * the engine that found a real, user-facing bug — WebKit's "Créer" click
+ * synthesis, Gecko's agenda axe violation, the iPhone tap-versus-bar collision.
+ * The lanes and the reasoning live in `scripts/lanes.mjs`; do not re-derive
+ * them here.
+ *
+ * ⚠️ THE COST NOW: measured GREEN end to end at 21.9 min, 1,277 passed, on a
+ * machine whose troughs were 0.51-2.03 GB free — i.e. the bad case, not the
+ * good one. Do not let it drift back by adding specs to lanes without a named
+ * reason.
+ * ═════════════════════════════════════════════════════════════════════════
  *
  * ⚠️ IT WRITES TO A LOG AND CHECKS THE EXIT CODE ITSELF.
  * `npx playwright test | tail -12` reports TAIL's exit code, not Playwright's:
@@ -45,10 +83,11 @@
  * ═════════════════════════════════════════════════════════════════════════
  *
  * ⚠️ IT PROVES EVERY PROJECT ACTUALLY RAN. A project that silently runs zero
- * tests is the worst possible pass: the summary says "green" and one fifth of
- * the matrix never happened. Per-project counts are read from Playwright's
- * JSON reporter and checked against each other — see the `── Report ──`
- * section at the foot of this file.
+ * tests is the worst possible pass: the summary says "green" and a whole lane
+ * never happened. Per-project counts are read from Playwright's JSON reporter,
+ * and under the lanes the check is "nobody ran ZERO, and chromium — the
+ * superset — is never the smaller run", because a mistyped lane matches
+ * nothing. See the `── Report ──` section at the foot of this file.
  *
  * ═════════════════════════════════════════════════════════════════════════
  * MEASUREMENTS — the three candidates, and why this one won
@@ -92,13 +131,46 @@
  * ═════════════════════════════════════════════════════════════════════════
  */
 import { spawn, spawnSync } from 'node:child_process';
-import { readFileSync, writeFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
+import {
+  readFileSync,
+  writeFileSync,
+  mkdirSync,
+  rmSync,
+  existsSync,
+  readdirSync,
+  cpSync,
+} from 'node:fs';
 import { totalmem } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { OFF_SLIVER, missingLaneSpecs } from './lanes.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const LOG_DIR = join(ROOT, 'node_modules', '.cache');
+
+/**
+ * ⚠️ THE GATE'S EVIDENCE DOES NOT LIVE UNDER `node_modules/`. IT USED TO, AND
+ * THAT IS EXACTLY HOW A SET OF MATRIX LOGS WAS LOST.
+ *
+ * This was `node_modules/.cache`, which is not a cache in any sense that
+ * matters here: it is the only record of which tests failed on a gate that
+ * blocks promotion, and it sits inside the one directory every setup routine
+ * deletes and rebuilds. `npm ci` removes `node_modules/` outright before
+ * installing, so a dependency bump, a corrupted install, or moving the project
+ * to another machine silently takes every matrix log and memory trace with it.
+ *
+ * ⚠️ WHAT THAT COST: the three unadjudicated failures carried over from the
+ * previous machine — one webkit in the OFF shape, one webkit and one iphone-13
+ * in the ON shape — could not be re-read, because the logs naming them went
+ * with that machine's `node_modules/`. They had to be re-run from scratch on
+ * the new machine, both shapes, ~4.8 hours, to establish that none of the
+ * three reproduced.
+ *
+ * `gate-logs/` is gitignored but REAL: nothing in the toolchain deletes it, and
+ * it survives `npm ci`, a reinstall and a checkout. It is not committed —
+ * evidence is per machine and per run, and a log in git is a merge conflict
+ * waiting to happen.
+ */
+const LOG_DIR = join(ROOT, 'gate-logs');
 
 /**
  * ═════════════════════════════════════════════════════════════════════════
@@ -261,7 +333,119 @@ function stopMemorySampler(handle) {
   return { min: Math.min(...samples), max: Math.max(...samples), samples: samples.length };
 }
 
+/**
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️⚠️ KEEP THE FAILURE ARTEFACTS. THE GATE USED TO DESTROY THE ONE THING IT
+ * TELLS YOU TO READ.
+ *
+ * Playwright clears `test-results/` at the START of every run, and this gate
+ * runs six times (five projects plus the sliver). So by the time it finished,
+ * only the LAST run's artefacts existed — measured at the v0.20.0 gate, which
+ * ended with `test-results/` holding **0 entries** after four flaky tests
+ * across firefox and webkit.
+ *
+ * ⚠️ THAT DIRECTLY DEFEATS THE PROJECT'S OWN RULE. CLAUDE.md says "THE
+ * DISCRIMINATOR IS THE FAILURE ARTEFACT, NOT THE RE-RUN" — established after
+ * `error-context.md` was what finally separated a real hydration race from
+ * machine contention, three gates late. The gate made that impossible to
+ * follow for every project but one, and THREE CONSECUTIVE GATES then ended in
+ * "probably environmental" with nothing left to check.
+ *
+ * ⚠️ `preserveOutput` ALONE IS NOT THE FIX, and it is the obvious one. It
+ * governs whether Playwright keeps output for PASSING tests; it does not stop
+ * the next run clearing the directory, and six runs share one directory. The
+ * artefacts have to LEAVE `test-results/` between runs, which is what this
+ * does.
+ *
+ * ⚠️ VERIFIED, NOT ASSUMED, that the sweep is not also eating them: the
+ * backlog row warned that `demo.mjs --sweep-only` runs between projects and
+ * might remove an artefact directory. It does not — it kills processes and
+ * touches no files. Checked before relying on it, because a copy into a
+ * directory that the next sweep deletes would be no better than what it
+ * replaced.
+ *
+ * Namespaced by RUN_ID exactly like the logs and the memory traces, for the
+ * identical reason: a second run must never erase the first's evidence, and
+ * "which run was this?" is asked months later from a filename.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+function preserveArtefacts(label) {
+  const from = join(ROOT, 'test-results');
+  if (!existsSync(from)) return 0;
+
+  /* Playwright leaves the directory in place with only a `.last-run.json` in
+     it after a clean run. Copying that is noise; the point is failures. */
+  const entries = readdirSync(from, { withFileTypes: true }).filter((e) => e.isDirectory());
+  if (entries.length === 0) return 0;
+
+  const to = join(LOG_DIR, `artefacts-${RUN_ID}`, label);
+  try {
+    mkdirSync(to, { recursive: true });
+    for (const e of entries) cpSync(join(from, e.name), join(to, e.name), { recursive: true });
+  } catch (error) {
+    /* ⚠️ NEVER FAIL THE GATE OVER EVIDENCE-KEEPING. A copy that throws — a
+       locked file, a full disk — must not turn a green matrix red or mask a
+       real result. It is reported and the run continues. */
+    appendLog(`\n--- could not preserve ${label} artefacts: ${error.message} ---\n`);
+    return 0;
+  }
+
+  appendLog(`\n--- kept ${entries.length} artefact dir(s) for ${label} -> ${to} ---\n`);
+  return entries.length;
+}
+
+/** Per-project artefact counts, so the summary can point at real evidence. */
+const artefacts = new Map();
+
+/**
+ * ⚠️⚠️ NAMED IN THE SUMMARY, ON BOTH PATHS, AND THE FAILURE PATH IS THE ONE
+ * THAT MATTERS.
+ *
+ * The artefacts exist to be READ at the moment a failing or flaky row is being
+ * adjudicated — which is right here, minutes after the run, by whoever is
+ * deciding whether to promote. A directory nobody is told about is only
+ * marginally better than one that was deleted: three consecutive gates were
+ * waved through as "probably environmental" while the evidence would have sat
+ * unread anyway.
+ *
+ * ⚠️ THE FIRST VERSION OF THIS PRINTED ONLY ON THE GREEN PATH, which is
+ * exactly backwards — the gate exits before it when something fails, so the
+ * pointer was missing precisely when it was needed. Caught by running the real
+ * script against a deliberate failure rather than by reading it.
+ */
+function reportArtefacts() {
+  const keptTotal = [...artefacts.values()].reduce((a, b) => a + b, 0);
+  if (keptTotal === 0) {
+    console.log(dim('  no failure artefacts — nothing failed or retried.\n'));
+    return;
+  }
+  const per = [...artefacts]
+    .filter(([, n]) => n > 0)
+    .map(([name, n]) => `${name} ${n}`)
+    .join(', ');
+  console.log(dim(`  ${keptTotal} failure artefact dir(s) kept — ${per}`));
+  console.log(dim(`  ${join(LOG_DIR, `artefacts-${RUN_ID}`)}`));
+  console.log(
+    yellow('  ⚠️ Read error-context.md there BEFORE calling a row environmental.\n'),
+  );
+}
+
 const PROJECTS = ['chromium', 'firefox', 'webkit', 'pixel-5', 'iphone-13'];
+
+/** The OFF-shape run is reported beside the projects, never mixed into one. */
+const SLIVER_LABEL = 'chromium (OFF)';
+
+/* ⚠️ PREFLIGHT, AND IT REFUSES. A lane naming a spec that does not exist makes
+   `testMatch` match nothing, so the project runs zero tests and the gate goes
+   green having proved less than it claims. Checked before a single browser
+   starts, because finding it 20 minutes in is finding it too late. */
+const missing = missingLaneSpecs(ROOT);
+if (missing.length > 0) {
+  console.error(red('\n  ✗ scripts/lanes.mjs names spec files that do not exist:'));
+  for (const m of missing) console.error(red(`      ${m.project}: ${m.name}.spec.ts`));
+  console.error(dim('\n  Fix the names — a lane that matches nothing runs nothing.\n'));
+  process.exit(1);
+}
 
 const MODE = process.env['MCC_MATRIX_MODE'] ?? 'per-project';
 /**
@@ -290,7 +474,8 @@ const started = Date.now();
 
 console.log(
   `\n${bold('▸ test:release')}  ${dim(
-    `— the full matrix, ${PROJECTS.length} projects, ${MODE}, ${WORKERS} workers.`,
+    `— chromium over the whole suite + ${PROJECTS.length - 1} lanes, ` +
+      `${MODE}, ${WORKERS} workers.`,
   )}`,
 );
 /* The shape is stated rather than implied: the gate runs twice and a log that
@@ -314,7 +499,7 @@ function appendLog(text) {
  * nothing to it. The JSON carries the project name on every test result, which
  * is the only way to prove all five ran.
  */
-function runPlaywright(args, label) {
+function runPlaywright(args, label, envOverride = {}) {
   rmSync(JSON_OUT, { force: true });
   const command =
     `npx playwright test ${args} --reporter=line,json >> "${LOG}" 2>&1`;
@@ -322,7 +507,17 @@ function runPlaywright(args, label) {
     cwd: ROOT,
     stdio: 'inherit',
     shell: true,
-    env: { ...process.env, PLAYWRIGHT_JSON_OUTPUT_NAME: JSON_OUT },
+    /* ⚠️ MCC_ARTEFACTS_HANDLED tells `preserve-artefacts.ts` to stand down:
+       this script keeps the artefacts itself, labelled by shape and project.
+       Today the `--reporter=` above already means the config's reporters do not
+       load at all, so this is belt and braces — and it is the belt that keeps
+       working if that flag is ever dropped. */
+    env: {
+      ...process.env,
+      PLAYWRIGHT_JSON_OUTPUT_NAME: JSON_OUT,
+      MCC_ARTEFACTS_HANDLED: '1',
+      ...envOverride,
+    },
   });
 
   const tally = new Map();
@@ -384,6 +579,10 @@ if (MODE === 'pooled') {
     sweepMachine(project);
     const sampler = startMemorySampler(project);
     const run = runPlaywright(`--project=${project} --workers=${WORKERS}`, project);
+    /* ⚠️ IMMEDIATELY, AND BEFORE THE NEXT PROJECT RUNS. The next
+       `runPlaywright` clears `test-results/` as it starts; anything still in
+       there at that moment is gone. This is the whole fix. */
+    artefacts.set(project, preserveArtefacts(project));
     const trough = stopMemorySampler(sampler);
     memory.set(project, trough);
     appendLog(
@@ -404,6 +603,50 @@ if (MODE === 'pooled') {
       });
     }
   }
+}
+
+/* ── The accounts-OFF sliver ──────────────────────────────────────────── */
+
+/**
+ * ⚠️ TWO SPECS THAT ONLY AN ACCOUNTS-OFF BUILD CAN PROVE — AND IT IS NOT A
+ * SECOND MATRIX.
+ *
+ * The gate used to run the entire matrix twice, once per flag shape, at a
+ * measured 4.8 hours. 29 of the 41 spec files run IDENTICALLY in both shapes,
+ * so almost all of that second run could not answer anything new. What the OFF
+ * shape uniquely proves is small and exact: `auth-disabled.spec.ts` (Critical
+ * Feature 18 — no route emitted, no Supabase ref anywhere in the bundle) and
+ * `admin.spec.ts`'s "the admin surfaces are NOT BUILT" describe.
+ *
+ * ⚠️ THE SECOND BUILD IS IRREDUCIBLE, and it is the whole cost here: these are
+ * claims about the ARTEFACT the other shape produces, and you cannot inspect a
+ * build you did not make. The tests themselves take seconds.
+ *
+ * ⚠️ THE SWEEP BEFORE IT IS LOAD-BEARING, not tidiness. The ON preview server
+ * is still listening on 4321 and `reuseExistingServer` is true, so without the
+ * sweep Playwright would attach to it and run the OFF specs against the ON
+ * build — which would fail confusingly, or worse, pass.
+ */
+if (SHAPE === 'on' && process.env['MCC_SKIP_OFF_SLIVER'] !== 'true') {
+  const banner = `\n########## accounts-OFF sliver ##########\n`;
+  appendLog(banner);
+  console.log(bold(`\n  ▸ accounts-OFF sliver`) + dim('  — the shape this run cannot prove'));
+  sweepMachine('accounts-OFF sliver');
+  const files = OFF_SLIVER.map((n) => `tests/e2e/${n}.spec.ts`).join(' ');
+  const run = runPlaywright(
+    `--project=chromium --workers=${WORKERS} ${files}`,
+    'off-sliver',
+    /* ⚠️ EMPTY, NOT DELETED — `playwright.config.ts` reads it with `?? ''` and
+       passes it to the build, so an empty string IS the OFF shape. */
+    { PUBLIC_AUTH_ENABLED: '' },
+  );
+  /* The sliver is last, so nothing would clear its artefacts — but it is kept
+     for the same reason anyway: evidence that lives somewhere other than the
+     rest of the evidence is the one nobody finds. */
+  artefacts.set(SLIVER_LABEL, preserveArtefacts('off-sliver'));
+  if (run.status !== 0) worstStatus = run.status;
+  const entry = run.tally.get('chromium') ?? { passed: 0, failed: 0, flaky: 0, skipped: 0 };
+  totals.set(SLIVER_LABEL, entry);
 }
 
 /* ── Report ───────────────────────────────────────────────────────────── */
@@ -461,25 +704,65 @@ for (const project of PROJECTS) {
 }
 
 /**
- * ⚠️ THE ARITHMETIC CHECK, KEPT AND MADE STRONGER.
+ * ⚠️ THE SLIVER IS REPORTED ON ITS OWN LINE, NEVER FOLDED INTO CHROMIUM'S.
  *
- * It used to be "the total must be a multiple of 5". That was a proxy for
- * "every project ran the same specs", and a weak one — it passes on 4 projects
- * of 100 and one of 0 only by coincidence, and fails on a legitimately skipped
- * spec. Comparing the projects to EACH OTHER is the thing that proxy was
- * reaching for, and it names the odd one out instead of asking you to go and
- * read the log.
+ * It is a different BUILD of the site, and a summary that adds the two together
+ * would make "chromium" mean two artefacts at once — which is precisely the
+ * confusion the shape suffix in the log filename exists to prevent.
+ */
+const sliver = totals.get(SLIVER_LABEL);
+if (sliver) {
+  const ran = sliver.passed + sliver.failed + sliver.flaky + sliver.skipped;
+  console.log(
+    `    ${SLIVER_LABEL.padEnd(18)} ${String(sliver.passed).padStart(4)} passed` +
+      `${sliver.failed ? red(`, ${sliver.failed} failed`) : ''}` +
+      `${sliver.skipped ? dim(`, ${sliver.skipped} skipped`) : ''}` +
+      `  ${dim(`(${ran} run — Critical Feature 18)`)}`,
+  );
+  if (ran === 0) {
+    problems.push(
+      'the accounts-OFF sliver ran ZERO tests — Critical Feature 18 is UNPROVEN ' +
+        'by this gate. It is the one thing the ON shape structurally cannot show.',
+    );
+  }
+} else if (SHAPE === 'on' && process.env['MCC_SKIP_OFF_SLIVER'] !== 'true') {
+  problems.push('the accounts-OFF sliver did not run at all — Critical Feature 18 is unproven.');
+}
+
+/**
+ * ⚠️ THE ARITHMETIC CHECK, REWRITTEN FOR THE LANES.
+ *
+ * It used to compare the projects to EACH OTHER — "they must all have run the
+ * same number of tests" — which was the right check while every project ran
+ * every spec. Under the lanes that premise is gone: chromium runs the whole
+ * suite and each lane runs a named subset, so disagreement is now the DESIGN
+ * rather than the symptom.
+ *
+ * ⚠️ WHAT REPLACES IT IS AIMED AT THE FAILURE THE LANES INTRODUCED. A misspelt
+ * `testMatch` entry matches nothing, the project runs zero tests, and the gate
+ * goes green having proved less than it claims. So: every project must have run
+ * something, and chromium — the superset — must have run at least as much as
+ * any lane. `missingLaneSpecs()` catches the same mistake earlier and by name;
+ * this catches it if it ever arrives another way.
  */
 const executed = PROJECTS.map((p) => {
   const e = totals.get(p);
   return { project: p, ran: e ? e.passed + e.failed + e.flaky + e.skipped : 0 };
 });
-const expected = Math.max(...executed.map((e) => e.ran));
-const odd = executed.filter((e) => e.ran !== expected);
-if (expected > 0 && odd.length > 0) {
+const empty = executed.filter((e) => e.ran === 0);
+if (empty.length > 0) {
   problems.push(
-    `projects disagree on how many tests exist: expected ${expected}, but ` +
-      odd.map((e) => `${e.project} saw ${e.ran}`).join(', '),
+    `${empty.map((e) => e.project).join(', ')} ran ZERO tests — a lane matched ` +
+      'nothing. Check the names in scripts/lanes.mjs against tests/e2e/.',
+  );
+}
+const backbone = executed.find((e) => e.project === 'chromium')?.ran ?? 0;
+const bigger = executed.filter((e) => e.project !== 'chromium' && e.ran > backbone);
+if (bigger.length > 0) {
+  problems.push(
+    `chromium ran ${backbone} tests but ` +
+      bigger.map((e) => `${e.project} ran ${e.ran}`).join(', ') +
+      ' — chromium is the superset and cannot be the smaller run.',
   );
 }
 
@@ -516,10 +799,17 @@ if (worstStatus !== 0 || failed > 0) {
         '  explanation is RULED OUT and the failure needs a real diagnosis.\n',
     ),
   );
+  console.log(dim(`  accounts ${SHAPE.toUpperCase()} — evidence kept at ${LOG}`));
+  /* ⚠️ ON THE FAILURE PATH FIRST. This is the branch where somebody is about
+     to decide whether a row is real, and the artefacts are the thing that
+     answers it. See the note on the function. */
+  reportArtefacts();
   process.exit(worstStatus || 1);
 }
 
 console.log(green(`\n  ✓ Matrix green — ${passed} passed${flaky ? `, ${flaky} flaky` : ''}, ${minutes} min.\n`));
 /* ⚠️ NAMED ON THE GREEN PATH TOO. A promotion records which two runs it rested
    on, and "matrix.log" was never enough to identify either of them. */
-console.log(dim(`  accounts ${SHAPE.toUpperCase()} — evidence kept at ${LOG}\n`));
+console.log(dim(`  accounts ${SHAPE.toUpperCase()} — evidence kept at ${LOG}`));
+
+reportArtefacts();

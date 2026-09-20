@@ -12,6 +12,10 @@
 
 .mcc-move-input {
   display: grid;
+  /* ⚠️ The third of the three implicit-`auto` tracks in this component. See
+     `.mcc-exercise` in exercise.css for the full reasoning; all three had to
+     be declared before a 360px screen stopped scrolling sideways. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.35rem;
 }
 

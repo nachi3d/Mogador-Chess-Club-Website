@@ -139,6 +139,19 @@ export async function markOnboarded(_shape?: string | null): Promise<{ ok: boole
 }
 
 /**
+ * ⚠️ PRESENT BECAUSE THE ALIAS REPLACES THE WHOLE MODULE. `LoginPage`'s script
+ * imports this name, so its absence fails the accounts-OFF build outright —
+ * see the note above `deleteOwnAccount`. It reports failure rather than
+ * pretending to redirect: a stub that resolved as if sign-in had started would
+ * leave the reader on a page waiting for a navigation that never comes.
+ */
+export async function signInWithGoogle(
+  _redirectTo: string,
+): Promise<{ ok: false; message: string }> {
+  return { ok: false, message: 'accounts are disabled in this build' };
+}
+
+/**
  * ⚠️ THE FOUR PSEUDO STUBS REPORT FAILURE, LIKE `deleteOwnAccount()` AND UNLIKE
  * the empty-answer ones above. Each of them claims an act happened — an account
  * created, a password changed, a recovery number stored — and a stubbed success

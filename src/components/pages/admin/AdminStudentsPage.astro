@@ -71,6 +71,15 @@ const COLUMNS = [
   />
   <script type="application/json" data-rank-labels set:html={JSON.stringify(rankLabels)} />
 
+  <section class="mcc-card">
+    <div class="mcc-section-head">
+      <span class="mcc-section-icon" aria-hidden="true">☰</span>
+      <div class="mcc-section-text">
+        <h2 class="mcc-section-title">La classe</h2>
+        <p class="mcc-section-sub">Un enfant par ligne — appuyer sur un nom pour ouvrir sa fiche.</p>
+      </div>
+    </div>
+
   <div class="admin-table-wrap">
     <table class="admin-table" data-class-table>
       <thead>
@@ -92,6 +101,7 @@ const COLUMNS = [
       </tbody>
     </table>
   </div>
+  </section>
 
   <p class="admin-empty" data-class-empty hidden>
     Aucun élève pour l’instant. Un profil apparaît ici dès qu’un compte est créé.

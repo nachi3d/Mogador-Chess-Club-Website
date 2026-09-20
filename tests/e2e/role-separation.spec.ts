@@ -612,7 +612,7 @@ test.describe('v2-S4 — a student cannot cross a role boundary', () => {
     expect(users.users.some((u) => u.id === other.id), 'the account survived').toBe(false);
   });
 
-  /* ══ 0013 — the pseudo path's boundaries ═════════════════════════
+  /* ══ 0015 — the pseudo path's boundaries ═════════════════════════
      ⚠️ THESE BELONG HERE AND NOT IN `pseudo-auth.spec.ts`, which drives the
      forms. "Who may reset whose password" is a claim about RLS and function
      grants, so it is asserted through PostgREST with each person's own token —

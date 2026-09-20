@@ -20,8 +20,17 @@ const { title, intro } = Astro.props;
 </div>
 
 <style>
+  /* ⚠️⚠️ --mcc-space-xl, NOT --mcc-section-gap. This block is a page's TITLE
+     and the thing under it is what the title announces; they are one unit, not
+     two sections. `--mcc-section-gap` is 6rem above 768px and it put 96px of
+     nothing between a heading and its own content on EVERY page that uses this
+     component — measured identically on all eleven of them.
+
+     ⚠️ ONE CHANGE, NOT ELEVEN. The gap belongs to the head, so it is set here
+     and nowhere else; a page that wants a different figure is a design
+     decision to argue, not a margin to override quietly. */
   .page-intro {
-    margin-bottom: var(--mcc-section-gap);
+    margin-bottom: var(--mcc-space-xl);
   }
 
   .page-intro h1 {

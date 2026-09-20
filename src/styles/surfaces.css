@@ -1,0 +1,295 @@
+/* ============================================================
+   Containment — the ONE card, the ONE field, the ONE section
+   header, and the rhythm between them.
+
+   ── Why this file exists ─────────────────────────────────────
+   Seàn compared the site against Mogador Games Club and named
+   what was missing: not the palette, the CONTAINMENT. Every
+   group of content there lives inside a closed object whose
+   surface differs from the page. Here, `/compte/` and
+   `/admin/seances/` floated on one background with nothing
+   saying where a block began or ended — `.admin-block` was
+   literally `margin-block-end: 2rem` and no surface at all, and
+   `.admin-field input` was filled with `--mcc-surface-page`,
+   the same colour as the page behind it.
+
+   ⚠️ THIS IS THE FOURTH TIME A COMPONENT HAS DRIFTED INTO
+   COPIES here — `--mcc-border` and `--font-mono` shipped as
+   phantom tokens, `.btn-primary` reached NINE definitions, and
+   eight different card treatments existed at once. So the rule
+   is written down in CLAUDE.md and the vocabulary lives in one
+   file: consolidate rather than add another.
+
+   ── What this file is NOT ────────────────────────────────────
+   ⚠️ IT DOES NOT TOUCH CONTENT CARDS. `.card`, `.lesson-card`
+   and `.step` in `cards.css` keep `--radius-card` (3px), which
+   `tokens.css` calls "club stationery, not a SaaS dashboard".
+   That 3px IS the identity, and the brief that produced this
+   file says the identity does not move. The app and admin
+   surfaces below use `--mcc-radius-app`, the 14px the mobile
+   work already established for a tap target — so "generous
+   radius" applies where the reader is operating a tool, and
+   stationery stays stationery where they are reading.
+
+   ⚠️ AND IT DOES NOT TOUCH THE BOARD. Motion and containment
+   live around it; see Critical Feature 16.
+   ============================================================ */
+
+/* ── The stack: one rhythm, chosen from the scale ─────────────
+   Every gap on a rebuilt page comes from `--mcc-space-*`. The
+   40px-next-to-200px variation that prompted this was not a
+   decision anybody made; it was the absence of one. */
+.mcc-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mcc-card-gap);
+}
+
+/* ── The card ─────────────────────────────────────────────────
+   A closed object: its own surface, a border on ALL FOUR SIDES,
+   a real radius and a real shadow.
+
+   ⚠️ FULLY BORDERED, NOT EDGE-MARKED. The old treatment was a
+   thick gold left border and nothing else. A left border closes
+   nothing — it marks a start and leaves the other three edges to
+   the reader's imagination. */
+.mcc-card {
+  padding: var(--mcc-card-pad);
+  background-color: var(--mcc-surface-raised);
+  border: 1px solid var(--mcc-border-subtle);
+  border-radius: var(--mcc-radius-app);
+  box-shadow: var(--shadow-lift);
+}
+
+/* ⚠️ THE GOLD EDGE SURVIVES AS AN ACCENT, ONE CARD PER PAGE.
+   It was the general treatment and meant nothing because
+   everything had it. As the marker of the page's primary action
+   it means something again. It is added to the full border, not
+   instead of it. */
+.mcc-card-accent {
+  border-inline-start: 3px solid var(--mcc-accent-strong);
+}
+
+/* ── The press for a pressable card is NOT here, on purpose ───
+   The brief asked for E1's press feedback on cards and form
+   controls, not only buttons. It already exists: `cards.css`
+   owns the content-card press (`.card-linked`, `.lesson-card`,
+   `.step`, `.dash-card`), and `controls.css` owns the button
+   and field press.
+
+   ⚠️ NO APP CARD IS PRESSABLE TODAY. Every `.mcc-card` on
+   `/admin/*`, `/compte/` and `/agenda/` is a container whose
+   controls are pressed, not a card that is itself a link. A
+   `.mcc-card-pressable` was written here and then removed
+   rather than shipped unused: dead CSS is a rule nobody can
+   see failing, and the next reader would reasonably assume it
+   was load-bearing. Add it back the day a card becomes a link,
+   next to the markup that needs it. */
+
+/* ── The section header ───────────────────────────────────────
+   Icon, title, one-line subtitle, a rule. A page that runs its
+   headings together with nothing between them gives the reader
+   no way to see where they are. */
+.mcc-section-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--mcc-space-sm);
+  margin-block-end: var(--mcc-space-md);
+  padding-block-end: var(--mcc-space-sm);
+  border-block-end: 1px solid var(--mcc-border-subtle);
+}
+
+/* ⚠️ DECORATIVE, AND MARKED SO IN THE MARKUP (`aria-hidden`).
+   The title beside it already carries the name; an icon that
+   announces itself makes a screen reader say everything twice. */
+.mcc-section-icon {
+  flex: none;
+  inline-size: 1.75rem;
+  block-size: 1.75rem;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-pill);
+  background-color: var(--mcc-surface-sunken);
+  color: var(--mcc-accent-text);
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+.mcc-section-text {
+  min-inline-size: 0;
+}
+
+.mcc-section-title {
+  margin: 0;
+  font-size: 1.125rem;
+  line-height: 1.25;
+}
+
+.mcc-section-sub {
+  margin: var(--mcc-space-2xs) 0 0;
+  color: var(--mcc-text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+/* ── A card that is also a disclosure ─────────────────────────
+   The summary IS the affordance, so it must read as one: the
+   same icon-plus-title shape as a section header, and a target
+   that clears 48px on a phone.
+
+   ⚠️ `list-style: none` PLUS the WebKit pseudo-element. Safari
+   still draws its own marker from `::-webkit-details-marker`
+   and ignores `list-style` on a summary, so removing one and
+   not the other leaves a stray triangle on exactly the devices
+   the admin pages are used on. */
+.mcc-summary-action {
+  display: flex;
+  align-items: center;
+  gap: var(--mcc-space-sm);
+  min-block-size: 3rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.mcc-summary-action::-webkit-details-marker {
+  display: none;
+}
+
+.mcc-summary-action:focus-visible {
+  outline: 2px solid var(--mcc-focus-ring);
+  outline-offset: 3px;
+  border-radius: var(--radius-card);
+}
+
+/* Open: the summary becomes the card's header, with the rule
+   under it that a section header carries. */
+[open] > .mcc-summary-action {
+  margin-block-end: var(--mcc-space-md);
+  padding-block-end: var(--mcc-space-sm);
+  border-block-end: 1px solid var(--mcc-border-subtle);
+}
+
+.mcc-summary-action .mcc-section-title,
+.mcc-summary-action .mcc-section-sub {
+  display: block;
+}
+
+/* ── Form fields are objects, not lines ───────────────────────
+   Taller, a distinct filled surface, real padding, and a label
+   with air above the control rather than glued to it. */
+.mcc-field {
+  display: block;
+}
+
+.mcc-field + .mcc-field {
+  margin-block-start: var(--mcc-space-sm);
+}
+
+/* ⚠️ NOT 11px GREY. The label is the thing that tells a prof
+   what they are typing into, on a phone, in a room. It is
+   primary text at the body size. */
+.mcc-field > label {
+  display: block;
+  margin-block-end: var(--mcc-space-xs);
+  color: var(--mcc-text-primary);
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.mcc-field input,
+.mcc-field select,
+.mcc-field textarea {
+  inline-size: 100%;
+  /* 48px — the admin surfaces are operated one-handed at 360px. */
+  min-block-size: 3rem;
+  padding: 0.7rem 0.85rem;
+  background-color: var(--mcc-surface-field);
+  border: 1px solid var(--mcc-border-strong);
+  border-radius: var(--mcc-radius-app);
+  color: var(--mcc-text-primary);
+  font: inherit;
+}
+
+/* ⚠️ A SELECT STYLED LIKE AN INPUT, NOT LIKE THE BROWSER'S IDEA
+   OF ONE. `appearance: none` plus our own chevron, drawn with a
+   gradient so it needs no asset and no third-party request. */
+.mcc-field select {
+  appearance: none;
+  padding-inline-end: 2.25rem;
+  background-image:
+    linear-gradient(45deg, transparent 50%, currentColor 50%),
+    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position:
+    calc(100% - 1.1rem) calc(50% + 0.1rem),
+    calc(100% - 0.75rem) calc(50% + 0.1rem);
+  background-size:
+    0.35rem 0.35rem,
+    0.35rem 0.35rem;
+  background-repeat: no-repeat;
+}
+
+.mcc-field input:focus-visible,
+.mcc-field select:focus-visible,
+.mcc-field textarea:focus-visible {
+  outline: 2px solid var(--mcc-focus-ring);
+  outline-offset: 2px;
+}
+
+/* Help text belongs to the field above it and is subordinate to
+   it — below the control, never between the label and the box. */
+.mcc-field-hint {
+  margin: var(--mcc-space-xs) 0 0;
+  color: var(--mcc-text-secondary);
+  font-size: 0.85rem;
+  line-height: 1.35;
+}
+
+/* ── Field groups ─────────────────────────────────────────────
+   Ten identical stacked fields are a wall. `/admin/seances/`'s
+   ten are three questions — WHEN, WHAT, HOW MANY — and grouping
+   them is what lets a prof find the one they came to change. */
+.mcc-fieldgroup {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.mcc-fieldgroup + .mcc-fieldgroup {
+  margin-block-start: var(--mcc-space-lg);
+}
+
+.mcc-fieldgroup > legend {
+  padding: 0;
+  margin-block-end: var(--mcc-space-sm);
+  color: var(--mcc-text-secondary);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Two short fields side by side once there is room for them.
+   ⚠️ Below 30rem they stack — a 360px phone gets one field per
+   row, because two number inputs sharing a line there are two
+   targets nobody can hit. */
+.mcc-field-row {
+  display: grid;
+  gap: var(--mcc-space-sm);
+}
+
+@media (min-width: 30rem) {
+  .mcc-field-row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .mcc-field-row > .mcc-field + .mcc-field {
+    margin-block-start: 0;
+  }
+}
+
+/* ── Reduced motion: nothing to do HERE, and that is the point ────────────
+   Nothing in this file animates. The card is a container; the press
+   vocabulary for the controls inside it lives in `controls.css`, which
+   already collapses to 1ms under `prefers-reduced-motion` rather than
+   switching off — feedback is made instant, never removed. Stated rather
+   than left to silence, so the absence reads as a decision. */

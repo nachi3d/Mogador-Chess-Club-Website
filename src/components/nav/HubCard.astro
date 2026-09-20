@@ -41,6 +41,12 @@ interface Props {
    * resolver and `/progres/`; a fifth copy here — on a page whose whole job is
    * to say how far along you are — is exactly how two surfaces come to disagree
    * about what a reader has done. This card only supplies the mount.
+   *
+   * ⚠️⚠️ IT ASKS FOR A COUNT AND NOTHING ELSE — SEE `data-resume-keep-href`
+   * BELOW. Until v0.25.0 declaring a journey ALSO handed the resolver this
+   * card's `href`, so "Ma progression" on `/moi/` pointed at the next unsolved
+   * exercise instead of `/progres/`. A chooser card goes where it says
+   * (Critical Feature 65); resuming belongs to the resume surfaces.
    */
   journey?: string | undefined;
   /** The `%s of %s` sentence for this journey, from the i18n table. */
@@ -57,6 +63,7 @@ const { href, name, body, testid, journey, countPattern, fact } = Astro.props;
   data-testid={testid}
   data-resume-for={journey}
   data-resume-count-pattern={countPattern}
+  data-resume-keep-href
 >
   <h2 class="hub-card-name">
     <a href={href}>{name}</a>

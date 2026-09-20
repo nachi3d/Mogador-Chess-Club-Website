@@ -8,7 +8,7 @@
 import type { CollectionEntry } from 'astro:content';
 import type { Locale } from '@config/site';
 import { site } from '@config/site';
-import { exercisesPath } from '@i18n/paths';
+import { exercisesPath, localizePath } from '@i18n/paths';
 import { useTranslations } from '@i18n/ui';
 import BaseLayout from '@layouts/BaseLayout.astro';
 import Trail from '@components/nav/Trail.astro';
@@ -19,9 +19,19 @@ import ScoreResolver from '@components/progress/ScoreResolver.astro';
 interface Props {
   locale: Locale;
   entry: CollectionEntry<'exercices'>;
+  /**
+   * The neighbours in THE order — see `sortExercises`. Computed at build time
+   * by the route, so this page never holds a list of every exercise.
+   *
+   * ⚠️ Optional on the type so the component still renders if a future caller
+   * mounts it without them; the pager simply does not appear. An exercise with
+   * no way onward is a worse page, not a broken one.
+   */
+  prev?: CollectionEntry<'exercices'> | null;
+  next?: CollectionEntry<'exercices'> | null;
 }
 
-const { locale, entry } = Astro.props;
+const { locale, entry, prev = null, next = null } = Astro.props;
 const { data } = entry;
 const t = useTranslations(locale);
 
@@ -96,6 +106,62 @@ const whatsappShare = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
         ← {t('exercises.backToIndex')}
       </a>
     </footer>
+
+    {/* ── Prev / next ───────────────────────────────────────────────────────
+        ⚠️ WITHOUT THIS, FINISHING AN EXERCISE MEANT GOING BACK TO THE INDEX AND
+        PICKING AGAIN. Every other sequence on the site — lessons, tutorial
+        steps — carries a pager, and the exercises are the one place a student
+        does several in a row, which is exactly where the friction compounds.
+
+        ⚠️ IT NAMES THE DESTINATION, NEVER JUST "SUIVANT". Same rule as the
+        lesson pager and the trail (Critical Feature 62): a control that does
+        not say where it goes is a guess, and "next" on a list of 27 is a
+        particularly unhelpful one. The direction word is the small grey line;
+        the title is the link.
+
+        ⚠️ AND IT IS NOT THE WAY UP (Critical Feature 64). The trail at the top
+        and the "back to the index" link above still exist and still mean
+        something different — stepping sideways in a sequence is not leaving
+        it. Both survive. */}
+    {
+      (prev || next) && (
+        <nav class="exercise-nav" aria-label={t('nav.exercises')}>
+          <div class="exercise-nav-row">
+            {prev ? (
+              <a
+                class="exercise-nav-link"
+                href={localizePath(`/exercices/${prev.data.slug}/`, locale)}
+                rel="prev"
+                data-testid="exercise-prev"
+              >
+                <span class="exercise-nav-dir">← {t('tutorial.prev')}</span>
+                <span class="exercise-nav-title">
+                  {locale === 'fr' ? prev.data.title_fr : prev.data.title_en}
+                </span>
+              </a>
+            ) : (
+              /* ⚠️ AN EMPTY CELL, NOT A COLLAPSED GRID. Without it "next" jumps
+                 to the left on the first exercise, and the pager appears to
+                 move between pages. */
+              <span />
+            )}
+            {next && (
+              <a
+                class="exercise-nav-link exercise-nav-next"
+                href={localizePath(`/exercices/${next.data.slug}/`, locale)}
+                rel="next"
+                data-testid="exercise-next"
+              >
+                <span class="exercise-nav-dir">{t('tutorial.next')} →</span>
+                <span class="exercise-nav-title">
+                  {locale === 'fr' ? next.data.title_fr : next.data.title_en}
+                </span>
+              </a>
+            )}
+          </div>
+        </nav>
+      )
+    }
   </article>
 
   {/* E3 — the board islands call `refreshScore()` after a solve or a win, and
@@ -174,5 +240,57 @@ const whatsappShare = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
 
   .share:hover {
     background-color: var(--mcc-primary-hover);
+  }
+
+  /* ⚠️ THE SAME SHAPE AS THE LESSON PAGER, spelled again rather than shared.
+     Two sequences that looked different would read as two different kinds of
+     control, and the lesson pager's CSS is scoped to its own component. If a
+     third sequence ever appears, that is the moment to extract one — not
+     before, on the same reasoning as the three hub grids. */
+  .exercise-nav {
+    margin-top: 2rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--mcc-border-subtle);
+  }
+
+  .exercise-nav-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+  }
+
+  .exercise-nav-link {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    /* ≥48px on a phone: this is a primary control at the end of a page a
+       student reaches with a thumb. */
+    min-block-size: 48px;
+    justify-content: center;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--mcc-border-subtle);
+    border-radius: var(--radius-card);
+    background-color: var(--mcc-surface-raised);
+    color: var(--mcc-link);
+    text-decoration: none;
+  }
+
+  .exercise-nav-link:hover {
+    border-color: var(--mcc-border-strong);
+  }
+
+  .exercise-nav-next {
+    text-align: right;
+  }
+
+  .exercise-nav-dir {
+    color: var(--mcc-text-secondary);
+    font-size: 0.8125rem;
+  }
+
+  .exercise-nav-title {
+    font-weight: 500;
+    text-decoration: underline;
+    text-underline-offset: 0.15em;
   }
 </style>

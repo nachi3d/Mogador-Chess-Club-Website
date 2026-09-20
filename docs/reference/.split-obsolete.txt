@@ -46,3 +46,18 @@ See BACKLOG.
 #    the vault secret) and points at a second reference file as well, so the
 #    sentence was re-flowed. Nothing it referred to was removed.
 deploy paths apart, and the full reasoning:
+
+# ── v0.20.0 split ──────────────────────────────────────────────────────────
+#
+# NOTHING WAS DECLARED OBSOLETE IN THIS SPLIT — and that is recorded rather
+# than left as an empty section, because "no entries" and "nobody checked" look
+# identical from the outside.
+#
+# Every block that left CLAUDE.md was moved VERBATIM into an existing reference
+# file (docs/reference/testing.md and docs/reference/deployment.md), so
+# check-split found all 136 moved lines and needed no licence to lose any of
+# them. The one candidate for a declaration — the dated paragraph "PRODUCTION'S
+# SCHEMA IS CURRENT THROUGH 0013", which is a claim about the outside world and
+# expires — was MOVED rather than declared: it is still true today, and the
+# reason it left CLAUDE.md is that a file loaded into every session is the wrong
+# place for a fact with a shelf life, not that the fact is wrong.

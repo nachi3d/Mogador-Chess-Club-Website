@@ -85,6 +85,73 @@ test.describe('the board keeps its size', () => {
   }
 });
 
+/* ═══ Nothing scrolls sideways ══════════════════════════════════════════ */
+
+/**
+ * ⚠️⚠️ THIS FILE MEASURED HEIGHT AND NOTHING ELSE, WHICH IS WHY A SIDEWAYS
+ * SCROLL SHIPPED AND SURVIVED SEVERAL RELEASES.
+ *
+ * Every assertion above is about how TALL the exercise is. At 360px a tutorial
+ * step scrolled sideways by 26px and a lesson by 5px, on a file whose entire
+ * subject is "does this fit a phone", running at exactly that width.
+ *
+ * ⚠️ THE CAUSE WAS THREE IMPLICIT `auto` GRID TRACKS — `.mcc-exercise`,
+ * `.mcc-exercise-side` and `.mcc-move-input`. An `auto` track is sized by its
+ * item's MIN-CONTENT, so the move-entry row (a field plus a "Jouer" button,
+ * min-content 330px) widened the column past the screen and the board, being
+ * `width: 100%`, stretched to match. `min-width: 0` on the ITEM does not
+ * constrain the TRACK — that needs `minmax(0, …)`, which all three now declare.
+ *
+ * ⚠️ THE PAGES MATTER AS MUCH AS THE WIDTHS. `/exercices/` alone never
+ * overflowed: it has the widest column on the site. The tutorial step has the
+ * narrowest — a card's padding inside the page gutter — so it is the one that
+ * breaks first, and it was not being measured.
+ */
+const OVERFLOW_PAGES = [
+  { name: 'a tutorial step', path: '/apprendre-les-bases/la-tour/' },
+  { name: 'a lesson', path: '/cours/bien-ouvrir-une-partie/occuper-le-centre/' },
+  { name: 'an exercise', path: '/exercices/mat-du-couloir/' },
+] as const;
+
+test.describe('no horizontal overflow on a phone', () => {
+  for (const size of PHONE_SIZES) {
+    for (const target of OVERFLOW_PAGES) {
+      test(`${target.name} does not scroll sideways at ${size.name}`, async ({ page }) => {
+        await page.setViewportSize({ width: size.width, height: size.height });
+        await page.goto(target.path);
+        /* The board is `client:visible` and resizes itself once it hydrates, so
+           a measurement taken before that is of a layout nobody sees — the same
+           trap `openExercise` exists for. Wait for it where there is one. */
+        const exercise = page.locator('[data-testid="exercise"]').first();
+        if ((await exercise.count()) > 0) {
+          await exercise.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+          await expect(exercise).toHaveAttribute('data-ready', 'true', { timeout: 20_000 });
+        }
+        await page.waitForLoadState('networkidle');
+
+        const { over, widest } = await page.evaluate(() => {
+          const de = document.documentElement;
+          const overflow = de.scrollWidth - de.clientWidth;
+          /* Name the culprit in the failure, or the next person starts from
+             "something is wide" and bisects the DOM by hand. */
+          let widest = '';
+          let worst = de.clientWidth;
+          document.querySelectorAll('*').forEach((el) => {
+            const r = el.getBoundingClientRect();
+            if (r.right > worst) {
+              worst = r.right;
+              widest = `${el.tagName.toLowerCase()}.${String(el.className || '').split(' ').filter(Boolean).slice(0, 2).join('.')} (right=${Math.round(r.right)})`;
+            }
+          });
+          return { over: overflow, widest };
+        });
+
+        expect(over, `${target.path} overflows by ${over}px — widest: ${widest || 'none'}`).toBe(0);
+      });
+    }
+  }
+});
+
 /* ═══ The controls are one dense row ════════════════════════════════════ */
 
 test.describe('the controls compact below 768px', () => {

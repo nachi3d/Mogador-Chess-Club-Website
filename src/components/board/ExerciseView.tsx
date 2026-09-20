@@ -785,6 +785,22 @@ export default function ExerciseView(props: ExerciseViewProps) {
           <button
             type="button"
             class="mcc-exercise-button"
+            /* ⚠️ THE ONE CONTROL ON THIS PAGE THAT SHIPPED LIVE-LOOKING AND
+               INERT. `MoveInput` was already covered — it takes
+               `disabled={!interactive}`, which is false until the engine
+               chunk lands — and retry, the solution list and the sound offer
+               are not server-rendered at all, because their conditions are
+               false on the first render. This one is not: `hintShown` starts
+               false, so the button is in the HTML with no handler behind it,
+               and a student who taps for a hint during hydration is ignored
+               in silence.
+
+               Gated on `engine`, not on a separate mount flag, because that
+               is what this island already publishes as `data-ready` — one
+               island, one meaning of ready. The wait is a few ms longer than
+               strict hydration and the page already says "chargement…" next
+               to the board throughout it. */
+            disabled={!engine}
             onClick={revealHint}
             data-testid="exercise-hint-button"
           >

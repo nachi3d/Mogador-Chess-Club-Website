@@ -220,3 +220,47 @@ This is not hypothetical — it fired during Session 3 on `opposition-et-mat`, w
 `opponentReplies` is aligned index-for-index with `solution`: `opponentReplies[i]` is played after `solution[i]`. It is normally `solution.length - 1` long, because the last player move ends the exercise. The schema enforces `opponentReplies.length <= solution.length`.
 
 Moves are stored as **UCI** (`e2e4`, `e7e8q`), not SAN: UCI is unambiguous without a board, and it maps 1:1 onto what Chessground emits and chess.js accepts.
+
+---
+
+## Content validity is checked, not assumed
+
+**Read when:** writing or reviewing ANY content entry — a trap, a lesson board, an exercise.
+
+
+`node scripts/check-content.mjs` replays every line through chess.js. A Zod
+schema proves an entry is well-*shaped*; it cannot prove it is legal chess —
+`"e2e5"` is a valid UCI string and an illegal move. It checks PGNs parse, plies
+exist, solutions and opponent replies interleave legally, `onlyMove: true` is not
+a lie, the student always plays the same colour, the FEN has all six fields, and
+that nothing is half-translated.
+
+#### ⚠️ A LEGAL POSITION IS NOT A CORRECT ONE — verify the CLAIM, not the chess
+
+`check-content.mjs` proves a position is *possible*. It cannot read the sentence
+next to the board, and that is where content actually goes wrong. Content batch 3
+shipped **four** positions that passed every check and each described a mechanism
+the position did not contain — including a "pin" blocked by the d7 pawn, which is
+the single most common wrong idea about the Ruy Lopez and would have shipped as
+fact.
+
+**THE RULE — every diagram is replayed and its claim asserted BEFORE merge.** No
+board merges on "it parses". Since batch 3 that is **data, not discipline**: a
+board carries a `claims[]` array (`pin`, `fork`, `discovery`, `line`) and
+`check-content.mjs` proves each one on every build.
+
+- ⚠️ **A trap's claims carry a `ply`; a lesson board's must not.** Both mistakes
+  fail the build.
+- ⚠️ **`kind: 'manual'` is the honest escape and REQUIRES a `note`.** Manual
+  claims and boards with no claims at all print as a **review queue**, which
+  deliberately does not fail the build.
+- ⚠️ Anything added to `assertClaim` gets the same treatment as the originals:
+  **write the fixture that must fail, watch it fail, then delete it.**
+
+**➡️ [`docs/reference/content.md`](./docs/reference/content.md)** — the four
+positions that shipped wrong, the claim kinds in full, the deferred per-locale
+Markdown decision for course bodies, and the beginner tutorial
+(`/apprendre-les-bases/`, which adds no new board and no new mode, and namespaces
+its progress under `tutorial:<slug>`). **Read it before writing any content.**
+
+---

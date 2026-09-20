@@ -36,15 +36,28 @@ import { queueExercise, queueGame } from '@lib/progress-sync';
 const STORAGE_KEY = 'mcc:progress:v1';
 
 /**
- * The largest single teacher award, mirroring the CHECK in migration 0004.
+ * ⚠️ THERE IS NO LONGER A MAXIMUM SINGLE AWARD — `AWARD_MAX` IS GONE.
  *
- * ⚠️ THE DATABASE IS WHERE THE RULE LIVES. This constant exists so a mirrored
- * row that is out of range is dropped on read rather than displayed; it is not
- * a second policy, and it must never become the only place the bound is stated.
- * 50 sits a little under the whole tutorial (65) so no single award can outweigh
- * the work — the reasoning is in the migration.
+ * Migration 0014 removed the `points <= 50` CHECK; Seàn's call. The size of an
+ * award is a teaching judgement about a particular student on a particular day,
+ * and a schema constant took that judgement away from the person in the room.
+ * What replaces the ceiling is what this project uses everywhere else a number
+ * is trusted: every row carries `awarded_by` and a required `reason`, and every
+ * award is visible on the student's own page. A prof who awards 5,000 points
+ * has not found a hole — they have signed their name to it.
+ *
+ * ⚠️ THE FLOOR STAYS, AND IT IS NOT A TYPO GUARD. `points > 0` is still a CHECK
+ * in the database and still enforced on read below. This site records losses
+ * and charges nothing for them (Critical Feature 35); an award that could be
+ * NEGATIVE would turn the ledger into a disciplinary instrument, which is a
+ * different product.
+ *
+ * ⚠️ AND THE READ-SIDE BOUND HAD TO GO WITH IT, WHICH IS THE HALF THAT WOULD
+ * HAVE BEEN MISSED. `normalizeAwards` used to DISCARD any mirrored row over 50.
+ * Left in place after the migration, the first award a prof made above the old
+ * cap would have been written to the database, synced down, and then silently
+ * dropped on read — a number that exists, is attributed, and does not appear.
  */
-export const AWARD_MAX = 50;
 
 /** What we remember about one exercise. */
 export interface ExerciseProgress {
@@ -77,6 +90,45 @@ export type GameOutcome = 'win' | 'draw' | 'loss';
 export const EMPTY_GAMES: GameRecord = { wins: 0, draws: 0, losses: 0 };
 
 /**
+ * One finished game, as a ROW — date, level, outcome.
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️ THE COUNTERS CANNOT PRODUCE A HISTORY, WHICH IS WHY THIS EXISTS.
+ *
+ * `games` is three numbers per level. It answers "how many wins at Avancé"
+ * — which is all the ledger needs — and cannot answer "what did I play, and
+ * when", because the moment a game is folded into a counter its date is gone.
+ * Games were being recorded and never shown; this is the row the history reads.
+ *
+ * ⚠️ IT IS A SECOND RECORD OF THE SAME EVENT, AND THE COUNTER STAYS THE ONE
+ * THAT SCORES. Points are derived from `games` exactly as before — nothing in
+ * `points.ts` reads this log, and it must stay that way. Two sources that both
+ * fed the ledger would be two sources to disagree, and the counter is the one
+ * the cloud sync already merges.
+ *
+ * ⚠️ BOUNDED, BECAUSE `localStorage` IS NOT INFINITE and a page that renders
+ * every game a student ever played is not a page anybody reads. The oldest
+ * entries fall off; nothing that scores is lost when they do, because the
+ * counters are separate.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+export interface GameLogEntry {
+  /** ISO timestamp, or null for a row written before this was recorded. */
+  readonly at: string | null;
+  readonly level: string;
+  readonly outcome: GameOutcome;
+}
+
+/**
+ * How many finished games are remembered.
+ *
+ * 50 is roughly a term of weekly play for an enthusiastic student — long
+ * enough that the history is a history rather than a glimpse, short enough
+ * that the record stays a few kilobytes.
+ */
+export const GAME_LOG_MAX = 50;
+
+/**
  * One point award from a prof (v2-S4).
  *
  * ═════════════════════════════════════════════════════════════════════════
@@ -104,7 +156,7 @@ export const EMPTY_GAMES: GameRecord = { wins: 0, draws: 0, losses: 0 };
  * ═════════════════════════════════════════════════════════════════════════
  */
 export interface AwardRecord {
-  /** Positive and ≤ 50 — the database enforces it; see migration 0004. */
+  /** Positive. The database enforces it; see migrations 0004 and 0014. */
   readonly points: number;
   /** Required, and shown to the student. A point with no reason is arbitrary. */
   readonly reason: string;
@@ -133,6 +185,13 @@ export interface Progress {
   readonly announced: readonly string[];
   /** Teacher awards, mirrored from the cloud. Rows, never a total. */
   readonly awards: readonly AwardRecord[];
+  /**
+   * Finished games, newest first, bounded to `GAME_LOG_MAX`.
+   *
+   * ⚠️ NOT WHAT SCORES. See `GameLogEntry` — `games` is still the ledger’s
+   * only source, and this is the history beside it.
+   */
+  readonly log: readonly GameLogEntry[];
 }
 
 export const EMPTY_EXERCISE: ExerciseProgress = {
@@ -142,7 +201,7 @@ export const EMPTY_EXERCISE: ExerciseProgress = {
   solvedAt: null,
 };
 
-const EMPTY_PROGRESS: Progress = { exercises: {}, games: {}, announced: [], awards: [] };
+const EMPTY_PROGRESS: Progress = { exercises: {}, games: {}, announced: [], awards: [], log: [] };
 
 /** `localStorage`, or null when it is unavailable for any reason. */
 function storage(): Storage | null {
@@ -197,6 +256,38 @@ function count(value: unknown): number {
  * because a point nobody can explain reads as arbitrary; showing one with a
  * blank explanation would be the failure the constraint exists to prevent.
  */
+/**
+ * The game history, normalised field by field like everything else here.
+ *
+ * ⚠️ AN UNKNOWN LEVEL SURVIVES, exactly as it does in `normalizeGames`: a
+ * record written by a build with a fourth engine preset must not lose its
+ * history when read by this one. Only the OUTCOME is validated against the
+ * union, because the page branches on it and an unknown value would render as
+ * nothing.
+ *
+ * ⚠️ TRUNCATED ON READ AS WELL AS ON WRITE. A hand-edited record could carry
+ * ten thousand rows; the page should not try to render them.
+ */
+function normalizeLog(value: unknown): GameLogEntry[] {
+  if (!Array.isArray(value)) return [];
+  const out: GameLogEntry[] = [];
+  for (const entry of value as unknown[]) {
+    if (typeof entry !== 'object' || entry === null) continue;
+    const raw = entry as Record<string, unknown>;
+    const outcome = raw['outcome'];
+    if (outcome !== 'win' && outcome !== 'draw' && outcome !== 'loss') continue;
+    const level = typeof raw['level'] === 'string' ? raw['level'] : '';
+    if (level === '') continue;
+    out.push({
+      at: typeof raw['at'] === 'string' ? raw['at'] : null,
+      level,
+      outcome,
+    });
+    if (out.length >= GAME_LOG_MAX) break;
+  }
+  return out;
+}
+
 function normalizeAwards(value: unknown): AwardRecord[] {
   if (!Array.isArray(value)) return [];
   const out: AwardRecord[] = [];
@@ -205,7 +296,11 @@ function normalizeAwards(value: unknown): AwardRecord[] {
     const raw = entry as Record<string, unknown>;
     const points = count(raw['points']);
     const reason = typeof raw['reason'] === 'string' ? raw['reason'].trim() : '';
-    if (points < 1 || points > AWARD_MAX || reason.length === 0) continue;
+    /* ⚠️ NO UPPER BOUND — see the note where AWARD_MAX used to be. A row over
+       the old ceiling is a legitimate award since migration 0014, and dropping
+       it here would make a prof's decision disappear between the database and
+       the page. */
+    if (points < 1 || reason.length === 0) continue;
     out.push({
       points,
       reason,
@@ -271,6 +366,7 @@ export function readProgress(): Progress {
       games: normalizeGames(record['games']),
       announced,
       awards: normalizeAwards(record['awards']),
+      log: normalizeLog(record['log']),
     };
   } catch {
     // Unparseable JSON, a thrown getItem — either way, start from empty. We do
@@ -390,6 +486,87 @@ export function awards(): readonly AwardRecord[] {
   return [...readProgress().awards].sort((a, b) => (b.awardedAt ?? '').localeCompare(a.awardedAt ?? ''));
 }
 
+/**
+ * The ISO week a timestamp falls in, as `2026-W34`.
+ *
+ * ⚠️ ISO WEEKS, WHICH START ON MONDAY, and that is the right choice here rather
+ * than a pedantic one: the club meets at the weekend, so a Sunday session and
+ * the Saturday before it must land in the SAME week. A Sunday-start week would
+ * split a single weekend across two marks and make one visit look like two.
+ *
+ * ⚠️ COMPUTED FROM THE DEVICE'S OWN CLOCK, like every other date on this page.
+ * A wrong clock costs a mark in the wrong column; nothing scores off it.
+ */
+function isoWeek(date: Date): string {
+  /* Thursday decides the year — the ISO rule, and the reason a 1 January can
+     belong to the previous year's week 52. */
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const day = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const week = Math.ceil(((d.getTime() - yearStart.getTime()) / 86_400_000 + 1) / 7);
+  return `${d.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
+}
+
+/** The ISO week containing today, on this device. */
+export function currentWeek(): string {
+  return isoWeek(new Date());
+}
+
+/**
+ * Every week in which this reader did SOMETHING — newest first.
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️ DERIVED, NOT BANKED, AND THAT IS WHY IT NEEDED NO NEW STORAGE. The
+ * timestamps already exist: `solvedAt` on every solved exercise and tutorial
+ * step, `at` on every logged game. A stored "weeks active" counter would be a
+ * number a console can edit and a number that can disagree with the records
+ * behind it — the same reasoning as Critical Feature 33.
+ *
+ * ⚠️ IT IS A COUNT OF PRESENCES AND NEVER A STREAK. There is deliberately no
+ * "consecutive weeks" here and there must not be: the club meets weekly, and a
+ * consecutive-week counter punishes a missed holiday exactly the way Critical
+ * Feature 34 forbids a daily one from punishing a normal Tuesday. A missed week
+ * is simply a week that is not in this list — it costs a mark, not a run.
+ *
+ * ⚠️ WHAT IT CANNOT SEE, STATED RATHER THAN HIDDEN: `solvedAt` keeps the FIRST
+ * solve, so a week spent re-solving old exercises leaves no trace, and the game
+ * log is bounded (`GAME_LOG_MAX`), so weeks fall off the far end eventually.
+ * Both make this an UNDERCOUNT. That is the safe direction — it can fail to
+ * credit a week, and it can never invent one.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+export function activeWeeks(): readonly string[] {
+  const progress = readProgress();
+  const weeks = new Set<string>();
+
+  const add = (iso: string | null) => {
+    if (!iso) return;
+    const stamp = Date.parse(iso);
+    if (Number.isNaN(stamp)) return;
+    weeks.add(isoWeek(new Date(stamp)));
+  };
+
+  for (const entry of Object.values(progress.exercises)) add(entry.solvedAt);
+  for (const game of progress.log) add(game.at);
+
+  /* Lexicographic sort is chronological for `YYYY-Www`, which is the whole
+     reason the key is shaped that way. */
+  return [...weeks].sort((a, b) => b.localeCompare(a));
+}
+
+/**
+ * The finished games, newest first — what `/progres/` draws its history from.
+ *
+ * ⚠️ ALREADY IN ORDER, because `recordGame` prepends. Sorting on read would
+ * work today and would quietly become the wrong answer for any entry whose
+ * `at` is null — a row written before timestamps existed, or by a device with
+ * no usable clock. Insertion order is the truth we actually have.
+ */
+export function gameLog(): readonly GameLogEntry[] {
+  return readProgress().log;
+}
+
 /** The slugs solved at least once — what the index needs to draw its ticks. */
 export function solvedSlugs(): readonly string[] {
   return Object.entries(readProgress().exercises)
@@ -456,7 +633,20 @@ export function recordGame(level: string, outcome: GameOutcome): GameRecord {
     draws: previous.draws + (outcome === 'draw' ? 1 : 0),
     losses: previous.losses + (outcome === 'loss' ? 1 : 0),
   };
-  persist({ ...current, games: { ...current.games, [level]: next } });
+  /**
+   * ⚠️ NEWEST FIRST, AND TRIMMED HERE RATHER THAN ON READ. The page renders the
+   * front of this array, so prepending keeps "most recent" free of a sort; and
+   * trimming at the moment of writing is what stops the record growing without
+   * bound on a device that never reloads.
+   *
+   * ⚠️ The timestamp is the DEVICE's clock and is presentational only. Nothing
+   * scores off it (see `GameLogEntry`), so a wrong clock costs a wrong date in
+   * a list — not a wrong ledger.
+   */
+  const entry: GameLogEntry = { at: new Date().toISOString(), level, outcome };
+  const log = [entry, ...current.log].slice(0, GAME_LOG_MAX);
+
+  persist({ ...current, games: { ...current.games, [level]: next }, log });
   /**
    * ⚠️ ONE ROW PER GAME, WITH AN ID — the local shape stays a counter, but the
    * durable copy is a row, because two counters cannot be merged and rows with

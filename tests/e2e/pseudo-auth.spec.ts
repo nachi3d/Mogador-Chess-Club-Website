@@ -5,7 +5,7 @@ import { AUTH_ENABLED, AUTH_OFF_REASON } from './helpers/auth-mode';
 import { PSEUDO_EMAIL_DOMAIN, pseudoEmail } from '../../src/lib/pseudo';
 
 /**
- * Signing in with a pseudo and a password (migration 0013).
+ * Signing in with a pseudo and a password (migration 0015).
  *
  * ═════════════════════════════════════════════════════════════════════════
  * ⚠️ WHY THIS FILE IS NOT OPTIONAL COVERAGE.

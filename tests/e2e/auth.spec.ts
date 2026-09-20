@@ -3,7 +3,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { isSupabaseConfigured, loadE2EEnv } from './env';
 import { createConfirmedUser, deleteUser, e2eEmail } from './helpers/supabase-admin';
 import { AUTH_FLAG, atSiteRoot, followMagicLink, reachAccountPage } from './helpers/auth';
-import { AUTH_ENABLED, AUTH_OFF_REASON } from './helpers/auth-mode';
+import { AUTH_ENABLED, AUTH_OFF_REASON, GOOGLE_AUTH_ENABLED } from './helpers/auth-mode';
 import { settleReveals } from './helpers/reveal';
 
 /**
@@ -458,4 +458,91 @@ test.describe('auth — accessibility', () => {
       expect(summary, summary.join('\n')).toEqual([]);
     });
   }
+});
+
+/* ═══ Google sign-in — the FLAG, which is what production ships ══════════ */
+
+/**
+ * ⚠️⚠️ THE DEFAULT SHAPE IS "NO BUTTON", AND THAT IS THE ONE UNDER TEST HERE.
+ *
+ * Google sign-in needs the provider switched on in the Supabase dashboard and
+ * an OAuth client in Google Cloud with this origin in its redirect list.
+ * NEITHER LIVES IN THIS REPOSITORY, so nothing in a build can check them. A
+ * button shipped ahead of that configuration is present, looks live, and fails
+ * when pressed — Critical Feature 76 wearing a different hat, and worse than
+ * the hydration case it was written for, because that one resolves on its own
+ * after a second and this one never does. `disabled` would be a lie too: it
+ * says "not yet", and without the configuration there is no "yet".
+ *
+ * So the button is ABSENT until `PUBLIC_GOOGLE_AUTH_ENABLED=true`, and this
+ * asserts the absence rather than the presence — the presence is proved by the
+ * build that turns it on, in the same way `auth-disabled.spec.ts` proves the
+ * accounts-OFF artefact.
+ *
+ * ⚠️ AND THE MAGIC LINK MUST SURVIVE IT. The failure this would most plausibly
+ * ship is a Google button that quietly replaces the email form rather than
+ * joining it — leaving every reader without a Google account locked out of a
+ * site that had been letting them in.
+ */
+test.describe('Google sign-in is behind its own flag', () => {
+  /**
+   * ⚠️ BOTH SHAPES ARE ASSERTED, RATHER THAN ONE PLUS A SPEED BUMP.
+   *
+   * The first version of this asserted absence unconditionally. It was watched
+   * to fail correctly against a flag-on build (`Expected: 0 / Received: 1`) —
+   * and that is precisely the problem: it would have gone red on the day
+   * somebody enabled the feature, which trains a person to edit the test rather
+   * than read it. Gated on the same flag the build reads, it proves the right
+   * thing in either shape and is never in the way.
+   */
+  test('the button matches the build shape — absent when off, present when on', async ({
+    page,
+  }) => {
+    await page.goto('/connexion/');
+
+    const button = page.getByTestId('login-google');
+    const separator = page.getByTestId('login-or');
+    const note = page.getByTestId('login-google-note');
+
+    if (GOOGLE_AUTH_ENABLED) {
+      await expect(button).toBeVisible();
+      await expect(button).toBeEnabled();
+      /* Two ways in must read as alternatives, not as steps. */
+      await expect(separator).toBeVisible();
+
+      /**
+       * ⚠️ THE SAME-ADDRESS NOTE TRAVELS WITH THE BUTTON, AND IT IS NOT
+       * DECORATION.
+       *
+       * Automatic linking keys on the email address. Without this line a
+       * reader who signed up as one address and presses Google while signed
+       * into another silently gets a second account with an empty ledger,
+       * while their real progress — a child's points and attendance — sits
+       * intact and invisible on the first. It looks like data loss and is not,
+       * which is precisely why nothing else on the page would tell them.
+       *
+       * ⚠️ ASSERTED VISIBLE, NOT MERELY PRESENT: a note the reader cannot see
+       * before pressing prevents nothing, and it is the only thing standing
+       * between the button and the fork until the detection work lands.
+       */
+      await expect(note).toBeVisible();
+      await expect(note).not.toBeEmpty();
+    } else {
+      /* Absent, not hidden: a hidden control is still in the DOM for a script
+         or a determined reader to reach, and this one cannot work. */
+      await expect(button).toHaveCount(0);
+      await expect(separator).toHaveCount(0);
+      /* And the note goes with it — a warning about a button that is not there
+         is noise on the page every reader actually sees today. */
+      await expect(note).toHaveCount(0);
+    }
+  });
+
+  test('the email magic link is untouched by it', async ({ page }) => {
+    await page.goto('/connexion/');
+
+    await expect(page.getByTestId('login-form')).toBeVisible();
+    await expect(page.getByTestId('login-email')).toBeVisible();
+    await expect(page.getByTestId('login-submit')).toBeEnabled();
+  });
 });

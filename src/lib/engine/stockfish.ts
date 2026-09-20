@@ -112,15 +112,50 @@ export const LEVELS: Readonly<Record<LevelId, EngineLevel>> = {
    */
   debutant: { skill: 0, depth: 1, movetimeMs: 50, blunderChance: 0.4 },
   /**
-   * Favoured but genuinely losable: 63% against `novice`, so an accurate
-   * opponent takes better than one game in three.
+   * ⚠️ WHAT THIS LEVEL IS FOR, WHICH IS THE PART A WIN RATE CANNOT TELL YOU:
+   * **a student who has finished course 3 and plays accurately should win
+   * about one game in three.** Not one in ten — that is a wall, and a wall
+   * teaches nothing. Not one in two — that is not a step up from Débutant.
+   *
+   * `novice` is the stand-in for that student: a 2-ply material bot that takes
+   * what is free and will not hang a piece to a single capture. So the target
+   * is **`novice` scoring ~33%**, and the preset is chosen to hit it.
+   *
+   * **Measured, 120 games per point against `novice`:**
+   *   `0.15` → engine 80%, novice **20%** — one game in five, too hard
+   *   `0.20` → engine 66%, novice **34%** — one game in three ✅
+   *
+   * ⚠️ AND 0.25 WAS THE OTHER FAILURE, WHICH IS WHY IT CAME DOWN. It scored
+   * **48%**: it lost more than half to an opponent whose only virtue is not
+   * hanging pieces. That is what "Intermédiaire blunders too often" looks like
+   * as a number.
+   *
+   * ⚠️ 40 GAMES CANNOT SEPARATE NEIGHBOURING RATES — two 40-game samples of
+   * THIS configuration came out 76% and 86%. The engine keeps its hash between
+   * games and searches are movetime-bounded, so runs are not reproducible.
+   * Re-tune at 120 games or do not believe the difference.
    */
-  intermediaire: { skill: 3, depth: 4, movetimeMs: 500, blunderChance: 0.25 },
+  intermediaire: { skill: 3, depth: 4, movetimeMs: 500, blunderChance: 0.2 },
   /**
-   * Never blunders on purpose, and punishes anything that does: ~100% against
-   * both reference opponents, and it beats Intermédiaire head to head.
+   * Never blunders on purpose, and now does not blunder by accident either:
+   * 100% against both reference opponents, and it beats Intermédiaire head to
+   * head.
+   *
+   * ⚠️⚠️ THE FIX HERE WAS `skill`, NOT `blunderChance` — WHICH WAS ALREADY 0.
+   * Avancé's mistakes never came from our blunder path. They came from
+   * Stockfish's own `Skill Level`, which below 20 deliberately plays a WORSE
+   * root move: this build reports `Skill Level Maximum Error` default **200
+   * centipawns**, i.e. two pawns of licence per move.
+   *
+   * Measured as best-move agreement against the same engine at skill 20 and
+   * the SAME depth, so the only difference is the weakening — 6 positions × 8
+   * searches. **Skill 14 agreed 46% and returned 3 different moves in nearly
+   * every position; skill 17 and 19 still spread (3-4 moves); only skill 20
+   * is effectively deterministic (1 3 1 1 1 1).** Anything below 20 is
+   * Stockfish inventing an error on purpose, which is exactly what Avancé
+   * must not do.
    */
-  avance: { skill: 14, depth: 12, movetimeMs: 1500, blunderChance: 0 },
+  avance: { skill: 20, depth: 12, movetimeMs: 1500, blunderChance: 0 },
 };
 
 /**

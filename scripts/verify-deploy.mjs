@@ -107,12 +107,49 @@ const origin =
  * is dropped. See the header for why the hash cannot be trusted across build
  * environments.
  */
+/**
+ * ⚠️ THE HOME PAGE'S NEXT-SESSION BLOCK, WHICH IS BUILD *INPUT* AND NOT TREE.
+ *
+ * `/` prints "Prochaine séance" from the baked agenda. A Cloudflare build reads
+ * the live `sessions` table; a local build cannot — `.env.local` never reaches
+ * `fetch-agenda.mjs` — so it bakes `agenda.fallback.json` instead. The two
+ * therefore disagree about a date and a time whenever the fallback has drifted
+ * from the table, which is most of the time.
+ *
+ * ⚠️ THAT MADE THIS CHECK FAIL ON EVERY CORRECT DEPLOY FROM THIS MACHINE, which
+ * is precisely the failure the header warns about one paragraph up: measured at
+ * the v0.20.0 deploy, where `/` reported "the live build is NOT this tree"
+ * while the other two documents matched byte-for-byte and every marker the
+ * release introduced was confirmed live by hand. **A check that cries wolf is a
+ * check somebody learns to skip**, and this is the one standing between us and
+ * shipping v0.13.0 again.
+ *
+ * ⚠️ WHAT IS DROPPED IS ONLY THE VALUE, NEVER THE STRUCTURE. The surrounding
+ * markup — the label, the classes, the venue span, the `<a>` around it — is
+ * still compared, so a release that changes how the block is BUILT is still
+ * caught. Only the date, the time and the venue text go, and those come from
+ * the database rather than from the tree.
+ */
+const NEXT_SESSION = /(<span class="dash-next-value"[^>]*>)[\s\S]*?(<\/span><\/a>)/g;
+
 function normalise(html) {
   return html
     .replace(/(\/_astro\/[^"'\s)]*?)\.[A-Za-z0-9_-]{8}(\.(?:js|css))/g, '$1$2')
+    .replace(NEXT_SESSION, '$1<!--agenda-derived-->$2')
     .replace(/\r\n/g, '\n')
     .trim();
 }
+
+/**
+ * How many next-session blocks a document contains.
+ *
+ * ⚠️ EXISTS SO THE NORMALISATION ABOVE CANNOT SILENTLY BECOME A NO-OP. If the
+ * dashboard's markup is reworked and the pattern stops matching, the check does
+ * not quietly go back to failing on every deploy (or, worse, quietly start
+ * comparing a value it was told to ignore) — it says so. A normalisation nobody
+ * has seen fire is a normalisation that may not work.
+ */
+const countNextSession = (html) => (html.match(NEXT_SESSION) ?? []).length;
 
 /** The first line that differs, for a report that says something useful. */
 function firstDifference(a, b) {
@@ -130,10 +167,42 @@ function firstDifference(a, b) {
   return null;
 }
 
+/**
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️⚠️ THE EDGE CACHE CAN MAKE A CORRECT DEPLOY LOOK LIKE A WRONG ONE, AND
+ * NEITHER OBVIOUS CURE WORKS.
+ *
+ * Measured at the v0.22.0 deploy: the marker was confirmed live, this script
+ * ran seconds later and reported ALL THREE documents as "NOT this tree",
+ * showing the OLD markup. Five follow-up probes returned the NEW markup with
+ * `CF-Cache-Status: HIT`, and a re-run of the unchanged tree passed. The first
+ * run had read a stale edge entry in the window right after deploying.
+ *
+ * ⚠️ BOTH FIXES THAT SUGGEST THEMSELVES WERE TRIED AND MEASURED FAILING:
+ *
+ *   - `Cache-Control: no-cache` on the REQUEST — already sent below, and
+ *     Cloudflare ignores client cache directives by design.
+ *   - a cache-busting query nonce — measured `CF-Cache-Status: HIT` on a
+ *     never-before-seen query string, because Workers static assets normalise
+ *     the query away. It does not produce a different cache key.
+ *
+ * ⚠️ SO THE CACHE STATUS IS REPORTED RATHER THAN DEFEATED. A mismatch served
+ * from a HIT is *probably* staleness; a mismatch served from a MISS or DYNAMIC
+ * is *probably* a wrong build. This script cannot tell them apart with
+ * certainty and must not pretend to — so it says which it saw and lets the
+ * operator judge, rather than silently retrying until it likes the answer.
+ *
+ * ⚠️ AND IT STILL FAILS. Nothing here converts a mismatch into a pass. The
+ * point is only that "the live build is NOT this tree" stops being the first
+ * and last word when the real story is a thirty-second cache — because a check
+ * that cries wolf is the check somebody learns to skip, and this is the one
+ * standing between us and shipping v0.13.0 again.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
 async function fetchText(url) {
   const res = await fetch(url, { redirect: 'follow', headers: { 'cache-control': 'no-cache' } });
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-  return res.text();
+  return { body: await res.text(), cache: res.headers.get('cf-cache-status') ?? 'unknown' };
 }
 
 /**
@@ -146,7 +215,11 @@ async function fetchText(url) {
  * cannot pass by luck.
  */
 const DOCUMENTS = [
-  { path: '/', file: 'dist/index.html' },
+  /* ⚠️ `/` STAYS, and swapping it for a quieter document was considered and
+     rejected: it is the page most releases touch, which makes it the most
+     valuable of the three. Its agenda-derived value is normalised away instead
+     — see NEXT_SESSION above. */
+  { path: '/', file: 'dist/index.html', agendaDerived: true },
   { path: '/exercices/mat-du-couloir/', file: 'dist/exercices/mat-du-couloir/index.html' },
   { path: '/progres/', file: 'dist/progres/index.html' },
 ];
@@ -160,6 +233,8 @@ if (!existsSync(join(ROOT, 'dist', 'index.html'))) {
 
 let failures = 0;
 let compared = 0;
+/** Per-document `cf-cache-status`, so a mismatch can name WHY it may be wrong. */
+const cacheStatuses = new Map();
 
 for (const doc of DOCUMENTS) {
   const localPath = join(ROOT, doc.file);
@@ -167,15 +242,45 @@ for (const doc of DOCUMENTS) {
     console.log(yellow(`  ?  ${doc.path.padEnd(34)} not in dist/ — skipped`));
     continue;
   }
-  const local = normalise(readFileSync(localPath, 'utf8'));
+  const localRaw = readFileSync(localPath, 'utf8');
+  const local = normalise(localRaw);
 
-  let live;
+  let liveRaw;
+  let cacheStatus = 'unknown';
   try {
-    live = normalise(await fetchText(`${origin}${doc.path}`));
+    const got = await fetchText(`${origin}${doc.path}`);
+    liveRaw = got.body;
+    cacheStatus = got.cache;
   } catch (error) {
     console.log(red(`  ✗  ${doc.path.padEnd(34)} fetch failed: ${error.message}`));
     failures += 1;
     continue;
+  }
+  const live = normalise(liveRaw);
+  cacheStatuses.set(doc.path, cacheStatus);
+
+  /* ⚠️ The normalisation must be seen to WORK, on both sides. A pattern that
+     silently stops matching turns this back into a check that fails on every
+     correct deploy — which is the state this fix exists to end. It warns rather
+     than fails: the document is still compared, and a genuine mismatch is still
+     reported by the comparison itself. */
+  if (doc.agendaDerived) {
+    const here = countNextSession(localRaw);
+    const there = countNextSession(liveRaw);
+    if (here === 0 || there === 0) {
+      console.log(
+        yellow(
+          `  !  ${doc.path.padEnd(34)} the next-session normalisation matched ` +
+            `${here} local / ${there} live — expected 1 of each.`,
+        ),
+      );
+      console.log(
+        dim('       The dashboard markup has probably changed; update NEXT_SESSION'),
+      );
+      console.log(
+        dim('       in this script, or `/` will fail on every correct deploy again.'),
+      );
+    }
   }
 
   compared += 1;
@@ -205,6 +310,20 @@ if (failures > 0) {
     red(`\n  ✗ ${origin} is serving a DIFFERENT build from your dist/.\n`) +
       dim(
         '  This is the v0.13.0 failure: merged, tagged, and never served.\n' +
+          '\n' +
+          `  Edge cache on the compared documents: ${
+            [...cacheStatuses].map(([p, c]) => `${p} ${c}`).join(', ') || 'not read'
+          }\n` +
+          '  ⚠️ IF THOSE SAY "HIT" AND YOU DEPLOYED IN THE LAST FEW MINUTES, SUSPECT\n' +
+          '     THE CACHE BEFORE THE DEPLOY. Measured at the v0.22.0 deploy: this\n' +
+          '     script reported all three documents wrong, seconds after a deploy\n' +
+          '     that had already landed, because it read a stale edge entry. Probe\n' +
+          '     the page by hand and re-run before concluding anything.\n' +
+          '     ⚠️ Neither obvious cure works — a request `Cache-Control: no-cache`\n' +
+          '     is ignored by Cloudflare, and a query nonce was MEASURED still\n' +
+          '     returning HIT, because Workers static assets normalise the query\n' +
+          '     away. Waiting is the remedy; this line is the warning.\n' +
+          '\n' +
           '  ⚠️ Do NOT reach for `wrangler deployments list` — a recent deployment\n' +
           '     can be an older tree, and `Source: Unknown` does not tell the two\n' +
           '     paths apart. Check which build actually won:\n' +

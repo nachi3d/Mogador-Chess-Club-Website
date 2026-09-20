@@ -27,3 +27,16 @@ export const AUTH_OFF_REASON =
 export const AUTH_ON_REASON =
   'this build has accounts ENABLED (PUBLIC_AUTH_ENABLED=true) — ' +
   'the disabled-build guarantees only apply to the default build';
+
+/**
+ * Whether the build under test offers "Continue with Google".
+ *
+ * ⚠️ A SECOND FLAG BECAUSE THE FEATURE HAS A SECOND PRECONDITION, and it is
+ * one no build can check: the Google provider must be configured in the
+ * Supabase dashboard and an OAuth client must exist in Google Cloud. Neither
+ * lives in this repository. See `GOOGLE_AUTH_ENABLED` in `src/config/auth.ts`.
+ *
+ * Same `process.env` reasoning as above — the spec process and the build under
+ * test agree by construction rather than by convention.
+ */
+export const GOOGLE_AUTH_ENABLED = process.env['PUBLIC_GOOGLE_AUTH_ENABLED'] === 'true';
