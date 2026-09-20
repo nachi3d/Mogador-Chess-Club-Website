@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { isSupabaseConfigured } from './env';
-import { adminClient, deleteUser, e2ePseudo } from './helpers/supabase-admin';
+import { adminClient, deleteUser, e2eEmail, e2ePseudo } from './helpers/supabase-admin';
 import { AUTH_ENABLED, AUTH_OFF_REASON } from './helpers/auth-mode';
 import { PSEUDO_EMAIL_DOMAIN, pseudoEmail } from '../../src/lib/pseudo';
 
@@ -298,10 +298,49 @@ test.describe('pseudo + password', () => {
     await page.getByTestId('account-signout').click();
     await page.waitForURL((url) => url.pathname === '/' || url.pathname === '/en/');
 
-    /* Seàn's half. The admin UI is driven in `admin.spec.ts`; here the act
-       itself is what matters, so it goes through the function with the service
-       role standing in for an admin's token. */
-    const { data: temporary } = await adminClient().rpc('admin_reset_password', { p_target: id });
+    /**
+     * Seàn's half.
+     *
+     * ⚠️ WITH AN ADMIN'S OWN TOKEN, NOT THE SERVICE ROLE — and the difference
+     * is not pedantry. `admin_reset_password()` is granted to `authenticated`
+     * and gated on `is_admin_direct()`, which reads `auth.uid()`; the service
+     * role has no `auth.uid()`, so it is refused twice over. A spec that used
+     * it would be asserting against a path no administrator can take.
+     */
+    const adminEmail = e2eEmail('reset-admin');
+    const adminPassword = `Admin-${Date.now()}-aA1!`;
+    const { data: made, error: adminError } = await adminClient().auth.admin.createUser({
+      email: adminEmail,
+      password: adminPassword,
+      email_confirm: true,
+      user_metadata: { display_name: 'Admin' },
+    });
+    expect(adminError, `could not create the admin: ${adminError?.message}`).toBeNull();
+    created.push(made!.user!.id);
+    /* Promoted through the only sanctioned path — column grants and a trigger
+       refuse a direct role UPDATE, even for the service role. */
+    const { error: roleError } = await adminClient().rpc('admin_set_role', {
+      target_id: made!.user!.id,
+      new_role: 'admin',
+    });
+    expect(roleError, `admin_set_role failed: ${roleError?.message}`).toBeNull();
+
+    const { createClient } = await import('@supabase/supabase-js');
+    const { loadE2EEnv } = await import('./env');
+    const env = loadE2EEnv();
+    const asAdmin = createClient(env!.supabaseUrl, env!.anonKey, {
+      auth: { persistSession: false },
+    });
+    const { error: signInError } = await asAdmin.auth.signInWithPassword({
+      email: adminEmail,
+      password: adminPassword,
+    });
+    expect(signInError, `the admin could not sign in: ${signInError?.message}`).toBeNull();
+
+    const { data: temporary, error: resetError } = await asAdmin.rpc('admin_reset_password', {
+      p_target: id,
+    });
+    expect(resetError, `the reset failed: ${resetError?.message}`).toBeNull();
     expect(typeof temporary, 'no temporary password came back').toBe('string');
 
     /* ⚠️ THE OLD PASSWORD IS DEAD IMMEDIATELY. A reset that leaves the previous
