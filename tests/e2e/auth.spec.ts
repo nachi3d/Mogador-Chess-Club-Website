@@ -485,6 +485,15 @@ test.describe('auth — accessibility', () => {
  * site that had been letting them in.
  */
 test.describe('Google sign-in is behind its own flag', () => {
+  /* ⚠️ IT STILL NEEDS THE PAGE TO EXIST. Both tests below navigate to
+     `/connexion/`, which an accounts-OFF build does not emit at all (CF18) —
+     so on that shape they were asserting against a 404: the first passed
+     vacuously (no button on a page with nothing on it) and the second timed
+     out looking for the form. The suite's OFF coverage is the `auth-disabled`
+     sliver, by design; this file is about a page that only exists when
+     accounts are on, and now says so. */
+  test.skip(!AUTH_ENABLED, AUTH_OFF_REASON);
+
   /**
    * ⚠️ BOTH SHAPES ARE ASSERTED, RATHER THAN ONE PLUS A SPEED BUMP.
    *
