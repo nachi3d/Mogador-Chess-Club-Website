@@ -151,29 +151,29 @@ test.describe('the build under test', () => {
   });
 });
 
+/**
+ * Open the magic-link disclosure.
+ *
+ * ⚠️ SINCE v0.18.0 THE EMAIL FORM IS SECOND AND COLLAPSED, and that is the
+ * decision rather than an accident of layout: most of this club's students
+ * have no inbox, so the pseudo form is the front door. Every test below that
+ * touches the email form has to get to it the way a reader does — the same
+ * rule as `openAccountBlock()` for `/compte/`'s two disclosures.
+ *
+ * ⚠️ IT CLICKS THE SUMMARY RATHER THAN SETTING `open`. Forcing the attribute
+ * would pass on a disclosure whose summary is unreachable or covered, and
+ * "the control is reachable" is a bug this site has already shipped once
+ * (Critical Feature 48).
+ */
+async function openEmailBlock(page: Page): Promise<void> {
+  const block = page.getByTestId('login-email-block');
+  if (await block.evaluate((el) => (el as HTMLDetailsElement).open)) return;
+  await block.locator('summary').click();
+  await expect(page.getByTestId('login-email')).toBeVisible();
+}
+
 test.describe('the sign-in page', () => {
   test.skip(!AUTH_ENABLED, AUTH_OFF_REASON);
-
-  /**
-   * Open the magic-link disclosure.
-   *
-   * ⚠️ SINCE v0.18.0 THE EMAIL FORM IS SECOND AND COLLAPSED, and that is the
-   * decision rather than an accident of layout: most of this club's students
-   * have no inbox, so the pseudo form is the front door. Every test below that
-   * touches the email form has to get to it the way a reader does — the same
-   * rule as `openAccountBlock()` for `/compte/`'s two disclosures.
-   *
-   * ⚠️ IT CLICKS THE SUMMARY RATHER THAN SETTING `open`. Forcing the attribute
-   * would pass on a disclosure whose summary is unreachable or covered, and
-   * "the control is reachable" is a bug this site has already shipped once
-   * (Critical Feature 48).
-   */
-  async function openEmailBlock(page: Page): Promise<void> {
-    const block = page.getByTestId('login-email-block');
-    if (await block.evaluate((el) => (el as HTMLDetailsElement).open)) return;
-    await block.locator('summary').click();
-    await expect(page.getByTestId('login-email')).toBeVisible();
-  }
 
   test('renders a form and asks for nothing until submitted', async ({ page }) => {
     const hits: string[] = [];
@@ -541,6 +541,14 @@ test.describe('Google sign-in is behind its own flag', () => {
   test('the email magic link is untouched by it', async ({ page }) => {
     await page.goto('/connexion/');
 
+    /* ⚠️ SINCE v0.30.0 THE EMAIL FORM IS BEHIND A DISCLOSURE, BELOW THE PSEUDO
+       ONE — most of the club's students have no inbox. The claim this test
+       makes is unchanged and still worth making: the Google flag does not
+       affect the magic link. It just has to be opened the way a reader opens
+       it. ⚠️ Google itself stays OUTSIDE the disclosure, because the
+       same-address note is what stands between the button and a silent second
+       account and a note nobody can see prevents nothing. */
+    await openEmailBlock(page);
     await expect(page.getByTestId('login-form')).toBeVisible();
     await expect(page.getByTestId('login-email')).toBeVisible();
     await expect(page.getByTestId('login-submit')).toBeEnabled();

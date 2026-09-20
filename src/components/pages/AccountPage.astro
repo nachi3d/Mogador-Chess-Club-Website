@@ -437,7 +437,14 @@ const t = useTranslations(locale);
 
       const profile = await getProfile();
       const email = session.user.email ?? '';
-      if (emailEl) emailEl.textContent = email;
+      /* ⚠️ THE ADDRESS IS NOT WRITTEN INTO THE DOM AT ALL FOR A PSEUDO ACCOUNT,
+         and hiding the row is NOT enough — `pseudo-auth.spec.ts` asserts the
+         synthetic domain appears nowhere in the document, which is the honest
+         reading of "never shown to a reader": a hidden node is still there for
+         devtools, for a screen reader that ignores `hidden`, and for anyone who
+         selects the page and copies it. The row is revealed below only when
+         there is a real address to put in it. */
+      if (emailEl) emailEl.textContent = profile?.pseudo ? '' : email;
       if (roleEl) roleEl.textContent = profile ? (roleLabels[profile.role] ?? profile.role) : '';
       if (nameInput) nameInput.value = profile?.display_name ?? '';
       if (localeSelect) localeSelect.value = profile?.locale === 'en' ? 'en' : 'fr';

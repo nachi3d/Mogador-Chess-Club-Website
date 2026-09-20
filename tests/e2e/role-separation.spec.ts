@@ -423,17 +423,47 @@ test.describe('v2-S4 — a student cannot cross a role boundary', () => {
    */
   test('the award bounds hold with the form nowhere in the picture', async () => {
     const c = await clientFor(prof);
-    for (const points of [0, -10, 51, 1000]) {
+
+    /* ⚠️ POSITIVE ONLY, AND THAT HALF IS NOT NEGOTIABLE (0004, kept by 0014):
+       this site records losses and charges nothing for them (CF35), and a prof
+       who could award a NEGATIVE number would turn the ledger into a
+       disciplinary instrument — a different product from this one. */
+    for (const points of [0, -10]) {
       const { error } = await c
         .from('point_awards')
         .insert([{ child_id: studentChild, points, reason: 'contournement', awarded_by: prof.id }]);
       expect(error, `${points} points were accepted`).not.toBeNull();
     }
+
+    /* ⚠️ AND THE CEILING IS GONE SINCE 0014 — THIS ASSERTS THE NEW DECISION
+       RATHER THAN THE OLD ONE. 0004 capped a single award at 50; 0014 removed
+       it because the size of an award is a teaching judgement about a
+       particular student on a particular day, and the answer to a slipped
+       keystroke is that every row is ATTRIBUTED and carries a required reason.
+       A prof who awards 5,000 points has signed their name to it.
+
+       ⚠️ THIS TEST DEMANDED THE CAP UNTIL v0.30.0 AND STILL PASSED, because
+       the TEST project had never had 0014 applied — the code, the migration and
+       `validateAward()` had all moved on and the only thing still asking for a
+       ceiling was the spec that claims to prove what the database does. A gate
+       run against a stale schema proves the schema it ran against. */
+    const { error: large } = await c
+      .from('point_awards')
+      .insert([{ child_id: studentChild, points: 1000, reason: 'un tournoi gagné', awarded_by: prof.id }]);
+    expect(large, `a large award was refused: ${large?.message}`).toBeNull();
+
     const { data } = await adminClient()
       .from('point_awards')
-      .select('id')
+      .select('id,points,awarded_by,reason')
       .eq('child_id', studentChild);
-    expect(data?.length ?? 0, 'an out-of-range award was stored').toBe(0);
+    expect(data?.length ?? 0, 'the refused awards were stored after all').toBe(1);
+    expect(Number(data![0]!['points'])).toBe(1000);
+    /* The two things that replaced the cap: a name and a reason. */
+    expect(String(data![0]!['awarded_by'])).toBe(prof.id);
+    expect(String(data![0]!['reason'])).not.toBe('');
+
+    /* Leave the shared student as the other tests expect to find them. */
+    await adminClient().from('point_awards').delete().eq('child_id', studentChild);
   });
 
   /**

@@ -1,4 +1,6 @@
 import { test, expect } from '@playwright/test';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import AxeBuilder from '@axe-core/playwright';
 import { isSupabaseConfigured } from './env';
 import { settleReveals } from './helpers/reveal';
@@ -71,13 +73,32 @@ test.describe('the public agenda', () => {
    * a real session off the public site.
    */
   test('the session migrated out of the git collection is still published', async ({ page }) => {
+    /**
+     * ⚠️ THE EXPECTED DATE IS READ FROM THE BAKED SNAPSHOT, NOT WRITTEN HERE.
+     *
+     * This test used to pin the literal `2026-09-12`, which is the fixture's
+     * own date — and `fetch-agenda.mjs` bakes only sessions from YESTERDAY
+     * onward (`KEEP_PAST_DAYS = 1`). So from 2026-09-13 the row was correctly
+     * absent from every build and this test failed for a reason that had
+     * nothing to do with the thing it asserts. A date in a fixture is a fuse.
+     *
+     * What it is actually for survives, and is still asserted: the migrated row
+     * is PUBLISHED and reaches the page, and its clock is the CLUB'S — a build
+     * that resolved the instant in the build machine's zone would print 15:00
+     * and nothing else on the page would look wrong.
+     */
+    const snapshot = JSON.parse(
+      readFileSync(join(process.cwd(), 'src/data/agenda.json'), 'utf8'),
+    ) as { sessions?: Array<{ date?: string; time?: string; noteFr?: string; note_fr?: string }> };
+    const baked = (snapshot.sessions ?? []).find((row) =>
+      `${row.noteFr ?? row.note_fr ?? ''}`.includes('ouverture de la saison'),
+    );
+    expect(baked, 'the migrated session is not in the baked agenda at all').toBeTruthy();
+
     await page.goto('/agenda/');
     const migrated = page.locator('.session', { hasText: 'ouverture de la saison' });
     await expect(migrated).toHaveCount(1);
-    await expect(migrated.locator('time')).toHaveAttribute('datetime', '2026-09-12');
-    /* 16:00 LOCAL. The row is stored as an instant; a build that resolved it in
-       the build machine's zone rather than the club's would print 15:00 here,
-       and nothing else on the page would look wrong. */
+    await expect(migrated.locator('time')).toHaveAttribute('datetime', baked!.date!);
     await expect(migrated.locator('.session-time')).toHaveText('16:00');
   });
 
