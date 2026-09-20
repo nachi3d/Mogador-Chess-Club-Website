@@ -151,8 +151,30 @@ test.describe('the build under test', () => {
   });
 });
 
+/**
+ * Open the magic-link disclosure.
+ *
+ * ⚠️ SINCE v0.18.0 THE EMAIL FORM IS SECOND AND COLLAPSED, and that is the
+ * decision rather than an accident of layout: most of this club's students
+ * have no inbox, so the pseudo form is the front door. Every test below that
+ * touches the email form has to get to it the way a reader does — the same
+ * rule as `openAccountBlock()` for `/compte/`'s two disclosures.
+ *
+ * ⚠️ IT CLICKS THE SUMMARY RATHER THAN SETTING `open`. Forcing the attribute
+ * would pass on a disclosure whose summary is unreachable or covered, and
+ * "the control is reachable" is a bug this site has already shipped once
+ * (Critical Feature 48).
+ */
+async function openEmailBlock(page: Page): Promise<void> {
+  const block = page.getByTestId('login-email-block');
+  if (await block.evaluate((el) => (el as HTMLDetailsElement).open)) return;
+  await block.locator('summary').click();
+  await expect(page.getByTestId('login-email')).toBeVisible();
+}
+
 test.describe('the sign-in page', () => {
   test.skip(!AUTH_ENABLED, AUTH_OFF_REASON);
+
   test('renders a form and asks for nothing until submitted', async ({ page }) => {
     const hits: string[] = [];
     page.on('request', (r) => {
@@ -160,6 +182,9 @@ test.describe('the sign-in page', () => {
     });
 
     await page.goto('/connexion/');
+    /* Both doors are on the page; only one of them is open. */
+    await expect(page.getByTestId('login-pseudo')).toBeVisible();
+    await openEmailBlock(page);
     await expect(page.getByTestId('login-email')).toBeVisible();
     await page.waitForLoadState('networkidle');
     expect(hits, 'opening the sign-in page already talked to Supabase').toEqual([]);
@@ -167,6 +192,7 @@ test.describe('the sign-in page', () => {
 
   test('an obviously invalid address is refused locally', async ({ page }) => {
     await page.goto('/connexion/');
+    await openEmailBlock(page);
     await page.getByTestId('login-email').fill('not-an-email');
     await page.getByTestId('login-submit').click();
     await expect(page.getByTestId('login-error')).toBeVisible();
@@ -177,6 +203,10 @@ test.describe('the sign-in page', () => {
   test('the English page exists and is in English', async ({ page }) => {
     await page.goto('/en/connexion/');
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+    /* The primary control is the pseudo one, so that is what proves the page is
+       in English; the email button is behind the disclosure. */
+    await expect(page.getByTestId('login-pseudo-submit')).toHaveText(/Sign in/i);
+    await openEmailBlock(page);
     await expect(page.getByTestId('login-submit')).toHaveText(/Send the link/i);
   });
 
@@ -196,6 +226,7 @@ test.describe('the sign-in page', () => {
     page,
   }) => {
     await page.goto('/connexion/');
+    await openEmailBlock(page);
     const hp = page.getByTestId('login-hp');
 
     /**
@@ -234,6 +265,7 @@ test.describe('the sign-in page', () => {
    */
   test('a filled honeypot is refused visibly, and the retry succeeds', async ({ page }) => {
     await page.goto('/connexion/');
+    await openEmailBlock(page);
     await page.getByTestId('login-email').fill('parent@example.test');
     /* Filled the way a password manager would — the element is off-screen, so a
        real click is not available and is not what is being simulated. */
@@ -393,7 +425,19 @@ test.describe('signed in', () => {
 
 test.describe('auth — accessibility', () => {
   test.skip(!AUTH_ENABLED, AUTH_OFF_REASON);
-  for (const path of ['/connexion/', '/en/connexion/', '/compte/', '/en/compte/']) {
+  /* ⚠️ THE TWO NEW ROUTES ARE IN THE SAME LIST rather than in a private test
+     of their own: "every account surface passes axe" is one guarantee, and a
+     route with its own assertion is a route that can quietly drop out of it. */
+  for (const path of [
+    '/connexion/',
+    '/en/connexion/',
+    '/compte/',
+    '/en/compte/',
+    '/inscription/',
+    '/en/inscription/',
+    '/mot-de-passe/',
+    '/en/mot-de-passe/',
+  ]) {
     test(`${path} has no axe violations`, async ({ page }) => {
       await page.goto(path);
       const results = await new AxeBuilder({ page }).analyze();
@@ -441,6 +485,15 @@ test.describe('auth — accessibility', () => {
  * site that had been letting them in.
  */
 test.describe('Google sign-in is behind its own flag', () => {
+  /* ⚠️ IT STILL NEEDS THE PAGE TO EXIST. Both tests below navigate to
+     `/connexion/`, which an accounts-OFF build does not emit at all (CF18) —
+     so on that shape they were asserting against a 404: the first passed
+     vacuously (no button on a page with nothing on it) and the second timed
+     out looking for the form. The suite's OFF coverage is the `auth-disabled`
+     sliver, by design; this file is about a page that only exists when
+     accounts are on, and now says so. */
+  test.skip(!AUTH_ENABLED, AUTH_OFF_REASON);
+
   /**
    * ⚠️ BOTH SHAPES ARE ASSERTED, RATHER THAN ONE PLUS A SPEED BUMP.
    *
@@ -497,6 +550,14 @@ test.describe('Google sign-in is behind its own flag', () => {
   test('the email magic link is untouched by it', async ({ page }) => {
     await page.goto('/connexion/');
 
+    /* ⚠️ SINCE v0.30.0 THE EMAIL FORM IS BEHIND A DISCLOSURE, BELOW THE PSEUDO
+       ONE — most of the club's students have no inbox. The claim this test
+       makes is unchanged and still worth making: the Google flag does not
+       affect the magic link. It just has to be opened the way a reader opens
+       it. ⚠️ Google itself stays OUTSIDE the disclosure, because the
+       same-address note is what stands between the button and a silent second
+       account and a note nobody can see prevents nothing. */
+    await openEmailBlock(page);
     await expect(page.getByTestId('login-form')).toBeVisible();
     await expect(page.getByTestId('login-email')).toBeVisible();
     await expect(page.getByTestId('login-submit')).toBeEnabled();

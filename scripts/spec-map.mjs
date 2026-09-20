@@ -113,6 +113,9 @@ export const SPEC_MAP = [
   /* âš ï¸ AND `markOnboarded()` â€” the first-run screen is the only caller, and the
      landing rule in the auth callback reads `onboarded_at` off the profile this
      module fetches. A change here moves where every new parent lands. */
+  /* ⚠️ AND SINCE 0015 IT CARRIES THE PSEUDO PATH: registration, password
+     sign-in, the password change and `landingAfterSignIn()` — the ONE rule
+     deciding where all three doors put a reader. */
   [
     /^src\/lib\/(auth-flag|supabase)/,
     [
@@ -120,7 +123,16 @@ export const SPEC_MAP = [
       'auth-disabled.spec.ts',
       'account-deletion.spec.ts',
       'onboarding.spec.ts',
+      'pseudo-auth.spec.ts',
     ],
+  ],
+  /* The pseudo rules the browser mirrors from migration 0015. A change here
+     breaks sign-in for every existing account, so it reaches the spec that
+     pins the mirror against the database. */
+  [/^src\/lib\/pseudo\./, ['pseudo-auth.spec.ts', 'auth.spec.ts', 'auth-disabled.spec.ts']],
+  [
+    /^src\/(components\/pages\/(SignupPage|PasswordPage)\.|pages\/(en\/)?(inscription|mot-de-passe)\/)/,
+    ['pseudo-auth.spec.ts', 'auth.spec.ts', 'auth-disabled.spec.ts'],
   ],
   /* The welcome screen, its two routes, and the callback that decides between
      `/bienvenue/` and `/compte/`. âš ï¸ `family.spec.ts` is here because skipping
@@ -128,7 +140,7 @@ export const SPEC_MAP = [
      not a gate â€” and that claim spans the two files. */
   [
     /^src\/(components\/pages\/OnboardingPage\.|pages\/(en\/)?bienvenue\/|pages\/auth\/callback\/)/,
-    ['onboarding.spec.ts', 'family.spec.ts', 'auth.spec.ts', 'auth-disabled.spec.ts'],
+    ['onboarding.spec.ts', 'family.spec.ts', 'auth.spec.ts', 'auth-disabled.spec.ts', 'pseudo-auth.spec.ts'],
   ],
 
   /* 0005 â€” the parent/child model. `child.ts` decides WHO progress belongs to,
@@ -155,12 +167,23 @@ export const SPEC_MAP = [
   ],
   [
     /^src\/components\/pages\/AccountPage\./,
-    ['account-deletion.spec.ts', 'family.spec.ts', 'auth.spec.ts', 'admin.spec.ts'],
+    [
+      'account-deletion.spec.ts',
+      'family.spec.ts',
+      'auth.spec.ts',
+      'admin.spec.ts',
+      'pseudo-auth.spec.ts',
+    ],
   ],
   /* The sign-up form. âš ï¸ `auth.spec.ts` covers the honeypot, and the honeypot's
      one load-bearing behaviour is that it CLEARS itself so a false positive
      costs a parent one extra press rather than an email that never comes. */
-  [/^src\/components\/pages\/LoginPage\./, ['auth.spec.ts', 'auth-disabled.spec.ts']],
+  /* ⚠️ TWO DOORS SINCE v0.18.0: the pseudo form is primary and the magic
+     link sits below it in a disclosure. A change here can break either. */
+  [
+    /^src\/components\/pages\/LoginPage\./,
+    ['auth.spec.ts', 'auth-disabled.spec.ts', 'pseudo-auth.spec.ts'],
+  ],
   [/^src\/styles\/family\./, ['family.spec.ts', 'themes.spec.ts']],
   [
     /^supabase\/migrations\//,
@@ -181,6 +204,11 @@ export const SPEC_MAP = [
       'booking.spec.ts',
       /* …and the surface a member actually taps. */
       'booking-ui.spec.ts',
+      /* ⚠️ 0015 WRITES `auth.users` AND `auth.identities` DIRECTLY, which is
+         Supabase-internal. This spec registers and signs in through the real
+         endpoints — it is the only thing that would notice a GoTrue schema
+         change before a Saturday at Dar Souiri does. */
+      'pseudo-auth.spec.ts',
     ],
   ],
   /* The recurrence expansion is pure and its spec runs with no credentials and

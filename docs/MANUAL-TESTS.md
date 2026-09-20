@@ -2040,7 +2040,8 @@ in this section is **not applicable** — skip to 7d.
 
 ### 7c-0. What to check on the DEFAULT build (do this one every release)
 
-- [ ] `/connexion/`, `/compte/`, `/en/connexion/`, `/en/compte/` and
+- [ ] `/connexion/`, `/compte/`, `/en/connexion/`, `/en/compte/`,
+      `/inscription/`, `/mot-de-passe/` (and their `/en/` twins) and
       `/auth/callback/` all return **404**, not a redirect and not an empty page
 - [ ] The header carries **no** sign-in or account control, in either language
 - [ ] DevTools → Application → Local Storage: set `mcc:auth:v1` to `1` by hand,
@@ -2129,6 +2130,65 @@ downloads the auth client.
 
 ---
 
+## 7c-bis. ⚠️ THE PSEUDO PATH — the door most students actually use (v0.18.0)
+
+Needs an ON build with a configured Supabase project:
+`npm run demo:accounts` (⚠️ **never** a hand-typed `PUBLIC_SUPABASE_URL=…` line
+— see CLAUDE.md; `.env.local` holds **production**).
+
+### The sign-up, on a real phone
+
+- [ ] `/connexion/` opens with the **pseudo form visible and first**. The email
+      form is below it, collapsed, and opens on a tap
+- [ ] "Créer un compte" reaches `/inscription/`; the form fits the screen with
+      **no sideways scrolling**, and every hint is **above** its field
+- [ ] Register with a pseudo, a 6-character password and `06 12 34 56 78`.
+      You land on `/bienvenue/`, exactly as a magic link does
+- [ ] ⚠️ **The address we invented is nowhere.** On `/compte/`, the holder row
+      says **Pseudo** and shows what you typed. View source and search for
+      `pseudo.mogadorchess.invalid` — **no match**
+- [ ] ⚠️ **And the name is not called a placeholder.** If the pseudo and the
+      first name are the same word, `/compte/` must NOT offer to replace it
+- [ ] "Afficher le mot de passe" reveals it on both forms
+- [ ] The same in English, at `/en/inscription/`
+
+### The refusals
+
+- [ ] A password of 5 characters is refused, naming the number
+- [ ] An empty WhatsApp number is refused. ⚠️ **It is required on purpose** —
+      it is the only way back into a forgotten account
+- [ ] The same pseudo twice: the second person is told it is taken
+- [ ] Sign in with a wrong password, then with a pseudo that does not exist.
+      ⚠️ **The two messages are identical** — anything else answers "does this
+      child have an account here?" for anyone who asks
+
+### The reset — the part that will be used in anger
+
+- [ ] As an **admin**, open `/admin/comptes/`. A pseudo account shows its
+      **pseudo** (not an address) and a **Réinitialiser le mot de passe** button.
+      A magic-link account shows **no** such button
+- [ ] Press it, confirm. A temporary password appears **once**, in the monospace
+      face, large enough to read out over a phone
+- [ ] The **Envoyer sur WhatsApp** link opens WhatsApp with the number on the
+      account and a prefilled message. ⚠️ **Nothing is sent by the site**
+- [ ] Reload the page: the password is **gone** and cannot be retrieved. Only
+      resetting again produces a new one
+- [ ] The **Réinitialisations** journal lists who, when and for whom — and never
+      a password
+- [ ] The student's **old password no longer works**, and any device they were
+      signed in on is signed out
+- [ ] The temporary one signs them in and lands on `/mot-de-passe/` with the
+      banner. ⚠️ **It still asks for the current password** — type a wrong one
+      and it refuses
+- [ ] After changing it, you land on `/compte/`; signing out and back in with
+      the **new** password goes straight to `/compte/` with no banner
+
+### And the path that must not have broken
+
+- [ ] ⚠️ **The magic link still works end to end**, from a real inbox — see the
+      note in 7c. It is how Seàn and Michael sign in, and it is second on the
+      page now, which is exactly the sort of change that breaks it quietly
+
 ## 7d. The admin surfaces (v2-S4 part 2) — ⚠️ NEEDS AN ON BUILD AND A PROF ACCOUNT
 
 These four routes do not exist on the default build. Section 7c-0 already checks
@@ -2191,6 +2251,12 @@ account promoted to `prof` with the SQL in `docs/ADMIN.md`.
 - [ ] ⚠️ **Nothing moves.** The list does not re-sort, rows do not disappear as
       they are marked, and no row changes height under your thumb
 - [ ] The counter reads "12 sur 20 marqués · 12 présents" and keeps up
+- [ ] ⚠️ **START MARKING THE INSTANT THE NAMES APPEAR** — do not wait for the
+      page to settle, because that is the bug this checks. Mark ten fast, then
+      watch the screen for two seconds: **no row may go blank again**, and the
+      counter must equal the number of taps you made. (Before v0.30.0 the boot's
+      own read landed mid-pass and wiped the first few — every mark was safely
+      in the database, and the count on screen was wrong.)
 - [ ] Tap a child again on a different letter — it **corrects**, it does not add a
       second row. Reload: your correction is what stuck
 - [ ] **Turn airplane mode on and mark three more.** They flip on screen and then

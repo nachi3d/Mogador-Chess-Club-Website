@@ -335,6 +335,27 @@ bytes: [`docs/reference/dev-environment.md`](./docs/reference/dev-environment.md
 74. **The database returns a CODE, never a sentence.** Member surfaces are FR/EN and a French string from Postgres cannot be rendered in English. `src/i18n/ui.ts` owns both wordings, keyed by code; an unknown code renders the generic refusal and **never a silent no-op**.
 75. **The baked agenda never claims a remaining count.** Capacity and margin are baked and fingerprinted; the live booking count is not baked at all, because a booking fires no rebuild and a baked count would mark the deployed agenda stale forever. A signed-in member reads the live number; a signed-out one sees capacity and makes **zero requests**.
 76. **No control inside a hydrating island may look usable before it is, and `scripts/check-island-controls.mjs` PROVES it against `dist/`.** Astro server-renders every island, so a control in one is markup with no handler until its chunk lands — a press does nothing at all. Every `<button>`, `<input>`, `<select>` and `<textarea>` inside an `<astro-island>` ships `disabled` (directly or via a disabled `<fieldset>`) and is enabled when the island reports `data-ready`. ⚠️ **This rule existed in prose for a release and was being broken on 132 pages the whole time** — see the section below.
+77. **The PSEUDO is the account's name; the synthetic address is NEVER shown.**
+    `<pseudo>@pseudo.mogadorchess.invalid` exists only because Supabase keys
+    users by email. `.invalid` is reserved (RFC 6761), so no mail can ever reach
+    it and no pseudo can collide with a real address. `admin_list_accounts()`
+    NULLs it in SQL rather than asking four surfaces to remember.
+78. **A pseudo is unique and IMMUTABLE once set, and only `register_with_pseudo()`
+    may create one** — the address is derived from it, so a changed pseudo makes
+    **correct credentials fail**. Two triggers hold it, one of them on
+    `auth.users` reserving the namespace against anyone with the anon key.
+    ⚠️ Consequence: the service role cannot mint a pseudo account either.
+79. **The WhatsApp number is the ONLY recovery channel, so it is REQUIRED.** No
+    reset link (there is no inbox) and SMS/OTP stays rejected. Recovery is a
+    person: `admin_reset_password()` — ADMIN only, audited, revokes sessions,
+    and returns the temporary password **once**.
+80. **No password is readable anywhere, and there are NO complexity rules.** Six
+    characters and nothing else: these are minors on shared phones, and a rule
+    that guarantees a forgotten password guarantees a weekly hand reset. The only
+    copies of a temporary password are a bcrypt hash and one screen.
+81. **The magic link is NOT legacy.** It is second on `/connexion/`, inside a
+    `<details>`, and first-class: it is how Seàn and Michael sign in. Removing or
+    "cleaning up" the email path breaks the two accounts that run the club.
 
 ---
 
@@ -667,40 +688,20 @@ beginner tutorial: [`docs/reference/content.md`](./docs/reference/content.md).**
 
 FR at the root, EN under `/en/...`. **Route segments are not translated** (`/en/pieges/`, not `/en/traps/`) — one segment vocabulary means the language switcher is a pure prefix swap that can never fail to find its counterpart. Visible nav labels are translated; URLs are structural.
 
-| Route | EN | Notes |
-|---|---|---|
-| `/` | `/en/` | Home — the **main menu** (E5) above 768px, the **dashboard** below; descriptive content under the fold |
-| `/apprendre/` | `/en/apprendre/` | **Section landing (M4)** — the Apprendre chooser: Les bases, Leçons, Exercices, Pièges. ⚠️ Distinct from `/apprendre-les-bases/` only by the trailing slash |
-| `/moi/` | `/en/moi/` | **Section landing (M4)** — the personal chooser: Ma progression, Mon compte (accounts on only), Réglages |
-| `/club/` | `/en/club/` | **Section landing (M4, second revision)** — the club chooser: Agenda, Contact, À propos. ⚠️ Took the bar slot Réglages held; before it, the club was unreachable on a phone except from home |
-| `/a-propos/` | `/en/a-propos/` | What the club is, who runs it, how to join. ⚠️ **Not one venue string, handle or number in the component** — all of it from `src/config/site.ts`; the segment is NOT translated |
-| `/cours/` | `/en/cours/` | Course index (cards) |
-| `/pieges/` | `/en/pieges/` | Trap index (cards, ECO + theme chips) — **no board mounted here** |
-| `/pieges/[slug]/` | `/en/pieges/[slug]/` | Trap detail — the replayer, commentary, outbound WhatsApp share |
-| `/exercices/` | `/en/exercices/` | Exercise index — **no board mounted here**; solved ticks from `localStorage` |
-| `/exercices/niveau/[niveau]/`<br>`/exercices/theme/[theme]/` | same, `/en/` prefixed | ⚠️ **The exercise filters are ROUTES, not `?niveau=`.** Static output leaves no server to read a query string, and a browser-side filter would leave the chips dead with JS off — a spec runs them with JavaScript disabled. ⚠️ **The values are DERIVED from the content**, so an empty filter page cannot exist and there is no empty state; an unknown value 404s. Segments are **not** translated. See `src/lib/exercise-filters.ts` |
-| `/exercices/[slug]/` | `/en/exercices/[slug]/` | Exercise detail — the interactive board, hint, attempts, outbound WhatsApp share |
-| `/jouer/` | `/en/jouer/` | Play the computer. Engine loaded on a click, never before. |
-| `/agenda/` | `/en/agenda/` | Sessions, **from the `sessions` table, baked at build**. Venue falls back to site config. See the agenda rule below |
-| `/contact/` | `/en/contact/` | WhatsApp CTA, venue, socials |
-| `/mentions-legales/` | `/en/mentions-legales/` | Legal notice + credits. **Footer only, not in the nav.** |
-| `/parametres/` | `/en/parametres/` | Appearance settings. Reachable from the **desktop header** (gear, beside the theme toggle) and the footer. |
-| `/progres/` | `/en/progres/` | Local progress: three group bars, exercises by level and by theme, what is left, and a resume card. Read from `localStorage`, no account. **Rank and points are DERIVED and printed** — the "bientôt" placeholder went with E3, and Critical Feature 30 is the rule that replaced it. Inside the **Moi** section since M4 |
-| `/connexion/` | `/en/connexion/` | **NOT EMITTED by default** — see the account flag below |
-| `/compte/` | `/en/compte/` | **NOT EMITTED by default** — see the account flag below |
-| `/bienvenue/` | `/en/bienvenue/` | **NOT EMITTED by default.** The first-run screen, once per account. ⚠️ The segment is NOT translated |
-| `/auth/callback/` | — | **NOT EMITTED by default.** The only unlocalised route |
-| `/admin/` | — | **NOT EMITTED by default.** Staff dashboard. **FR only** — see Critical Feature 43 |
-| `/admin/eleves/` | — | **NOT EMITTED by default.** The class list — **children, not accounts** |
-| `/admin/eleve/` | — | **NOT EMITTED by default.** One learner, by `?id=` — a query param, not a segment, and forced by the static build |
-| `/admin/seances/` | — | **NOT EMITTED by default.** Sessions + the attendance register |
-| `/admin/comptes/` | — | **NOT EMITTED by default.** Sign-ups + account removal. ⚠️ **ADMIN only**, not prof |
-| `/manifest.webmanifest` | — | Generated from `src/config/site.ts` |
+**➡️ THE ROUTE TABLE — every route with what it is and what is gated — lives in
+[`docs/reference/ui-navigation.md`](./docs/reference/ui-navigation.md).** Read it
+before adding, moving or gating a route. The rules that bind work without going
+looking stay here:
 
-⚠️ **`/auth/callback/` is no longer the only unlocalised route** — the four
-`/admin*` routes are unlocalised too, for a different reason. The callback is
-machinery a reader never navigates to; `/admin*` is French **content** for a
-single-operator audience. Neither is a precedent for a public page.
+- ⚠️ **EVERY ACCOUNT ROUTE IS "NOT EMITTED BY DEFAULT"** — `/connexion/`,
+  `/inscription/`, `/mot-de-passe/`, `/compte/`, `/bienvenue/`, `/auth/callback/`
+  and all five `/admin*`. OFF means NOT BUILT (Critical Feature 18).
+- ⚠️ **`/auth/callback/` IS NOT THE ONLY UNLOCALISED ROUTE** — the four
+  `/admin*` routes are unlocalised too, for a different reason. The callback is
+  machinery a reader never navigates to; `/admin*` is French **content** for a
+  single-operator audience. Neither is a precedent for a public page.
+- ⚠️ **`/apprendre/` AND `/apprendre-les-bases/` DIFFER BY A TRAILING SEGMENT
+  ONLY.** One is a section landing, the other a tutorial.
 
 Each route file is a two-line shell that renders a shared component from `src/components/pages/` with a `locale` prop, so the two locales cannot drift apart structurally.
 
@@ -1083,6 +1084,12 @@ only**; **all** security is RLS. **Guests are first-class forever** — accounts
 sync and teacher oversight, and **gate nothing**. Content **stays in git**. Auth is
 magic-link + Google, **no passwords**; **SMS is rejected**, do not reintroduce it.
 
+⚠️ **"NO PASSWORDS" IS SUPERSEDED FOR THE PSEUDO PATH (v0.18.0), AND ONLY THERE.**
+Most of the club's students have no email address at all, so a pseudo + password
+is now the primary door and the magic link is the second (Critical Features
+71–75). **SMS/OTP is still rejected** — recovery is a WhatsApp message from Seàn,
+by hand. Nothing here weakens the guest rule or the static rule.
+
 - ⚠️ **The guest zero-request rule wins every conflict.** A visitor reading a
   lesson causes **zero** requests to any Supabase origin and does not download the
   client at all. `supabase.ts` is the only file importing it, every caller uses
@@ -1392,9 +1399,44 @@ by a session that never opens it:
   un élève" unreachable for two releases.
 - ⚠️ **TWO LOADS ARE ROUTINELY IN FLIGHT AND CAN LAND OUT OF ORDER** — a
   generation counter drops the older answer, and **any surface that loads twice
-  copies it**. ⚠️ **The honeypot is noise reduction, not security** (56), and
+  copies it**. ⚠️⚠️ **AND THE COUNTER ORDERS LOADS AGAINST EACH OTHER, NEVER
+  AGAINST THE READER.** The answer that wipes what they just did is usually the
+  NEWEST one — issued before they acted, landing after. **A landing answer is
+  MERGED, not applied**: anything the reader did after the read was issued wins,
+  because the read could not have known about it. The register showed `16 sur 26
+  marqués` after twenty taps that were all durable in Postgres. ⚠️ **The honeypot
+  is noise reduction, not security** (56), and
   ⚠️ **`admin_delete_account()` is not a second route to `delete_own_account()`**
   (55).
+
+### ⚠️ THE PSEUDO PATH — `/connexion/`, `/inscription/`, `/mot-de-passe/`
+
+Most of the club's students have no email address, so a pseudo and a password
+are the primary door (Critical Features 77–81). Four rules bind work elsewhere;
+everything else is in the reference.
+
+- ⚠️ **SIGN-UP IS AN RPC, NOT `supabase.auth.signUp()`, AND THAT IS NOT STYLE.**
+  With confirmations ON (the setting the magic link needs) GoTrue mails the
+  synthetic address and refuses the sign-in until somebody answers it. **Nobody
+  can.** ⚠️ **It writes `auth.users` and `auth.identities` directly**, which is
+  Supabase-internal, and `pseudo-auth.spec.ts` exercising the REAL endpoints on
+  every gate is the mitigation — **do not weaken it into a mock.**
+- ⚠️ **`profile.pseudo` IS THE DISCRIMINATOR** — non-null means "this account
+  has a password". No second column, no `auth_kind` enum to drift. **And the
+  placeholder-name test is SUPPRESSED for those accounts**: the local part of
+  the synthetic address IS the name the reader chose (CF53 asks "did anybody
+  type this?", and here somebody did).
+- ⚠️ **`landingAfterSignIn()` IS THE ONE RULE FOR WHERE A READER ARRIVES**,
+  shared by the callback, the pseudo sign-in and registration: forced password
+  change → `/bienvenue/` → `/compte/`. A second copy is how two doors disagree.
+- ⚠️ **`guardian_phone` IS WRITTEN THROUGH `update_own_contact()`, NEVER BY A
+  COLUMN GRANT** — one normaliser decides what a phone number is, or the `wa.me`
+  link works for some rows only.
+
+**➡️ The `.invalid` reasoning, the `auth.users` write, the normaliser, the
+throttle and the reset flow in full:
+[`docs/reference/supabase.md`](./docs/reference/supabase.md).**
+
 ### ⚠️ Symptoms that are the ENVIRONMENT, not the application
 
 Each of these has cost real debugging time. **Recognise the signature before

@@ -174,6 +174,36 @@ are scrubbed out of the address bar, and you are redirected to `/compte/` — or
 `/en/compte/` if your profile's locale is English. A failure shows a message and
 a link back to `/connexion/`, never a blank page.
 
+### 4c. As a student — a pseudo and a password, with no email anywhere (v0.18.0)
+
+This is the path most of the club's students take, and it is the quickest one to
+test: nothing is sent, nothing has to arrive.
+
+1. `/inscription/` → prénom, pseudo, mot de passe (6 characters is enough — there
+   are no complexity rules, deliberately), and a WhatsApp number. `06 12 34 56 78`
+   is fine; Postgres normalises it to `+212612345678`.
+2. You land on `/bienvenue/` exactly as a magic link does, then `/compte/`.
+3. ⚠️ **Check that the address we invented is nowhere on the page.** `/compte/`
+   must show the **pseudo** as the holder; `<pseudo>@pseudo.mogadorchess.invalid`
+   is plumbing and a student must never be handed it.
+
+**Signing back in:** `/connexion/`, pseudo + password, the form at the top.
+
+**Forgetting the password**, which is the interesting half:
+
+1. Sign in as an **admin** (§5) and open `/admin/comptes/`.
+2. Press **Réinitialiser le mot de passe** on the student's row, confirm.
+3. A temporary password appears **once** — nothing stores it, and reloading will
+   not bring it back. In real life Seàn sends it with the prefilled WhatsApp
+   link beside it.
+4. Sign in as the student with it: you land on `/mot-de-passe/` with a banner,
+   and the page **still asks for the current password** (the temporary one). A
+   family phone left signed in is the normal case here, which is why.
+
+⚠️ **A pseudo account cannot be created with the service role**, so there is no
+seed script for one — `register_with_pseudo()` is the only path, guarded by a
+transaction-local GUC that PostgREST cannot set. Use the form.
+
 ---
 
 ## 5. Make yourself a prof (or admin) on the TEST project

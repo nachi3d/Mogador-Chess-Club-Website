@@ -126,6 +126,14 @@ export async function isAdmin(): Promise<boolean> {
 
 export interface AdminAccount {
   readonly accountId: string;
+  /**
+   * The REAL address, or '' for a pseudo account.
+   *
+   * ⚠️ EMPTY BECAUSE THE DATABASE SENT NOTHING, not because this file hid it.
+   * `admin_list_accounts()` NULLs the synthetic `…@pseudo.mogadorchess.invalid`
+   * at the source (migration 0013), so "never shown to a reader" is one rule in
+   * one place rather than a promise four surfaces have to keep.
+   */
   readonly email: string;
   readonly createdAt: string;
   /** Null when the magic link was never opened — the shape a junk sign-up has. */
@@ -135,6 +143,13 @@ export interface AdminAccount {
   readonly role: string | null;
   readonly children: number;
   readonly solved: number;
+  /** Non-null ⇒ this account signs in with a password. The discriminator. */
+  readonly pseudo: string | null;
+  /** The recovery channel, E.164, or null. What the WhatsApp link dials. */
+  readonly whatsapp: string | null;
+  readonly contactEmail: string | null;
+  /** True between a reset and the reader choosing their own password. */
+  readonly mustChangePassword: boolean;
 }
 
 /**
@@ -160,6 +175,76 @@ export async function listAccounts(): Promise<AdminAccount[]> {
     role: row['role'] ? String(row['role']) : null,
     children: Number(row['children'] ?? 0),
     solved: Number(row['solved'] ?? 0),
+    /* ⚠️ ABSENT ON A DATABASE WITHOUT 0015, WHICH READS AS "no pseudo
+       accounts" — true, on such a database. Reads degrade; writes fail loudly.
+       Same posture as `PROFILE_COLUMNS` and `SESSION_COLUMNS`. */
+    pseudo: row['pseudo'] ? String(row['pseudo']) : null,
+    whatsapp: row['whatsapp'] ? String(row['whatsapp']) : null,
+    contactEmail: row['contact_email'] ? String(row['contact_email']) : null,
+    mustChangePassword: row['must_change_password'] === true,
+  }));
+}
+
+/**
+ * Reset a student's password to a temporary one, and hand it back ONCE.
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️ THIS IS THE WHOLE RECOVERY STORY, AND IT IS A PERSON. There is no reset
+ * link (no inbox) and no SMS code (rejected long ago, and it needs a budget and
+ * a provider). Seàn presses this, reads the password out or sends it on
+ * WhatsApp to the number the account gave, and the student replaces it at the
+ * next sign-in.
+ *
+ * ⚠️ THE RETURNED STRING IS THE ONLY COPY THAT EXISTS. Nothing stores it —
+ * `auth.users` holds a bcrypt hash and `password_resets` holds who/when/for
+ * whom and no password at all. A reload does not bring it back; resetting again
+ * costs one tap, which is the honest behaviour rather than a retrievable
+ * credential sitting in a table.
+ *
+ * ⚠️ ADMIN ONLY, and `admin_reset_password()` is what refuses — `isAdmin()`
+ * decides what to DRAW. Same rule as everywhere in this file.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+export async function resetPassword(
+  target: string,
+): Promise<{ ok: true; password: string } | { ok: false; error: string }> {
+  const supabase = await getSupabase();
+  const { data, error } = await supabase.rpc('admin_reset_password', { p_target: target });
+  if (error) return { ok: false, error: error.message };
+  const password = typeof data === 'string' ? data : String(data ?? '');
+  if (!password) return { ok: false, error: 'la réinitialisation n’a rien renvoyé' };
+  return { ok: true, password };
+}
+
+export interface PasswordReset {
+  readonly id: string;
+  readonly resetAt: string;
+  readonly accountId: string;
+  readonly pseudo: string | null;
+  readonly displayName: string | null;
+  readonly resetByName: string | null;
+}
+
+/**
+ * The reset journal — who, when, FOR WHOM.
+ *
+ * ⚠️ IT NAMES THE STUDENT, AND `listDeletions()` ABOVE DOES NOT. That is the
+ * same rule applied honestly rather than an inconsistency: Critical Feature 51
+ * forbids retaining anything about an ERASED account. A reset erases nothing,
+ * and "whose password have we reset three times this term" is exactly the
+ * question this log exists to answer. The rows cascade away with the account.
+ */
+export async function listPasswordResets(): Promise<PasswordReset[]> {
+  const supabase = await getSupabase();
+  const { data, error } = await supabase.rpc('admin_list_password_resets');
+  if (error) return [];
+  return (data ?? []).map((row: Record<string, unknown>) => ({
+    id: String(row['id']),
+    resetAt: String(row['reset_at'] ?? ''),
+    accountId: String(row['account_id'] ?? ''),
+    pseudo: row['pseudo'] ? String(row['pseudo']) : null,
+    displayName: row['display_name'] ? String(row['display_name']) : null,
+    resetByName: row['reset_by_name'] ? String(row['reset_by_name']) : null,
   }));
 }
 

@@ -35,6 +35,23 @@ export function e2eEmail(label: string): string {
 }
 
 /**
+ * A pseudo inside the purge pattern. Unique per call.
+ *
+ * ⚠️ THE `e2e-` PREFIX IS WHAT MAKES THESE ACCOUNTS CLEANABLE. A pseudo account
+ * is keyed by `<pseudo>@pseudo.mogadorchess.invalid`, which cannot carry the
+ * e2e email domain — so `purge.ts` matches on this prefix instead, and nothing
+ * without it is ever touched. Every pseudo a spec uses comes from here.
+ *
+ * ⚠️ AND IT MUST STILL SATISFY `profiles_pseudo_check` (3–20 chars, opening on
+ * a letter or digit), so the label is truncated rather than trusted.
+ */
+export function e2ePseudo(label: string): string {
+  const unique = Math.random().toString(36).slice(2, 8);
+  const short = label.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 6);
+  return `e2e-${short}${unique}`.slice(0, 20);
+}
+
+/**
  * Create a confirmed user directly.
  *
  * ⚠️ THE KNOWN GAP, STATED PLAINLY: this does NOT exercise real email delivery.

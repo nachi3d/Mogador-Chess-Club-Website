@@ -35,7 +35,32 @@ export interface Profile {
   readonly guardian_phone: string | null;
   readonly onboarded_at: string | null;
   readonly account_shape: string | null;
+  readonly pseudo: string | null;
+  readonly contact_email: string | null;
+  readonly must_change_password: boolean;
 }
+
+/**
+ * ⚠️ MIRRORED FROM THE REAL MODULE FOR THE SAME REASON EVERY STUB BELOW IS:
+ * `/connexion/`, `/inscription/` and `/mot-de-passe/` import these by name, and
+ * their scripts are still BUILT in a disabled build even though the routes emit
+ * nothing. A missing export fails the whole build with `[MISSING_EXPORT]`.
+ */
+export type PseudoError =
+  | 'pseudo_invalid'
+  | 'pseudo_taken'
+  | 'password_too_short'
+  | 'name_required'
+  | 'whatsapp_invalid'
+  | 'whatsapp_required'
+  | 'email_invalid'
+  | 'too_many_signups'
+  | 'wrong_password'
+  | 'not_pseudo_account'
+  | 'not_signed_in'
+  | 'bad_credentials'
+  | 'created_not_signed_in'
+  | 'unknown';
 
 /** Always false: there is no configuration in a disabled build, by design. */
 export function isConfigured(): boolean {
@@ -72,6 +97,11 @@ export async function updateProfile(_patch: Partial<Profile>): Promise<Profile |
 
 export async function signOut(): Promise<void> {
   return;
+}
+
+/** Never reached in a disabled build; `/compte/` is the honest default. */
+export async function landingAfterSignIn(): Promise<string> {
+  return '/compte/';
 }
 
 /**
@@ -119,4 +149,43 @@ export async function signInWithGoogle(
   _redirectTo: string,
 ): Promise<{ ok: false; message: string }> {
   return { ok: false, message: 'accounts are disabled in this build' };
+}
+
+/**
+ * ⚠️ THE FOUR PSEUDO STUBS REPORT FAILURE, LIKE `deleteOwnAccount()` AND UNLIKE
+ * the empty-answer ones above. Each of them claims an act happened — an account
+ * created, a password changed, a recovery number stored — and a stubbed success
+ * would tell a reader their account exists when this build has no database at
+ * all. `unknown` is what the pages render as the generic failure.
+ */
+export async function registerWithPseudo(_input: {
+  pseudo: string;
+  password: string;
+  displayName: string;
+  whatsapp: string;
+  email?: string;
+  locale?: string;
+}): Promise<{ ok: false; error: PseudoError }> {
+  return { ok: false, error: 'unknown' };
+}
+
+export async function signInWithPseudo(
+  _pseudo: string,
+  _password: string,
+): Promise<{ ok: false; error: PseudoError }> {
+  return { ok: false, error: 'unknown' };
+}
+
+export async function changeOwnPassword(
+  _current: string,
+  _next: string,
+): Promise<{ ok: false; error: PseudoError }> {
+  return { ok: false, error: 'unknown' };
+}
+
+export async function updateOwnContact(
+  _whatsapp: string,
+  _email: string,
+): Promise<{ ok: false; error: PseudoError }> {
+  return { ok: false, error: 'unknown' };
 }

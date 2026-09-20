@@ -423,17 +423,47 @@ test.describe('v2-S4 — a student cannot cross a role boundary', () => {
    */
   test('the award bounds hold with the form nowhere in the picture', async () => {
     const c = await clientFor(prof);
-    for (const points of [0, -10, 51, 1000]) {
+
+    /* ⚠️ POSITIVE ONLY, AND THAT HALF IS NOT NEGOTIABLE (0004, kept by 0014):
+       this site records losses and charges nothing for them (CF35), and a prof
+       who could award a NEGATIVE number would turn the ledger into a
+       disciplinary instrument — a different product from this one. */
+    for (const points of [0, -10]) {
       const { error } = await c
         .from('point_awards')
         .insert([{ child_id: studentChild, points, reason: 'contournement', awarded_by: prof.id }]);
       expect(error, `${points} points were accepted`).not.toBeNull();
     }
+
+    /* ⚠️ AND THE CEILING IS GONE SINCE 0014 — THIS ASSERTS THE NEW DECISION
+       RATHER THAN THE OLD ONE. 0004 capped a single award at 50; 0014 removed
+       it because the size of an award is a teaching judgement about a
+       particular student on a particular day, and the answer to a slipped
+       keystroke is that every row is ATTRIBUTED and carries a required reason.
+       A prof who awards 5,000 points has signed their name to it.
+
+       ⚠️ THIS TEST DEMANDED THE CAP UNTIL v0.30.0 AND STILL PASSED, because
+       the TEST project had never had 0014 applied — the code, the migration and
+       `validateAward()` had all moved on and the only thing still asking for a
+       ceiling was the spec that claims to prove what the database does. A gate
+       run against a stale schema proves the schema it ran against. */
+    const { error: large } = await c
+      .from('point_awards')
+      .insert([{ child_id: studentChild, points: 1000, reason: 'un tournoi gagné', awarded_by: prof.id }]);
+    expect(large, `a large award was refused: ${large?.message}`).toBeNull();
+
     const { data } = await adminClient()
       .from('point_awards')
-      .select('id')
+      .select('id,points,awarded_by,reason')
       .eq('child_id', studentChild);
-    expect(data?.length ?? 0, 'an out-of-range award was stored').toBe(0);
+    expect(data?.length ?? 0, 'the refused awards were stored after all').toBe(1);
+    expect(Number(data![0]!['points'])).toBe(1000);
+    /* The two things that replaced the cap: a name and a reason. */
+    expect(String(data![0]!['awarded_by'])).toBe(prof.id);
+    expect(String(data![0]!['reason'])).not.toBe('');
+
+    /* Leave the shared student as the other tests expect to find them. */
+    await adminClient().from('point_awards').delete().eq('child_id', studentChild);
   });
 
   /**
@@ -610,5 +640,159 @@ test.describe('v2-S4 — a student cannot cross a role boundary', () => {
     /* And the deletion really happened — the audit must not be the only effect. */
     const { data: users } = await adminClient().auth.admin.listUsers();
     expect(users.users.some((u) => u.id === other.id), 'the account survived').toBe(false);
+  });
+
+  /* ══ 0015 — the pseudo path's boundaries ═════════════════════════
+     ⚠️ THESE BELONG HERE AND NOT IN `pseudo-auth.spec.ts`, which drives the
+     forms. "Who may reset whose password" is a claim about RLS and function
+     grants, so it is asserted through PostgREST with each person's own token —
+     the same rule that keeps every other boundary out of `admin.spec.ts`. */
+
+  /**
+   * A real pseudo account, created the only way one can be created.
+   *
+   * ⚠️ THE SERVICE ROLE CANNOT MINT ONE, AND THAT IS THE DESIGN RATHER THAN AN
+   * INCONVENIENCE. `register_with_pseudo()` sets a transaction-local GUC that
+   * both guard triggers look for, so a direct `update profiles set pseudo` is
+   * refused even for the owner — which is what keeps `profiles.pseudo` and
+   * `auth.users.email` from ever naming different things. So the spec registers
+   * through the anon client, exactly as the form does.
+   */
+  async function registerPseudoStudent(tag: string) {
+    const { createClient } = await import('@supabase/supabase-js');
+    const { loadE2EEnv } = await import('./env');
+    const { e2ePseudo } = await import('./helpers/supabase-admin');
+    const env = loadE2EEnv();
+    const anon = createClient(env!.supabaseUrl, env!.anonKey, {
+      auth: { persistSession: false },
+    });
+    const pseudo = e2ePseudo(tag);
+    const password = `mcc-${tag}-2468`;
+    const { data, error } = await anon.rpc('register_with_pseudo', {
+      p_pseudo: pseudo,
+      p_password: password,
+      p_display_name: 'Élève test',
+      p_whatsapp: '0612345678',
+      p_email: null,
+      p_locale: 'fr',
+    });
+    expect(error, `register_with_pseudo failed: ${error?.message}`).toBeNull();
+    const email = String(data);
+
+    const { data: row } = await adminClient()
+      .from('profiles')
+      .select('id')
+      .eq('pseudo', pseudo)
+      .single();
+    const id = String(row!['id']);
+    created.push(id);
+    return { id, email, pseudo, password };
+  }
+
+  test('a student cannot reset a password — their own or anybody else’s', async () => {
+    const target = await registerPseudoStudent('target');
+
+    /* ⚠️ THEIR OWN IS THE INTERESTING CASE. "Reset mine" sounds harmless and is
+       not: the function hands the caller a working credential and clears the
+       forced-change flag's whole purpose. Admin only, with no self-service
+       exception. */
+    const own = await clientFor({ email: target.email, password: target.password });
+    const { error: mine } = await own.rpc('admin_reset_password', { p_target: target.id });
+    expect(mine, 'a student reset their own password').not.toBeNull();
+
+    const c = await clientFor(student);
+    const { error: theirs } = await c.rpc('admin_reset_password', { p_target: target.id });
+    expect(theirs, 'a student reset somebody else’s password').not.toBeNull();
+
+    /* And a prof is refused too: marking a register is not the same class of
+       act as handing out a credential. Same narrower gate as /admin/comptes/. */
+    const p = await clientFor(prof);
+    const { error: byProf } = await p.rpc('admin_reset_password', { p_target: target.id });
+    expect(byProf, 'a prof reset a student’s password').not.toBeNull();
+
+    /* ⚠️ AND NOTHING HAPPENED. A refusal that still rotated the password would
+       be a denial of service wearing an error message. */
+    const still = await clientFor({ email: target.email, password: target.password });
+    const { data: who } = await still.auth.getUser();
+    expect(who.user?.id, 'the refused reset changed the password anyway').toBe(target.id);
+  });
+
+  test('a student cannot give themselves a pseudo, nor clear a forced change', async () => {
+    const c = await clientFor(student);
+
+    /* ⚠️ THE COLUMN GRANT IS THE MECHANISM, exactly as it is for `role`: RLS
+       operates on ROWS and would happily allow this, because the row is theirs.
+       A pseudo set here would not exist in `auth.users`, so the account would
+       be signed in as a name that opens nothing. */
+    const { error: byTable } = await c
+      .from('profiles')
+      .update({ pseudo: 'pirate' })
+      .eq('id', student.id);
+    expect(byTable?.code, 'a student wrote their own pseudo').toBe('42501');
+
+    /* ⚠️ AND THE FLAG IS NOT THEIRS EITHER. Clearing it while keeping the
+       temporary password Seàn read out over WhatsApp is precisely the state the
+       flag exists to end. */
+    const { error: flag } = await c
+      .from('profiles')
+      .update({ must_change_password: false })
+      .eq('id', student.id);
+    expect(flag?.code, 'a student cleared their own forced-change flag').toBe('42501');
+  });
+
+  test('the reset journal is admin-only, shows a student only their own, and holds no password', async () => {
+    const target = await registerPseudoStudent('journal');
+    const admin = await clientFor(superadmin);
+
+    const { data: temporary, error } = await admin.rpc('admin_reset_password', {
+      p_target: target.id,
+    });
+    expect(error, `the admin reset failed: ${error?.message}`).toBeNull();
+    expect(typeof temporary, 'no temporary password came back').toBe('string');
+
+    const { data: rows } = await admin.rpc('admin_list_password_resets');
+    const row = (rows ?? []).find(
+      (r: Record<string, unknown>) => String(r['account_id']) === target.id,
+    );
+    expect(row, 'no audit row was written').toBeTruthy();
+    expect(String(row!['pseudo'] ?? ''), 'the journal does not name the student').toBe(
+      target.pseudo,
+    );
+    expect(String(row!['reset_by_name'] ?? ''), 'the acting admin is not recorded').not.toBe('');
+
+    /* ⚠️ THE PASSWORD IS NOWHERE IN THE ROW, and the assertion is on the whole
+       serialised row rather than on a column list: a future column that
+       happened to carry it would pass a `keys` check. */
+    expect(JSON.stringify(row), 'the audit carries the temporary password').not.toContain(
+      String(temporary),
+    );
+
+    /* ⚠️ A PROF IS REFUSED THE JOURNAL ENTIRELY. Who forgot a password is a
+       fact about a family, not about the class. */
+    const p = await clientFor(prof);
+    const { error: profError } = await p.rpc('admin_list_password_resets');
+    expect(profError, 'a prof read the reset journal').not.toBeNull();
+
+    /* ⚠️ A STUDENT SEES THEIR OWN, AND ONLY THEIR OWN. Hiding it entirely would
+       make a surprise sign-in failure unexplainable to the one person it
+       happened to; showing somebody else's is a fact about another family. */
+    const c = await clientFor({ email: target.email, password: String(temporary) });
+    const { data: own } = await c.from('password_resets').select('account_id');
+    expect((own ?? []).length, 'the student cannot see their own reset').toBeGreaterThan(0);
+    expect(
+      (own ?? []).every((r: Record<string, unknown>) => String(r['account_id']) === target.id),
+      'a student read somebody else’s reset',
+    ).toBe(true);
+
+    /* The reset really happened: the old password no longer opens the account. */
+    const { createClient } = await import('@supabase/supabase-js');
+    const { loadE2EEnv } = await import('./env');
+    const env = loadE2EEnv();
+    const stale = createClient(env!.supabaseUrl, env!.anonKey, { auth: { persistSession: false } });
+    const { error: oldPassword } = await stale.auth.signInWithPassword({
+      email: target.email,
+      password: target.password,
+    });
+    expect(oldPassword, 'the old password still works after a reset').not.toBeNull();
   });
 });

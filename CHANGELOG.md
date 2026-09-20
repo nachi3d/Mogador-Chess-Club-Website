@@ -11,6 +11,250 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+## [0.30.0] — 2026-09-20
+
+### Added
+
+- **Signing in with a PSEUDO and a PASSWORD — the primary path, with the magic
+  link kept beside it (migration 0015).** The club teaches teenagers in
+  Essaouira: many have no active email address, and a Supabase-branded
+  "Confirm your signup" reads as spam to a parent. A sign-in page whose only
+  control asks for an inbox locks out the people the site is for.
+  - **`/inscription/`** — prénom, pseudo, mot de passe, **numéro WhatsApp**, and
+    an optional real email that is contact only. FR + EN.
+  - **`/connexion/`** — the pseudo form first and full width; the magic link
+    second, in a `<details>`. ⚠️ **The email path is not legacy and must not be
+    removed**: it is how Seàn and Michael sign in, and it is the path that works
+    for anyone with a real inbox.
+  - **`/mot-de-passe/`** — one page for both a forced change (after a reset) and
+    a voluntary one. The current password is required and verified in Postgres
+    **in both cases**: a family phone left signed in is the normal case here, and
+    without that check the screen is a "take this account" button for whoever
+    picks the phone up next.
+  - **`/admin/comptes/` gains a reset control**, admin-only: it generates a
+    temporary password, shows it **once**, offers a prefilled outbound WhatsApp
+    message to the number on the account, revokes that account's sessions and
+    writes an audit row. Plus a **Réinitialisations** journal.
+  - **`/compte/`** names a pseudo account by its **pseudo**, hides the address
+    row entirely, and gains an editable recovery channel (WhatsApp + optional
+    email) and a link to the password page.
+
+- **The synthetic address: `<pseudo>@pseudo.mogadorchess.invalid`.** Supabase
+  Auth has no username identity, so a pseudo has to become an email address.
+  `.invalid` is **reserved by RFC 6761** and is guaranteed never to resolve, so
+  three properties come for free: no message can ever be delivered or bounce,
+  nobody can own a mailbox there so a pseudo can never collide with a real
+  person's address, and it is obviously synthetic on sight. ⚠️ **It is never
+  shown to a reader** — `admin_list_accounts()` NULLs it in SQL rather than
+  asking four surfaces to remember.
+
+- **`password_resets`** — who reset, when, **for whom**. ⚠️ It names the student
+  where `account_deletions` (0009) deliberately names nobody, and that is the
+  same rule applied honestly rather than an inconsistency: Critical Feature 51
+  forbids retaining anything about an **erased** account, and a reset erases
+  nothing. The rows cascade away with the account. **No password is in it**, and
+  a spec asserts that against the whole serialised row rather than a column list.
+
+### Changed
+
+- **`landingAfterSignIn()` in `@lib/supabase` is now the ONE rule for where a
+  reader arrives**, shared by the magic-link callback, the pseudo sign-in and
+  registration: a forced password change first, then the once-per-account
+  welcome screen, then `/compte/`. Three doors into the same house must not
+  disagree about which room you land in.
+- **`profiles` gains `pseudo`, `contact_email`, `must_change_password`** —
+  ⚠️ none of them client-writable. The column grant list stays exactly
+  `display_name, locale, onboarded_at, account_shape`, which is what actually
+  stops a client writing `role` (RLS operates on ROWS and would allow it).
+  `pseudo` is additionally **immutable once set**, by trigger: the synthetic
+  address is derived from it, so a changed pseudo would leave the account
+  unopenable with correct credentials.
+- **The e2e purge learned about pseudo accounts.** Their address cannot carry
+  the e2e email domain, so `e2ePseudo()` prefixes every test pseudo with `e2e-`
+  and the purge matches on that — nothing else in the reserved domain is touched.
+
+### Why sign-up is a database function and not `supabase.auth.signUp()`
+
+The obvious implementation does not work and must not be attempted. With email
+confirmations ON — the project's setting, and the one the magic link needs —
+GoTrue sends a confirmation to the synthetic address and refuses the sign-in
+until it is answered. **Nobody can answer it; the account is born locked.**
+Turning confirmations off would apply to the whole project, including real
+addresses, and would let anyone sign up as somebody else's email and hold it.
+
+So `register_with_pseudo()` mints the account in one transaction, already
+confirmed, with no mail entering the picture. ⚠️ **The cost is that 0015 writes
+`auth.users` and `auth.identities` directly, which is Supabase-internal.** That
+risk is accepted with its mitigation stated rather than hidden:
+`pseudo-auth.spec.ts` registers and signs in through the **real** endpoints on
+every gate, so a GoTrue schema change surfaces as a red test rather than as a
+Saturday at Dar Souiri.
+
+### Verified live, on the test project (2026-09-20)
+
+- **The whole mechanism was exercised end to end over HTTP with the anon key**,
+  not only in SQL: `register_with_pseudo()` from `anon`, then GoTrue's password
+  grant issuing a real token for the synthetic address. That was the one
+  genuinely unknown part of the design — Supabase has no username identity and
+  the account is minted by writing `auth.users`/`auth.identities` directly.
+- **The RLS audit was run against the CATALOG, not the migration file.**
+  `authenticated` may still write exactly four columns of `profiles`
+  (`account_shape, display_name, locale, onboarded_at` — never `role`, never
+  `pseudo`, never `must_change_password`, never `guardian_phone`); `anon` still
+  holds exactly one table grant in the whole schema (`sessions` / SELECT);
+  `password_resets` has RLS on, two SELECT policies and `service_role` DML;
+  `register_with_pseudo` is the ONLY one of the new functions `anon` may
+  execute. The namespace guard refuses `signInWithOtp` for a synthetic address
+  **over HTTP**, with the anon key, exactly as a scraper would try it.
+- ⚠️ **The audit found a defect in the SPEC before the suite did:**
+  `admin_reset_password()` is granted to `authenticated` and gated on
+  `is_admin_direct()`, which reads `auth.uid()` — the service role has neither,
+  so a spec resetting with the admin key was asserting against a path no
+  administrator can take. It now signs in as a real admin.
+- **The before/after point proof** (brief item 4): an account with two solved
+  exercises, three games and a teacher award computed **23 points, rank
+  cavalier** — identical before and after 0015, with every row count and the
+  `child_profiles.account_id` link unchanged. Taken by removing 0015's objects
+  from the test database, snapshotting, re-applying the migration file and
+  snapshotting again; the totals come from the real `computeLedger()` over the
+  catalogue the built `/progres/` page embeds, not a second summation.
+
+### Changed — numbering
+
+- ⚠️ **This migration was written as 0013 and is 0015.** Session booking (0013)
+  and the award cap (0014) reached `main` while it was being built on a stale
+  `dev`. `supabase_migrations.schema_migrations` keys on the NUMBER, so two
+  files claiming 0013 is how a push silently skips one. Nothing overlaps:
+  booking touches neither `profiles` nor `admin_list_accounts()`.
+- ⚠️ **Critical Features 71–76 belong to booking and the island-controls rule**,
+  so the pseudo path's are **77–81**. Renumbering the released ones would break
+  every reference already written against them.
+
+### Fixed — two upstream time bombs the stale test project was hiding
+
+- **`role-separation.spec.ts` still demanded the 50-point award ceiling that
+  0014 removed.** The code, the migration and `validateAward()` had all moved
+  on; the only thing still asking for a cap was the spec that claims to prove
+  what the database does. It passed because the TEST project had never had 0014
+  applied — a gate run against a stale schema proves the schema it ran against.
+- **`agenda.spec.ts` pinned the literal date `2026-09-12`** for the migrated
+  fixture, and `fetch-agenda.mjs` bakes only sessions from yesterday onward, so
+  it was certain to fail from 2026-09-13. The expected date now comes from the
+  baked snapshot; the timezone assertion that gives the test its teeth (16:00 in
+  the CLUB's zone) is untouched.
+- **The Google describe in `auth.spec.ts` never declared that it needs accounts
+  ON**, so in an accounts-OFF build its two tests ran against a 404: one passed
+  vacuously and the other timed out.
+
+### Fixed — the two the gate found, one of them in the register
+
+- ⚠️⚠️ **THE REGISTER'S COUNT COULD BE WRONG WHILE EVERY MARK WAS SAFE.** A
+  register load carries the database as it was when the read was ISSUED, so a
+  read in flight while the prof is already marking knows nothing about those
+  taps — and `renderMarkList()` begins by clearing what is on screen. The boot
+  handler issues exactly such a read: the prof picks a session the moment the
+  picker fills, starts marking, and a few hundred milliseconds later the page
+  repaints **their first few taps away**.
+  - Measured at this gate: twenty taps, **all twenty durable in Postgres**, and
+    the summary reading `16 sur 26 marqués` with the first four rows blank.
+    Three retries, three different counts — 16, 19, 17 — because it depends on
+    where in the pass the stale answer lands.
+  - ⚠️ **The generation counter written for this exact defect could not catch
+    it**, and that is the general lesson: it orders loads **against each
+    other**, and the load that wipes the register is the NEWEST one. A landing
+    answer is now **merged** — anything tapped after the read was issued wins,
+    because the read could not have known about it.
+  - ⚠️ **What it costs in a room**: a prof re-marking children who are already
+    marked, or believing four are missing and hunting for them. The data was
+    never wrong; the prof's own count was, and that count is the thing that
+    stops them losing their place.
+  - A failed mark now survives a repaint too — it keeps its note rather than
+    quietly turning into a row that looks saved.
+  - ⚠️ **It was found by ACCIDENT and now has a deterministic spec**, because a
+    defect caught by a flake is a defect that comes back. `attendance-timing`
+    forces the race: it holds every register read, taps while one is in flight,
+    and fails if the landing answer unpresses anything.
+    ⚠️⚠️ **THE RESPONSE IS HELD, NOT THE REQUEST**, and the first version got
+    that backwards — sleeping before `route.continue()` asks Postgres *after*
+    the taps, so it answers *with* them and the broken page passes. **Watched
+    to fail against the unfixed page** (`a register read landing mid-pass
+    unpressed a mark the prof had made`), then watched to pass with the fix.
+
+- **The e2e session purge was eating rows a concurrent job was still using.**
+  It deletes every `sessions` row with no title and no notes, is global by
+  design and is **not** scoped by the per-job email domain — so one runner's
+  cleanup removed the session `account-deletion.spec.ts` had just seeded, the
+  attendance row went with it by cascade, and the spec failed on
+  `attendance: 0` with a message saying nothing had been seeded. Deterministic
+  across three retries, with no product code involved.
+  - A leak is now a bare row **older than an hour**: one created ninety seconds
+    ago is another runner mid-test, not an abandoned row. Nothing accumulates —
+    a genuine leak is hours old by the next run and is deleted then, which is
+    the failure mode the purge was written for at v0.16.0 (318 rows, a blown
+    axe timeout, two sessions spent blaming Firefox).
+
+### Decisions that will look like omissions
+
+- ⚠️ **No complexity requirements on the password. Six characters, nothing
+  else.** These are minors on shared phones: a rule that guarantees a forgotten
+  password guarantees a WhatsApp message and a hand reset every week. A short
+  password a student remembers beats a strong one Seàn resets weekly, and the
+  threat model is a club roster — no money, no personal data beyond a first name.
+- ⚠️ **A number starting `0` is Moroccan only at Moroccan length**, and
+  anything else starting `0` is refused rather than bent to +212: a UK number
+  rewritten that way passes every shape check and reaches nobody, which on the
+  sole recovery channel is worse than a refusal the reader can see.
+- ⚠️ **The WhatsApp number is REQUIRED, and it is the whole recovery story.**
+  There is no inbox, so there is no reset link; SMS OTP stays rejected. An
+  account with no number is an account nobody can ever help, and the student
+  discovers that three weeks later at the worst possible moment.
+- ⚠️ **No self-service reset.** Recovery is a person: Seàn generates, reads out
+  or sends on WhatsApp, the student replaces it at the next sign-in.
+- ⚠️ **The sign-in form says the same thing for a wrong password and an unknown
+  pseudo.** Distinguishing them answers "does this child have an account here?"
+  for anyone who asks, from a public page.
+- ⚠️ **The synthetic namespace is reserved at the `auth.users` door** by a
+  BEFORE INSERT trigger. Without it anyone holding the published anon key could
+  request a magic link for `yassine@pseudo.mogadorchess.invalid`, and GoTrue
+  would create that user — permanently taking the pseudo for an account nobody
+  can sign into. A free, scriptable denial of service on the club's own names.
+- ⚠️ **The sign-up throttle is GLOBAL (40/hour) and that weakness is accepted.**
+  GoTrue's per-IP sign-up limit does not apply to a function call. A global cap
+  means somebody determined can also deny sign-ups for an hour — an annoyance
+  Seàn can see in `/admin/comptes/` and wait out, where an unbounded table is not.
+
+### Added
+
+- **`docs/SETUP-NEW-MACHINE.md` — bringing the project up on a fresh Windows
+  machine, in order, with a verification after each step.** Written because the
+  project is moving to another PC and four things live on this machine and not
+  in the repository: the toolchain, `node_modules/`, the Playwright browsers,
+  and the two gitignored env files — of which **only the env files cannot be
+  regenerated**.
+  - It records **which secrets come from where**: the `PUBLIC_*` pair from the
+    Supabase dashboards, the Cloudflare **build variables** from the Cloudflare
+    dashboard (where `PUBLIC_AUTH_ENABLED=true` lives, and nothing in this
+    repository says so), and the **deploy hook URL from Supabase Vault only** —
+    never a table, never `.env`, never a migration, because this repository is
+    public (Critical Feature 68).
+  - ⚠️ **It names three variables in the old `.env.local` that MUST NOT be
+    copied**: `SUPABASE_SERVICE_ROLE`, `SUPABASE_PASSWORD` and `WEBHOOK_URL`.
+    **Nothing in the repository reads any of them** — the suite and `db:push`
+    take the `TEST_`-prefixed pair out of `.env.test`, and the deploy hook lives
+    in the vault. Two of the three are production credentials and the first
+    **bypasses RLS entirely**; `.env.example` says in its own header that the
+    service role key "is NOT here and must never be", so the file on this
+    machine contradicts its own template. They are fetched from the dashboard
+    when a hand-run task needs them and deleted after.
+  - ⚠️ **A credential nothing depends on is the hard one to notice**, because
+    nothing ever fails to remind you it is there.
+  - Also records what is **per-machine rather than copied** (SSH key, browsers,
+    `node_modules/`, `wrangler` login, the non-default
+    `PLAYWRIGHT_BROWSERS_PATH` — which is a preference, not a requirement, since
+    `scripts/demo.mjs` already reads it first and falls back), and that the
+    committed generated assets (icons, fonts, `fonts.css`, piece sets, the
+    vendored engine, `agenda.fallback.json`) are **checked, never regenerated**.
+
 ## [0.29.0] — 2026-09-01
 
 ### Changed
@@ -7480,7 +7724,8 @@ Foundation only: no real content, no interactive board yet.
   `url()` references unresolved and the fonts silently 404 into a Georgia
   fallback. `scripts/build-fonts.mjs` self-hosts them instead. See CLAUDE.md.
 
-[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.29.0...HEAD
+[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.30.0...HEAD
+[0.30.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.29.0...v0.30.0
 [0.29.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.28.0...v0.29.0
 [0.28.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.27.0...v0.28.0
 [0.27.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.26.0...v0.27.0

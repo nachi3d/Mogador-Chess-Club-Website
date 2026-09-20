@@ -1863,6 +1863,76 @@ other.**
 isolated and the job was declared done. Sessions, and anything else added later
 without an owner, were not.
 
+### ⚠️ AND IT CAME BACK IN A THIRD MASK — `attendance: 0` (v0.30.0)
+
+`bookablePanel()` taught `booking-ui.spec.ts` not to touch a row that looks
+transient. It did nothing for the **other** side of the collision: the job whose
+row is eaten.
+
+`account-deletion.spec.ts` seeds a row in every learner table and asserts they
+exist *before* deleting the account — the guard against the vacuous pass, where
+"nothing survived" is trivially true of an account that never had anything. Its
+attendance row needs a session, and the session it creates is **bare**: no
+title, no notes. Another runner's `purgeLeakedSessions()` deletes it, the
+attendance row follows by cascade, and the spec fails on
+
+    - "attendance": 1
+    + "attendance": 0
+    Error: nothing was seeded — this test would pass on an empty account
+
+⚠️ **THE MESSAGE POINTS AT THE SEED AND THE CAUSE IS ANOTHER JOB.** It failed
+three times out of three, which is the profile of a real defect rather than
+contention — because the deleting job kept running beside it the whole time.
+Determinism proves the cause is not *scheduling noise*; it does not prove the
+cause is in this repository's product code.
+
+**The fix is an AGE GUARD in the purge**, not another refusal in another spec: a
+bare row younger than an hour is a runner mid-test, not an abandoned one. It
+only **narrows** what is deleted, so `bookablePanel()` stays correct unchanged,
+and nothing accumulates — a genuine leak is hours old by the next run.
+
+⚠️ **THE SHAPE OF THE RULE: a global cleanup needs a predicate for "nobody is
+coming back for this", and "it looks like the rows tests make" is not that
+predicate.** Age is.
+
+### ⚠️⚠️ FORCING A LATE ANSWER: HOLD THE RESPONSE, NEVER THE REQUEST
+
+**Read when:** writing a spec for anything that loads twice — the generation
+counter, the register merge, `FamilySection`.
+
+`attendance-timing.spec.ts` proves that a register read issued before the prof's
+taps cannot wipe them when it lands. The whole test turns on one line, and the
+obvious way to write it is wrong:
+
+```ts
+/* WRONG — this passes against the BROKEN page. */
+await page.route('**/rest/v1/attendance*', async (route) => {
+  await sleep(2500);
+  return route.continue();          // the request is held back
+});
+```
+
+Sleeping before `continue()` delays the **request**, so Postgres is asked *after*
+the taps and answers *with* them. The repaint then paints the right thing and
+nothing is proved. The defect is a read that reached the database **before** the
+reader acted and came back after, so:
+
+```ts
+const response = await route.fetch();  // ask now, with the old state
+await sleep(2500);
+return route.fulfill({ response });    // answer late
+```
+
+⚠️ **AND THE TAPS MUST WAIT FOR THAT READ TO HAVE LEFT.** The spec counts the
+intercepted reads and polls until the counter moves before tapping; otherwise
+the first tap can land first and the answer legitimately contains it — the same
+false pass in a different disguise.
+
+⚠️ **BOTH HALVES WERE WATCHED TO FAIL.** The first version passed against the
+unfixed page, which is the only reason the flaw was visible at all. **A fixture
+that has not been watched failing proves nothing**, and here it would have
+shipped a green test over a live defect.
+
 ---
 
 ## ⚠️ THE AUTH RATE LIMIT IS PER PROJECT, NOT PER DOMAIN
