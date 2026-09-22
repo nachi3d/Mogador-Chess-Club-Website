@@ -1,0 +1,111 @@
+---
+/**
+ * /boutique/<slug>/ — one item and its purchase paths (0016).
+ *
+ * ⚠️ THE PRICES PRINTED HERE ARE THE GIT CATALOGUE'S; WHAT IS CHARGED IS THE
+ * PUBLISHED COPY IN `shop_items`. A signed-in member's controls are painted
+ * from the live row, so an unpublished or out-of-stock item says so rather
+ * than offering a button the database will refuse.
+ *
+ * ⚠️ THE CARD PATH IS A PLAIN LINK OUT, SHOWN TO EVERYBODY. It spends no jeton
+ * and needs no account, and there is no payment code on this site, ever.
+ *
+ * ⚠️ NO `preconnect` TO nachi3dlabs.com. The link is followed on a click, and
+ * a page that handshakes with another origin before one breaks Critical
+ * Feature 9 exactly as a YouTube preconnect would.
+ */
+import type { Locale } from '@config/site';
+import { useTranslations } from '@i18n/ui';
+import { localizePath } from '@i18n/paths';
+import BaseLayout from '@layouts/BaseLayout.astro';
+import PageIntro from '@components/PageIntro.astro';
+import Trail from '@components/nav/Trail.astro';
+import ShopMember from '@components/shop/ShopMember.astro';
+import { itemDescription, itemName, type ShopItem } from '@lib/boutique';
+import { discountCap } from '@lib/shop';
+import { AUTH_ENABLED } from '@config/auth';
+import '@styles/shop.css';
+
+interface Props {
+  locale: Locale;
+  item: ShopItem;
+}
+
+const { locale, item } = Astro.props;
+const t = useTranslations(locale);
+const name = itemName(item, locale);
+const n = (key: 'shop.price.jetons' | 'shop.price.mad', value: number) =>
+  t(key).replace('{n}', String(value));
+---
+
+<BaseLayout locale={locale} title={name} description={itemDescription(item, locale)}>
+  <div class="shop mcc-column" data-testid="shop-item" data-shop-item={item.slug}>
+    <Trail locale={locale} href={localizePath('/boutique/', locale)} label={t('shop.title')} />
+    <PageIntro title={name} intro={itemDescription(item, locale)} />
+
+    {item.image && (
+      <img class="shop-item-image" src={item.image} alt="" width="640" height="480" />
+    )}
+
+    {AUTH_ENABLED && <ShopMember locale={locale} />}
+
+    <section class="mcc-card shop-paths" aria-labelledby="shop-item-paths">
+      <h2 id="shop-item-paths" class="shop-section-title">{t('shop.item.paths')}</h2>
+      <ul class="shop-path-list">
+        {item.paths.includes('jetons') && item.priceJetons !== undefined && (
+          <li class="shop-path" data-path="jetons">
+            <h3 class="shop-path-name">{t('shop.path.jetons.name')}</h3>
+            <p class="shop-path-price">{n('shop.price.jetons', item.priceJetons)}</p>
+            <p>{t('shop.path.jetons.body')}</p>
+            {AUTH_ENABLED && (
+              <div
+                class="shop-action"
+                data-shop-action="jetons"
+                data-price-jetons={item.priceJetons}
+                data-testid="shop-action-jetons"
+              />
+            )}
+          </li>
+        )}
+        {item.paths.includes('whatsapp') && item.priceMad !== undefined && (
+          <li class="shop-path" data-path="whatsapp">
+            <h3 class="shop-path-name">{t('shop.path.whatsapp.name')}</h3>
+            <p class="shop-path-price">
+              {n('shop.price.mad', item.priceMad)}
+              {' · '}
+              {t('shop.whatsapp.discount').replace('{n}', String(discountCap(item.priceMad)))}
+            </p>
+            <p>{t('shop.path.whatsapp.body')}</p>
+            {AUTH_ENABLED && (
+              <div
+                class="shop-action"
+                data-shop-action="whatsapp"
+                data-price-mad={item.priceMad}
+                data-testid="shop-action-whatsapp"
+              />
+            )}
+          </li>
+        )}
+        {item.paths.includes('carte') && item.cardUrl && item.priceMad !== undefined && (
+          <li class="shop-path" data-path="carte">
+            <h3 class="shop-path-name">{t('shop.path.card.name')}</h3>
+            <p class="shop-path-price">{n('shop.price.mad', item.priceMad)}</p>
+            <p>{t('shop.path.card.body')}</p>
+            <p>
+              <a class="btn-ghost" href={item.cardUrl} rel="noopener" target="_blank" data-testid="shop-card-link">
+                {t('shop.card.buy')}
+              </a>
+            </p>
+            <p class="shop-note">{t('shop.card.note')}</p>
+          </li>
+        )}
+      </ul>
+      <p class="shop-note">{t('shop.jetons.what')}</p>
+    </section>
+
+    {/* ⚠️ A WAY ONWARD (Critical Feature 31), from the same key as the trail. */}
+    <p class="shop-onward">
+      <a href={localizePath('/boutique/', locale)}>‹ {t('shop.title')}</a>
+    </p>
+  </div>
+</BaseLayout>

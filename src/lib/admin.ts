@@ -816,3 +816,173 @@ export async function awardPoints(
     .insert([{ child_id: childId, points, reason: reason.trim(), awarded_by: awardedBy }]);
   return error ? { ok: false, error: error.message } : { ok: true };
 }
+
+/* ── jetons (0016) ─────────────────────────────────────────────────────────
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️ A PROF'S AWARD IS A JETON NOW, NOT A POINT. The table is still
+ * `point_awards` and `awardPoints()` above still writes it — one row per tap,
+ * with a reason the student sees — but what it adds up to is spent at the shop
+ * and is no longer part of the rank. This is the ONLY way a student earns
+ * spending power, which is why `/admin/jetons/` exists: it has to take seconds
+ * per student, on a phone, in the room.
+ *
+ * ⚠️ THE BALANCE IS `jeton_balances()`, THE ONE SUMMATION — the same function
+ * the child's own `/boutique/` calls. Never a sum done here.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+
+export interface AdminJetonBalance {
+  readonly childId: string;
+  readonly earned: number;
+  readonly spent: number;
+  readonly balance: number;
+}
+
+/** Every child's jetons. Null when the database could not be asked — never zeros. */
+export async function listJetonBalances(): Promise<Map<string, AdminJetonBalance> | null> {
+  const supabase = await getSupabase();
+  const { data, error } = await supabase.rpc('jeton_balances');
+  if (error) return null;
+  return new Map(
+    (data ?? []).map((r: Record<string, unknown>) => [
+      String(r['child_id']),
+      {
+        childId: String(r['child_id']),
+        earned: Number(r['earned'] ?? 0),
+        spent: Number(r['spent'] ?? 0),
+        balance: Number(r['balance'] ?? 0),
+      },
+    ]),
+  );
+}
+
+/**
+ * Give jetons — one row, returning its id so the tap can be undone.
+ *
+ * ⚠️ THE SAME CHECKS AS `awardPoints()` (the database's own: positive, a
+ * reason of three characters or more), because it is the same table.
+ */
+export async function giveJetons(
+  childId: string,
+  jetons: number,
+  reason: string,
+  givenBy: string | null,
+): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  const invalid = validateAward(jetons, reason);
+  if (invalid) return { ok: false, error: invalid };
+  const supabase = await getSupabase();
+  const { data, error } = await supabase
+    .from('point_awards')
+    .insert([{ child_id: childId, points: jetons, reason: reason.trim(), awarded_by: givenBy }])
+    .select('id')
+    .single();
+  if (error || !data) return { ok: false, error: error?.message ?? 'aucune réponse' };
+  return { ok: true, id: String(data['id']) };
+}
+
+/**
+ * Undo a tap. Staff may delete an award (`point_awards_staff_all`, 0004).
+ *
+ * ⚠️ UNDO, NOT A CORRECTION TOOL: the page offers it only for the tap it just
+ * made. A jeton already spent that is then removed leaves the balance below
+ * zero — visible on the page, and exactly as honest as the rows behind it.
+ */
+export async function takeBackJetons(awardId: string): Promise<{ ok: boolean; error?: string }> {
+  const supabase = await getSupabase();
+  const { error } = await supabase.from('point_awards').delete().eq('id', awardId);
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+
+/* ── the shop (0016, admin only) ─────────────────────────────────────────── */
+
+export interface AdminShopItem {
+  readonly slug: string;
+  readonly price_jetons: number | null;
+  readonly price_mad: number | null;
+  readonly allow_jetons: boolean;
+  readonly allow_whatsapp: boolean;
+  readonly inStock: boolean;
+}
+
+export async function listShopItems(): Promise<AdminShopItem[] | null> {
+  const supabase = await getSupabase();
+  const { data, error } = await supabase
+    .from('shop_items')
+    .select('slug,price_jetons,price_mad,allow_jetons,allow_whatsapp,in_stock');
+  if (error) return null;
+  return (data ?? []).map((r) => ({
+    slug: String(r['slug']),
+    price_jetons: r['price_jetons'] == null ? null : Number(r['price_jetons']),
+    price_mad: r['price_mad'] == null ? null : Number(r['price_mad']),
+    allow_jetons: r['allow_jetons'] === true,
+    allow_whatsapp: r['allow_whatsapp'] === true,
+    inStock: r['in_stock'] === true,
+  }));
+}
+
+/** Publish the git catalogue. One call; `admin_publish_shop()` refuses a non-admin. */
+export async function publishShop(items: readonly unknown[]): Promise<{ ok: boolean; error?: string }> {
+  const supabase = await getSupabase();
+  const { error } = await supabase.rpc('admin_publish_shop', { items });
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+
+export async function setStock(slug: string, available: boolean): Promise<{ ok: boolean; error?: string }> {
+  const supabase = await getSupabase();
+  const { error } = await supabase.rpc('admin_set_stock', { item: slug, available });
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+
+export interface AdminOrder {
+  readonly id: string;
+  readonly childId: string;
+  readonly itemSlug: string;
+  readonly path: 'jetons' | 'whatsapp';
+  readonly jetons: number;
+  readonly priceMad: number | null;
+  readonly status: 'pending' | 'handed_over' | 'cancelled';
+  readonly createdAt: string;
+  readonly handedOverAt: string | null;
+}
+
+export async function listOrders(): Promise<AdminOrder[] | null> {
+  const supabase = await getSupabase();
+  const { data, error } = await supabase
+    .from('redemptions')
+    .select('id,child_id,item_slug,path,jetons,price_mad,status,created_at,handed_over_at')
+    .order('created_at', { ascending: false })
+    .limit(200);
+  if (error) return null;
+  return (data ?? []).map((r) => {
+    const status = String(r['status']);
+    return {
+      id: String(r['id']),
+      childId: String(r['child_id']),
+      itemSlug: String(r['item_slug']),
+      path: r['path'] === 'whatsapp' ? 'whatsapp' : 'jetons',
+      jetons: Number(r['jetons'] ?? 0),
+      priceMad: r['price_mad'] == null ? null : Number(r['price_mad']),
+      status: status === 'handed_over' || status === 'cancelled' ? status : 'pending',
+      createdAt: String(r['created_at'] ?? ''),
+      handedOverAt: r['handed_over_at'] ? String(r['handed_over_at']) : null,
+    };
+  });
+}
+
+/** Returns the database's CODE; the page owns the French sentence. */
+export async function handOver(orderId: string): Promise<string> {
+  const supabase = await getSupabase();
+  const { data, error } = await supabase.rpc('admin_hand_over', { redemption: orderId });
+  if (error) return 'error';
+  const row = (Array.isArray(data) ? data[0] : data) as Record<string, unknown> | undefined;
+  return String(row?.['code'] ?? 'error');
+}
+
+export async function cancelOrderAsStaff(orderId: string): Promise<string> {
+  const supabase = await getSupabase();
+  const { data, error } = await supabase.rpc('cancel_redemption', { redemption: orderId });
+  if (error) return 'error';
+  const row = (Array.isArray(data) ? data[0] : data) as Record<string, unknown> | undefined;
+  return String(row?.['code'] ?? 'error');
+}

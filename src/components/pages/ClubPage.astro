@@ -35,6 +35,7 @@ import BaseLayout from '@layouts/BaseLayout.astro';
 import PageIntro from '@components/PageIntro.astro';
 import HubCard from '@components/nav/HubCard.astro';
 import { publicSessions } from '@lib/agenda';
+import { listedItems } from '@lib/boutique';
 
 interface Props {
   locale: Locale;
@@ -48,6 +49,12 @@ const t = useTranslations(locale);
 const announced = publicSessions().length;
 const agendaFact =
   announced > 0 ? t('club.agenda.count').replace('%s', String(announced)) : t('club.agenda.none');
+
+/* ⚠️ A FACT, NEVER A ZERO (Critical Feature 61's rule): an empty catalogue says
+   the shop is opening, not "0 objets". */
+const shopItems = (await listedItems()).length;
+const shopFact =
+  shopItems > 0 ? t('club.shop.count').replace('%s', String(shopItems)) : t('club.shop.soon');
 ---
 
 <BaseLayout locale={locale} title={t('club.title')} description={t('club.intro')}>
@@ -72,6 +79,13 @@ const agendaFact =
       name={t('club.about.name')}
       body={t('club.about.body')}
       testid="hub-about"
+    />
+    <HubCard
+      href={localizePath('/boutique/', locale)}
+      name={t('club.shop.name')}
+      body={t('club.shop.body')}
+      testid="hub-shop"
+      fact={shopFact}
     />
   </ul>
 </BaseLayout>

@@ -146,6 +146,15 @@ a different problem from one that colours a badge.
 The ledger already carries `origin` and `source` per entry so **teacher-awarded
 points (v2-S4) are a new producer rather than a migration.** They are NOT built.
 
+⚠️⚠️ **SUPERSEDED FOR THE SHOP (0016): TEACHER AWARDS ARE JETONS, NOT POINTS.**
+They were built (0004) and summed into the total as a `teacher` source; since
+0016 they are the shop's currency and are in neither `computeLedger()` nor the
+inline resolver, so the rank and the spending power never read as one number.
+`/progres/` still lists them, with their reasons, in their own block — as
+jetons, with a link to `/boutique/`. A reader with teacher awards saw their
+points drop by that amount; the rows are untouched. See
+[`supabase.md`](./supabase.md) → "The shop".
+
 ### ⚠️ An inline script on 62 pages is a size decision, not a detail
 
 The resolver is mounted on the home page, `/progres/`, and every page with a

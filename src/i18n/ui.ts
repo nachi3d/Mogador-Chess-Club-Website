@@ -257,11 +257,6 @@ const fr = {
      were given loses the meaning of both. Tutoiement here and nowhere else on
      the site is deliberate: this is the one line addressed to the child rather
      than to the reader in general. */
-  'score.source.teacher': 'Attribués par ton prof',
-  'score.teacher.title': 'Points attribués par ton prof',
-  'score.teacher.intro':
-    'Ces points ont été donnés en cours, pour quelque chose que le site ne peut pas voir.',
-  'score.teacher.on': 'le %s',
   'score.earnedTitle': 'Points gagnés',
   'score.streak.title': 'Série en cours',
   /* ⚠️ "dans cette session" is load-bearing wording. It tells the reader the
@@ -534,6 +529,83 @@ const fr = {
   'booking.code.no_session': 'Cette séance n’existe plus.',
   'booking.code.no_booking': 'Cette réservation n’existe plus.',
   'booking.code.error': 'La réservation n’a pas pu aboutir. Réessayez.',
+
+  /* ── Boutique (0016) ─────────────────────────────────────────────────
+     ⚠️ "JETONS", NEVER "POINTS". Points are the rank; jetons are what the
+     shop spends, and a prof gives them. The two words must never share a
+     sentence as if they were one number. ⚠️ No venue name here — "au club"
+     only (Critical Feature 1). ⚠️ The shop's own copy says "vous": an order
+     is an account's act, like a booking. */
+  'nav.shop': 'Boutique',
+  'club.shop.name': 'Boutique',
+  'club.shop.body': 'Des objets du club, à échanger contre les jetons donnés en séance.',
+  'club.shop.soon': 'Ouverture prochaine',
+  'club.shop.count': '%s objets',
+  'shop.title': 'Boutique',
+  'shop.intro':
+    'De petits objets fabriqués pour le club, à échanger contre des jetons ou à acheter.',
+  'shop.jetons': 'jetons',
+  'shop.jeton': 'jeton',
+  'shop.soon.title': 'La boutique ouvre bientôt',
+  'shop.soon.body':
+    'Aucun objet n’est encore en vente. Quand les premiers arriveront, vous pourrez les obtenir de trois façons.',
+  'shop.soon.earned':
+    'Les jetons déjà reçus comptent : rien n’est perdu en attendant l’ouverture.',
+  'shop.paths.title': 'Trois façons d’obtenir un objet',
+  'shop.path.jetons.name': 'Avec des jetons',
+  'shop.path.jetons.body':
+    'Les petits objets s’échangent contre des jetons, et se récupèrent en main propre au club.',
+  'shop.path.whatsapp.name': 'Sur WhatsApp, en espèces',
+  'shop.path.whatsapp.body':
+    'Vos jetons font baisser le prix, jusqu’à 25 % (1 jeton = 1 DH). Le reste se règle en espèces au club.',
+  'shop.path.card.name': 'Par carte',
+  'shop.path.card.body': 'Sur le site de Nachi3D Labs. Aucun paiement ne passe par ce site.',
+  'shop.jetons.what':
+    'Les jetons sont donnés par les professeurs, en séance. Ils ne s’achètent pas, et ils ne font pas partie des points de progression.',
+  'shop.balance.label': 'Jetons disponibles',
+  'shop.balance.for': 'Jetons de',
+  'shop.balance.signedOut': 'Connectez-vous pour voir vos jetons et commander.',
+  'shop.signIn': 'Se connecter',
+  'shop.noChildren': 'Ajoutez un profil pour échanger des jetons.',
+  'shop.orders.title': 'Mes commandes',
+  'shop.orders.empty': 'Aucune commande pour l’instant.',
+  'shop.status.pending': 'En attente — à récupérer au club',
+  'shop.status.handed_over': 'Remise',
+  'shop.status.cancelled': 'Annulée',
+  'shop.cancel': 'Annuler',
+  'shop.cancelling': 'Annulation…',
+  'shop.price.jetons': '{n} jetons',
+  'shop.price.mad': '{n} DH',
+  'shop.outOfStock': 'Épuisé pour l’instant',
+  'shop.unavailable': 'Pas encore disponible à la commande',
+  'shop.redeem': 'Échanger contre {n} jetons',
+  'shop.redeeming': 'Commande…',
+  'shop.short': 'Il vous manque {n} jetons.',
+  'shop.whatsapp.order': 'Commander sur WhatsApp',
+  'shop.whatsapp.discount': 'Réduction avec vos jetons : {n} DH (25 % au maximum).',
+  'shop.whatsapp.noDiscount': 'Sans réduction : ce profil n’a pas encore de jetons.',
+  'shop.whatsapp.send': 'Envoyer le message WhatsApp',
+  'shop.whatsapp.message':
+    'Bonjour, je voudrais commander « {item} » pour {child}. Prix : {price} DH, réduction jetons : {discount} DH, reste à payer : {rest} DH. Commande {ref}.',
+  'shop.card.buy': 'Acheter par carte sur nachi3dlabs.com',
+  'shop.card.note': 'Vous quittez ce site. Aucun jeton n’est utilisé.',
+  'shop.item.paths': 'Comment l’obtenir',
+  'shop.item.see': 'Voir l’objet',
+  'shop.code.ok': 'C’est commandé.',
+  'shop.code.insufficient': 'Pas assez de jetons pour cet objet.',
+  'shop.code.out_of_stock': 'Cet objet est épuisé pour l’instant.',
+  'shop.code.unknown_item': 'Cet objet n’est pas encore disponible à la commande.',
+  'shop.code.path_not_allowed': 'Cet objet ne se commande pas de cette façon.',
+  'shop.code.discount_too_large': 'Cette réduction dépasse le maximum autorisé.',
+  'shop.code.forbidden': 'Vous ne pouvez pas commander pour ce profil.',
+  'shop.code.no_order': 'Cette commande n’existe plus.',
+  'shop.code.already_handed_over': 'Cette commande a déjà été remise.',
+  'shop.code.error': 'La commande n’a pas pu aboutir. Réessayez.',
+  'score.jetons.title': 'Jetons donnés par ton prof',
+  'score.jetons.intro':
+    'Donnés en séance, pour quelque chose que le site ne peut pas voir. Ils ne comptent pas dans tes points : ils se dépensent à la boutique.',
+  'score.jetons.on': 'le %s',
+  'score.jetons.toShop': 'Voir tes jetons à la boutique',
 
   'contact.title': 'Contact',
   'contact.intro': 'Une question, une inscription, une envie de jouer ? Écrivez-nous.',
@@ -915,7 +987,7 @@ const fr = {
   'account.delete.item.account': 'le compte et son adresse e-mail ;',
   'account.delete.item.children': 'les profils de joueur rattachés à ce compte ;',
   'account.delete.item.progress': 'leur progression et leurs parties ;',
-  'account.delete.item.points': 'leurs points et les points attribués par un professeur ;',
+  'account.delete.item.points': 'leurs points, leurs jetons et leurs commandes à la boutique ;',
   'account.delete.item.attendance': 'leurs présences aux séances.',
   'account.delete.retained':
     'Rien n’est conservé : ni statistique, ni archive, ni copie anonymisée. La progression enregistrée dans ce navigateur reste sur cet appareil — elle vous appartient, et vous pouvez l’effacer en vidant les données du site.',
@@ -1028,7 +1100,7 @@ const fr = {
   'privacy.stored.progress':
     'La progression de chaque profil : exercices résolus, tentatives, indices utilisés, leçons terminées.',
   'privacy.stored.points':
-    'Ses points : ceux gagnés sur le site et ceux attribués par un professeur, avec la raison indiquée.',
+    'Ses points, gagnés sur le site ; ses jetons, donnés par un professeur avec la raison indiquée ; et ses commandes à la boutique.',
   'privacy.stored.games':
     'Ses parties contre l’ordinateur : le niveau et le résultat, jamais le détail des coups.',
   'privacy.stored.attendance': 'Sa présence aux séances, saisie par un professeur.',
@@ -1321,11 +1393,6 @@ const en: Record<keyof typeof fr, string> = {
   'score.source.lessons': 'Lessons',
   'score.source.exercises': 'Exercises',
   'score.source.games': 'Games won',
-  'score.source.teacher': 'Given by your teacher',
-  'score.teacher.title': 'Points given by your teacher',
-  'score.teacher.intro':
-    'These were given in class, for something the site cannot see.',
-  'score.teacher.on': 'on %s',
   'score.earnedTitle': 'Points earned',
   'score.streak.title': 'Current run',
   'score.streak.value': '%s exercises in a row this session',
@@ -1530,6 +1597,75 @@ const en: Record<keyof typeof fr, string> = {
   'booking.code.no_session': 'That session no longer exists.',
   'booking.code.no_booking': 'That booking no longer exists.',
   'booking.code.error': 'The booking could not be completed. Please try again.',
+
+  'nav.shop': 'Shop',
+  'club.shop.name': 'Shop',
+  'club.shop.body': 'Club items, to exchange for the tokens given in class.',
+  'club.shop.soon': 'Opening soon',
+  'club.shop.count': '%s items',
+  'shop.title': 'Shop',
+  'shop.intro': 'Small items made for the club, to exchange for tokens or to buy.',
+  'shop.jetons': 'tokens',
+  'shop.jeton': 'token',
+  'shop.soon.title': 'The shop opens soon',
+  'shop.soon.body':
+    'Nothing is on sale yet. When the first items arrive, there will be three ways to get them.',
+  'shop.soon.earned': 'Tokens you have already received count: nothing is lost while you wait.',
+  'shop.paths.title': 'Three ways to get an item',
+  'shop.path.jetons.name': 'With tokens',
+  'shop.path.jetons.body':
+    'Small items are exchanged for tokens and collected in person at the club.',
+  'shop.path.whatsapp.name': 'On WhatsApp, in cash',
+  'shop.path.whatsapp.body':
+    'Your tokens lower the price, by up to 25% (1 token = 1 DH). The rest is paid in cash at the club.',
+  'shop.path.card.name': 'By card',
+  'shop.path.card.body': 'On the Nachi3D Labs website. No payment goes through this site.',
+  'shop.jetons.what':
+    'Tokens are given by the teachers, in class. They cannot be bought, and they are not part of your progress points.',
+  'shop.balance.label': 'Tokens available',
+  'shop.balance.for': 'Tokens for',
+  'shop.balance.signedOut': 'Sign in to see your tokens and order.',
+  'shop.signIn': 'Sign in',
+  'shop.noChildren': 'Add a profile to exchange tokens.',
+  'shop.orders.title': 'My orders',
+  'shop.orders.empty': 'No orders yet.',
+  'shop.status.pending': 'Waiting — to collect at the club',
+  'shop.status.handed_over': 'Collected',
+  'shop.status.cancelled': 'Cancelled',
+  'shop.cancel': 'Cancel',
+  'shop.cancelling': 'Cancelling…',
+  'shop.price.jetons': '{n} tokens',
+  'shop.price.mad': '{n} DH',
+  'shop.outOfStock': 'Out of stock for now',
+  'shop.unavailable': 'Not yet available to order',
+  'shop.redeem': 'Exchange for {n} tokens',
+  'shop.redeeming': 'Ordering…',
+  'shop.short': 'You need {n} more tokens.',
+  'shop.whatsapp.order': 'Order on WhatsApp',
+  'shop.whatsapp.discount': 'Discount with your tokens: {n} DH (25% at most).',
+  'shop.whatsapp.noDiscount': 'No discount: this profile has no tokens yet.',
+  'shop.whatsapp.send': 'Send the WhatsApp message',
+  'shop.whatsapp.message':
+    'Hello, I would like to order "{item}" for {child}. Price: {price} DH, token discount: {discount} DH, left to pay: {rest} DH. Order {ref}.',
+  'shop.card.buy': 'Buy by card on nachi3dlabs.com',
+  'shop.card.note': 'You are leaving this site. No tokens are used.',
+  'shop.item.paths': 'How to get it',
+  'shop.item.see': 'See the item',
+  'shop.code.ok': 'Ordered.',
+  'shop.code.insufficient': 'Not enough tokens for this item.',
+  'shop.code.out_of_stock': 'This item is out of stock for now.',
+  'shop.code.unknown_item': 'This item is not yet available to order.',
+  'shop.code.path_not_allowed': 'This item cannot be ordered this way.',
+  'shop.code.discount_too_large': 'This discount is above the maximum allowed.',
+  'shop.code.forbidden': 'You cannot order for this profile.',
+  'shop.code.no_order': 'This order no longer exists.',
+  'shop.code.already_handed_over': 'This order has already been collected.',
+  'shop.code.error': 'The order could not be completed. Please try again.',
+  'score.jetons.title': 'Tokens from your teacher',
+  'score.jetons.intro':
+    'Given in class, for something the site cannot see. They do not count towards your points: they are spent in the shop.',
+  'score.jetons.on': 'on %s',
+  'score.jetons.toShop': 'See your tokens in the shop',
 
   'contact.title': 'Contact',
   'contact.intro': 'A question, a sign-up, or just want a game? Get in touch.',
@@ -1828,7 +1964,7 @@ const en: Record<keyof typeof fr, string> = {
   'account.delete.item.account': 'the account and its email address;',
   'account.delete.item.children': 'the player profiles attached to this account;',
   'account.delete.item.progress': 'their progress and their games;',
-  'account.delete.item.points': 'their points, including points awarded by a teacher;',
+  'account.delete.item.points': 'their points, their tokens and their shop orders;',
   'account.delete.item.attendance': 'their attendance at sessions.',
   'account.delete.retained':
     'Nothing is kept: no statistics, no archive, no anonymised copy. Progress saved in this browser stays on this device — it is yours, and you can erase it by clearing the site’s data.',
@@ -1919,7 +2055,7 @@ const en: Record<keyof typeof fr, string> = {
   'privacy.stored.progress':
     'Each profile’s progress: exercises solved, attempts, hints used, lessons finished.',
   'privacy.stored.points':
-    'Their points: those earned on the site and those awarded by a teacher, with the stated reason.',
+    'Their points, earned on the site; their tokens, given by a teacher with the stated reason; and their shop orders.',
   'privacy.stored.games':
     'Their games against the computer: the level and the result, never the moves.',
   'privacy.stored.attendance': 'Their attendance at sessions, recorded by a teacher.',
@@ -2086,6 +2222,7 @@ export const NAV_GROUPS = [
       { path: '/agenda/', key: 'nav.agenda' },
       { path: '/contact/', key: 'nav.contact' },
       { path: '/a-propos/', key: 'nav.about' },
+      { path: '/boutique/', key: 'nav.shop' },
     ],
   },
 ] as const satisfies readonly {

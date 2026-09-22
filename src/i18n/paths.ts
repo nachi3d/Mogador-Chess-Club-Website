@@ -78,6 +78,8 @@ export const ROUTES = [
   '/jouer/',
   '/agenda/',
   '/contact/',
+  /** The shop (0016). Reached from Club; the segment is structural, like every other. */
+  '/boutique/',
   /**
    * The legal notice is NOT in the nav (it lives in the footer), but it is a
    * public page in both locales and therefore part of the route vocabulary the

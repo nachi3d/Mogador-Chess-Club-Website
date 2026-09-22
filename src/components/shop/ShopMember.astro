@@ -1,0 +1,106 @@
+---
+/**
+ * The member half of the shop: which profile, its jetons, its orders (0016).
+ *
+ * ⚠️ SERVER-RENDERED AND `hidden`, NEVER BUILT FROM NOTHING — the `/agenda/`
+ * booking rule. The containers, the live region and the sign-in invitation are
+ * real elements; only the per-account content is painted, because only the
+ * account knows its children. A signed-out reader sees the invitation with no
+ * script having run and no request made.
+ *
+ * ⚠️ RENDERED ONLY WHEN ACCOUNTS ARE ON — with the flag off there is no
+ * `/connexion/` to invite anybody to. The SCRIPT stays unconditional for the
+ * reason `AgendaPage.astro` gives: Astro collects scripts from the module
+ * graph, and what keeps Supabase out of an accounts-OFF bundle is the alias,
+ * reached here only through a dynamic import behind `hasStoredSession()`.
+ */
+import type { Locale } from '@config/site';
+import { whatsappUrl } from '@config/site';
+import { useTranslations } from '@i18n/ui';
+import { localizePath } from '@i18n/paths';
+import { itemName, routableItems } from '@lib/boutique';
+import { SHOP_CODES } from '@lib/shop';
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const t = useTranslations(locale);
+
+/* ⚠️ THE CLIENT SCRIPT'S STRINGS, RESOLVED HERE AND HANDED OVER AS DATA — the
+   booking pattern. One locale, one source (`ui.ts`), no table in the bundle. */
+const KEYS = [
+  'shop.jetons',
+  'shop.jeton',
+  'shop.noChildren',
+  'shop.orders.empty',
+  'shop.status.pending',
+  'shop.status.handed_over',
+  'shop.status.cancelled',
+  'shop.cancel',
+  'shop.cancelling',
+  'shop.price.jetons',
+  'shop.price.mad',
+  'shop.outOfStock',
+  'shop.unavailable',
+  'shop.redeem',
+  'shop.redeeming',
+  'shop.short',
+  'shop.whatsapp.order',
+  'shop.whatsapp.discount',
+  'shop.whatsapp.noDiscount',
+  'shop.whatsapp.send',
+  'shop.whatsapp.message',
+  ...SHOP_CODES.map((c) => `shop.code.${c}` as const),
+  'shop.code.error',
+] as const;
+
+const items = await routableItems();
+const data = {
+  strings: Object.fromEntries(KEYS.map((k) => [k, t(k)])),
+  names: Object.fromEntries(items.map((i) => [i.slug, itemName(i, locale)])),
+  /* ⚠️ THROUGH `whatsappUrl()` (Critical Feature 7) — the club's number from
+     site config, never a number typed into a component. The script appends the
+     order's own text after `?text=`. */
+  whatsappBase: whatsappUrl(locale, ''),
+};
+---
+
+<section class="mcc-card shop-member" data-shop data-testid="shop-member" aria-labelledby="shop-member-title">
+  <h2 id="shop-member-title" class="shop-section-title">{t('shop.balance.label')}</h2>
+
+  <p class="shop-prompt" data-shop-signedout>
+    {t('shop.balance.signedOut')}{' '}
+    <a class="shop-signin" href={localizePath('/connexion/', locale)}>{t('shop.signIn')}</a>
+  </p>
+
+  <div data-shop-live hidden>
+    <div class="mcc-field" data-shop-picker hidden>
+      <label for="shop-child">{t('shop.balance.for')}</label>
+      <select id="shop-child" data-shop-child></select>
+    </div>
+    <p class="shop-balance">
+      <b data-shop-balance data-testid="shop-balance">—</b>
+      <span data-shop-balance-unit>{t('shop.jetons')}</span>
+      <span class="shop-balance-name" data-shop-child-name></span>
+    </p>
+    <p class="shop-note" data-shop-nochildren hidden>{t('shop.noChildren')}</p>
+  </div>
+
+  <div class="shop-orders" data-shop-orders-wrap hidden>
+    <h3 class="shop-orders-title">{t('shop.orders.title')}</h3>
+    <ul class="shop-order-list" data-shop-orders data-testid="shop-orders"></ul>
+  </div>
+
+  {/* ⚠️ NEVER THE ONLY SIGNAL — every control's own label changes with it. */}
+  <p class="shop-message" data-shop-message role="status" aria-live="polite"></p>
+</section>
+
+<script is:inline type="application/json" data-shop-data set:html={JSON.stringify(data)} />
+
+<script>
+  import { renderShop } from '@lib/shop-ui';
+
+  renderShop();
+</script>

@@ -97,6 +97,7 @@ const ROUTES = [
   { path: '/apprendre-les-bases/', locale: 'fr', sentinel: /apprendre-les-bases\/[a-z-]+\//, what: 'a link to a tutorial step' },
   { path: '/jouer/', locale: 'fr', sentinel: /data-testid="play"/, what: 'the play island' },
   { path: '/progres/', locale: 'fr', sentinel: /data-progress-view/, what: 'the progress view' },
+  { path: '/boutique/', locale: 'fr', sentinel: /data-testid="shop"/, what: 'the shop' },
   /**
    * ⚠️ THIS ONE ASSERTS A SESSION IS LISTED, NOT THAT THE PAGE RENDERED.
    *
@@ -381,7 +382,14 @@ if (override) {
  * genuinely 404s rather than falling through to an SPA shell — if that ever
  * changes, this check needs to change with it in the same commit.
  */
-const FIXTURE_ROUTES = ['/pieges/fixture-video-facade/', '/en/pieges/fixture-video-facade/'];
+const FIXTURE_ROUTES = [
+  '/pieges/fixture-video-facade/',
+  '/en/pieges/fixture-video-facade/',
+  /* 0016 — the shop's test item. A fake product a child could open is worse
+     than a fake trap: it carries a price. */
+  '/boutique/fixture-porte-cles/',
+  '/en/boutique/fixture-porte-cles/',
+];
 
 async function checkNoFixtures() {
   for (const path of FIXTURE_ROUTES) {

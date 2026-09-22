@@ -196,6 +196,7 @@ test.describe('the bottom navigation bar', () => {
     ['/agenda/', 'Club'],
     ['/contact/', 'Club'],
     ['/a-propos/', 'Club'],
+    ['/boutique/', 'Club'],
     ['/moi/', 'Moi'],
     ['/progres/', 'Moi'],
     /* ⚠️ RÉGLAGES LEFT THE BAR AND MUST STILL LIGHT SOMETHING. It lives inside

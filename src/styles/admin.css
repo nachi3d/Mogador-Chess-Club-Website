@@ -902,3 +902,26 @@
   border-color: var(--mcc-primary);
   font-weight: 600;
 }
+
+/* ── Jetons and the shop (0016) ──────────────────────────────────────────
+   ⚠️ THE REGISTER'S BUTTON, WIDER. "+5", "En stock" and "Épuisé" are words,
+   not the register's single letters, and still sized for a thumb in a hurry. */
+.mark-button.mark-button-wide {
+  min-inline-size: 4.5rem;
+  padding-inline: 0.6rem;
+}
+
+.admin .jetons-label {
+  display: block;
+  margin-block-end: 0.4rem;
+  font-weight: 600;
+  color: var(--mcc-text-primary);
+}
+
+.admin .jetons-amounts .mark-button {
+  min-inline-size: 3.5rem;
+}
+
+.admin .admin-order-text {
+  white-space: normal;
+}

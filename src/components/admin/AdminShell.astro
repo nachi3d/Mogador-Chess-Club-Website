@@ -49,7 +49,7 @@ interface Props {
   /** Shown as the page heading and in the document title. */
   title: string;
   /** Which nav entry is current. */
-  current: 'dashboard' | 'eleves' | 'seances' | 'comptes';
+  current: 'dashboard' | 'eleves' | 'seances' | 'jetons' | 'boutique' | 'comptes';
   /** One sentence under the heading. Optional. */
   intro?: string;
   /**
@@ -78,6 +78,11 @@ const NAV = [
   { id: 'dashboard', href: '/admin/', label: 'Tableau de bord', adminOnly: false },
   { id: 'eleves', href: '/admin/eleves/', label: 'Élèves', adminOnly: false },
   { id: 'seances', href: '/admin/seances/', label: 'Séances', adminOnly: false },
+  /* ⚠️ JETONS IS FOR EVERY PROF (0016): giving them is the only way a student
+     earns spending power, and it happens in the room. The shop — prices, stock,
+     handing an order over — is the admin's, like Comptes. */
+  { id: 'jetons', href: '/admin/jetons/', label: 'Jetons', adminOnly: false },
+  { id: 'boutique', href: '/admin/boutique/', label: 'Boutique', adminOnly: true },
   { id: 'comptes', href: '/admin/comptes/', label: 'Comptes', adminOnly: true },
 ] as const;
 ---

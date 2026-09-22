@@ -57,6 +57,9 @@ const BELOW_A_LANDING = [
   ['/agenda/', 'Le club'],
   ['/contact/', 'Le club'],
   ['/a-propos/', 'Le club'],
+  /* 0016 — the shop sits in the club, and an item names the shop. */
+  ['/boutique/', 'Le club'],
+  ['/boutique/fixture-porte-cles/', 'Boutique'],
   ['/mentions-legales/', 'Accueil'],
   ['/politique-confidentialite/', 'Accueil'],
 ] as const;
