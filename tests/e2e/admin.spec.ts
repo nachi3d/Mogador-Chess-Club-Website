@@ -267,19 +267,31 @@ test.describe('v2-S4 — the admin surfaces', () => {
     const fromLedger = computeLedger(catalogue as LedgerCatalogue, {
       exercises: store.exercises,
       games: store.games,
-      awards: store.awards,
     });
 
     expect(fromLedger.points, 'the two ledgers disagree on the total').toBe(fromResolver!.points);
     expect(fromLedger.rank, 'the two ledgers disagree on the rank').toBe(fromResolver!.rank);
-    for (const key of ['basics', 'lessons', 'exercises', 'games', 'teacher'] as const) {
+    for (const key of ['basics', 'lessons', 'exercises', 'games'] as const) {
       expect(fromLedger.sources[key], `the two ledgers disagree on "${key}"`).toBe(
         fromResolver!.sources[key],
       );
     }
-    /* And the teacher bucket is actually carrying the awards, not zero — a
-       test where both sides compute nothing would pass vacuously. */
-    expect(fromLedger.sources.teacher, 'the awards were not counted at all').toBe(15);
+    /* ⚠️⚠️ AND THE AWARDS ARE IN NEITHER TOTAL (0016). They are JETONS, the
+       shop's currency, and must never read as points: the store above carries
+       15 of them, and both implementations must ignore every one. The total is
+       asserted non-zero so the test cannot pass with both sides computing
+       nothing. */
+    expect(fromLedger.points, 'nothing was counted at all').toBeGreaterThan(0);
+    expect(fromResolver!.sources, 'a teacher bucket survived in the resolver').not.toHaveProperty('teacher');
+    const withoutAwards = computeLedger(catalogue as LedgerCatalogue, {
+      exercises: store.exercises,
+      games: store.games,
+    });
+    expect(fromResolver!.points, 'the resolver still adds awards to points').toBe(withoutAwards.points);
+    const jetons = await page.evaluate(
+      () => (window as unknown as { MCC_SCORE?: { jetons?: number } }).MCC_SCORE?.jetons,
+    );
+    expect(jetons, 'the jetons received were not counted apart').toBe(15);
   });
 
   /**
@@ -287,7 +299,7 @@ test.describe('v2-S4 — the admin surfaces', () => {
    * THINGS, with the reason printed. The reason is why the database requires
    * one; a point a student cannot account for teaches them it is arbitrary.
    */
-  test('the student sees awards as a separate block, with the reasons', async ({ page }) => {
+  test('the student sees jetons as a separate block, with the reasons, and not as points', async ({ page }) => {
     await page.addInitScript(() => {
       window.localStorage.setItem(
         'mcc:progress:v1',
@@ -304,7 +316,10 @@ test.describe('v2-S4 — the admin surfaces', () => {
     const block = page.getByTestId('progress-teacher');
     await expect(block, 'the teacher block did not appear').toBeVisible();
     await expect(block).toContainText('A aidé un camarade');
-    await expect(block.locator('[data-score-source="teacher"]')).toHaveText('12');
+    await expect(block.locator('[data-score-jetons]')).toHaveText('12');
+    /* ⚠️ Not points: the total on the page is untouched by the award. */
+    await expect(page.locator('[data-score-points]').first()).toHaveText('0');
+    await expect(block.getByRole('link')).toHaveAttribute('href', '/boutique/');
 
     /* It is distinct STRUCTURALLY, not by colour alone: its own heading. */
     await expect(block.locator('h2')).toBeVisible();

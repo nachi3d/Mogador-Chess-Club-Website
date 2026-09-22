@@ -109,7 +109,7 @@ const COLUMNS = [
 </AdminShell>
 
 <script>
-  import { listChildren, listGames, listProgress, listAwards } from '@lib/admin';
+  import { listChildren, listGames, listProgress } from '@lib/admin';
   import { computeLedger, type LedgerCatalogue } from '@lib/ledger';
   import { kindOf } from '@lib/progress-sync';
 
@@ -215,11 +215,12 @@ const COLUMNS = [
     });
     const rankLabels = json<Record<string, string>>('[data-rank-labels]', {});
 
-    const [children, progress, games, awards] = await Promise.all([
+    /* ⚠️ NO AWARDS HERE SINCE 0016: a prof's award is a JETON, not a point,
+       and the points column is the rank. Jetons live on /admin/jetons/. */
+    const [children, progress, games] = await Promise.all([
       listChildren(),
       listProgress(),
       listGames(),
-      listAwards(),
     ]);
 
     if (children.length === 0) {
@@ -231,11 +232,11 @@ const COLUMNS = [
     /* Group the class's rows by child once, rather than filtering per child —
        twenty children over a few thousand rows is the same work either way at
        this size, but the grouping is what stays cheap when the club grows. */
-    const byChild = new Map<string, { exercises: Record<string, { solved: boolean; hintUsed: boolean }>; games: Record<string, { wins: number }>; awards: { points: number }[]; last: string | null; lessons: Set<string> }>();
+    const byChild = new Map<string, { exercises: Record<string, { solved: boolean; hintUsed: boolean }>; games: Record<string, { wins: number }>; last: string | null; lessons: Set<string> }>();
     const bucket = (id: string) => {
       let value = byChild.get(id);
       if (!value) {
-        value = { exercises: {}, games: {}, awards: [], last: null, lessons: new Set() };
+        value = { exercises: {}, games: {}, last: null, lessons: new Set() };
         byChild.set(id, value);
       }
       return value;
@@ -259,14 +260,12 @@ const COLUMNS = [
       const level = (value.games[game.level] ??= { wins: 0 });
       if (game.outcome === 'win') level.wins += 1;
     }
-    for (const award of awards) bucket(award.childId).awards.push({ points: award.points });
 
     rows = children.map((child) => {
       const value = byChild.get(child.id);
       const ledger = computeLedger(catalogue, {
         exercises: value?.exercises ?? {},
         games: value?.games ?? {},
-        awards: value?.awards ?? [],
       });
       return {
         id: child.id,

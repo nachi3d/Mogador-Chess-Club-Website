@@ -242,6 +242,8 @@ export async function purgeE2EData(phase: 'before' | 'after'): Promise<void> {
         'game_results',
         'attendance',
         'point_awards',
+        /* 0016 — a shop order is the child's data too, and erasure must take it. */
+        'redemptions',
       ] as const) {
         const { count, error } = await sb
           .from(table)

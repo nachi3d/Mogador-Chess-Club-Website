@@ -1,0 +1,307 @@
+---
+/**
+ * /admin/boutique/ — orders to hand over, and the catalogue the database charges (0016).
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️ ADMIN ONLY (`requires="admin"`), and `is_admin_direct()` inside every
+ * function is what actually refuses. A prof gives jetons; what they buy and
+ * confirming an object left the box is the admin's act.
+ *
+ * ⚠️ THE CATALOGUE IS IN GIT; WHAT `redeem()` CHARGES IS `shop_items`. This page
+ * is built from the same git content, so it can say — per item — whether the
+ * database is charging what the site shows. "À publier" is loud on purpose:
+ * it is the same staleness-made-loud answer `/admin/seances/` gives for the
+ * baked agenda. Anything added to `publishShape()` is compared here.
+ *
+ * ⚠️ `routableItems()`, NOT `listedItems()`. In production the two are the
+ * same list (fixtures are never routable there); in a test build the fixture
+ * is routable, which is what lets the UI spec publish and order it without a
+ * fake product ever reaching a reader.
+ *
+ * ⚠️ STOCK IS ONE TAP, NOT A COMMIT. "We are out of keyrings" happens in the
+ * room, and a flag here refuses new orders at once.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+import AdminShell from '@components/admin/AdminShell.astro';
+import { itemName, publishShape, routableItems } from '@lib/boutique';
+
+const items = await routableItems();
+const catalogue = items.map((item) => ({ ...publishShape(item), name: itemName(item, 'fr') }));
+---
+
+<AdminShell title="Boutique" current="boutique" requires="admin" intro="Les commandes à remettre, et le catalogue tel que la base le facture.">
+  <script type="application/json" data-shop-catalogue set:html={JSON.stringify(catalogue)} />
+
+  <section class="admin-block mcc-card">
+    <h2 class="admin-block-title">Commandes en attente</h2>
+    <ul class="mark-list" data-orders-pending data-testid="orders-pending">
+      <li class="admin-empty">Chargement…</li>
+    </ul>
+    <p class="admin-error" data-orders-error role="status"></p>
+  </section>
+
+  <section class="admin-block mcc-card">
+    <h2 class="admin-block-title">Catalogue</h2>
+    <p class="admin-intro" data-catalogue-state data-testid="catalogue-state"></p>
+    <ul class="mark-list" data-catalogue></ul>
+    <p class="admin-actions">
+      <button type="button" class="btn-primary" data-publish data-testid="shop-publish">
+        Publier le catalogue
+      </button>
+    </p>
+    <p class="mcc-field-hint">
+      Publier envoie les prix et les façons de commander de chaque objet à la base. Un objet
+      retiré du catalogue passe « épuisé » ; ses commandes passées restent.
+    </p>
+    <p class="admin-error" data-catalogue-error role="status"></p>
+  </section>
+
+  <section class="admin-block mcc-card">
+    <h2 class="admin-block-title">Commandes récentes</h2>
+    <ul class="mark-list" data-orders-done></ul>
+  </section>
+</AdminShell>
+
+<script>
+  import {
+    cancelOrderAsStaff,
+    handOver,
+    listChildren,
+    listOrders,
+    listShopItems,
+    publishShop,
+    setStock,
+    type AdminOrder,
+    type AdminShopItem,
+  } from '@lib/admin';
+
+  interface CatalogueItem {
+    readonly slug: string;
+    readonly name: string;
+    readonly price_jetons: number | null;
+    readonly price_mad: number | null;
+    readonly allow_jetons: boolean;
+    readonly allow_whatsapp: boolean;
+  }
+
+  const catalogue: CatalogueItem[] = (() => {
+    try {
+      return JSON.parse(document.querySelector('[data-shop-catalogue]')?.textContent ?? '[]');
+    } catch {
+      return [];
+    }
+  })();
+  const names = new Map(catalogue.map((i) => [i.slug, i.name]));
+
+  const pendingEl = document.querySelector('[data-orders-pending]') as HTMLElement | null;
+  const doneEl = document.querySelector('[data-orders-done]') as HTMLElement | null;
+  const ordersError = document.querySelector('[data-orders-error]') as HTMLElement | null;
+  const catalogueEl = document.querySelector('[data-catalogue]') as HTMLElement | null;
+  const stateEl = document.querySelector('[data-catalogue-state]') as HTMLElement | null;
+  const catalogueError = document.querySelector('[data-catalogue-error]') as HTMLElement | null;
+  const publishButton = document.querySelector('[data-publish]') as HTMLButtonElement | null;
+
+  const MESSAGES: Record<string, string> = {
+    ok: '',
+    forbidden: 'Réservé aux administrateurs.',
+    no_order: 'Cette commande n’existe plus.',
+    cancelled: 'Cette commande a été annulée entre-temps.',
+    already_handed_over: 'Déjà remise — elle ne s’annule plus.',
+    error: 'La base n’a pas répondu. Réessayez.',
+  };
+
+  const dayFmt = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  const setText = (el: Element | null, value: string) => {
+    if (el && el.textContent !== value) el.textContent = value;
+  };
+  let childNames = new Map<string, string>();
+
+  function orderLine(order: AdminOrder): string {
+    const item = names.get(order.itemSlug) ?? order.itemSlug;
+    const who = childNames.get(order.childId) ?? 'Élève';
+    const how =
+      order.path === 'jetons'
+        ? `${order.jetons} jetons`
+        : `WhatsApp · ${order.priceMad ?? '?'} DH − ${order.jetons} jetons = ${(order.priceMad ?? 0) - order.jetons} DH en espèces`;
+    return `${who} — ${item} · ${how}`;
+  }
+
+  function orderRow(order: AdminOrder, actions: boolean): HTMLLIElement {
+    const row = document.createElement('li');
+    row.className = 'mark-row';
+    row.dataset.orderId = order.id;
+    row.setAttribute('data-testid', 'admin-order');
+
+    const text = document.createElement('span');
+    text.className = 'mark-name admin-order-text';
+    text.textContent = orderLine(order);
+
+    const when = document.createElement('span');
+    when.className = 'admin-rank';
+    when.textContent =
+      order.status === 'pending'
+        ? dayFmt.format(new Date(order.createdAt))
+        : order.status === 'handed_over'
+          ? 'Remise'
+          : 'Annulée';
+    row.append(text, when);
+
+    if (actions) {
+      const buttons = document.createElement('span');
+      buttons.className = 'mark-buttons';
+      const cancel = document.createElement('button');
+      cancel.type = 'button';
+      cancel.className = 'btn-ghost';
+      cancel.textContent = 'Annuler';
+      cancel.setAttribute('aria-label', `Annuler : ${text.textContent}`);
+      const give = document.createElement('button');
+      give.type = 'button';
+      give.className = 'btn-primary';
+      give.textContent = 'Remis';
+      give.setAttribute('aria-label', `Remis : ${text.textContent}`);
+      give.setAttribute('data-testid', 'admin-hand-over');
+
+      const act = async (fn: (id: string) => Promise<string>) => {
+        give.disabled = true;
+        cancel.disabled = true;
+        const code = await fn(order.id);
+        setText(ordersError, MESSAGES[code] ?? MESSAGES['error']!);
+        await loadOrders();
+      };
+      give.addEventListener('click', () => void act(handOver));
+      cancel.addEventListener('click', () => void act(cancelOrderAsStaff));
+      buttons.append(cancel, give);
+      row.append(buttons);
+    }
+    return row;
+  }
+
+  let ordersGeneration = 0;
+  async function loadOrders() {
+    const mine = ++ordersGeneration;
+    const orders = await listOrders();
+    if (mine !== ordersGeneration || !pendingEl || !doneEl) return;
+    if (orders === null) {
+      pendingEl.innerHTML = '<li class="admin-empty">Les commandes n’ont pas pu être lues.</li>';
+      return;
+    }
+    const pending = orders.filter((o) => o.status === 'pending').reverse();
+    const done = orders.filter((o) => o.status !== 'pending').slice(0, 20);
+    if (pending.length === 0) {
+      pendingEl.innerHTML = '<li class="admin-empty">Rien à remettre.</li>';
+    } else {
+      pendingEl.replaceChildren(...pending.map((o) => orderRow(o, true)));
+    }
+    if (done.length === 0) {
+      doneEl.innerHTML = '<li class="admin-empty">Aucune commande terminée.</li>';
+    } else {
+      doneEl.replaceChildren(...done.map((o) => orderRow(o, false)));
+    }
+  }
+
+  /** "Is the database charging what the site shows?" — per item. */
+  function sameAsPublished(item: CatalogueItem, live: AdminShopItem | undefined): boolean {
+    return (
+      !!live &&
+      live.price_jetons === item.price_jetons &&
+      live.price_mad === item.price_mad &&
+      live.allow_jetons === item.allow_jetons &&
+      live.allow_whatsapp === item.allow_whatsapp
+    );
+  }
+
+  async function loadCatalogue() {
+    if (!catalogueEl) return;
+    const live = await listShopItems();
+    if (live === null) {
+      setText(stateEl, 'Le catalogue publié n’a pas pu être lu.');
+      return;
+    }
+    const bySlug = new Map(live.map((i) => [i.slug, i]));
+    const stale = catalogue.filter((i) => !sameAsPublished(i, bySlug.get(i.slug)));
+
+    if (catalogue.length === 0) {
+      setText(stateEl, 'Aucun objet dans le catalogue pour l’instant — la boutique affiche « bientôt ».');
+    } else if (stale.length > 0) {
+      /* ⚠️ LOUD, like the agenda's staleness line. */
+      setText(
+        stateEl,
+        `⚠️ ${stale.length} objet${stale.length > 1 ? 's' : ''} à publier : la base ne facture pas encore ce que le site affiche.`,
+      );
+    } else {
+      setText(stateEl, 'À jour : la base facture exactement ce que le site affiche.');
+    }
+
+    catalogueEl.replaceChildren(
+      ...catalogue.map((item) => {
+        const row = document.createElement('li');
+        row.className = 'mark-row';
+        row.setAttribute('data-testid', 'admin-shop-item');
+        row.dataset.slug = item.slug;
+        const published = bySlug.get(item.slug);
+
+        const name = document.createElement('span');
+        name.className = 'mark-name';
+        const prices = [
+          item.allow_jetons ? `${item.price_jetons} jetons` : null,
+          item.price_mad !== null ? `${item.price_mad} DH` : null,
+        ]
+          .filter(Boolean)
+          .join(' · ');
+        name.textContent = `${item.name} — ${prices}`;
+
+        const state = document.createElement('span');
+        state.className = 'admin-rank';
+        state.textContent = !published
+          ? 'Non publié'
+          : sameAsPublished(item, published)
+            ? 'Publié'
+            : 'À publier';
+        row.append(name, state);
+
+        if (published) {
+          const stock = document.createElement('button');
+          stock.type = 'button';
+          stock.className = 'mark-button mark-button-wide';
+          stock.setAttribute('aria-pressed', published.inStock ? 'true' : 'false');
+          stock.textContent = published.inStock ? 'En stock' : 'Épuisé';
+          stock.setAttribute('aria-label', `${item.name} : ${published.inStock ? 'en stock' : 'épuisé'}`);
+          stock.setAttribute('data-testid', 'admin-stock');
+          stock.addEventListener('click', async () => {
+            stock.disabled = true;
+            const result = await setStock(item.slug, !published.inStock);
+            setText(catalogueError, result.ok ? '' : `Stock non modifié — ${result.error}`);
+            await loadCatalogue();
+          });
+          const wrap = document.createElement('span');
+          wrap.className = 'mark-buttons';
+          wrap.append(stock);
+          row.append(wrap);
+        }
+        return row;
+      }),
+    );
+  }
+
+  publishButton?.addEventListener('click', async () => {
+    publishButton.disabled = true;
+    const result = await publishShop(
+      catalogue.map(({ slug, price_jetons, price_mad, allow_jetons, allow_whatsapp }) => ({
+        slug,
+        price_jetons,
+        price_mad,
+        allow_jetons,
+        allow_whatsapp,
+      })),
+    );
+    publishButton.disabled = false;
+    setText(catalogueError, result.ok ? '' : `Publication refusée — ${result.error}`);
+    await loadCatalogue();
+  });
+
+  window.addEventListener('mcc:admin-ready', async () => {
+    const children = await listChildren();
+    childNames = new Map(children.map((c) => [c.id, c.displayName || 'Élève']));
+    await Promise.all([loadOrders(), loadCatalogue()]);
+  });
+</script>

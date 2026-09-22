@@ -1,0 +1,14 @@
+---
+/**
+ * /admin/boutique/ — emitted ONLY when accounts are enabled (Critical Feature 18).
+ * Same rest-parameter pattern as every other /admin* route; French only.
+ */
+import { AUTH_ENABLED } from '@config/auth';
+import AdminShopPage from '@components/pages/admin/AdminShopPage.astro';
+
+export function getStaticPaths() {
+  return AUTH_ENABLED ? [{ params: { slug: undefined } }] : [];
+}
+---
+
+<AdminShopPage />

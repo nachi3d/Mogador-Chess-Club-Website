@@ -1,0 +1,299 @@
+---
+/**
+ * /admin/jetons/ — giving jetons in the room, one tap per student (0016).
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️ THIS IS NOW THE ONLY WAY A STUDENT EARNS SPENDING POWER, SO IT IS SHAPED
+ * LIKE THE REGISTER: choose the amount and the reason ONCE, then one tap per
+ * student. No modal, no save button, no per-student form. A prof standing in
+ * front of twenty children on a phone must be able to reward the table that
+ * just finished in the time it takes to say their names.
+ *
+ * ⚠️ EACH TAP IS ONE ROW, AND A SECOND TAP IS A SECOND ROW. Two jetons for one
+ * child is two taps; there is nothing to "save", so nothing is lost when the
+ * prof puts the phone down mid-pass. The last tap on a row can be undone,
+ * because a thumb lands on the wrong name in a crowded room.
+ *
+ * ⚠️ THE REASON IS REQUIRED BY THE DATABASE (0004) AND SHOWN TO THE STUDENT on
+ * their `/progres/`, so it is prefilled with the day's session and editable —
+ * "Séance du 3 octobre" is a true reason, and the prof can make it a better one.
+ *
+ * ⚠️ BALANCES COME FROM `jeton_balances()` AND ARE RE-READ AFTER EACH TAP,
+ * NEVER INCREMENTED. Each read is issued after its tap has committed, so the
+ * newest read always includes every confirmed tap; a generation counter drops
+ * an older answer that lands late — the register's lesson.
+ *
+ * ⚠️ PRESENT STUDENTS COME FIRST when today has a session with a register, so
+ * the prof's thumb starts where the room is. Everyone else follows by name;
+ * a child who was not marked is still one scroll away, never hidden.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+import AdminShell from '@components/admin/AdminShell.astro';
+
+const AMOUNTS = [1, 2, 3, 5] as const;
+---
+
+<AdminShell
+  title="Jetons"
+  current="jetons"
+  intro="Choisissez le nombre et la raison, puis un appui par élève. Les jetons se dépensent à la boutique ; ils ne comptent pas dans les points."
+>
+  <section class="admin-block mcc-card" data-jetons-setup>
+    <div class="mcc-field">
+      <span class="jetons-label" id="jetons-amount-label">Combien de jetons par appui</span>
+      <div class="mark-buttons jetons-amounts" role="group" aria-labelledby="jetons-amount-label">
+        {
+          AMOUNTS.map((n) => (
+            <button
+              type="button"
+              class="mark-button"
+              data-jetons-amount={n}
+              aria-pressed={n === 1 ? 'true' : 'false'}
+            >
+              {n}
+            </button>
+          ))
+        }
+      </div>
+    </div>
+    <div class="mcc-field">
+      <label for="jetons-reason">Raison</label>
+      <input id="jetons-reason" type="text" maxlength="120" data-jetons-reason required />
+      <p class="mcc-field-hint">L’élève la verra, à côté de ses jetons.</p>
+    </div>
+    <div class="mcc-field">
+      <label for="jetons-search">Chercher un élève</label>
+      <input id="jetons-search" type="search" data-jetons-search autocomplete="off" />
+    </div>
+    <p class="admin-error" data-jetons-error role="status"></p>
+  </section>
+
+  <section class="admin-block mcc-card">
+    <h2 class="admin-block-title" data-jetons-heading>La classe</h2>
+    <ul class="mark-list" data-jetons-list data-testid="jetons-list">
+      <li class="admin-empty">Chargement…</li>
+    </ul>
+  </section>
+</AdminShell>
+
+<script>
+  import {
+    giveJetons,
+    listAttendance,
+    listChildren,
+    listJetonBalances,
+    listSessions,
+    takeBackJetons,
+    validateAward,
+    type AdminChild,
+    type AdminJetonBalance,
+  } from '@lib/admin';
+  import { getUser } from '@lib/supabase';
+
+  const list = document.querySelector('[data-jetons-list]') as HTMLElement | null;
+  const reasonInput = document.querySelector('[data-jetons-reason]') as HTMLInputElement | null;
+  const searchInput = document.querySelector('[data-jetons-search]') as HTMLInputElement | null;
+  const errorEl = document.querySelector('[data-jetons-error]') as HTMLElement | null;
+  const heading = document.querySelector('[data-jetons-heading]') as HTMLElement | null;
+
+  let me: string | null = null;
+  let amount = 1;
+  let balances: Map<string, AdminJetonBalance> | null = null;
+  let generation = 0;
+  /** What THIS page has given each child, and the ids to undo — display only. */
+  const given = new Map<string, { total: number; ids: { id: string; n: number }[] }>();
+
+  const setText = (el: Element | null, value: string) => {
+    if (el && el.textContent !== value) el.textContent = value;
+  };
+
+  const dayFmt = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long' });
+  const sameDay = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+
+  function balanceText(childId: string): string {
+    /* ⚠️ A DASH, NEVER A ZERO NOBODY COMPUTED (Critical Feature 30). */
+    if (!balances) return '—';
+    const b = balances.get(childId)?.balance ?? 0;
+    return `${b} jeton${Math.abs(b) === 1 ? '' : 's'}`;
+  }
+
+  function paintRow(row: HTMLElement) {
+    const id = row.dataset.childId ?? '';
+    setText(row.querySelector('[data-jetons-balance]'), balanceText(id));
+    const mine = given.get(id);
+    setText(row.querySelector('[data-jetons-given]'), mine && mine.total > 0 ? `+${mine.total} ici` : '');
+    const undo = row.querySelector('[data-jetons-undo]') as HTMLButtonElement | null;
+    const hide = !mine || mine.ids.length === 0;
+    if (undo && undo.hidden !== hide) undo.hidden = hide;
+    const give = row.querySelector('[data-jetons-give]') as HTMLButtonElement | null;
+    const label = `+${amount}`;
+    if (give) {
+      setText(give, label);
+      const name = row.dataset.childName ?? '';
+      const aria = `Donner ${amount} jeton${amount === 1 ? '' : 's'} à ${name}`;
+      if (give.getAttribute('aria-label') !== aria) give.setAttribute('aria-label', aria);
+    }
+  }
+
+  async function reread() {
+    const mine = ++generation;
+    const next = await listJetonBalances();
+    /* An older read landing last would show a balance missing a tap. */
+    if (mine !== generation) return;
+    balances = next;
+    for (const row of list?.querySelectorAll<HTMLElement>('[data-child-id]') ?? []) paintRow(row);
+  }
+
+  function buildRow(child: AdminChild, present: boolean): HTMLLIElement {
+    const row = document.createElement('li');
+    row.className = 'mark-row';
+    row.dataset.childId = child.id;
+    row.dataset.childName = child.displayName || 'Élève';
+    row.dataset.testid = 'jetons-row';
+    if (present) row.dataset.present = 'true';
+
+    const name = document.createElement('span');
+    name.className = 'mark-name';
+    name.textContent = child.displayName || 'Élève';
+
+    const balance = document.createElement('span');
+    balance.className = 'admin-rank';
+    balance.dataset.jetonsBalance = '';
+
+    const tally = document.createElement('span');
+    tally.className = 'admin-rank';
+    tally.dataset.jetonsGiven = '';
+
+    const buttons = document.createElement('span');
+    buttons.className = 'mark-buttons';
+
+    const undo = document.createElement('button');
+    undo.type = 'button';
+    undo.className = 'btn-ghost';
+    undo.dataset.jetonsUndo = '';
+    undo.textContent = 'Annuler';
+    undo.hidden = true;
+    undo.setAttribute('aria-label', `Annuler le dernier don à ${row.dataset.childName}`);
+
+    const give = document.createElement('button');
+    give.type = 'button';
+    give.className = 'mark-button mark-button-wide';
+    give.dataset.jetonsGive = '';
+
+    give.addEventListener('click', async () => {
+      if (!errorEl || !reasonInput) return;
+      const reason = reasonInput.value;
+      const n = amount;
+      const invalid = validateAward(n, reason);
+      if (invalid) {
+        setText(errorEl, invalid);
+        reasonInput.focus();
+        return;
+      }
+      setText(errorEl, '');
+      /* ⚠️ NOT DISABLED WHILE IN FLIGHT. A second tap is a second jeton, which
+         is what a prof tapping twice means; `data-saving` is the only sign. */
+      row.dataset.saving = String(Number(row.dataset.saving ?? 0) + 1);
+      const result = await giveJetons(child.id, n, reason, me);
+      const left = Number(row.dataset.saving ?? 1) - 1;
+      if (left > 0) row.dataset.saving = String(left);
+      else delete row.dataset.saving;
+
+      if (!result.ok) {
+        row.dataset.failed = '';
+        setText(errorEl, `${row.dataset.childName} : pas enregistré — ${result.error}`);
+        return;
+      }
+      delete row.dataset.failed;
+      const mine = given.get(child.id) ?? { total: 0, ids: [] };
+      mine.total += n;
+      mine.ids.push({ id: result.id, n });
+      given.set(child.id, mine);
+      paintRow(row);
+      await reread();
+    });
+
+    undo.addEventListener('click', async () => {
+      const mine = given.get(child.id);
+      const last = mine?.ids.pop();
+      if (!mine || !last) return;
+      undo.disabled = true;
+      const result = await takeBackJetons(last.id);
+      undo.disabled = false;
+      if (!result.ok) {
+        mine.ids.push(last);
+        setText(errorEl, `${row.dataset.childName} : annulation impossible — ${result.error}`);
+        return;
+      }
+      mine.total -= last.n;
+      paintRow(row);
+      await reread();
+    });
+
+    buttons.append(undo, give);
+    row.append(name, tally, balance, buttons);
+    paintRow(row);
+    return row;
+  }
+
+  for (const button of document.querySelectorAll<HTMLButtonElement>('[data-jetons-amount]')) {
+    button.addEventListener('click', () => {
+      amount = Number(button.dataset.jetonsAmount ?? 1);
+      for (const other of document.querySelectorAll<HTMLButtonElement>('[data-jetons-amount]')) {
+        const pressed = other === button ? 'true' : 'false';
+        if (other.getAttribute('aria-pressed') !== pressed) other.setAttribute('aria-pressed', pressed);
+      }
+      for (const row of list?.querySelectorAll<HTMLElement>('[data-child-id]') ?? []) paintRow(row);
+    });
+  }
+
+  searchInput?.addEventListener('input', () => {
+    const q = searchInput.value.trim().toLocaleLowerCase('fr');
+    for (const row of list?.querySelectorAll<HTMLElement>('[data-child-id]') ?? []) {
+      const hide = q !== '' && !(row.dataset.childName ?? '').toLocaleLowerCase('fr').includes(q);
+      if (row.hidden !== hide) row.hidden = hide;
+    }
+  });
+
+  window.addEventListener('mcc:admin-ready', async () => {
+    const [user, children, sessions, read] = await Promise.all([
+      getUser(),
+      listChildren(),
+      listSessions(),
+      listJetonBalances(),
+    ]);
+    me = user?.id ?? null;
+    balances = read;
+
+    /* Today's session, if any: its register decides who comes first. */
+    const today = new Date();
+    const session = sessions.find(
+      (s) => s.status !== 'cancelled' && sameDay(new Date(s.startsAt), today),
+    );
+    const present = new Set<string>();
+    if (session) {
+      for (const mark of await listAttendance(session.id)) {
+        if (mark.status === 'present') present.add(mark.childId);
+      }
+    }
+    if (reasonInput && !reasonInput.value) {
+      reasonInput.value = `Séance du ${dayFmt.format(session ? new Date(session.startsAt) : today)}`;
+    }
+    if (heading) {
+      setText(heading, present.size > 0 ? `La classe — ${present.size} présents en premier` : 'La classe');
+    }
+
+    if (!list) return;
+    if (children.length === 0) {
+      list.innerHTML = '<li class="admin-empty">Aucun élève pour l’instant.</li>';
+      return;
+    }
+    const ordered = [...children].sort((a, b) => {
+      const pa = present.has(a.id) ? 0 : 1;
+      const pb = present.has(b.id) ? 0 : 1;
+      return pa - pb || a.displayName.localeCompare(b.displayName, 'fr');
+    });
+    list.replaceChildren(...ordered.map((c) => buildRow(c, present.has(c.id))));
+  });
+</script>

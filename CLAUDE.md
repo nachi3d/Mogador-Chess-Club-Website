@@ -356,6 +356,23 @@ bytes: [`docs/reference/dev-environment.md`](./docs/reference/dev-environment.md
 81. **The magic link is NOT legacy.** It is second on `/connexion/`, inside a
     `<details>`, and first-class: it is how Seàn and Michael sign in. Removing or
     "cleaning up" the email path breaks the two accounts that run the club.
+82. **Jetons are earned ONLY from rows a student cannot write.** `jeton_balances()`
+    is `point_awards` minus live `redemptions`, and nothing else. ⚠️ **Adding a
+    client-writable source — solved exercises, wins — reopens the 900-point
+    hole the shop was built to close**: summing client rows in Postgres proves
+    nothing. `shop.spec.ts` writes fake progress with a real token and proves
+    it buys nothing.
+83. **Points and jetons never read as one number.** A prof's award is a JETON
+    (FR) / TOKEN (EN): it is in neither `computeLedger()` nor the inline
+    resolver, and copy never calls it a point.
+84. **A redemption is born only in `redeem()`** — ownership, then a `FOR NO KEY
+    UPDATE` lock on the child, then the price from `shop_items` (never the
+    caller), then the balance recomputed inside the lock. `authenticated` holds
+    SELECT only on `redemptions`, staff included.
+85. **Jetons are never bought with money, and this site carries no payment
+    code.** Card = a link to nachi3dlabs.com; WhatsApp = cash with jetons as a
+    discount **capped at 25%, 1 jeton = 1 DH** — the cap lives in `redeem()`.
+86. **An empty catalogue says "bientôt", never shows a placeholder product.**
 
 ---
 
@@ -750,6 +767,9 @@ Ranks are **Pion → Cavalier → Fou → Tour → Dame**.
   may take a total, a rank or an achievement list as input. The client may send
   *what it solved*; the server decides what that is worth. Nothing in `points.ts`
   may become a wire format for a client-supplied total.
+  ⚠️⚠️ **AND THAT IS NOT ENOUGH FOR ANYTHING THAT BUYS AN OBJECT** — the solves
+  themselves are client-written. So points stay declarative and the shop spends
+  **jetons**, which come only from a prof (Critical Features 82–83).
 
 ### ⚠️ A CARD THAT RENDERS HAS A DESTINATION
 
@@ -1187,6 +1207,25 @@ that actually refuses — printing "—" and never 0 when the count is absent (3
 
 **➡️ Each of those in full, with the incident and the measurement behind it:
 [`docs/reference/supabase.md`](./docs/reference/supabase.md).**
+### ⚠️ THE SHOP — JETONS, A PUBLISHED PRICE LIST, AND REDEMPTIONS (0016)
+
+`/boutique/` (FR/EN), `/admin/jetons/` (staff), `/admin/boutique/` (admin).
+Critical Features 82–86 are the rules. Three that bind work elsewhere:
+
+- ⚠️ **THE CATALOGUE IS IN GIT; WHAT IS CHARGED IS `shop_items`.** An admin
+  presses "Publier" on `/admin/boutique/`, which says loudly when the two
+  differ. ⚠️ **Anything added to `publishShape()` is compared there in the same
+  commit.** Publishing WITHDRAWS every item the payload omits — so the shop
+  specs carry each other's rows (a cross-worker race otherwise).
+- ⚠️ **STOCK IS A FLAG IN THE DATABASE, NOT A COUNT AND NOT A GIT FIELD** — a
+  commit per empty box is not operable by the people holding the box.
+- ⚠️ **`/admin/jetons/` IS THE ONLY WAY A STUDENT EARNS SPENDING POWER**, so it
+  is shaped like the register: amount and reason once, one tap per student,
+  undo the last tap. A spec measures the tap.
+
+**➡️ The threat model, the lock, the cap and every decision:
+[`docs/reference/supabase.md`](./docs/reference/supabase.md) → "The shop".**
+
 ### ⚠️ `db:push --dry-run` ONCE APPLIED AND SAID IT HAD NOT
 
 `scripts/db-push.mjs` read `process.argv` **not at all** — it probed with

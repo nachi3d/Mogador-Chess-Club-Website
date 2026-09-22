@@ -46,7 +46,8 @@
  *
  *   [data-score-points]            ← the total
  *   [data-score-source="<id>"]     ← that bucket's subtotal
- *   [data-score-teacher-wrap]      ← un-hidden only once a prof has awarded
+ *   [data-score-jetons]            ← jetons RECEIVED from a prof (not points)
+ *   [data-score-jetons-wrap]       ← un-hidden only once a prof has given some
  *   [data-score-rank]              ← the current rank's label
  *   [data-score-next]              ← the next rank's label
  *   [data-score-remaining]         ← points still needed for it
@@ -199,7 +200,7 @@ const rankLabels: Record<string, string> = {
       }
 
       /* Sums values the build computed. No award rule lives here. */
-      var sources = { basics: 0, lessons: 0, exercises: 0, games: 0, teacher: 0 };
+      var sources = { basics: 0, lessons: 0, exercises: 0, games: 0 };
       var done = {};
       var count = 0;
       var mate = false;
@@ -227,23 +228,15 @@ const rankLabels: Record<string, string> = {
         sources.games += Math.min(wins, cat.winCap) * cat.wins[levels[g]];
       }
 
-      /* Teacher awards — ROWS mirrored from the cloud, summed like everything
-         else. Never a stored total; see AwardRecord in progress.ts. */
+      /* Jetons from a prof: counted apart, NEVER added to points (0016). */
+      var jetons = 0;
       var aw = s.awards || [];
       for (var t = 0; t < aw.length; t++) {
         var pts = aw[t] && typeof aw[t].points === 'number' ? Math.floor(aw[t].points) : 0;
-        /* ⚠️ NO UPPER BOUND SINCE MIGRATION 0014. This read `pts <= 50` and was
-           the SECOND place the old ceiling would have silently eaten a real
-           award — the first was normalizeAwards in progress.ts. A prof awarding
-           80 would have had it accepted by the database, mirrored down, and
-           then excluded from the student's own total with nothing to show it
-           had happened. The floor stays: negative awards are not a thing this
-           site has (Critical Feature 35). */
-        if (pts > 0) sources.teacher += pts;
+        if (pts > 0) jetons += pts;
       }
 
-      var points =
-        sources.basics + sources.lessons + sources.exercises + sources.games + sources.teacher;
+      var points = sources.basics + sources.lessons + sources.exercises + sources.games;
 
       var idx = 0;
       for (var r = 0; r < cat.ranks.length; r++) {
@@ -276,6 +269,7 @@ const rankLabels: Record<string, string> = {
       return {
         points: points,
         sources: sources,
+        jetons: jetons,
         rank: rank.id,
         rankLabel: cat.rankLabels[rank.id] || rank.id,
         next: next ? next.id : null,
@@ -300,17 +294,15 @@ const rankLabels: Record<string, string> = {
       text('[data-score-remaining]', s.remaining);
       text('[data-score-earned]', s.earned.length);
 
-      var keys = ['basics', 'lessons', 'exercises', 'games', 'teacher'];
+      var keys = ['basics', 'lessons', 'exercises', 'games'];
       for (var i = 0; i < keys.length; i++) {
         text('[data-score-source="' + keys[i] + '"]', s.sources[keys[i]]);
       }
 
-      /* The teacher block appears only once a prof has actually awarded
-         something. A guest, and a student nobody has awarded, see nothing —
-         an empty "attribués par ton prof: 0" invites the question "why not?" */
-      var tw = document.querySelectorAll('[data-score-teacher-wrap]');
+      text('[data-score-jetons]', s.jetons);
+      var tw = document.querySelectorAll('[data-score-jetons-wrap]');
       for (var tz = 0; tz < tw.length; tz++) {
-        if (s.sources.teacher > 0) tw[tz].removeAttribute('hidden');
+        if (s.jetons > 0) tw[tz].removeAttribute('hidden');
         else tw[tz].setAttribute('hidden', '');
       }
 

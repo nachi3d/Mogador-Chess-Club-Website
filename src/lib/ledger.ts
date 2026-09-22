@@ -37,7 +37,7 @@
 const LEVELS = ['debutant', 'intermediaire', 'avance'] as const;
 
 /** The award buckets a total is broken into. */
-export type LedgerSource = 'basics' | 'lessons' | 'exercises' | 'games' | 'teacher';
+export type LedgerSource = 'basics' | 'lessons' | 'exercises' | 'games';
 
 /**
  * One scoreable unit, exactly as `scoreboard.ts` serialises it.
@@ -68,23 +68,18 @@ export interface LedgerRecord {
   readonly hintUsed?: boolean;
 }
 
-/**
- * A teacher award, as a ROW.
- *
- * ⚠️ NEVER A BALANCE. This is the same shape as `point_awards` and carries its
- * reason with it, because a point a student cannot explain reads as arbitrary —
- * which is why the database requires the reason rather than the form.
+/*
+ * ⚠️⚠️ TEACHER AWARDS ARE NOT POINTS ANY MORE (0016). They are JETONS, the
+ * shop's currency, summed in Postgres by `jeton_balances()` and never here.
+ * Points are declarative — the client writes the progress behind them — and
+ * jetons buy real objects, so they come only from rows a student cannot write.
+ * Adding `point_awards` back into this sum would make the two numbers read as
+ * one, which is exactly what Seàn's decision (2026-09-22) exists to prevent.
  */
-export interface LedgerAward {
-  readonly points: number;
-  readonly reason?: string;
-  readonly awardedAt?: string | null;
-}
 
 export interface LedgerInput {
   readonly exercises: Readonly<Record<string, LedgerRecord>>;
   readonly games: Readonly<Record<string, { readonly wins?: number }>>;
-  readonly awards?: readonly LedgerAward[];
 }
 
 export interface LedgerResult {
@@ -124,7 +119,6 @@ export function computeLedger(
     lessons: 0,
     exercises: 0,
     games: 0,
-    teacher: 0,
   };
 
   const solved = (key: string) => input.exercises[key]?.solved === true;
@@ -152,12 +146,7 @@ export function computeLedger(
     sources.games += Math.min(wins, catalogue.winCap) * (catalogue.wins[level] ?? 0);
   }
 
-  /* ⚠️ Teacher awards are summed from their ROWS, exactly like everything else
-     here. Nothing anywhere stores what they add up to. */
-  for (const award of input.awards ?? []) sources.teacher += count(award.points);
-
-  const points =
-    sources.basics + sources.lessons + sources.exercises + sources.games + sources.teacher;
+  const points = sources.basics + sources.lessons + sources.exercises + sources.games;
 
   let index = 0;
   for (let i = 0; i < catalogue.ranks.length; i += 1) {

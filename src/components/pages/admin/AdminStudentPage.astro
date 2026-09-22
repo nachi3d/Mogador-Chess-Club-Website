@@ -72,6 +72,9 @@ const rankLabels: Record<string, string> = {
       <li class="admin-tile"><b data-stat="rank">–</b><span>rang</span></li>
       <li class="admin-tile"><b data-stat="solved">0</b><span>exercices résolus</span></li>
       <li class="admin-tile"><b data-stat="lessons">0</b><span>leçons terminées</span></li>
+      {/* ⚠️ JETONS, NOT POINTS (0016): what the shop spends, from jeton_balances(),
+          the same function the child's /boutique/ calls. "—" when unread. */}
+      <li class="admin-tile"><b data-stat="jetons">–</b><span>jetons à dépenser</span></li>
     </ul>
 
     <section class="admin-block mcc-card">
@@ -91,10 +94,14 @@ const rankLabels: Record<string, string> = {
         The hint says the student will see the reason, because they will: it is
         printed beside the award on their own progress page. */}
     <section class="admin-block mcc-card">
-      <h2 class="admin-block-title">Attribuer des points</h2>
+      <h2 class="admin-block-title">Donner des jetons</h2>
+      <p class="admin-intro">
+        Les jetons se dépensent à la boutique et ne comptent pas dans les points. Pour toute la
+        classe à la fois : <a href="/admin/jetons/">l’écran Jetons</a>.
+      </p>
       <form class="admin-form" data-award-form>
         <div class="admin-field">
-          <label for="award-points">Points</label>
+          <label for="award-points">Jetons</label>
           {/* ⚠️ NO `max` SINCE MIGRATION 0014. The ceiling was removed because
               the size of an award is a teaching judgement, not a schema rule.
               An input that still refused 60 would be a second policy quietly
@@ -112,7 +119,7 @@ const rankLabels: Record<string, string> = {
           <p class="admin-field-hint">L’élève la verra. « A aidé un camarade », « beau sacrifice ».</p>
         </div>
         <div class="admin-actions">
-          <button type="submit" class="btn-primary">Attribuer</button>
+          <button type="submit" class="btn-primary">Donner</button>
         </div>
         <p class="admin-error" data-award-error role="status"></p>
       </form>
@@ -131,6 +138,7 @@ const rankLabels: Record<string, string> = {
   import {
     awardPoints,
     listAttendance,
+    listJetonBalances,
     listAwards,
     listChildren,
     listGames,
@@ -181,13 +189,13 @@ const rankLabels: Record<string, string> = {
     const awards = await listAwards(childId);
     awardList.innerHTML =
       awards.length === 0
-        ? '<li class="admin-empty">Aucun point attribué pour l’instant.</li>'
+        ? '<li class="admin-empty">Aucun jeton donné pour l’instant.</li>'
         : awards
             .map(
               (a) => `
               <li class="mark-row">
                 <span class="mark-name">${esc(a.reason)}</span>
-                <span class="admin-rank">+${a.points}</span>
+                <span class="admin-rank">+${a.points} jeton${a.points === 1 ? '' : 's'}</span>
                 <span class="admin-rank">${esc(dayFmt.format(new Date(a.awardedAt)))}</span>
               </li>`,
             )
@@ -210,7 +218,7 @@ const rankLabels: Record<string, string> = {
 
     const result = await awardPoints(childId, points, reason, me);
     if (!result.ok) {
-      awardError.textContent = result.error ?? 'Impossible d’attribuer ces points.';
+      awardError.textContent = result.error ?? 'Impossible de donner ces jetons.';
       return;
     }
     awardForm.reset();
@@ -229,10 +237,11 @@ const rankLabels: Record<string, string> = {
     });
     const rankLabels = json<Record<string, string>>('[data-rank-labels]', {});
 
-    const [progress, games, awards] = await Promise.all([
+    /* ⚠️ NO AWARDS IN THE POINTS SINCE 0016 — they are jetons, read below. */
+    const [progress, games, jetons] = await Promise.all([
       listProgress(),
       listGames(),
-      listAwards(childId),
+      listJetonBalances(),
     ]);
 
     const mine = progress.filter((p) => p.childId === childId);
@@ -252,19 +261,19 @@ const rankLabels: Record<string, string> = {
       if (game.outcome === 'win') bucket.wins += 1;
     }
 
-    const ledger = computeLedger(catalogue, { exercises, games: wins, awards });
+    const ledger = computeLedger(catalogue, { exercises, games: wins });
 
     set('points', ledger.points);
     set('rank', rankLabels[ledger.rank] ?? ledger.rank);
     set('solved', mine.filter((p) => p.solved).length);
     set('lessons', lessons.size);
+    set('jetons', jetons ? String(jetons.get(childId)?.balance ?? 0) : '—');
 
     const labels: Record<string, string> = {
       basics: 'Les bases',
       lessons: 'Leçons',
       exercises: 'Exercices',
       games: 'Parties gagnées',
-      teacher: 'Attribués par un prof',
     };
     const sources = document.querySelector('[data-sources]');
     if (sources) {

@@ -1,0 +1,245 @@
+/**
+ * The shop — /boutique/ and /boutique/<slug>/ (0016).
+ *
+ * ⚠️ A REAL STYLESHEET, NOT A SCOPED `<style>`, AND THAT IS FORCED: the order
+ * rows, the child picker's options and every button are built by script, and
+ * a scoped rule never reaches an element the script created (CLAUDE.md →
+ * "A SCOPED <style> DOES NOT REACH…"). Buttons are `.btn-primary`/`.btn-ghost`
+ * from controls.css and cards are `.mcc-card` — consolidated, never re-made.
+ *
+ * ⚠️ EVERY RULE IS PREFIXED WITH `.shop`, so the cascade is settled by
+ * specificity rather than by the order this sheet happens to load in.
+ *
+ * ⚠️ NO `opacity` ON TEXT. Secondary text is `--mcc-text-secondary`, a pair
+ * `check-contrast.mjs` proves; an alpha on top of it is invisible to it.
+ */
+
+.shop {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mcc-card-gap);
+}
+
+.shop .page-intro {
+  margin-bottom: 0;
+}
+
+.shop .shop-section-title,
+.shop .shop-soon-title {
+  margin: 0 0 var(--mcc-space-sm);
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  line-height: 1.25;
+  color: var(--mcc-text-heading);
+}
+
+.shop .shop-soon p,
+.shop .shop-paths p {
+  margin: 0 0 var(--mcc-space-sm);
+  color: var(--mcc-text-primary);
+  line-height: 1.55;
+}
+
+/* The one brass figure on the card is not here: the "bientôt" card has no
+   number to lead with, so its accent is the edge (.mcc-card-accent) alone. */
+.shop .shop-soon-earned {
+  font-weight: 600;
+}
+
+.shop .shop-path-list {
+  display: grid;
+  gap: var(--mcc-space-md);
+  margin: 0 0 var(--mcc-space-sm);
+  padding: 0;
+  list-style: none;
+}
+
+@media (min-width: 48rem) {
+  .shop .shop-path-list {
+    grid-template-columns: repeat(auto-fit, minmax(min(14rem, 100%), 1fr));
+  }
+}
+
+.shop .shop-path {
+  padding-top: var(--mcc-space-sm);
+  border-top: 1px solid var(--mcc-border-subtle);
+}
+
+.shop .shop-path-name {
+  margin: 0 0 var(--mcc-space-xs);
+  font-family: var(--font-display);
+  font-size: 1.0625rem;
+  color: var(--mcc-text-heading);
+}
+
+.shop .shop-path-price {
+  font-weight: 600;
+}
+
+.shop .shop-note {
+  margin: var(--mcc-space-xs) 0 0;
+  color: var(--mcc-text-secondary);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+
+/* ── The catalogue grid: the chooser's grid (see /apprendre/). ─────────── */
+.shop .shop-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(16rem, 100%), 1fr));
+  gap: var(--mcc-card-gap);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.shop .shop-card-image,
+.shop .shop-item-image {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+  border-radius: var(--radius-card);
+  background-color: var(--mcc-surface-sunken);
+}
+
+.shop .shop-item-image {
+  max-inline-size: 32rem;
+}
+
+.shop .shop-card-name {
+  margin: var(--mcc-space-sm) 0 var(--mcc-space-xs);
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+}
+
+.shop .shop-card-name a {
+  color: var(--mcc-link);
+}
+
+.shop .shop-card-body {
+  margin: 0 0 var(--mcc-space-xs);
+  color: var(--mcc-text-secondary);
+}
+
+.shop .shop-card-price {
+  margin: 0;
+  color: var(--mcc-accent-text);
+  font-weight: 600;
+}
+
+/* ── The member block ─────────────────────────────────────────────────── */
+.shop .shop-prompt {
+  margin: 0;
+  color: var(--mcc-text-secondary);
+}
+
+.shop .shop-signin {
+  color: var(--mcc-link);
+  font-weight: 600;
+}
+
+.shop .shop-balance {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--mcc-space-xs);
+  margin: 0;
+  color: var(--mcc-text-primary);
+}
+
+/* ⚠️ THE ONE BRASS FIGURE ON THIS CARD — the number the reader came for. */
+.shop .shop-balance b {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  line-height: 1;
+  color: var(--mcc-accent-text);
+}
+
+.shop .shop-balance-name {
+  color: var(--mcc-text-secondary);
+}
+
+.shop .shop-orders {
+  margin-top: var(--mcc-space-md);
+  padding-top: var(--mcc-space-sm);
+  border-top: 1px solid var(--mcc-border-subtle);
+}
+
+.shop .shop-orders[hidden],
+.shop [data-shop-live][hidden],
+.shop [data-shop-picker][hidden] {
+  display: none;
+}
+
+.shop .shop-orders-title {
+  margin: 0 0 var(--mcc-space-xs);
+  font-size: 1rem;
+  color: var(--mcc-text-heading);
+}
+
+.shop .shop-order-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mcc-space-xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.shop .shop-order {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mcc-space-xs) var(--mcc-space-sm);
+  padding: var(--mcc-space-xs) 0;
+  border-bottom: 1px solid var(--mcc-border-subtle);
+}
+
+.shop .shop-order-what {
+  flex: 1 1 12rem;
+  font-weight: 600;
+  color: var(--mcc-text-primary);
+}
+
+.shop .shop-order-cost,
+.shop .shop-order-status {
+  color: var(--mcc-text-secondary);
+  font-size: 0.9375rem;
+}
+
+/* ⚠️ 44px MINIMUM — a child on a phone, often standing up. */
+.shop .shop-button,
+.shop .shop-order-cancel,
+.shop .shop-whatsapp-send {
+  min-block-size: 44px;
+}
+
+.shop .shop-action {
+  margin-top: var(--mcc-space-sm);
+}
+
+.shop .shop-action:empty {
+  display: none;
+}
+
+.shop .shop-message {
+  margin: var(--mcc-space-sm) 0 0;
+  padding: 0.5rem 0.7rem;
+  background-color: var(--mcc-surface-sunken);
+  border-left: 3px solid var(--mcc-primary);
+  border-radius: var(--radius-card);
+  color: var(--mcc-text-primary);
+}
+
+.shop .shop-message:empty {
+  display: none;
+}
+
+.shop .shop-onward {
+  margin: 0;
+}
+
+.shop .shop-onward a {
+  color: var(--mcc-link);
+  font-weight: 600;
+}

@@ -270,6 +270,11 @@ these numbers are local and declarative.
 total.** No endpoint may accept a total, a rank or an achievement list. The
 client may send what it *did*; the server decides what that is worth.
 
+⚠️⚠️ **WHEN POINTS WOULD HAVE BOUGHT AN OBJECT (0016), THIS WAS THE WALL.** A
+server-side recomputation from client-written rows proves nothing about the
+rows. The shop therefore does not spend points at all: it spends **jetons**,
+which only a prof can write. See "The shop" at the end of this file.
+
 ### v2-S4 — teacher roles (FOUNDATION SHIPPED, SURFACES NOT YET)
 
 ⚠️ **WHAT EXISTS AND WHAT DOES NOT.** Migration 0004, the RLS/GRANT audit and
@@ -2827,3 +2832,116 @@ the reference.
 
 **➡️ Every one of these in full, with the incidents behind them:
 [`docs/reference/supabase.md`](./docs/reference/supabase.md).**
+
+---
+
+## The shop — jetons, a published price list, and redemptions (0016)
+
+**Read when:** touching `/boutique/`, `/admin/jetons/`, `/admin/boutique/`,
+`point_awards`, `redemptions`, `shop_items`, or anything that sums a balance.
+
+### Why jetons exist at all — the brief that was wrong
+
+The first brief (2026-09-22) said: compute the spendable balance in Postgres
+from `exercise_progress`, `game_results` and `point_awards`, and *prove* that a
+student writing fake progress cannot raise it. Those two cannot both hold.
+`exercise_progress` and `game_results` are `for all using owns_child()` (0005):
+any student with their own token can `PATCH solved = true` onto every real
+exercise key through PostgREST, and Postgres would value those rows exactly
+like real solves. **Moving the SUM server-side stops a client sending a total;
+it does nothing about a client sending fake ROWS.** The anti-cheat section
+above already said as much: telling a real solve from a typed one needs a
+witness the client cannot forge.
+
+Seàn's decision: **staff-witnessed only.**
+
+- **Points** stay the rank and the progress — derived, declarative, unchanged.
+- **Jetons** (FR) / **tokens** (EN) are what the shop spends. They come from
+  `point_awards` only — a prof wrote the row, a student gets `42501`. The table
+  keeps its name; its ROLE in the copy is "jetons given by a prof".
+- ⚠️ **`point_awards` LEFT THE POINTS TOTAL IN THE SAME CHANGE** —
+  `computeLedger()`, the inline `ScoreResolver`, `/admin/eleve/`, `/admin/eleves/`
+  and `/compte/`'s cards. Otherwise one prof award would raise both numbers and
+  the two would read as one. ⚠️ **A reader who had teacher awards sees their
+  POINTS drop by that amount** (and may drop a rank); nothing is lost — the rows
+  are intact and are now their jetons.
+
+The two options not taken, for the record: valuing client progress server-side
+(fake solves of real exercises still count, up to the ~900 ceiling); and
+server-checked move sequences (a much larger feature — solutions synced to the
+database, every board island changed, existing solves not counting, games never
+counting — and still beaten by reading the answers out of the page bundle).
+
+### The schema
+
+| | |
+|---|---|
+| `shop_items` | slug, `price_jetons`, `price_mad`, `allow_jetons`, `allow_whatsapp`, `in_stock`. SELECT for `authenticated`; **no write policy for anyone** — writes are `admin_publish_shop()` and `admin_set_stock()`. |
+| `redemptions` | one order: child, item, path (`jetons` \| `whatsapp`), jetons spent, price snapshot, status (`pending` → `handed_over` \| `cancelled`). **SELECT only** for `authenticated`, staff included. Cancelled rows are kept. |
+| `jeton_balances()` | THE summation: per child, Σ awards − Σ live redemptions. Own children for a member, all for staff. Not granted to `anon`. |
+| `redeem(child, item, via, discount)` | the only writer of an order. Returns a CODE. |
+| `cancel_redemption(id)` | member (own, pending) or admin; handed-over orders never cancel. |
+| `admin_publish_shop(jsonb)` / `admin_set_stock` / `admin_hand_over` | `is_admin_direct()`, raise/refuse otherwise. |
+
+The card path has **no row anywhere**: it is a link to nachi3dlabs.com.
+
+### `redeem()` — the order of operations is the design
+
+1. **`owns_child(child)`** — SECURITY DEFINER bypasses RLS, so this is the
+   whole authorisation. Staff get no exemption: a prof redeems for their own
+   profile or not at all.
+2. **`select … from child_profiles … for no key update`** — THE LOCK, before any
+   sum. Two tabs spending the same jetons serialise.
+   ⚠️ **`FOR NO KEY UPDATE`, not `FOR UPDATE`.** A prof inserting a
+   `point_awards` row takes `FOR KEY SHARE` on the child through the foreign
+   key; `FOR UPDATE` conflicts with that and would make a prof's tap in the room
+   wait on a child's order. `NO KEY UPDATE` still conflicts with itself.
+3. **The price from `shop_items`**, never from the caller. The only number a
+   caller supplies is the WhatsApp discount, checked against a cap computed here.
+4. **The balance recomputed from rows inside the lock**, then refused if short.
+
+### The discount cap — 25%, at 1 jeton = 1 DH, rounded down
+
+The brief allowed 20–30%. 25% is the middle, and at the club's rhythm (a few
+jetons a session) a 150 DH figurine can take 37 DH off after a couple of months
+of Saturdays: real, and never most of the price. `src/lib/shop.ts` mirrors the
+numbers for display only; the database refuses `cap + 1` (`shop.spec.ts`).
+
+### Why the catalogue is in git and ALSO in `shop_items`
+
+Git holds the product (names, descriptions, image, prices, paths) because the
+brief says so and because it is content like everything else. But `redeem()`
+must trust the price, so it cannot take it from the caller — so the numbers are
+**published** into `shop_items` by an admin from `/admin/boutique/`, whose page
+is built from the same git content and compares, per item, what the site shows
+against what the database charges. "À publier" is loud, as the agenda's
+staleness line is. Publishing **withdraws** (marks out of stock) every item the
+payload omits; past orders still name it.
+
+⚠️ **Stock is a flag in the database, not a count and not a git field.** A git
+flag makes "we ran out of keyrings" a commit and a Cloudflare build. A count was
+rejected: nobody at the club counts inventory, a count that drifts from the
+shelf refuses a child an item sitting in the box, and a pending order is
+already the reservation.
+
+### `/admin/jetons/` — seconds per student
+
+It is now the ONLY way a student earns spending power, so it is the register's
+shape: amount (1/2/3/5) and reason ONCE — the reason prefilled with today's
+session and editable, because the database requires one and the student sees
+it — then one tap per student. A second tap is a second row; the last tap on a
+row can be undone. Present students (today's register) come first. Balances are
+re-read from `jeton_balances()` after each tap with a generation counter, never
+incremented. `shop-ui.spec.ts` measures the tap at 390px.
+
+### The live proof (`shop.spec.ts`, against the TEST project)
+
+With the student's own token: every real exercise key upserted `solved = true`
+and forty `avance` wins inserted — **both writes succeed and are counted by the
+service role** — and then `jeton_balances()` returns **0** and `redeem()` returns
+`insufficient`, with zero order rows. Then: a direct `point_awards` insert is
+refused; a direct `redemptions` insert with −500 jetons gets `42501`; repricing
+`shop_items` gets `42501`; `admin_publish_shop` and `admin_set_stock` raise; a
+negative discount is `discount_too_large`. Six concurrent redemptions against
+30 jetons for a 10-jeton item leave **exactly three** rows. Another family's
+child is `forbidden` and unreadable; `anon` gets `42501` on all three objects.

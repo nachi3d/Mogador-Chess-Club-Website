@@ -162,6 +162,8 @@ export const NEEDS_ACCOUNTS_ON = [
   'pseudo-auth',
   'recurring-sessions',
   'role-separation',
+  /* 0016 — its signed-in half drives /boutique/ and /admin/jetons/. */
+  'shop-ui',
 ];
 
 /** Specs that only mean anything in an accounts-OFF build. */

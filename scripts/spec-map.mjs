@@ -209,6 +209,9 @@ export const SPEC_MAP = [
          endpoints — it is the only thing that would notice a GoTrue schema
          change before a Saturday at Dar Souiri does. */
       'pseudo-auth.spec.ts',
+      /* 0016 — jetons, the catalogue and redemptions. The live proof. */
+      'shop.spec.ts',
+      'shop-ui.spec.ts',
     ],
   ],
   /* The recurrence expansion is pure and its spec runs with no credentials and
@@ -220,7 +223,7 @@ export const SPEC_MAP = [
      the student's own total and `admin.spec.ts` pins the two implementations
      equal. A change to the summation that only ran one of them would prove
      nothing about the thing the split exists to protect. */
-  [/^src\/lib\/ledger\./, ['admin.spec.ts', 'progression.spec.ts']],
+  [/^src\/lib\/ledger\./, ['admin.spec.ts', 'progression.spec.ts', 'shop-ui.spec.ts']],
   [
     /^src\/lib\/admin\./,
     [
@@ -314,6 +317,18 @@ export const SPEC_MAP = [
      prints the count, and a fixture must appear in neither. */
   [/^src\/components\/pages\/(Pieges|LearnHub)Page\./, ['video.spec.ts']],
   [/^src\/components\/pages\/(Lesson|CourseDetail|TutorialStep)Page\./, ['lessons.spec.ts', 'tutorial.spec.ts', 'board-pointer.spec.ts']],
+  /* 0016 — the shop and the jetons it spends. `shop.spec.ts` is the live proof
+     that fake progress buys nothing (it needs only credentials); `shop-ui`
+     drives every surface. */
+  [
+    /^(src\/lib\/(shop|shop-ui|boutique)\.|src\/components\/shop\/|src\/components\/pages\/Shop|src\/styles\/shop\.|src\/content\/boutique\/|src\/pages\/(en\/)?boutique\/)/,
+    ['shop.spec.ts', 'shop-ui.spec.ts', 'mobile-app.spec.ts', 'wayfinding.spec.ts'],
+  ],
+  [
+    /^src\/components\/pages\/admin\/Admin(Jetons|Shop)Page\./,
+    ['shop-ui.spec.ts', 'admin.spec.ts', 'auth-disabled.spec.ts'],
+  ],
+  [/^src\/components\/pages\/ClubPage\./, ['shop-ui.spec.ts', 'wayfinding.spec.ts', 'mobile-app.spec.ts']],
   [/^src\/components\//, ['smoke.spec.ts']],
 
   [/^scripts\/build-sw\./, ['pwa.spec.ts']],

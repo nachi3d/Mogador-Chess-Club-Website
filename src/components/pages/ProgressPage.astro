@@ -371,7 +371,14 @@ function achievementLabel(id: string): string {
       </ul>
     </section>
 
-    {/* ── Given by a prof ─────────────────────────────────────────────────
+    {/* ── Jetons given by a prof ──────────────────────────────────────────
+        ⚠️⚠️ JETONS, NOT POINTS, SINCE 0016. A prof's award is the shop's
+        currency and is NOT added to the total above — points are the rank,
+        jetons are what the shop spends, and the two must never read as one
+        number. This block lists what was given and why; what is left to spend
+        lives on /boutique/, computed by the database (`jeton_balances()`),
+        because only the database knows what has been redeemed.
+
         ⚠️ A SEPARATE BLOCK, NOT A FIFTH ROW ABOVE (v2-S4).
 
         These points are a different KIND, not a bigger number: everything in
@@ -391,20 +398,23 @@ function achievementLabel(id: string): string {
     <section
       class="progress-block progress-teacher"
       aria-labelledby="progress-teacher"
-      data-score-teacher-wrap
+      data-score-jetons-wrap
       data-testid="progress-teacher"
       hidden
     >
       <h2 class="progress-block-title" id="progress-teacher">
-        {t('score.teacher.title')}
+        {t('score.jetons.title')}
         <span class="score-tally">
-          <b data-score-source="teacher">0</b>
-          {' '}{t('score.points')}
+          <b data-score-jetons>0</b>
+          {' '}{t('shop.jetons')}
         </span>
       </h2>
-      <p class="progress-note">{t('score.teacher.intro')}</p>
+      <p class="progress-note">{t('score.jetons.intro')}</p>
       {/* Filled by the script below from the mirrored rows. */}
-      <ul class="progress-rows" data-award-list data-on-pattern={t('score.teacher.on')}></ul>
+      <ul class="progress-rows" data-award-list data-on-pattern={t('score.jetons.on')}></ul>
+      <p class="progress-note">
+        <a href={localizePath('/boutique/', locale)}>{t('score.jetons.toShop')}</a>
+      </p>
     </section>
 
     {/* ── Achievements ───────────────────────────────────────────────── */}

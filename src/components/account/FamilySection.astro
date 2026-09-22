@@ -44,12 +44,13 @@
  *
  * ⚠️ EVERY NUMBER ON A CARD IS DERIVED BY `computeLedger()`, THE ONE SUMMATION
  * (Critical Feature 47). Nothing here stores or fetches a total; the rows come
- * from `exercise_progress`, `game_results` and `point_awards`, and the same
+ * from `exercise_progress` and `game_results` (never `point_awards`: those are
+ * jetons since 0016, not points), and the same
  * function a prof's screen uses turns them into points and a rank. A parent and
  * a prof reading different totals is the worst failure a progression display
  * can have, because both numbers look plausible.
  *
- * ⚠️ THE ROWS ARE FETCHED IN THREE REQUESTS, NOT THREE PER PROFILE. RLS filters
+ * ⚠️ THE ROWS ARE FETCHED IN TWO REQUESTS, NOT TWO PER PROFILE. RLS filters
  * to this account either way; the shape of the query is a latency decision on a
  * phone, not a security one. Same reasoning as `listProgress()` in `admin.ts`.
  *
@@ -673,10 +674,11 @@ const rankLabels: Record<string, string> = {
    */
   async function loadStandings(supabase: any, ids: readonly string[]) {
     if (ids.length === 0) return;
-    const [progress, games, awards] = await Promise.all([
+    /* ⚠️ NO `point_awards` SINCE 0016 — a prof's award is a jeton, spent at
+       the shop, and never part of the points a card ranks by. */
+    const [progress, games] = await Promise.all([
       supabase.from('exercise_progress').select('child_id,exercise_slug,solved,hint_used'),
       supabase.from('game_results').select('child_id,level,outcome'),
-      supabase.from('point_awards').select('child_id,points'),
     ]);
 
     const buckets = new Map<
@@ -684,13 +686,12 @@ const rankLabels: Record<string, string> = {
       {
         exercises: Record<string, { solved: boolean; hintUsed: boolean }>;
         games: Record<string, { wins: number }>;
-        awards: { points: number }[];
       }
     >();
     const bucket = (id: string) => {
       let value = buckets.get(id);
       if (!value) {
-        value = { exercises: {}, games: {}, awards: [] };
+        value = { exercises: {}, games: {} };
         buckets.set(id, value);
       }
       return value;
@@ -708,9 +709,6 @@ const rankLabels: Record<string, string> = {
       /* ⚠️ Wins only. A loss costs nothing, ever (Critical Feature 35). */
       if (row['outcome'] === 'win') level.wins += 1;
     }
-    for (const row of awards.data ?? []) {
-      bucket(String(row['child_id'])).awards.push({ points: Number(row['points'] ?? 0) });
-    }
 
     const next = new Map<string, Standing>();
     for (const id of ids) {
@@ -718,7 +716,6 @@ const rankLabels: Record<string, string> = {
       const ledger = computeLedger(catalogue, {
         exercises: value?.exercises ?? {},
         games: value?.games ?? {},
-        awards: value?.awards ?? [],
       });
       next.set(id, {
         points: ledger.points,

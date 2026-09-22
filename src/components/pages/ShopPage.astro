@@ -1,0 +1,104 @@
+---
+/**
+ * /boutique/ — the shop's index, and its "bientôt" state (0016).
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️ AN EMPTY CATALOGUE IS A REAL STATE, AND IT MUST NOT LOOK BROKEN. Today
+ * there are no products, so the page says what the shop WILL be, how its three
+ * paths work, and that jetons already received will count — and it shows NO
+ * placeholder products. A fake item a child cannot order is the inert card
+ * Critical Feature 32 forbids, wearing a price.
+ *
+ * ⚠️ JETONS, NOT POINTS. The balance on this page is `jeton_balances()` —
+ * awards from a prof minus orders — and it never mentions progress points.
+ *
+ * ⚠️ A SIGNED-OUT READER MAKES ZERO REQUESTS. They see the catalogue and an
+ * invitation to sign in; `shop-ui.ts` reads the token key from storage and
+ * imports nothing without one (the `/agenda/` pattern, verbatim).
+ *
+ * ⚠️ CARDS LINK TO A DETAIL PAGE (Critical Feature 32): the order controls
+ * live on `/boutique/<slug>/`, so every card that renders has a destination.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+import type { Locale } from '@config/site';
+import { useTranslations } from '@i18n/ui';
+import { localizePath } from '@i18n/paths';
+import BaseLayout from '@layouts/BaseLayout.astro';
+import PageIntro from '@components/PageIntro.astro';
+import Trail from '@components/nav/Trail.astro';
+import ShopMember from '@components/shop/ShopMember.astro';
+import { itemDescription, itemName, listedItems } from '@lib/boutique';
+import { AUTH_ENABLED } from '@config/auth';
+import '@styles/shop.css';
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const t = useTranslations(locale);
+const items = await listedItems();
+
+const PATHS = [
+  { id: 'jetons', name: t('shop.path.jetons.name'), body: t('shop.path.jetons.body') },
+  { id: 'whatsapp', name: t('shop.path.whatsapp.name'), body: t('shop.path.whatsapp.body') },
+  { id: 'carte', name: t('shop.path.card.name'), body: t('shop.path.card.body') },
+] as const;
+
+const price = (item: (typeof items)[number]) =>
+  [
+    item.priceJetons !== undefined && item.paths.includes('jetons')
+      ? t('shop.price.jetons').replace('{n}', String(item.priceJetons))
+      : null,
+    item.priceMad !== undefined ? t('shop.price.mad').replace('{n}', String(item.priceMad)) : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+---
+
+<BaseLayout locale={locale} title={t('shop.title')} description={t('shop.intro')}>
+  <div class="shop mcc-column" data-testid="shop">
+    <Trail locale={locale} href={localizePath('/club/', locale)} label={t('club.title')} />
+    <PageIntro title={t('shop.title')} intro={t('shop.intro')} />
+
+    {AUTH_ENABLED && <ShopMember locale={locale} />}
+
+    {
+      items.length === 0 ? (
+        <section class="mcc-card mcc-card-accent shop-soon" data-testid="shop-soon" aria-labelledby="shop-soon-title">
+          <h2 id="shop-soon-title" class="shop-soon-title">{t('shop.soon.title')}</h2>
+          <p>{t('shop.soon.body')}</p>
+          <p class="shop-soon-earned">{t('shop.soon.earned')}</p>
+        </section>
+      ) : (
+        <ul class="shop-grid" data-testid="shop-items">
+          {items.map((item) => (
+            <li class="mcc-card shop-card" data-testid={`shop-item-${item.slug}`}>
+              {item.image && (
+                <img class="shop-card-image" src={item.image} alt="" width="320" height="240" loading="lazy" />
+              )}
+              <h2 class="shop-card-name">
+                <a href={localizePath(`/boutique/${item.slug}/`, locale)}>{itemName(item, locale)}</a>
+              </h2>
+              <p class="shop-card-body">{itemDescription(item, locale)}</p>
+              <p class="shop-card-price">{price(item)}</p>
+            </li>
+          ))}
+        </ul>
+      )
+    }
+
+    <section class="mcc-card shop-paths" aria-labelledby="shop-paths-title">
+      <h2 id="shop-paths-title" class="shop-section-title">{t('shop.paths.title')}</h2>
+      <ul class="shop-path-list">
+        {PATHS.map((path) => (
+          <li class="shop-path" data-path={path.id}>
+            <h3 class="shop-path-name">{path.name}</h3>
+            <p>{path.body}</p>
+          </li>
+        ))}
+      </ul>
+      <p class="shop-note">{t('shop.jetons.what')}</p>
+    </section>
+  </div>
+</BaseLayout>
