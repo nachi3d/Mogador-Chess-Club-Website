@@ -1,0 +1,12 @@
+{
+  "slug": "fixture-porte-cles",
+  "name_fr": "Porte-clés de démonstration",
+  "name_en": "Demonstration keyring",
+  "description_fr": "Un objet de test. Il n’existe que pour que les tests aient quelque chose à commander, et n’apparaît jamais sur le site publié.",
+  "description_en": "A test item. It exists only so the tests have something to order, and never appears on the published site.",
+  "priceJetons": 10,
+  "priceMad": 40,
+  "paths": ["jetons", "whatsapp", "carte"],
+  "cardUrl": "https://www.nachi3dlabs.com/",
+  "fixture": true
+}

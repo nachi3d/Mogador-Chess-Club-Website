@@ -1,0 +1,18 @@
+---
+// Route shell. See @components/pages/ShopItemPage.astro.
+import type { GetStaticPaths } from 'astro';
+import ShopItemPage from '@components/pages/ShopItemPage.astro';
+import { routableItems } from '@lib/boutique';
+
+export const getStaticPaths = (async () => {
+  // ⚠️ `routableItems()` (isRoutable), not `!draft`: the fixture item is a
+  // page only in a fixtures build and is never listed in ANY build. The URL
+  // comes from the `slug` FIELD, never the filename.
+  const items = await routableItems();
+  return items.map((item) => ({ params: { slug: item.slug }, props: { item } }));
+}) satisfies GetStaticPaths;
+
+const { item } = Astro.props;
+---
+
+<ShopItemPage locale="fr" item={item} />

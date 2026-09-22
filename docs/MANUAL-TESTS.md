@@ -2616,3 +2616,37 @@ cibles ≥48px dans le contenu admin, les paires de contraste des nouvelles
 surfaces (371 assertions), et axe sur les pages touchées. **Ce qui reste
 manuel** est ce qu’aucun spec ne voit : est-ce que ça se *tient*, à bout de bras,
 dans une salle.
+
+### 7g. Boutique et jetons (0016)
+
+⚠️ **LES JETONS NE SONT PAS DES POINTS.** Les points sont le rang ; les jetons
+sont ce que la boutique dépense, et seul un prof en donne. Si une page, un
+message ou un total mélange les deux, c’est un défaut.
+
+⚠️ **Déjà automatisé** : la preuve en base (`shop.spec.ts` — une fausse
+progression ne rapporte aucun jeton, le plafond de 25 %, six commandes
+simultanées), le zéro-requête déconnecté, la page vide, l’achat, WhatsApp,
+l’annulation, le don de jetons chronométré à 390px et la remise
+(`shop-ui.spec.ts`). **Ce qui reste manuel** : la lisibilité, le message
+WhatsApp réellement reçu, et le geste dans une vraie salle.
+
+Pré-requis : `npm run demo:accounts` (⚠️ jamais un `.env.local` de production),
+un compte prof, un compte admin, un compte membre avec un profil.
+
+| # | Étape | Résultat attendu |
+|---|---|---|
+| 1 | `/boutique/` **déconnecté**, téléphone | Carte « La boutique ouvre bientôt », les trois façons d’obtenir un objet, et la phrase « les jetons déjà reçus comptent ». ⚠️ **Aucun faux produit.** La page ne doit **pas avoir l’air cassée**. Réseau : **zéro** requête hors du site |
+| 2 | `/club/` | Une carte **Boutique** — « Ouverture prochaine », **jamais** « 0 objets » |
+| 3 | Barre du bas sur `/boutique/` | **Club** est allumé ; le fil d’Ariane dit « ‹ Le club » |
+| 4 | `/en/boutique/` | Tout en anglais : **tokens**, jamais « jetons », jamais « points » |
+| 5 | Prof, `/admin/jetons/` sur un téléphone | Nombre (1/2/3/5) et raison **une seule fois** — la raison est déjà remplie (« Séance du … ») ; les présents du jour en tête |
+| 6 | Appuyer **+2** sur trois élèves à la suite | Chaque ligne affiche « +2 ici » et son solde monte. ⚠️ **Un appui = une ligne, en moins d’une seconde.** Aucun bouton « Enregistrer » |
+| 7 | « Annuler » sur la dernière ligne touchée | Seul le **dernier** appui est retiré |
+| 8 | Membre, `/progres/` | Le bloc « Jetons donnés par ton prof » liste les raisons. ⚠️ **Le total de points n’a pas bougé** |
+| 9 | Admin, `/admin/boutique/` avec un objet dans le catalogue | L’état dit « À publier » tant que « Publier le catalogue » n’a pas été pressé, puis « À jour » |
+| 10 | Membre, page de l’objet : **Échanger contre N jetons** | Solde baisse de N, la commande apparaît « En attente — à récupérer au club » |
+| 11 | **Commander sur WhatsApp** | La réduction affichée ne dépasse **jamais 25 %** du prix. Un lien **« Envoyer le message WhatsApp »** apparaît ; l’appuyer ouvre WhatsApp vers le numéro du club avec l’objet, l’enfant, la réduction, le reste à payer et le n° de commande |
+| 12 | **Acheter par carte** | Ouvre nachi3dlabs.com dans un nouvel onglet. ⚠️ **Aucun champ de paiement sur ce site**, aucun jeton dépensé |
+| 13 | Admin : « Remis » sur la commande | Elle quitte « en attente » ; côté membre elle devient « Remise » et **ne s’annule plus** |
+| 14 | Admin : un objet passé « Épuisé » | Côté membre : « Épuisé pour l’instant », pas de bouton |
+| 15 | Les quatre thèmes, clair et sombre, sur `/boutique/` et `/admin/jetons/` | Le solde (le chiffre laiton) se lit ; les cartes se détachent de la page |

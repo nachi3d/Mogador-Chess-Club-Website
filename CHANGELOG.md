@@ -11,6 +11,77 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### Added
+
+- **The shop — `/boutique/`, and the currency it spends: JETONS (FR) / TOKENS
+  (EN) (migration 0016).** Points were about to become worth a real object, and
+  that changed the threat model before the UI.
+  - ⚠️ **The brief's first design was wrong, and was changed before anything
+    was built.** It said: compute the spendable balance in Postgres from
+    `exercise_progress`, `game_results` and `point_awards`, and prove that fake
+    progress cannot raise it. Those two cannot both hold — the progress tables
+    are client-writable (0005), so a student can `PATCH solved = true` onto every
+    real exercise and Postgres would value it like a real solve. **Seàn's
+    decision: staff-witnessed only.** Jetons come from `point_awards` alone,
+    which a student cannot write.
+  - **`jeton_balances()`** — the one summation: awards minus live redemptions,
+    both summed from rows; no balance is stored anywhere.
+  - **`redeem()`** — the only writer of an order: ownership, then a `FOR NO KEY
+    UPDATE` lock on the child (so two tabs cannot spend the same jetons, and a
+    prof's award never waits on it), then the price from `shop_items` (never the
+    caller), then the balance recomputed inside the lock.
+  - **Three purchase paths.** *Jetons only* — a pending order, handed over in
+    person. *WhatsApp + cash* — jetons as a discount **capped at 25% of the
+    price, at 1 jeton = 1 DH, rounded down** (the brief allowed 20–30%; 25% is
+    the middle, and it makes a real dent in a 150 DH figurine after a couple of
+    months of sessions without ever being most of the price); it produces a
+    prefilled `wa.me` message to the club's number naming the item, the child,
+    the discount, what is left to pay and the order number. *Card* — a link to
+    nachi3dlabs.com; no payment code on this site, ever.
+  - **The catalogue lives in git** (`src/content/boutique/`), and the numbers
+    the database enforces are **published** from `/admin/boutique/`, which says
+    per item whether the database charges what the site shows. **Stock is an
+    in-stock flag toggled on that page**, not a count and not a git field (a
+    count drifts from the shelf, and a commit per empty box is not operable).
+  - **The catalogue is empty today**, so `/boutique/` shows a "bientôt" card:
+    what the shop will be, its three paths, and that jetons already received
+    count — and **no placeholder product**. It sits under Club, with a card on
+    `/club/` that says "Ouverture prochaine" rather than "0".
+  - **`/admin/jetons/`** — giving jetons in the room, shaped like the register:
+    amount and reason once (the reason prefilled with the day's session), then
+    **one tap per student**; the last tap on a row can be undone; present
+    students first. Since this is now the only way to earn spending power, a
+    spec measures the tap at 390px.
+  - **`/admin/boutique/`** (admin only) — pending orders with **Remis** /
+    **Annuler**, the catalogue against the database, stock toggles.
+  - Guests see the catalogue and make **zero** requests; ordering needs an
+    account. No leaderboard: a balance is visible to its own account and to
+    staff only.
+
+### Changed
+
+- ⚠️ **A PROF'S AWARD IS NOW A JETON, NOT A POINT — AND IT LEFT THE POINTS
+  TOTAL.** `computeLedger()`, the inline resolver on `/progres/`, `/admin/eleve/`,
+  `/admin/eleves/` and the cards on `/compte/` no longer add `point_awards`, so
+  the rank and the spending power never read as one number. **A student who had
+  teacher awards sees their points drop by exactly that amount, and may drop a
+  rank.** Nothing is lost: the rows are intact, and they are now that student's
+  jetons, spendable at the shop. `/progres/` lists them as "Jetons donnés par ton
+  prof", with their reasons and a link to the shop.
+- `/admin/eleve/`'s form is "Donner des jetons" and shows the jeton balance; the
+  dashboard tile reads "jetons donnés".
+- The privacy policy and the account-deletion list name tokens and shop orders.
+
+### The live proof
+
+`shop.spec.ts`, against the test project, with the student's own token: every
+real exercise key marked solved and forty wins inserted — both writes accepted
+and counted by the service role — then the balance is **0** and `redeem()` says
+`insufficient`. Direct inserts into `point_awards` and `redemptions`, repricing
+`shop_items`, and the admin functions are all refused; a negative discount is
+refused; six concurrent redemptions against 30 jetons for a 10-jeton item leave
+exactly three rows.
+
 ## [0.30.0] — 2026-09-20
 
 ### Added

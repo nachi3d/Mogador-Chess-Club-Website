@@ -275,6 +275,11 @@ brief and are **not** done:
 
 | Item | Status | Note |
 |---|---|---|
+| **⚠️ Migration 0016 (shop) must reach PRODUCTION before a deploy that carries `/boutique/`'s member half** | `seàn` | Applied to the TEST project only. Without it, a signed-in member on `/boutique/` reads "—" for jetons (the reads degrade) and ordering answers the generic refusal (writes fail loudly) — safe, but the shop does nothing. Order as always: migration first, then the deploy. Ask the catalog, not `schema_migrations`. |
+| **The first products** | `seàn` | `/boutique/` shows "bientôt" until a `src/content/boutique/*.json` entry lands (schema in `content.config.ts`; an image under `public/boutique/`). Then press **Publier** on `/admin/boutique/` — until then the database refuses orders for it, and the page says "À publier". |
+| **Is Michael an `admin`?** | `seàn` | Stock, publishing and "Remis" are admin-only (`is_admin_direct()`), per the brief. If Michael's role is `prof` he can give jetons but cannot hand an order over. |
+| **The WhatsApp order goes to the CLUB number** | `seàn` | `whatsappUrl()` → `site.contact.whatsapp` (Critical Feature 7), not a separate number for Seàn. Confirm that number reaches whoever takes orders. |
+| **Teacher awards left the points total (0016)** | `note` | Students with past awards lost that many points (and possibly a rank) and gained the same number of jetons. Worth one sentence to the class. |
 | **`mogadorchess.ma` domain** | `seàn` | ⚠️ **No longer blocks anything.** `mogadorchess.nachi3dlabs.com` gives the site a real address and unblocks custom SMTP with no registrar step (see Deployment and domain). `.ma` remains a separate, later option — a nicer name for a Moroccan club — and needs a Moroccan registrar and possibly paperwork. Decide it on its own merits, not under pressure. |
 | **Club Instagram handle** | `seàn` | Does the club post through the association's account or its own? `site.socials` has the entry, unpublished. |
 | **Brand mark** | `seàn` | The current one is an explicit placeholder — a board in a brass frame. |

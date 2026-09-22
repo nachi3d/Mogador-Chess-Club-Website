@@ -524,4 +524,66 @@ const tutoriel = defineCollection({
    data a prof edits from a phone, and the one thing on this site that a person
    other than Seàn is expected to change. */
 
-export const collections = { traps, cours, exercices, lessons, tutoriel };
+/* ───────────────────────────── boutique ──────────────────────────── */
+
+/**
+ * The shop catalogue (0016). Content in git, like everything else.
+ *
+ * ⚠️ WHAT THE DATABASE ENFORCES IS A PUBLISHED COPY OF THE NUMBERS BELOW. An
+ * admin presses "Publier" on `/admin/boutique/`, which sends each item's prices
+ * and paths to `admin_publish_shop()`; `redeem()` reads the price from THERE,
+ * never from a caller. Editing a price here changes nothing a student can buy
+ * until it is published, and `/admin/boutique/` says so loudly.
+ *
+ * ⚠️ NO STOCK FIELD, DELIBERATELY. Stock is a flag in `shop_items`, toggled in
+ * the room by an admin — a commit and a build per empty box is not operable.
+ *
+ * ⚠️ THREE PATHS, AND THE PRICE EACH ONE NEEDS IS REQUIRED BY THE SCHEMA:
+ *   jetons   → `priceJetons`  (points only; handed over in person)
+ *   whatsapp → `priceMad`     (cash, jetons as a discount capped at 25%)
+ *   carte    → `priceMad` and `cardUrl` on nachi3dlabs.com — a link out, and
+ *              no payment code on this site, ever.
+ */
+const shopPath = z.enum(['jetons', 'whatsapp', 'carte']);
+
+const boutique = defineCollection({
+  loader: glob({ base: './src/content/boutique', pattern: '**/*.json' }),
+  schema: z
+    .object({
+      slug,
+      name_fr: z.string().min(1),
+      name_en: z.string().min(1),
+      description_fr: z.string().min(1),
+      description_en: z.string().min(1),
+      /** A self-hosted image under `public/boutique/` (Critical Feature 9). */
+      image: z
+        .string()
+        .regex(/^\/boutique\/[a-z0-9-]+\.(webp|jpg|png|svg)$/, 'a file under /boutique/')
+        .optional(),
+      priceJetons: z.number().int().positive().optional(),
+      priceMad: z.number().int().positive().optional(),
+      paths: z.array(shopPath).min(1),
+      cardUrl: z
+        .url()
+        .refine((u) => /^https:\/\/(www\.)?nachi3dlabs\.com\//.test(u), 'card sales live on nachi3dlabs.com')
+        .optional(),
+      /** Position in the catalogue. Lower first. */
+      order: z.number().int().nonnegative().default(0),
+      draft: z.boolean().default(false),
+      /** ⚠️ See the `traps` fixture note — routable in a test build, never listed. */
+      fixture: z.boolean().default(false),
+    })
+    .superRefine((item, ctx) => {
+      if (item.paths.includes('jetons') && item.priceJetons === undefined) {
+        ctx.addIssue({ code: 'custom', message: 'the "jetons" path needs priceJetons' });
+      }
+      if ((item.paths.includes('whatsapp') || item.paths.includes('carte')) && item.priceMad === undefined) {
+        ctx.addIssue({ code: 'custom', message: 'the "whatsapp" and "carte" paths need priceMad' });
+      }
+      if (item.paths.includes('carte') && item.cardUrl === undefined) {
+        ctx.addIssue({ code: 'custom', message: 'the "carte" path needs cardUrl' });
+      }
+    }),
+});
+
+export const collections = { traps, cours, exercices, lessons, tutoriel, boutique };
