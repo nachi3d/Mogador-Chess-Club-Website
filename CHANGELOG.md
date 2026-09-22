@@ -11,6 +11,8 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+## [0.31.0] — 2026-09-22
+
 ### Added
 
 - **The shop — `/boutique/`, and the currency it spends: JETONS (FR) / TOKENS
@@ -81,6 +83,14 @@ and counted by the service role — then the balance is **0** and `redeem()` say
 `shop_items`, and the admin functions are all refused; a negative discount is
 refused; six concurrent redemptions against 30 jetons for a 10-jeton item leave
 exactly three rows.
+
+### Release notes
+
+- **Migration 0016 was applied to production and verified before this deploy**
+  (Seàn, 2026-09-22) — migration first, then the deploy.
+- **The rank drop from awards leaving the points total is deliberate and was
+  announced.** Students were told in advance that a prof's award is now a
+  jeton, not a point; the decision stands as built.
 
 ## [0.30.0] — 2026-09-20
 
@@ -7795,7 +7805,8 @@ Foundation only: no real content, no interactive board yet.
   `url()` references unresolved and the fonts silently 404 into a Georgia
   fallback. `scripts/build-fonts.mjs` self-hosts them instead. See CLAUDE.md.
 
-[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.30.0...HEAD
+[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.31.0...HEAD
+[0.31.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.30.0...v0.31.0
 [0.30.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.29.0...v0.30.0
 [0.29.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.28.0...v0.29.0
 [0.28.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.27.0...v0.28.0
