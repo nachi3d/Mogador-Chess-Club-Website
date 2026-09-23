@@ -11,6 +11,8 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+## [0.32.0] — 2026-09-23
+
 ### Added
 
 - **"Jetons reçus" — a prof's award is now announced, with its reason and its
@@ -56,7 +58,8 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ### ⚠️ Deploy order
 
-**Migration 0017 must reach PRODUCTION before the deploy that carries this.**
+**Migration 0017 was applied to production and verified before this deploy**
+(Seàn, 2026-09-23) — migration first, then the deploy.
 Without it the notice's read answers `PGRST202` and the page shows nothing —
 a graceful degradation, not the feature. Applied to the TEST project this
 session.
@@ -7855,7 +7858,8 @@ Foundation only: no real content, no interactive board yet.
   `url()` references unresolved and the fonts silently 404 into a Georgia
   fallback. `scripts/build-fonts.mjs` self-hosts them instead. See CLAUDE.md.
 
-[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.31.0...HEAD
+[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.32.0...HEAD
+[0.32.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.31.0...v0.32.0
 [0.31.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.30.0...v0.31.0
 [0.30.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.29.0...v0.30.0
 [0.29.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.28.0...v0.29.0
