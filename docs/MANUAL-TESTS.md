@@ -2650,3 +2650,26 @@ un compte prof, un compte admin, un compte membre avec un profil.
 | 13 | Admin : « Remis » sur la commande | Elle quitte « en attente » ; côté membre elle devient « Remise » et **ne s’annule plus** |
 | 14 | Admin : un objet passé « Épuisé » | Côté membre : « Épuisé pour l’instant », pas de bouton |
 | 15 | Les quatre thèmes, clair et sombre, sur `/boutique/` et `/admin/jetons/` | Le solde (le chiffre laiton) se lit ; les cartes se détachent de la page |
+
+#### 7g-bis. « Jetons reçus » — la notification in-app (0017)
+
+⚠️ **Déjà automatisé** (`award-notice.spec.ts`) : la preuve en base avec les
+jetons de chaque compte (une autre famille et un prof reçoivent `forbidden`,
+le curseur n’avance que vers l’avant, le solde ne bouge pas), l’affichage à
+360px et 1280px, `/boutique/`, l’anglais, axe, et le zéro-requête déconnecté.
+**Ce qui reste manuel** : la lisibilité dans les quatre thèmes, et le geste
+d’un vrai élève qui revient le samedi suivant.
+
+| # | Étape | Résultat attendu |
+|---|---|---|
+| 1 | Prof : donner **+3** à un élève sur `/admin/jetons/` avec une raison | — |
+| 2 | Le membre ouvre `/` **sur un téléphone** | En haut, **au-dessus** de la grande carte verte : « Jetons reçus » + pastille **Nouveau**, « Pour <prénom> », **+3 jetons**, la raison entre guillemets, « Donné par <prof> · <date> ». ⚠️ **Jamais un chiffre seul** — sans raison ni prof, c’est un défaut |
+| 3 | La même page **sur un ordinateur** (≥ 768px) | La même carte, au-dessus du menu. ⚠️ **Elle ne doit pas exister d’un seul côté de 768px** |
+| 4 | `/boutique/` avant d’avoir lu | La carte est **au-dessus du solde**, sans lien « Voir la boutique » |
+| 5 | Appuyer **Compris** | La ligne disparaît, « C’est noté. » s’affiche, la pastille disparaît. Le **solde ne change pas** |
+| 6 | Recharger `/`, puis ouvrir le site **sur un autre appareil** du même compte | Plus de carte nulle part : la lecture est sur le **profil**, pas sur l’appareil |
+| 7 | Compte **famille** avec deux enfants, un don à chacun | Deux blocs « Pour … », chacun avec son **Compris** ; en lire un laisse l’autre |
+| 8 | Prof : « Annuler » le don **avant** que l’élève l’ait lu | La carte disparaît chez l’élève — comme le jeton quitte le solde |
+| 9 | **Déconnecté**, `/` et `/boutique/` | Aucune carte, et **aucune** requête vers Supabase |
+| 10 | Les quatre thèmes, clair et sombre | La pastille « Nouveau » et le texte secondaire se lisent ; chaque don est un bloc distinct |
+| 11 | `/en/` | « Tokens received », « Given by … », « Got it » — **jamais** « points » |

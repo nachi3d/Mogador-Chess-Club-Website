@@ -2945,3 +2945,76 @@ refused; a direct `redemptions` insert with −500 jetons gets `42501`; repricin
 negative discount is `discount_too_large`. Six concurrent redemptions against
 30 jetons for a 10-jeton item leave **exactly three** rows. Another family's
 child is `forbidden` and unreadable; `anon` gets `42501` on all three objects.
+
+## The award notice — a read cursor over `point_awards` (0017)
+
+**Read when:** touching `award_notices()`, `mark_awards_seen()`,
+`child_profiles.awards_seen_at`, `src/lib/award-notice*.ts`, or adding any
+other "you have something new" surface.
+
+### What it is, and what it is not
+
+A prof's award (a jeton, since 0016) used to appear silently. 0017 announces it
+on the home page and on `/boutique/`, naming the **amount, the reason and the
+prof** — the reason is required (0004) precisely so the judgement is visible,
+and a notice with only "+5" would be the silent balance change it replaces.
+
+⚠️ **It stores a CURSOR and nothing else.** `child_profiles.awards_seen_at` is
+"the newest award this child acknowledged"; an award later than it is unread.
+There is no notification table, no copy of the amount or the reason, and no
+unread count. The notice is a query over the same rows `jeton_balances()` sums,
+so **nothing stored can disagree with the balance** — a withdrawn award leaves
+the notice exactly as it leaves the total. A future "you have a new badge" or
+"your booking was cancelled" notice should follow the same shape: a cursor over
+rows that already exist, never a second table of copies.
+
+### Why the cursor is on the child, not in `localStorage`
+
+The brief said "per child profile". A device cursor would re-announce what the
+student acknowledged at the club on the parent's phone, and a cleared browser
+would re-announce a term of awards at once. `announced` in `progress.ts` is the
+local precedent and was **not** followed, because an achievement toast repeating
+is harmless and a jeton notice repeating reads as jetons given twice.
+
+### The decisions that look like omissions
+
+- ⚠️ **The cursor moves by AWARD ID, never by a timestamp from the browser.**
+  `Date` keeps milliseconds, Postgres keeps microseconds; a round-tripped
+  timestamp lands just before the award and leaves it unread for ever.
+  `mark_awards_seen(child, through_award)` resolves the id to the stored value.
+- ⚠️ **`greatest()` — forward only.** A stale tab acknowledging an older award
+  must not re-open newer ones.
+- ⚠️ **Not `now()` either** — that would swallow an award given while the page
+  was open. The reader acknowledged what was on screen.
+- ⚠️ **The backfill is "read up to the migration".** `add column … not null
+  default now()` stamps every existing child, so the first visit after release
+  does not present every award since 0004 as news.
+- ⚠️ **SECURITY DEFINER for one column**: the prof's `display_name`, which a
+  member cannot read under `profiles` RLS. The function returns that and
+  nothing else of the giver — **never the pseudo**, which is a login name.
+  A null or blank name is NULL; the page says « le club » (CF74's reasoning:
+  the database returns data, the page owns the sentence).
+- ⚠️ **Staff get no exemption, in either function.** `c.account_id =
+  auth.uid()` — a prof's home page shows their own children's news, and a prof
+  cannot mark a student's notice read. `/admin/jetons/` is the room's view.
+- ⚠️ **The owner CAN write `awards_seen_at` directly** (`child_profiles_own` is
+  `for all`, the grant is table-level). Accepted: it can only hide or re-show
+  the family's own notices, grants nothing, and feeds no summation.
+- **No trigger on `child_profiles`**, so acknowledging fires no rebuild (CF67).
+
+### Where it appears, and where it deliberately does not
+
+Home (top, above the dashboard AND the desktop menu — a mobile-only notice
+would be Critical Feature 36's defect) and `/boutique/` (above the balance).
+⚠️ **Not a dot in the bottom bar**: that is an RPC on every page load for every
+signed-in reader, to answer a question that changes about once a week.
+**Not push, not email** — both filed in BACKLOG with the constraints they carry.
+
+### Testing it
+
+`award-notice.spec.ts`: the pure grouping; then against the TEST project with
+each account's own token — another family and a prof get `forbidden`, a foreign
+award id gets `no_award`, `anon` cannot call it, the cursor only moves forward,
+marking read leaves `jeton_balances()` untouched, and a prof's undo empties the
+notice; then the page at 360px and 1280px, `/boutique/`, EN, axe, the guest
+zero-request check, and the OFF build carrying no notice at all.

@@ -212,6 +212,8 @@ export const SPEC_MAP = [
       /* 0016 — jetons, the catalogue and redemptions. The live proof. */
       'shop.spec.ts',
       'shop-ui.spec.ts',
+      /* 0017 — the award read cursor and the two functions over it. */
+      'award-notice.spec.ts',
     ],
   ],
   /* The recurrence expansion is pure and its spec runs with no credentials and
@@ -283,7 +285,7 @@ export const SPEC_MAP = [
   [/^src\/components\/(Header|SettingsLink|AccountButton)\./, ['mobile-app.spec.ts', 'main-menu.spec.ts', 'smoke.spec.ts']],
   [/^src\/components\/(CardGrid|NumberedCard|ProgressStates|LevelBadge)\./, ['exercise.spec.ts', 'tutorial.spec.ts', 'lessons.spec.ts', 'index-cards.spec.ts']],
   [/^src\/components\/home\//, ['main-menu.spec.ts', 'mobile-app.spec.ts', 'progression.spec.ts']],
-  [/^src\/components\/pages\/HomePage\./, ['main-menu.spec.ts', 'mobile-app.spec.ts', 'resume.spec.ts']],
+  [/^src\/components\/pages\/HomePage\./, ['main-menu.spec.ts', 'mobile-app.spec.ts', 'resume.spec.ts', 'award-notice.spec.ts']],
   [/^src\/components\/pages\/(Trap|Exercice)Page\./, ['mobile-fit.spec.ts']],
   /* Both mount the facade â€” the two placements the one rule produces. */
   [/^src\/components\/pages\/(Trap|CourseDetail)Page\./, ['video.spec.ts']],
@@ -327,6 +329,11 @@ export const SPEC_MAP = [
   [
     /^src\/components\/pages\/admin\/Admin(Jetons|Shop)Page\./,
     ['shop-ui.spec.ts', 'admin.spec.ts', 'auth-disabled.spec.ts'],
+  ],
+  /* 0017 — the award notice, on home and /boutique/. */
+  [
+    /^(src\/lib\/award-notice(-ui)?\.|src\/components\/awards\/|src\/styles\/award-notice\.)/,
+    ['award-notice.spec.ts', 'mobile-app.spec.ts', 'themes.spec.ts'],
   ],
   [/^src\/components\/pages\/ClubPage\./, ['shop-ui.spec.ts', 'wayfinding.spec.ts', 'mobile-app.spec.ts']],
   [/^src\/components\//, ['smoke.spec.ts']],

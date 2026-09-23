@@ -164,6 +164,8 @@ export const NEEDS_ACCOUNTS_ON = [
   'role-separation',
   /* 0016 — its signed-in half drives /boutique/ and /admin/jetons/. */
   'shop-ui',
+  /* 0017 — its signed-in half reads and clears the notice on home and /boutique/. */
+  'award-notice',
 ];
 
 /** Specs that only mean anything in an accounts-OFF build. */
