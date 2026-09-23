@@ -11,6 +11,56 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### Added
+
+- **"Jetons reçus" — a prof's award is now announced, with its reason and its
+  prof (migration 0017).** Until now an award appeared silently: a student saw
+  it only by opening `/progres/` or `/boutique/` and happening to compare. 0004
+  made the reason required because a number with no explanation reads as
+  arbitrary — and a reason nobody reads is no reason. Since 0016 jetons buy
+  real objects, so an unexplained balance change had become worse.
+  - **Where it appears — both, deliberately.** The **home page**, at the top,
+    above the mobile dashboard and the desktop menu alike (a returning student
+    lands there, and a notice inside the dashboard would exist below 768px only
+    — Critical Feature 36's defect in a new place). And **`/boutique/`**, above
+    the balance, because that is where the number matters. Same component, same
+    cursor: « Compris » on either clears it on both.
+  - **Each row names the amount, the reason and the prof** — « +7 jetons »,
+    « Belle ouverture au club », « Donné par Nadia · 23 septembre ». A prof with
+    no display name (or who has left — `awarded_by` is `on delete set null`)
+    reads as « Donné par le club », never a blank.
+  - **It reads the ledger and stores nothing that can disagree with it.**
+    `award_notices()` is a query over `point_awards` filtered by a per-child
+    READ CURSOR (`child_profiles.awards_seen_at`). No notification table, no
+    cached amount, no unread count. A prof's "undo" removes the award from the
+    notice for the same reason it leaves the balance. `award-notice.spec.ts`
+    proves marking read leaves `jeton_balances()` untouched.
+  - **Read is per child profile, not per device** — a cleared browser does not
+    re-announce a term of awards, and a parent's phone does not re-announce what
+    the student acknowledged on the club tablet.
+  - **The cursor moves by AWARD ID, never by a timestamp from the browser.** A
+    JavaScript `Date` keeps milliseconds and Postgres keeps microseconds; a
+    round-tripped timestamp would land just before the award it meant and leave
+    it unread for ever. `mark_awards_seen(child, through_award)` resolves the id
+    itself, and only ever moves the cursor forward.
+  - **Staff get no exemption.** A prof opening home is shown their own
+    children's news only, and cannot mark a student's notice read.
+  - ⚠️ **The migration stamps every existing child "read up to now"**, so the
+    first visit after release does not present every award since 0004 as news.
+  - **Guests: unchanged** — the container is server-rendered `hidden`, and with
+    no stored session nothing is imported and nothing is asked. **Accounts OFF:
+    not built.**
+- **Not built, and filed in BACKLOG:** push notifications (a service-worker
+  handler, a subscription store and a permission prompt, on a site for minors)
+  and an email notice (needs the custom SMTP that is still open).
+
+### ⚠️ Deploy order
+
+**Migration 0017 must reach PRODUCTION before the deploy that carries this.**
+Without it the notice's read answers `PGRST202` and the page shows nothing —
+a graceful degradation, not the feature. Applied to the TEST project this
+session.
+
 ## [0.31.0] — 2026-09-22
 
 ### Added

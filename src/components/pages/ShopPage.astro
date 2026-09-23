@@ -27,6 +27,7 @@ import BaseLayout from '@layouts/BaseLayout.astro';
 import PageIntro from '@components/PageIntro.astro';
 import Trail from '@components/nav/Trail.astro';
 import ShopMember from '@components/shop/ShopMember.astro';
+import AwardNotice from '@components/awards/AwardNotice.astro';
 import { itemDescription, itemName, listedItems } from '@lib/boutique';
 import { AUTH_ENABLED } from '@config/auth';
 import '@styles/shop.css';
@@ -61,6 +62,8 @@ const price = (item: (typeof items)[number]) =>
     <Trail locale={locale} href={localizePath('/club/', locale)} label={t('club.title')} />
     <PageIntro title={t('shop.title')} intro={t('shop.intro')} />
 
+    {/* Above the balance: a balance that moved is read beside its reason (0017). */}
+    {AUTH_ENABLED && <AwardNotice locale={locale} />}
     {AUTH_ENABLED && <ShopMember locale={locale} />}
 
     {

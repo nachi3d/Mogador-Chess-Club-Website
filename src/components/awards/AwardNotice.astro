@@ -1,0 +1,104 @@
+---
+/**
+ * "Jetons reçus" — a prof's award, announced once, with its reason and its
+ * prof (0017).
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️ WHERE IT APPEARS, AND WHY BOTH:
+ *
+ *   • THE HOME PAGE, at the top, ABOVE the mobile dashboard and the desktop
+ *     menu alike — it is where a returning student lands, and a notice that
+ *     existed on one side of 768px only would be Critical Feature 36's defect
+ *     in a new place.
+ *   • /boutique/, above the balance — it is where the number matters, and a
+ *     reader who goes straight there must not see a balance move without the
+ *     reason beside it.
+ *
+ *   Same component, same cursor: "Compris" on either clears it on both, and on
+ *   every device, because the cursor is on the child profile (0017).
+ *
+ * ⚠️ NOT IN THE BOTTOM BAR, AND NOT ON EVERY PAGE. A dot on "Moi" or "Club"
+ * would mean an RPC on every page load for every signed-in reader, to answer
+ * a question that changes about once a week. The marker is the notice itself.
+ *
+ * ⚠️ SERVER-RENDERED AND `hidden`. A guest, a reader with nothing new, a
+ * failed read and a no-JavaScript visit all see exactly nothing — no empty
+ * heading, no "0 nouveaux". It only ever appears carrying news.
+ *
+ * ⚠️ RENDERED ONLY WHEN ACCOUNTS ARE ON (the caller decides, like
+ * `ShopMember`). OFF means NOT BUILT (Critical Feature 18).
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+import type { Locale } from '@config/site';
+import { site } from '@config/site';
+import { useTranslations } from '@i18n/ui';
+import { localizePath } from '@i18n/paths';
+import '@styles/award-notice.css';
+
+interface Props {
+  locale: Locale;
+  /** Home only: a way on to the shop. On /boutique/ the reader is already there. */
+  shopLink?: boolean;
+}
+
+const { locale, shopLink = false } = Astro.props;
+const t = useTranslations(locale);
+
+/* ⚠️ THE SCRIPT'S STRINGS, RESOLVED HERE AND HANDED OVER AS DATA — the
+   booking/shop pattern. One locale, one source (`ui.ts`), no table in the bundle. */
+const KEYS = [
+  'award.for',
+  'award.amount',
+  'award.amount.one',
+  'award.reason',
+  'award.by',
+  'award.by.club',
+  'award.read',
+  'award.read.aria',
+  'award.saving',
+  'award.done',
+  'award.failed',
+] as const;
+
+const data = {
+  strings: Object.fromEntries(KEYS.map((k) => [k, t(k)])),
+  dateLocale: locale === 'fr' ? 'fr-FR' : 'en-GB',
+  timezone: site.timezone,
+};
+---
+
+<section
+  class:list={['mcc-card mcc-column award-notice', { 'award-notice-standalone': shopLink }]}
+  data-award-notice
+  data-testid="award-notice"
+  aria-labelledby="award-notice-title"
+  hidden
+>
+  <h2 id="award-notice-title" class="award-notice-title" data-award-title tabindex="-1">
+    <span>{t('award.title')}</span>
+    <span class="award-notice-badge" data-award-badge>{t('award.new')}</span>
+  </h2>
+
+  <div class="award-notice-groups" data-award-groups></div>
+
+  {
+    shopLink && (
+      <p class="award-notice-more">
+        <a href={localizePath('/boutique/', locale)} data-testid="award-notice-shop">
+          {t('award.shop')}
+        </a>
+      </p>
+    )
+  }
+
+  {/* ⚠️ NEVER THE ONLY SIGNAL — the notice itself disappears or stays. */}
+  <p class="award-notice-message" data-award-message role="status" aria-live="polite"></p>
+</section>
+
+<script is:inline type="application/json" data-award-notice-data set:html={JSON.stringify(data)} />
+
+<script>
+  import { renderAwardNotice } from '@lib/award-notice-ui';
+
+  renderAwardNotice();
+</script>
