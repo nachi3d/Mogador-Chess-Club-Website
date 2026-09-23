@@ -38,6 +38,8 @@ import HeroAmbient from '@components/motion/HeroAmbient.astro';
 import Dashboard from '@components/home/Dashboard.astro';
 import ResumeResolver from '@components/progress/ResumeResolver.astro';
 import ScoreResolver from '@components/progress/ScoreResolver.astro';
+import AwardNotice from '@components/awards/AwardNotice.astro';
+import { AUTH_ENABLED } from '@config/auth';
 
 interface Props {
   locale: Locale;
@@ -102,6 +104,13 @@ const journey = await fullJourney(locale);
 
       Above 768px this is `display: none` and the menu below is EXACTLY as E5
       left it. That is a regression guard, not a preference. */}
+  {/* ⚠️ ABOVE BOTH HOMES, NOT INSIDE EITHER (0017). A prof's award is news
+      for a returning student on a phone and on a laptop alike; inside the
+      dashboard it would exist below 768px only (Critical Feature 36's defect).
+      Server-rendered `hidden`: a guest and a reader with nothing new get no
+      element on screen and no request, so the first paint is unchanged. */}
+  {AUTH_ENABLED && <AwardNotice locale={locale} shopLink />}
+
   <Dashboard locale={locale} />
 
   <section class="menu-screen">

@@ -1,0 +1,131 @@
+/**
+ * The award notice — home and /boutique/ (0017).
+ *
+ * ⚠️ A REAL STYLESHEET, NOT A SCOPED `<style>`, AND THAT IS FORCED: every row
+ * and every "Compris" button is built by script, and a scoped rule never
+ * reaches an element the script created (CLAUDE.md). The card is `.mcc-card`
+ * and the button `.btn-ghost` — consolidated, never re-made.
+ *
+ * ⚠️ EVERY RULE IS PREFIXED WITH `.award-notice`, so the cascade is settled by
+ * specificity rather than by the order this sheet happens to load in.
+ *
+ * ⚠️ `:not([hidden])` ON THE DISPLAY RULE IS LOAD-BEARING. `display: grid`
+ * beats the `hidden` attribute, and this card is hidden for every guest and
+ * every reader with nothing new — a bare `display` would show them an empty
+ * "Jetons reçus" heading.
+ *
+ * ⚠️ NO `opacity` ON TEXT, AND NO BRASS. Several amounts can sit on one card,
+ * and one brass figure per card is the rule; the amount is set apart by weight
+ * and size instead. The badge is `--mcc-primary` / `--mcc-primary-contrast`,
+ * a pair `check-contrast.mjs` already proves in every theme and mode.
+ */
+
+.award-notice:not([hidden]) {
+  display: grid;
+  gap: var(--mcc-space-sm);
+  inline-size: 100%;
+}
+
+/* On home it sits above the dashboard / menu, not in a flex column with a gap. */
+.award-notice.award-notice-standalone {
+  margin-block: var(--mcc-space-xs) var(--mcc-space-md);
+}
+
+.award-notice .award-notice-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mcc-space-xs);
+  margin: 0;
+  font-family: var(--mcc-font-display);
+  font-size: 1.25rem;
+  line-height: 1.2;
+  color: var(--mcc-text-heading);
+}
+
+.award-notice .award-notice-title:focus-visible {
+  outline: 2px solid var(--mcc-focus-ring);
+  outline-offset: 3px;
+}
+
+.award-notice .award-notice-badge {
+  padding: 0.15rem 0.55rem;
+  border-radius: var(--radius-pill);
+  background-color: var(--mcc-primary);
+  color: var(--mcc-primary-contrast);
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.award-notice .award-notice-badge[hidden] {
+  display: none;
+}
+
+.award-notice .award-notice-groups:not([hidden]) {
+  display: grid;
+  gap: var(--mcc-space-md);
+}
+
+.award-notice .award-notice-group {
+  display: grid;
+  gap: var(--mcc-space-xs);
+}
+
+.award-notice .award-notice-child {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mcc-text-secondary);
+}
+
+.award-notice .award-notice-list {
+  display: grid;
+  gap: var(--mcc-space-xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A recess, so each award reads as one object: amount, reason, who and when. */
+.award-notice .award-notice-item {
+  display: grid;
+  gap: 0.15rem;
+  padding: var(--mcc-space-xs) var(--mcc-space-sm);
+  border-radius: var(--mcc-radius-app);
+  background-color: var(--mcc-surface-sunken);
+  /* A long reason with no spaces must not push the card past a 360px phone. */
+  overflow-wrap: anywhere;
+}
+
+.award-notice .award-notice-amount {
+  font-size: 1.0625rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--mcc-text-heading);
+}
+
+.award-notice .award-notice-reason {
+  color: var(--mcc-text-primary);
+  line-height: 1.45;
+}
+
+.award-notice .award-notice-meta {
+  font-size: 0.8125rem;
+  color: var(--mcc-text-secondary);
+}
+
+/* 44px from controls.css; aligned to the start so it sits under its own list. */
+.award-notice .award-notice-read {
+  justify-self: start;
+}
+
+.award-notice .award-notice-more,
+.award-notice .award-notice-message {
+  margin: 0;
+}
+

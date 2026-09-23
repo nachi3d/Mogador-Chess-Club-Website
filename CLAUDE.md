@@ -373,6 +373,12 @@ bytes: [`docs/reference/dev-environment.md`](./docs/reference/dev-environment.md
     code.** Card = a link to nachi3dlabs.com; WhatsApp = cash with jetons as a
     discount **capped at 25%, 1 jeton = 1 DH** — the cap lives in `redeem()`.
 86. **An empty catalogue says "bientôt", never shows a placeholder product.**
+87. **A "new" notice is a READ CURSOR over rows that already exist, never a
+    table of copies.** The award notice (0017) names amount, reason AND prof,
+    reads `point_awards` through `child_profiles.awards_seen_at`, and moves it
+    **by award id, forward only** — never a browser timestamp (ms vs µs leaves
+    it unread for ever). Staff get no exemption. See
+    [`docs/reference/supabase.md`](./docs/reference/supabase.md) → "The award notice".
 
 ---
 
