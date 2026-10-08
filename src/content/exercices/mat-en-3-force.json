@@ -1,0 +1,50 @@
+{
+  "title_fr": "Mat en 3 — échec après échec",
+  "title_en": "Mate in 3 — check after check",
+  "slug": "mat-en-3-force",
+  "fen": "r4rk1/5Npp/8/8/8/1Q6/6PP/6K1 w - - 0 1",
+  "solution": [
+    "f7h6",
+    "b3g8",
+    "h6f7"
+  ],
+  "opponentReplies": [
+    "g8h8",
+    "f8g8"
+  ],
+  "onlyMove": true,
+  "hint_fr": "Chaque coup doit être un échec, sinon les Noirs respirent. Un cavalier qui donne échec en démasquant la dame, c'est deux échecs d'un coup. Et un roi entouré de ses propres pièces n'a nulle part où aller.",
+  "hint_en": "Every move has to be a check, or Black gets a breath. A knight that gives check while unmasking the queen is two checks at once. And a king surrounded by its own pieces has nowhere to go.",
+  "level": "avance",
+  "themes": [
+    "mat",
+    "echec-double",
+    "etouffe",
+    "sacrifice",
+    "cavalier"
+  ],
+  "claims": [
+    {
+      "kind": "line",
+      "moves": [
+        "f7h6",
+        "g8h8",
+        "b3g8",
+        "f8g8",
+        "h6f7"
+      ],
+      "ends": "mate"
+    },
+    {
+      "kind": "discovery",
+      "screen": "f7",
+      "by": "b3",
+      "target": "g8"
+    },
+    {
+      "kind": "manual",
+      "note": "Exhaustive search: Nh6+ is the ONLY first move that mates in 3, Qg8+ the only mate in 2 after it, Nf7# the only mate in 1. forcedReplies is proved by the build."
+    }
+  ],
+  "forcedReplies": true
+}

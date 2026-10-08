@@ -169,25 +169,52 @@ export function resolveExercise(definition: ExerciseDefinition): ResolvedExercis
 }
 
 /**
+ * Is `from`→`to` a pawn promotion in this position?
+ *
+ * Chessground reports only from/to, so the view asks this before judging: a
+ * promotion is not a move yet, it is a question — which piece? — and the
+ * view puts that question to the reader (the promotion picker) rather than
+ * answering it for them.
+ */
+export function isPromotionMove(fen: string, from: string, to: string): boolean {
+  try {
+    return new Chess(fen)
+      .moves({ square: from as Square, verbose: true })
+      .some((move) => move.to === to && move.promotion !== undefined);
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Judge a move the student played, at `step`.
  *
- * PROMOTION. Chessground reports only from/to; the promotion piece is decided
- * here. When the expected move at this step is a promotion on the same squares
- * we adopt ITS piece, so a student who drags the pawn home is never failed for
- * an under-promotion they were never asked about. Otherwise it defaults to a
- * queen. v1 has no promotion picker — no exercise needs one yet, and a chooser
- * that appears once in the whole site is a worse first encounter than a
- * sensible default. Add one with the first under-promotion exercise.
+ * PROMOTION. `promotion` is the piece the reader CHOSE — from the picker on a
+ * pointer move, or from the text they typed (`e8=C`, `e8=N`). ⚠️ WHEN IT IS
+ * GIVEN IT IS THE MOVE, full stop. Batch 6 shipped the first under-promotion
+ * exercise, and before this parameter existed the piece was always ADOPTED
+ * from the expected move: a pawn dragged home solved `e8=N` without the reader
+ * ever choosing, and a typed `e8=Q` — the exact mistake the exercise is about
+ * — was announced as correct.
+ *
+ * With no `promotion` the old fallback still applies (adopt the expected
+ * piece on the same squares, otherwise a queen), for any caller that cannot
+ * ask. The exercise view always asks.
  */
 export function judgeMove(
   step: ExerciseStep,
   from: string,
   to: string,
   onlyMove: boolean,
+  promotion?: string,
 ): Verdict {
   const expected = step.expected;
   const isPromotion = expected.uci.length > 4 && expected.from === from && expected.to === to;
-  const played: Uci = isPromotion ? `${from}${to}${expected.uci[4]}` : `${from}${to}`;
+  const played: Uci = promotion
+    ? `${from}${to}${promotion}`
+    : isPromotion
+      ? `${from}${to}${expected.uci[4]}`
+      : `${from}${to}`;
 
   if (played === expected.uci) return { kind: 'correct', move: expected };
 

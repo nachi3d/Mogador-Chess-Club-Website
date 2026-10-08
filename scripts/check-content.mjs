@@ -441,6 +441,25 @@ for (const { file, data } of readCollection('exercices')) {
     continue;
   }
 
+  /**
+   * ⚠️ THE SIDE NOT TO MOVE MUST NOT BE IN CHECK — the same guard the lesson
+   * boards have had since batch 2, and until batch 6 the exercises did not.
+   *
+   * chess.js loads such a position happily. Batch 6 nearly shipped one: a
+   * rook-lift mate whose b2 bishop was already giving check to h8 with White
+   * to move. Every other check passed — the "solution" was legal — and the
+   * only tell was that Black's sole legal reply was a king move.
+   */
+  const flippedFen = data.fen.replace(/ (w|b) /, (m, c) => ` ${c === 'w' ? 'b' : 'w'} `);
+  try {
+    if (new Chess(flippedFen).isCheck()) {
+      fail(file, 'the side NOT to move is in check — impossible position');
+      continue;
+    }
+  } catch {
+    /* If the flip does not load, the original already told us what we need. */
+  }
+
   const startFen = game.fen();
   const playerColor = game.turn();
   const solution = data.solution ?? [];

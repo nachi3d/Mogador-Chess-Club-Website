@@ -584,3 +584,96 @@ test.describe('the hint button is honest about being ready', () => {
     await expect(page.getByTestId('exercise-hint')).toBeVisible();
   });
 });
+
+/* ═══ Promotion — the reader chooses the piece ══════════════════════════ */
+
+/**
+ * ⚠️ A PAWN DRAGGED TO THE LAST RANK IS A QUESTION, NOT A MOVE.
+ *
+ * Until batch 6 the judge ADOPTED the expected promotion piece. Harmless while
+ * every promotion was a queen; fatal for the first under-promotion exercise —
+ * a drag would have "solved" `e8=N` without the reader choosing anything, and a
+ * typed `e8=Q`, the exact mistake the exercise is about, was called correct.
+ *
+ * Each half is driven through its own door: the picker BY POINTER (a spec that
+ * typed instead would stay green if the board never asked), and the piece
+ * named in TEXT, which never shows a picker because the text already chose.
+ */
+test.describe('exercise — promotion', () => {
+  const UNDER = { fr: '/exercices/sous-promotion/', en: '/en/exercices/sous-promotion/' };
+
+  test('a dragged promotion asks which piece, and the knight solves it', async ({ page }) => {
+    await openExercise(page, UNDER.fr);
+    await expect(page.getByTestId('promotion-picker')).toHaveCount(0);
+
+    await playMove(page, 'e7', 'e8');
+    const picker = page.getByTestId('promotion-picker');
+    await expect(picker).toBeVisible();
+    // Nothing is judged while the question is open, and the board is not listening.
+    await expect(page.getByTestId('exercise')).toHaveAttribute('data-state', 'idle');
+    await expect(page.getByTestId('exercise')).toHaveAttribute('data-busy', 'true');
+    await expect(page.getByTestId('promotion-q')).toBeFocused();
+    await expect(picker).toContainText('Cavalier');
+
+    await page.getByTestId('promotion-n').click();
+    await expect(picker).toHaveCount(0);
+    await expect(page.getByTestId('exercise')).toHaveAttribute('data-step', '1', { timeout: 10_000 });
+
+    await playMove(page, 'e8', 'd6');
+    await expect(page.getByTestId('exercise')).toHaveAttribute('data-state', 'solved', {
+      timeout: 10_000,
+    });
+  });
+
+  test('choosing the queen is refused — onlyMove is true and it only draws', async ({ page }) => {
+    await openExercise(page, UNDER.fr);
+    await playMove(page, 'e7', 'e8');
+    await page.getByTestId('promotion-q').click();
+    await expect(page.getByTestId('exercise')).toHaveAttribute('data-state', 'wrong');
+    await expect(page.getByTestId('exercise-attempts')).toHaveText('1');
+  });
+
+  test('cancelling puts the pawn back and costs nothing', async ({ page }) => {
+    await openExercise(page, UNDER.fr);
+    await playMove(page, 'e7', 'e8');
+    await page.getByTestId('promotion-cancel').click();
+    await expect(page.getByTestId('promotion-picker')).toHaveCount(0);
+    await expect(page.getByTestId('exercise')).toHaveAttribute('data-state', 'idle');
+    await expect(page.getByTestId('exercise')).toHaveAttribute('data-busy', 'false');
+    await expect(page.getByTestId('exercise-attempts')).toHaveText('0');
+    // Escape is the keyboard's cancel.
+    await playMove(page, 'e7', 'e8');
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('promotion-picker')).toHaveCount(0);
+    await expect(page.getByTestId('exercise-attempts')).toHaveText('0');
+  });
+
+  test('typed text names the piece itself — e8=D is refused, e8=C solves', async ({ page }) => {
+    await openExercise(page, UNDER.fr);
+    await typeMove(page, 'e8=D');
+    await expect(page.getByTestId('exercise')).toHaveAttribute('data-state', 'wrong');
+    await expect(page.getByTestId('promotion-picker')).toHaveCount(0);
+
+    await expect(page.getByTestId('exercise')).toHaveAttribute('data-busy', 'false', {
+      timeout: 10_000,
+    });
+    await typeMove(page, 'e8=C');
+    await expect(page.getByTestId('exercise')).toHaveAttribute('data-step', '1', { timeout: 10_000 });
+  });
+
+  test('in English, e8=N is the knight', async ({ page }) => {
+    await openExercise(page, UNDER.en);
+    await typeMove(page, 'e8=N');
+    await expect(page.getByTestId('exercise')).toHaveAttribute('data-step', '1', { timeout: 10_000 });
+    await expect(page.getByTestId('exercise-attempts')).toHaveText('0');
+  });
+
+  test('an ordinary queen promotion still solves through the picker', async ({ page }) => {
+    await openExercise(page, '/apprendre-les-bases/la-promotion/');
+    await playMove(page, 'a7', 'a8');
+    await page.getByTestId('promotion-q').click();
+    await expect(page.getByTestId('exercise')).toHaveAttribute('data-state', 'solved', {
+      timeout: 10_000,
+    });
+  });
+});

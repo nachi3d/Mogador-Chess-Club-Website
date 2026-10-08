@@ -11,6 +11,89 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+### Added
+
+- **Content batch 6 — sixteen `avancé` exercises, the first of that level.**
+  `/exercices/niveau/avance/` (and `/en/…`) now exists, because the content
+  does — the level routes are derived, never listed. Endgames (opposition, the
+  pawn race, Lucena, Philidor, zugzwang), attacks on the castled king (the
+  Greek gift, opening the h-file, breaking the fianchetto, a rook lift),
+  combinations (a forced mate in 3, the quiet move, interference, the X-ray)
+  and defence (Réti's study, perpetual check, underpromotion). FR and EN
+  written natively; hints name the idea, never the move.
+  - **Every verdict is proved, and the claim says how.** Seven positions are
+    checked against the **Syzygy tablebase** (exact for every legal move),
+    seven forced mates by **exhaustive search**, and the two non-mating
+    middlegames by **Stockfish 11** at depth 22 — stated as an engine
+    judgement, not a proof. Those that the build cannot recompute carry a
+    `manual` claim naming the source, so they print in the review queue.
+  - **`onlyMove: false` on three**, because more than one move is correct:
+    Lucena (most rook moves win), Philidor (Rh5–Rh8 hold as well as Rh3) and
+    the fianchetto break (Qxh7+ mates as surely as gxh7+ at move 2).
+  - **The tablebase overturned the engine twice**: Saavedra's finale was
+    dropped because `Kb3` also wins, and Philidor became `onlyMove: false`.
+  - Two supporting bishops were **removed** after checking each piece by
+    taking it away and re-running the proof.
+  - The full position table, in plain algebraic, is in
+    `docs/content-batches/batch-6-avance.md`.
+- **A promotion picker.** A pawn dragged to the last rank now asks which piece
+  (Dame / Tour / Fou / Cavalier, or cancel — Escape too, and nothing is
+  counted). Typed moves name the piece themselves (`e8=C`, `e8=N`) and never
+  see it. It appears for every pointer promotion in exercise mode, the
+  tutorial's queen promotion included — showing it only where the answer is an
+  under-promotion would be a hint.
+
+### Fixed
+
+- **A typed `e8=Q` could be called correct on an under-promotion.**
+  `judgeMove` ADOPTED the expected promotion piece and had no way to receive
+  the one the reader chose, so the first under-promotion exercise would have
+  solved itself on a drag and praised the exact mistake it teaches. It now
+  takes the chosen piece; the old fallback survives only for a caller that
+  cannot ask.
+- **`mat-dame-soutenue` (batch 5) was an impossible position.** Its queen on
+  b3 was already giving check to g8 with White to move. The queen is now on b1:
+  same idea, same `Qb8#`, still the only mate, same slug — nobody's progress
+  moved. Found by the guard below on its first run.
+- **`check-content.mjs` now refuses an exercise whose side NOT to move is in
+  check.** The lesson boards had this since batch 2; the exercises did not, and
+  a batch-6 draft passed every other check while being impossible. Watched to
+  fail on that draft before it was trusted.
+
+### Changed
+
+- ⚠️ **Rank thresholds re-spaced, and some students will see their rank
+  DROP.** Full marks went from 900 to **1575** (learning 780 → **1455**,
+  measured off the built catalogue). **Tour 450 → 790** (half of everything)
+  and **Dame 740 → 1380** (the same 95% of the teaching it was); left alone,
+  Dame would have been reachable without touching the advanced tier at all.
+  **Cavalier (75) and Fou (200) did not move**: each is defined by a specific
+  body of work that did not change. A reader between 450 and 789 goes from
+  Tour to Fou; one between 740 and 1379 from Dame to Tour or Fou. **Nothing
+  they did is lost** — points are derived (Critical Feature 33). The arithmetic
+  is in `src/lib/points.ts` and `docs/reference/progression.md`; its old
+  breakdown (19 lessons = 190, exercises = 525) was wrong in its parts and
+  right in its total, and is corrected.
+- `exercise-filters.spec.ts`: the index floor moves 24 → 38 (40 exist), and a
+  new test pins the avancé route in both locales.
+- CLAUDE.md: the progression line carried the v0.23.0 numbers (75/220/480/800
+  vs 965), stale since the duplicate cut; corrected. Its E3 history sentence
+  moved to `docs/reference/progression.md` → "The ceiling, every time it
+  moved".
+
+### Verification — read this before trusting the green
+
+`npm run test:branch` **could not start** in either shape: the TEST Supabase
+project's hostname no longer resolves (paused), **and** the committed fallback
+agenda expired on 2026-09-12, so a credential-less build refuses too — each
+guard doing its job. The **same chromium spec selection** (12 specs, mapped by
+`spec-map.mjs`) was run against fresh builds of this tree made with exactly the
+variables `playwright.config.ts` injects, minus only the agenda fetch (the last
+generated `agenda.json` was reused): **282 passed accounts-OFF, 282 passed
+accounts-ON.** `check-content`, `check-contrast`, `astro check`,
+`check-island-controls` and the service-worker build all ran as in
+`npm run build`.
+
 ## [0.32.0] — 2026-09-23
 
 ### Added

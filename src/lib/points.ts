@@ -179,25 +179,44 @@ export interface Rank {
  * which is the one property this table is not allowed to lose. **Cutting
  * content moves these numbers exactly as adding it does.**
  *
+ * ⚠️⚠️ AND A THIRD TIME FOR CONTENT BATCH 6 — sixteen `avance` exercises, the
+ * first of that level. They add 675 points (16 × 40, plus the +5 mate bonus on
+ * the seven that end in mate), which is 75% more than everything that existed
+ * before them. Left alone, Dame (740) would have sat at 51% of the learning
+ * ceiling: the top rank, reachable without touching the advanced tier at all.
+ *
  * ⚠️ MEASURED, NOT ESTIMATED. Read off the built catalogue, not counted by
  * hand:
  *
- *   13 tutorial steps      × 5   =  65
- *   19 lessons with boards × 10  = 190
- *   24 standalone exercises      = 525   (incl. the +5 mate bonuses)
- *   ─────────────────────────────────
- *   everything there is to learn   780
- *   games, both wins at all three  120   (2×5 + 2×15 + 2×40)
- *   ─────────────────────────────────
- *   FULL MARKS TODAY               900
+ *   13 tutorial steps      × 5   =   65
+ *   18 lessons with boards × 10  =  180
+ *   24 débutant/intermédiaire    =  535   (incl. the +5 mate bonuses)
+ *   16 avancé exercises          =  675   (16 × 40 + 7 × 5)
  *
- * | Rank     | Points | % of 900 | What it actually takes |
- * |----------|--------|----------|------------------------|
- * | Pion     |      0 |       0% | arriving |
- * | Cavalier |     75 |       8% | the whole tutorial, or most of it plus an exercise |
- * | Fou      |    200 |      22% | the basics, a full course, and a handful of exercises |
- * | Tour     |    450 |      50% | half of everything — realistically the teaching plus some play |
- * | Dame     |    740 |      82% | very nearly all the teaching, or most of it plus real games |
+ * (The previous breakdown read "19 lessons = 190" and "24 exercises = 525".
+ * Its TOTAL, 780, was right and its parts were not — the catalogue measured
+ * 180 and 535. Which is the argument for reading it off the build.)
+ *   ──────────────────────────────────
+ *   everything there is to learn   1455
+ *   games, both wins at all three   120   (2×5 + 2×15 + 2×40)
+ *   ──────────────────────────────────
+ *   FULL MARKS TODAY               1575
+ *
+ * | Rank     | Points | % of 1575 | What it actually takes |
+ * |----------|--------|-----------|------------------------|
+ * | Pion     |      0 |        0% | arriving |
+ * | Cavalier |     75 |        5% | the whole tutorial, or most of it plus an exercise |
+ * | Fou      |    200 |       13% | the basics, a full course, and a handful of exercises |
+ * | Tour     |    790 |       50% | half of everything — about all the teaching below the advanced tier |
+ * | Dame     |   1380 |       88% | very nearly all the teaching, the advanced tier included |
+ *
+ * ⚠️ WHY CAVALIER AND FOU DID NOT MOVE IN BATCH 6, when "every threshold gets
+ * cheaper" is the reason this block exists. Their % fell, but their definition
+ * is a SPECIFIC BODY OF WORK — the tutorial; the tutorial plus one course plus
+ * a few exercises — and none of that work changed. The cost of reaching them is
+ * exactly what it was. Tour and Dame are defined against EVERYTHING ("half",
+ * "very nearly all"), so they are the two that must follow the ceiling. If a
+ * proportional Fou is wanted instead, 22% of 1575 is 350.
  *
  * ⚠️ WHAT EACH RANK IS *FOR* — the part a number cannot say, and the reason the
  * next person to re-tune these has something to argue with:
@@ -218,17 +237,20 @@ export interface Rank {
  *   is the point: it marks the difference between having seen the site and
  *   having used it.
  *
- * - **Tour — you are a serious student.** Half of everything. By here hints
- *   have usually cost some points, so Tour is where PLAY starts carrying part
- *   of the load — which is what "more play" means: never required, but the
+ * - **Tour — you are a serious student.** Half of everything. Since batch 6
+ *   that is roughly the whole of the débutant and intermédiaire teaching (780)
+ *   with a little to spare — or less of it plus the first advanced exercises,
+ *   or plus games. By here hints have usually cost some points, so Tour is
+ *   where PLAY starts carrying part of the load — never required, but the
  *   natural way to cover the gap.
  *
- * - **Dame — you have done very nearly all of it.** 740 against a learning
- *   ceiling of 780. This is the direction doc's non-negotiable — *un rang gagné
- *   en cliquant ne dure pas deux minutes face à un ado*. ⚠️ **Dame still does
- *   NOT require games**: 780 > 740, so a student who only ever studies reaches
- *   it. The 40-point gap is the slack for four hinted exercises, and games can
- *   cover it instead.
+ * - **Dame — you have done very nearly all of it.** 1380 against a learning
+ *   ceiling of 1455 — the same 95% of the teaching that 740/780 was. This is
+ *   the direction doc's non-negotiable — *un rang gagné en cliquant ne dure pas
+ *   deux minutes face à un ado*. ⚠️ **Dame still does NOT require games**:
+ *   1455 > 1380, so a student who only ever studies reaches it. The 75-point
+ *   gap is the slack for about four or five hinted advanced exercises (a hint
+ *   costs 16–18 there), and games can cover it instead.
  *
  * ⚠️⚠️ RAISING THESE DEMOTES EXISTING READERS, AND THAT IS A KNOWN, ACCEPTED
  * COST — SEÀN'S CALL, NOT AN OVERSIGHT.
@@ -259,8 +281,8 @@ export const RANKS: readonly Rank[] = [
   { id: 'pion', min: 0 },
   { id: 'cavalier', min: 75 },
   { id: 'fou', min: 200 },
-  { id: 'tour', min: 450 },
-  { id: 'dame', min: 740 },
+  { id: 'tour', min: 790 },
+  { id: 'dame', min: 1380 },
 ];
 
 /** The rank held at a given total, and how far the next one is. */

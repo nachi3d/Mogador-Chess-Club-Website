@@ -428,6 +428,8 @@ together, and both are Critical Features:
 
 1. **The typed path and the dragged path converge on the same `onMove(from, to)`.**
    There is no accessible *variant* of the game logic to drift out of sync.
+   ⚠️ **A promotion's piece is CHOSEN, never adopted** — a drag opens the picker,
+   text names it (`e8=C`). See [`board.md`](./docs/reference/board.md).
 2. **"I could not read that" and "that move is not available" are different
    messages.** An unreadable or illegal entry never reaches the judge and is
    **not** counted as an attempt.
@@ -674,9 +676,10 @@ Astro 7 deltas to remember: config lives at `src/content.config.ts`, each collec
 because an exercise carries its own FEN. `forcedReplies: true` asserts each
 stored reply is Black's **only** legal move; without it a mate-in-2 whose first
 move is not forcing "works" against the reply we stored and nothing on screen
-ever looks wrong. ⚠️ **Build every position against chess.js, never by hand** —
-batch 5's workbench caught three positions where the side NOT to move was
-already in check and three "mate in 2"s that were mate in 1.
+ever looks wrong. ⚠️ **Build every position against chess.js, never by hand**;
+the build now refuses an exercise whose side NOT to move is in check (it found a
+live one). ⚠️ **A verdict the build cannot prove is a `manual` claim naming its
+source** — tablebase, exhaustive search or engine ([`content.md`](./docs/reference/content.md)).
 
 `level` is `debutant | intermediaire | avance` everywhere. Every collection has `draft: boolean` (default false) so an entry can be parked without deleting it.
 
@@ -754,12 +757,10 @@ Ranks are **Pion → Cavalier → Fou → Tour → Dame**.
   **never presented as a loss**.
 - ⚠️ **A loss costs nothing** (Critical Feature 35). Losses and draws are recorded
   and read by no scoring rule at all.
-- ⚠️ **Thresholds are absolute numbers against a MOVING ceiling, and they were
-  re-spaced at v0.23.0** — 0 / 75 / 220 / 480 / 800 against a measured **965**.
-  They had been set at E3 against a ceiling of 350, so Dame sat at **23% of the
-  site**: the top rank was reachable without two thirds of the teaching.
-  ⚠️ **RECOMPUTE AGAINST `ceilingOf()` WHENEVER CONTENT GROWS**, and say what
-  full marks totals — the numbers are meaningless without it.
+- ⚠️ **Thresholds are absolute numbers against a MOVING ceiling** — since batch 6,
+  0 / 75 / 200 / 790 / 1380 against a measured **1575** (learning **1455**).
+  ⚠️ **RECOMPUTE AGAINST `ceilingOf()` WHENEVER CONTENT GROWS OR SHRINKS**, and say
+  what full marks totals — the numbers are meaningless without it.
 - ⚠️⚠️ **THE OLD "NEVER DEMOTE" RULE IS GONE, AND ITS REMEDY WAS THE PROBLEM.**
   It said thresholds may only move in the direction that does not demote a
   holder, "in practice raising them only alongside a `v2` progress key". But a

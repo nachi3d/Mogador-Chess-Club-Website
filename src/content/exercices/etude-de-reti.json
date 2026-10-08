@@ -1,0 +1,34 @@
+{
+  "title_fr": "Sauver la nulle — l'étude de Réti",
+  "title_en": "Save the draw — Réti's study",
+  "slug": "etude-de-reti",
+  "fen": "7K/8/k1P5/7p/8/8/8/8 w - - 0 1",
+  "solution": [
+    "h8g7"
+  ],
+  "opponentReplies": [],
+  "onlyMove": true,
+  "hint_fr": "Le pion h semble imprenable, et votre pion c6 semble perdu. Mais comptez en diagonale : un roi peut poursuivre deux buts à la fois. En courant après le pion h, il peut aussi se rapprocher du sien.",
+  "hint_en": "The h-pawn looks uncatchable and your c6 pawn looks lost. But count diagonally: a king can chase two goals at once. Running after the h-pawn, it can also get closer to its own.",
+  "level": "avance",
+  "themes": [
+    "defense",
+    "finale",
+    "regle-du-carre",
+    "pion",
+    "roi"
+  ],
+  "claims": [
+    {
+      "kind": "line",
+      "moves": [
+        "h8g7"
+      ],
+      "ends": "quiet"
+    },
+    {
+      "kind": "manual",
+      "note": "Syzygy tablebase (tablebase.lichess.ovh), checked 2026-10-08: Kg7 is the ONLY move that does not lose — it draws. c7, Kh7 and Kg8 all lose. Richard Réti, 1921."
+    }
+  ]
+}

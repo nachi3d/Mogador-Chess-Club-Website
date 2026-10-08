@@ -1,0 +1,37 @@
+{
+  "title_fr": "La tour monte en renfort",
+  "title_en": "The rook lift",
+  "slug": "transfert-de-tour",
+  "fen": "r6k/pp4p1/6P1/8/2B1P3/8/P4PPP/4R1K1 w - - 0 1",
+  "solution": [
+    "e1e3",
+    "e3h3"
+  ],
+  "opponentReplies": [
+    "a8g8"
+  ],
+  "onlyMove": true,
+  "hint_fr": "Le roi noir n'a plus une case : g8 et h7 sont tenues, et le pion g7 ne peut pas avancer pour lui en ouvrir une. Il ne manque qu'une pièce sur la colonne h. Votre tour ne peut pas y aller directement… mais elle peut faire un détour.",
+  "hint_en": "Black's king hasn't a single square: g8 and h7 are covered, and the g7 pawn can't step forward to make one. All that's missing is a piece on the h-file. Your rook can't get there directly… but it can take the long way round.",
+  "level": "avance",
+  "themes": [
+    "attaque-du-roque",
+    "tour",
+    "mat"
+  ],
+  "claims": [
+    {
+      "kind": "line",
+      "moves": [
+        "e1e3",
+        "a8g8",
+        "e3h3"
+      ],
+      "ends": "mate"
+    },
+    {
+      "kind": "manual",
+      "note": "Exhaustive search: Re3 is the ONLY mate in 2, and after EVERY one of Black's ten legal replies, Rh3# is the only mate. Load-bearing, each checked by removing it: without the c4 bishop there is no mate in 2; without the e4 pawn Re4 and Re5 mate too. The g6 pawn takes h7 AND blocks g7, so the black king can never get luft."
+    }
+  ]
+}
