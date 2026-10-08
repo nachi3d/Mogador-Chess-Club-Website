@@ -45,6 +45,13 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ### Fixed
 
+- **The committed fallback agenda had expired** (newest session 2026-09-12),
+  so every credential-less build refused to start. Refreshed from the live
+  `sessions` table with the public anon key, as a Cloudflare build reads it:
+  25 published sessions, 2026-10-07 → 2026-12-30. Written with
+  `source: "committed-fallback"`, so no project ref enters the repo or an
+  accounts-OFF bundle. It expires again after 2026-12-30; the build warns
+  14 days before.
 - **A typed `e8=Q` could be called correct on an under-promotion.**
   `judgeMove` ADOPTED the expected promotion piece and had no way to receive
   the one the reader chose, so the first under-promotion exercise would have
