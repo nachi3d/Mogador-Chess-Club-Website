@@ -632,3 +632,56 @@
 
 /* The buttons reuse `.mcc-exercise-button`, so they inherit the 44px target
    and the press feedback with them. Nothing new to keep in sync. */
+
+/* ---------- The promotion picker ---------- */
+
+/* A pawn dragged to the last rank asks which piece it becomes (batch 6 —
+   the first under-promotion exercise). It sits directly under the board,
+   closed on all four sides like every other card, and borrows the exercise
+   buttons whole: 44px targets, the press shadow, the Réponse timing. No
+   motion of its own — it is the answer to a move, not an event. */
+.mcc-promotion {
+  margin-block-start: var(--mcc-space-sm);
+  padding: var(--mcc-space-sm) var(--mcc-space-md);
+  background-color: var(--mcc-surface-raised);
+  border: 1px solid var(--mcc-border-strong);
+  border-radius: var(--radius-card);
+}
+
+.mcc-promotion-heading {
+  margin: 0 0 var(--mcc-space-xs);
+  font-weight: 600;
+  color: var(--mcc-text-heading);
+}
+
+.mcc-promotion-choices {
+  display: grid;
+  /* Two by two on a phone, four across from 768px. Measured at 390px: an
+     auto-fit row wrapped 3 + 1 and left « Cavalier » alone on a line, which
+     reads as the odd one out — on the one exercise where it is the answer. */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--mcc-space-xs);
+}
+
+@media (min-width: 48rem) {
+  .mcc-promotion-choices {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.mcc-promotion-choice {
+  justify-self: stretch;
+}
+
+.mcc-promotion-cancel {
+  margin-block-start: var(--mcc-space-xs);
+  min-height: 2.75rem;
+  padding: 0 0.25rem;
+  background: none;
+  border: none;
+  color: var(--mcc-text-secondary);
+  font: inherit;
+  font-size: 0.875rem;
+  text-decoration: underline;
+  cursor: pointer;
+}

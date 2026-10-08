@@ -1,0 +1,38 @@
+{
+  "title_fr": "Philidor — tenir la nulle",
+  "title_en": "Philidor — hold the draw",
+  "slug": "philidor-la-defense",
+  "fen": "8/8/8/8/3kp3/8/1r6/4K2R w - - 0 1",
+  "solution": [
+    "h1h3",
+    "h3h8"
+  ],
+  "opponentReplies": [
+    "e4e3"
+  ],
+  "onlyMove": false,
+  "hint_fr": "Le roi noir veut monter sur votre troisième rangée pour escorter son pion. Tant que le pion ne bouge pas, votre tour doit lui barrer cette rangée. Dès qu'il avance, elle change de métier : partir le plus loin possible et donner des échecs par derrière.",
+  "hint_en": "Black's king wants to climb onto your third rank and escort its pawn. While the pawn stays put, your rook bars that rank. The moment the pawn advances, the rook changes job: go as far away as it can and check from behind.",
+  "level": "avance",
+  "themes": [
+    "philidor",
+    "finale",
+    "tour",
+    "defense"
+  ],
+  "claims": [
+    {
+      "kind": "line",
+      "moves": [
+        "h1h3",
+        "e4e3",
+        "h3h8"
+      ],
+      "ends": "quiet"
+    },
+    {
+      "kind": "manual",
+      "note": "Syzygy tablebase (tablebase.lichess.ovh), checked 2026-10-08: White is drawing throughout the stored line. Rh3 draws, but so do Rh5–Rh8 (distant side checks also hold); Rh4, Rh2, Rg1, Rf1, Kf1 and Kd1 LOSE. After ...e3, Rh8 draws as do Rh5–Rh7; every other move loses. Hence onlyMove:false."
+    }
+  ]
+}

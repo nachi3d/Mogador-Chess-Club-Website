@@ -1,0 +1,37 @@
+{
+  "title_fr": "Lucena — construire le pont",
+  "title_en": "Lucena — build the bridge",
+  "slug": "lucena-le-pont",
+  "fen": "3K4/3P1k2/8/8/8/8/2r5/4R3 w - - 0 1",
+  "solution": [
+    "e1f1",
+    "f1f4"
+  ],
+  "opponentReplies": [
+    "f7g7"
+  ],
+  "onlyMove": false,
+  "hint_fr": "Votre roi est coincé devant son pion. Pour sortir, il aura besoin d'un abri contre les échecs de côté — et c'est votre tour qui le construira, en se plaçant d'où elle pourra s'interposer plus tard. Mais d'abord, repoussez encore le roi noir d'une colonne.",
+  "hint_en": "Your king is stuck in front of its pawn. To step out it will need shelter from the side checks — and your rook will build it, by standing where it can block later. But first, push Black's king one more file away.",
+  "level": "avance",
+  "themes": [
+    "lucena",
+    "finale",
+    "tour"
+  ],
+  "claims": [
+    {
+      "kind": "line",
+      "moves": [
+        "e1f1",
+        "f7g7",
+        "f1f4"
+      ],
+      "ends": "quiet"
+    },
+    {
+      "kind": "manual",
+      "note": "Syzygy tablebase (tablebase.lichess.ovh), checked 2026-10-08: both stored moves keep the win, but so do most rook moves at each step (Lucena is won many ways) — hence onlyMove:false. At move 1, Rc1 and Re6 only draw and Re2 loses; at move 2, Rc1 and Rf2/Rf6/Rf7/Rf8 only draw."
+    }
+  ]
+}

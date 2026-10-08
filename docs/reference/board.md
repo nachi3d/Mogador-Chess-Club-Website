@@ -396,3 +396,33 @@ That is why the enforcement is a build step against the artefact and not a spec,
 and why the regression tests that *do* exist have to force the window open with
 `page.route` — at natural speed it is roughly 1 in 60, which is not something to
 iterate against.
+
+---
+
+## The promotion picker (content batch 6)
+
+**Read when:** touching `judgeMove`, `ExerciseView`'s `onMove`, or anything a
+pawn on the last rank goes through.
+
+- ⚠️ **A POINTER PROMOTION IS A QUESTION, NOT A MOVE.** Chessground reports
+  from/to only. `ExerciseView` asks `isPromotionMove()` (same lazy chess.js
+  chunk as the judge) and, if so, opens the picker instead of judging. The move
+  is judged only when a piece is chosen; cancel (button or Escape) bumps
+  `revision` to put the pawn back and counts **no** attempt.
+- ⚠️ **`judgeMove(…, promotion)` — AN EXPLICIT PIECE IS THE MOVE.** The old
+  "adopt the expected piece" fallback survives only for a caller that passes
+  none. Before this, the first under-promotion exercise solved itself on a drag
+  and called a typed `e8=Q` correct.
+- **The typed door never shows the picker**: `MoveInput` already passes the
+  piece the text names (`e8=C` / `e8=N`; a bare `e8` means a queen, as
+  before). Both doors still converge on the same `onMove`.
+- **It appears for EVERY pointer promotion in exercise mode**, the tutorial's
+  queen promotion included. Showing it only where the answer is an
+  under-promotion would itself be a hint.
+- **Two by two on a phone, four across from 768px** — an auto-fit row wrapped
+  3 + 1 at 390px and left « Cavalier » alone on a line.
+- Focus goes to the first BUTTON, never the text field (no virtual keyboard over
+  the board). The board is not interactive while it is open (`data-busy`).
+- ⚠️ **`PlayView` still auto-queens** on `/jouer/`. Not a correctness problem
+  there (nothing is judged), but a player cannot under-promote against the
+  engine. See BACKLOG.

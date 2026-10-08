@@ -89,6 +89,55 @@ silently gets easier. Re-tuning is expected — but it may only move in the
 direction that does **not demote** anyone who already holds a rank. A rank taken
 back is worse than a rank that was slightly cheap.
 
+⚠️ **The table above is the E3 ORIGINAL and is kept as history.** The "never
+demote" rule under it is superseded (CLAUDE.md → Progression: demotion is the
+accepted cost, a `v2` key that deletes records is not). The live numbers are
+`RANKS` in `src/lib/points.ts`, and their arithmetic is in the comment above it.
+
+### The ceiling, every time it moved
+
+| When | Learning | Full marks | Pion / Cavalier / Fou / Tour / Dame |
+|---|---|---|---|
+| E3 | 230 | 350 | 0 / 20 / 70 / 150 / 220 |
+| v0.23.0 | 845 | 965 | 0 / 75 / 220 / 480 / 800 |
+| v0.23.0, three duplicates cut | 780 | 900 | 0 / 75 / 200 / 450 / 740 |
+| **content batch 6** | **1455** | **1575** | **0 / 75 / 200 / 790 / 1380** |
+
+They had been set at E3 against a ceiling of 350, so by v0.23.0 Dame sat at
+**23% of the site**: the top rank was reachable without two thirds of the
+teaching. That is the failure this table exists to keep visible.
+
+### Batch 6 — the advanced tier
+
+Measured off the built catalogue (`dist/progres/`), not counted:
+
+    13 tutorial steps × 5            =   65
+    18 lessons with boards × 10      =  180
+    24 débutant/intermédiaire        =  535   (incl. +5 mate bonuses)
+    16 avancé (16 × 40 + 7 × 5)      =  675
+    ─────────────────────────────────────────
+    learning                           1455
+    games (2 × (5 + 15 + 40))           120
+    full marks                         1575
+
+⚠️ **The old comment's parts were wrong and its total right**: it said 19
+lessons = 190 and 24 exercises = 525. The catalogue says 180 and 535. Read it
+off the build.
+
+- **Dame 740 → 1380.** 1380/1455 is the same 95% of the learning ceiling that
+  740/780 was. Left alone, 740 would have been 51% of the teaching — the top
+  rank without touching the advanced tier. **Dame still does not need games**
+  (1455 > 1380); the 75-point slack is four or five hinted advanced exercises.
+- **Tour 450 → 790.** Half of full marks; in practice the whole débutant and
+  intermédiaire teaching (780) plus a little, or less of it plus play.
+- **Cavalier 75 and Fou 200 did NOT move.** Each is defined by a specific body
+  of work — the tutorial; the tutorial plus a course plus a few exercises — and
+  none of that work changed, so neither got cheaper in the sense that matters.
+  Their PERCENTAGE fell. If Seàn prefers proportional ranks, a proportional Fou
+  is 22% of 1575 = 350 — a one-line change, deliberately not taken here.
+- ⚠️ **Demotion.** A reader between 450 and 789 drops from Tour to Fou; one
+  between 740 and 1379 from Dame to Tour or Fou. Every record is intact.
+
 ### ⚠️ NO DAILY STREAK. NOT NOW, NOT LATER.
 
 **The club meets weekly.** A consecutive-day streak would break every week by

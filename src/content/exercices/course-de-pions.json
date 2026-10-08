@@ -1,0 +1,39 @@
+{
+  "title_fr": "La course de pions — comptez",
+  "title_en": "The pawn race — count it",
+  "slug": "course-de-pions",
+  "fen": "8/8/6k1/8/1P5p/4K3/8/8 w - - 0 1",
+  "solution": [
+    "b4b5"
+  ],
+  "opponentReplies": [],
+  "onlyMove": true,
+  "hint_fr": "Il y a deux courses à compter. Si votre pion part maintenant, le roi noir entre-t-il dans son carré ? Et votre roi, reste-t-il dans le carré du pion h ? Attention : marcher vers son propre pion peut faire perdre la course de l'autre côté.",
+  "hint_en": "There are two races to count. If your pawn runs now, can Black's king get inside its square? And is your king still inside the h-pawn's square? Careful: walking towards your own pawn can lose the race on the other wing.",
+  "level": "avance",
+  "themes": [
+    "regle-du-carre",
+    "finale",
+    "pion"
+  ],
+  "claims": [
+    {
+      "kind": "line",
+      "moves": [
+        "b4b5",
+        "h4h3",
+        "e3f2",
+        "h3h2",
+        "f2g2",
+        "h2h1q",
+        "g2h1"
+      ],
+      "ends": "quiet",
+      "captures": "q"
+    },
+    {
+      "kind": "manual",
+      "note": "Syzygy tablebase (tablebase.lichess.ovh), checked 2026-10-08: b5 is the ONLY winning move. Kf2, Ke2, Kf3, Ke4 and Kf4 draw; Kd2, Kd3 and Kd4 LOSE (the h-pawn queens). The line claim shows the white king still catches the h-pawn after b5."
+    }
+  ]
+}

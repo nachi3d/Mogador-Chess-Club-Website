@@ -549,11 +549,34 @@ After flipping it, on the real site:
       grouped by motif — the five forks, then the mates
 - [ ] Both work in EN
 
+### ⚠️ The advanced tier — content batch 6
+
+- [ ] `/exercices/` shows an **Avancé** level chip; `/exercices/niveau/avance/`
+      lists sixteen exercises, every badge « Avancé ». Same in EN
+- [ ] Open three at random and read the hint: it names an IDEA, never a move
+- [ ] ⚠️ **`/exercices/sous-promotion/` — the picker.** Drag the e7 pawn to e8:
+      a box asks « Promouvoir le pion en : » with four buttons, **two by two on a
+      phone**. Choose **Dame** → refused, one attempt counted. Again, choose
+      **Cavalier** → the black king moves, then take the queen → solved
+- [ ] Open the picker and press **Annuler** (or Escape on a keyboard): the pawn
+      goes back and the attempts counter does **not** move
+- [ ] Type `e8=D` → refused; type `e8=C` → accepted. In EN, `e8=N`. **No picker
+      appears for typed moves**
+- [ ] `/apprendre-les-bases/la-promotion/`: the tutorial's queen promotion now
+      shows the picker too; Dame solves it
+- [ ] `/exercices/lucena-le-pont/` and `/exercices/philidor-la-defense/`: play
+      a DIFFERENT rook move that also wins / holds — the message is « pas la
+      ligne prévue », never « mauvais coup » (`onlyMove: false`)
+- [ ] `/exercices/mat-dame-soutenue/` still solves with Qb8# — the queen now
+      starts on **b1** (it used to start on b3, an impossible position)
+
 ### ⚠️ Ranks moved — a student may see their rank DROP
 
-*Thresholds were re-spaced against today's content (full marks is 965; Dame was
-sitting at 23% of the site). This is expected and was Seàn's call — but it is
-the kind of change a student notices and nobody explains.*
+*Thresholds were re-spaced against today's content: full marks is **1575**
+since batch 6 (Tour 790, Dame 1380; Cavalier and Fou unchanged). Earlier
+re-spacings: 965 at v0.23.0, then 900 after the duplicate cut. This is expected
+and was Seàn's call — but it is the kind of change a student notices and nobody
+explains.*
 
 - [ ] `/progres/` shows a rank consistent with the points beside it
 - [ ] ⚠️ **If a student says their rank went down, that is this change** — their
