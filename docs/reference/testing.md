@@ -2116,3 +2116,46 @@ in the application** the whole time.
 **➡️ The full symptom table, the three-gate diagnosis and the per-island audit:
 [`docs/reference/testing.md`](./docs/reference/testing.md) and
 [`docs/reference/board.md`](./docs/reference/board.md).**
+
+## ⚠️ A spec never pins a calendar date — the agenda pair (2026-10-08)
+
+**Read when:** writing any assertion about baked or dated data.
+
+`agenda.spec.ts` asserted the session migration 0006 carried out of git
+(2026-09-12, "ouverture de la saison") and its English note. `fetch-agenda.mjs`
+bakes only sessions from yesterday onward (`KEEP_PAST_DAYS = 1`), so from
+2026-09-13 no build that read a real table could contain it. The two tests
+stayed green only because the committed fallback had **expired** and still held
+the row — and when the fallback was refreshed, they failed for a reason that
+had nothing to do with what they assert.
+
+They were replaced by tests that hold for any agenda:
+
+- **a published session is baked and reaches the page** — the card count equals
+  the bake's published count, and an empty bake **fails**, with a message
+  saying an empty agenda is never a scheduling fact;
+- **every session is on the club's clock, in each language** — for `/agenda/`
+  and `/en/agenda/`, every card's `datetime`, time and date label equal what
+  the SPEC computes from the raw `startsAt` instant, in the zone `site.ts`
+  names, with `fr-FR` / `en-GB` wording.
+
+⚠️ **The expected value is re-derived, never read back.** The snapshot's
+`date` and `time` were written by the bake's own zone conversion; comparing
+the page to them proves only that the page copies a field. The spec does its own
+`Intl` call. ⚠️ **`site.timezone` is read from the source TEXT** — `site.ts`
+reads `import.meta.env`, which does not exist in Playwright's Node transform,
+and the snapshot's `timezone` is what the bake *claims*, the thing under test.
+
+**Watched to fail before being trusted**, with builds made from a hand-written
+`src/data/agenda.json` and the env `playwright.config.ts` injects:
+
+| bake | published-session test | clock tests (fr, en) |
+|---|---|---|
+| zero sessions | ✘ "holds no published session" | ✘ ✘ "holds no session with an instant" |
+| the 25 real sessions resolved in **UTC** | ✓ (correctly — they are there) | ✘ ✘ every `15:00` read `14:00` |
+| the real bake from the TEST project | ✓ | ✓ ✓ |
+
+The English *note* assertion was not kept: no current session carries a note,
+and a check that runs only when one happens to exist is the conditional pass
+this file warns against. The language is asserted through the date label, which
+every card has.

@@ -1707,6 +1707,15 @@ and nothing reaches a reader without passing the gate first.
 four paths. **If you believe you have found the exception:** change this policy
 in CLAUDE.md in the same commit, with the reason.
 
+### ⚠️ A SPEC NEVER PINS A CALENDAR DATE
+
+A date written into a spec is a fuse: `fetch-agenda` keeps only sessions from
+yesterday onward, so a pinned session falls out of every honest build and the
+test fails for a reason unrelated to its claim. **Assert against whatever is
+baked, refuse an empty bake outright, and re-derive the expected value
+independently** (the agenda spec recomputes the club's clock from `startsAt`).
+**➡️ [`docs/reference/testing.md`](./docs/reference/testing.md).**
+
 ### Critical-path tests (never skip)
 
 ⚠️ **A FAILURE IN ANY OF THESE IS A REGRESSION, NOT A TEST TO UPDATE.** They are

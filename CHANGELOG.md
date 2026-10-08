@@ -52,6 +52,17 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
   `source: "committed-fallback"`, so no project ref enters the repo or an
   accounts-OFF bundle. It expires again after 2026-12-30; the build warns
   14 days before.
+- **Two agenda specs were a time bomb**, pinned to the session migration 0006
+  carried out of git (2026-09-12). The bake keeps only sessions from yesterday
+  onward, so no honest build could contain it after 2026-09-13; only the
+  expired fallback kept them green. Replaced by tests that hold for any
+  agenda: a published session is baked and reaches the page, and every card
+  in both languages prints the date, time and date label the SPEC computes
+  from `startsAt` in `site.timezone` — re-derived, not read back from the
+  bake. Watched to fail on an empty bake and on a bake resolved in UTC
+  (`15:00` → `14:00`). The English-note check was dropped: no session carries
+  a note, and a check that runs only when one exists is a conditional pass.
+  See CLAUDE.md → "A spec never pins a calendar date".
 - **A typed `e8=Q` could be called correct on an under-promotion.**
   `judgeMove` ADOPTED the expected promotion piece and had no way to receive
   the one the reader chose, so the first under-promotion exercise would have

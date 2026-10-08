@@ -73,8 +73,10 @@ const yellow = (s) => `[33m${s}[0m`;
  * for Ramadan and back afterwards; the IANA database knows the exact dates and
  * a hardcoded `+01:00` does not.
  *
- * Mirrored from `site.timezone` — this file cannot import a TS module, and a
- * spec pins the two equal.
+ * Mirrored from `site.timezone` — this file cannot import a TS module. The
+ * snapshot records this zone and `src/lib/agenda.ts` FAILS THE BUILD if it
+ * disagrees with `site.timezone`; `agenda.spec.ts` then re-derives every
+ * rendered date and time from `startsAt` in the zone `site.ts` names.
  */
 const TIMEZONE = 'Africa/Casablanca';
 
