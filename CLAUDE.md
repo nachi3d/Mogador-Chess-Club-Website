@@ -1716,6 +1716,25 @@ baked, refuse an empty bake outright, and re-derive the expected value
 independently** (the agenda spec recomputes the club's clock from `startsAt`).
 **➡️ [`docs/reference/testing.md`](./docs/reference/testing.md).**
 
+### ⚠️⚠️ ANYTHING A RUN'S CLEANUP DELETES MUST BE IDENTIFIABLE AS THAT RUN'S
+
+The test project is shared by the six jobs of a gate **and by two gates at
+once** (every promotion pushes `main` and `dev` seconds apart). A spec that
+finds or deletes rows **by shape** finds and deletes everybody's. Broken twice,
+two ways: the email domain never covered pseudos, and sessions have no owner.
+
+- ⚠️ **A RESOURCE WITH NO OWNER COLUMN CANNOT BE ISOLATED BY A DOMAIN.** Put
+  the scope in a field the spec controls — `scopePrefix()` from
+  `tests/e2e/helpers/scope.ts` (a pseudo, a session title) — or, if no such
+  field exists (`rebuild_requests`), make the assertion one another run cannot
+  satisfy, and **never delete what you cannot attribute.**
+- ⚠️ **ANOTHER RUN'S ROWS ARE DELETED ONLY ONCE ABANDONED** — older than
+  `LEAK_AGE_MS`, in `purge.ts`. Young means somebody is mid-test.
+- ⚠️ **`E2E_EMAIL_DOMAIN` is per job AND per run** in `gate.yml`.
+
+**➡️ Read `helpers/scope.ts` before writing a spec that writes any shared table.
+The two incidents: [`docs/reference/testing.md`](./docs/reference/testing.md).**
+
 ### Critical-path tests (never skip)
 
 ⚠️ **A FAILURE IN ANY OF THESE IS A REGRESSION, NOT A TEST TO UPDATE.** They are

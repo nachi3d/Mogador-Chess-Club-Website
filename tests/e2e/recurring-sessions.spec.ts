@@ -3,6 +3,7 @@ import { AUTH_ENABLED, AUTH_OFF_REASON } from './helpers/auth-mode';
 import { isSupabaseConfigured } from './env';
 import { adminClient, createConfirmedUser, deleteUser, e2eEmail } from './helpers/supabase-admin';
 import { followMagicLink, reachAccountPage } from './helpers/auth';
+import { scopePrefix, scopeTag } from './helpers/scope';
 import { expandSeries, SERIES_MAX } from '../../src/lib/recurrence';
 
 /**
@@ -145,12 +146,40 @@ test.describe('expandSeries — the expansion happens once, and it is arithmetic
 
 /* ── Through the real UI, against the real database ──────────────────────── */
 
+/**
+ * ═════════════════════════════════════════════════════════════════════════
+ * ⚠️ THESE ROWS ARE IDENTIFIED AS THIS RUN'S, NEVER BY SHAPE.
+ *
+ * This file used to find "its" sessions as duration 47 in 2029, and clear
+ * them the same way. At v0.32.0 the `main` and `dev` gates ran at once
+ * (runs 35834910255 + 35834927186): each run counted 26 sessions — its own
+ * thirteen and the other's — and each run's cleanup deleted the other's
+ * series mid-test. A session has no owner column, so the scope goes in the
+ * TITLE (`helpers/scope.ts`), and every read and delete here filters on it.
+ *
+ * ⚠️ `rebuild_requests` CANNOT BE SCOPED THAT WAY — it has no owner and no
+ * field this spec controls. So the series LENGTH is per run: the count asks
+ * for exactly one firing of EXPECTED rows, and a concurrent run's series is a
+ * different length. The residual risk, stated rather than hidden: two runs
+ * whose scope tags land on the same length (1 in 30) AND whose
+ * `recurring-sessions` overlap within seconds. It also no longer deletes the
+ * log — `purge.ts` prunes only abandoned rows.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
 /** Far enough out that nothing else in the suite is anywhere near these dates. */
 const START_LOCAL = '2029-03-07T18:00';
-const UNTIL_LOCAL = '2029-05-30';
-const EXPECTED = 13;
-/** A duration no other spec uses — the second half of "these rows are ours". */
+/** 10–39 weekly sessions, fixed for this run. Below SERIES_MAX, and ≥ 10 so
+    no other spec's single statement can look like it. */
+const EXPECTED = 10 + (parseInt(scopeTag(), 36) % 30);
+/** The last date of a weekly series of EXPECTED, as a `date` input wants it. */
+const UNTIL_LOCAL = new Date(Date.UTC(2029, 2, 7 + 7 * (EXPECTED - 1))).toISOString().slice(0, 10);
+/** The middle session — a first or last row can be hit by an off-by-one a middle one cannot. */
+const VICTIM = Math.floor(EXPECTED / 2);
+/** A duration no other spec uses. */
 const MARKER_DURATION = 47;
+/** THIS run's series, and THIS run's caret-test sessions — never another run's. */
+const SERIES_TITLE = `${scopePrefix()}serie`;
+const CARET_TITLE = `${scopePrefix()}caret`;
 
 test.describe('a recurring set is ONE statement and thirteen ordinary rows', () => {
   test.skip(!AUTH_ENABLED, AUTH_OFF_REASON);
@@ -163,8 +192,6 @@ test.describe('a recurring set is ONE statement and thirteen ordinary rows', () 
   const createdUsers: string[] = [];
   let profEmail = '';
   let seriesId = '';
-  /** The last log row before this file did anything — the count's baseline. */
-  let baselineLogId = 0;
 
   async function lastLogId(): Promise<number> {
     const { data, error } = await adminClient()
@@ -193,23 +220,17 @@ test.describe('a recurring set is ONE statement and thirteen ordinary rows', () 
     const { data, error } = await adminClient()
       .from('sessions')
       .select('id,starts_at,status,series_id,duration_minutes')
+      .eq('title_fr', SERIES_TITLE)
       .eq('duration_minutes', MARKER_DURATION)
-      .gte('starts_at', '2029-01-01T00:00:00Z')
-      .lte('starts_at', '2029-12-31T00:00:00Z')
       .order('starts_at');
     expect(error, `sessions unreadable: ${error?.message}`).toBeNull();
     return data ?? [];
   }
 
   test.beforeAll(async () => {
-    /* A previous crashed run could have left a series behind, and this file
-       identifies its rows by shape rather than by id. Start from clean. */
-    await adminClient()
-      .from('sessions')
-      .delete()
-      .eq('duration_minutes', MARKER_DURATION)
-      .gte('starts_at', '2029-01-01T00:00:00Z')
-      .lte('starts_at', '2029-12-31T00:00:00Z');
+    /* A retry of THIS run could have left a series behind. Only this run's
+       titles are touched — another run's are in use (see the header above). */
+    await adminClient().from('sessions').delete().like('title_fr', `${scopePrefix()}%`);
 
     profEmail = e2eEmail('recurring-prof');
     const prof = await createConfirmedUser({ email: profEmail, displayName: 'Prof', locale: 'fr' });
@@ -219,28 +240,17 @@ test.describe('a recurring set is ONE statement and thirteen ordinary rows', () 
       new_role: 'prof',
     });
     expect(error, `admin_set_role failed: ${error?.message}`).toBeNull();
-
-    baselineLogId = await lastLogId();
   });
 
   test.afterAll(async () => {
-    /* ⚠️ THIS SPEC MUST CLEAN UP ITS OWN SESSIONS. The global purge only
-       collects rows with no title AND no notes; these have neither, so it would
-       catch them — but only at the end of the whole run, by which time a build
-       could have baked thirteen of them into `/agenda/`. See the header of
+    /* ⚠️ THIS SPEC MUST CLEAN UP ITS OWN SESSIONS. They carry an `e2e-` title,
+       so the global purge collects them only once they are an hour old — by
+       which time a build could have baked a whole series into `/agenda/`. See the header of
        `tests/e2e/helpers/purge.ts` for what that cost once. */
-    await adminClient()
-      .from('sessions')
-      .delete()
-      .eq('duration_minutes', MARKER_DURATION)
-      .gte('starts_at', '2029-01-01T00:00:00Z')
-      .lte('starts_at', '2029-12-31T00:00:00Z');
-    /* The log is diagnostic only and nothing else reads it, so clearing what
-       this run added — including the firing the delete above just caused — is
-       safe and keeps the table from growing a row per CI run forever. */
-    if (baselineLogId > 0) {
-      await adminClient().from('rebuild_requests').delete().gt('id', baselineLogId);
-    }
+    await adminClient().from('sessions').delete().like('title_fr', `${scopePrefix()}%`);
+    /* ⚠️ THE LOG IS NOT CLEARED HERE ANY MORE. "Everything after my baseline"
+       is every concurrent run's firings too, deleted mid-count. `purge.ts`
+       prunes rows old enough to be nobody's. */
     for (const id of createdUsers) await deleteUser(id);
   });
 
@@ -279,6 +289,7 @@ test.describe('a recurring set is ONE statement and thirteen ordinary rows', () 
 
     const beforeCreate = await lastLogId();
 
+    await page.fill('#session-title', SERIES_TITLE);
     await page.fill('#session-when', START_LOCAL);
     await page.fill('#session-duration', String(MARKER_DURATION));
     await page.selectOption('#session-status', 'published');
@@ -301,16 +312,18 @@ test.describe('a recurring set is ONE statement and thirteen ordinary rows', () 
 
     /* The list repaints from a fresh read, so waiting on the series card is
        waiting on the write having landed. */
-    await expect(page.locator('.series-card')).toHaveCount(1, { timeout: 15_000 });
-    await expect(page.locator('.series-card')).toContainText(`${EXPECTED} séances`);
+    /* ⚠️ THIS RUN'S card. The list holds every run's series. */
+    const ours = page.locator('.series-card', { hasText: SERIES_TITLE });
+    await expect(ours).toHaveCount(1, { timeout: 15_000 });
+    await expect(ours).toContainText(`${EXPECTED} séances`);
 
     const rows = await ourSessions();
-    expect(rows.length, 'the database does not hold thirteen sessions').toBe(EXPECTED);
+    expect(rows.length, `the database does not hold ${EXPECTED} sessions`).toBe(EXPECTED);
     seriesId = String(rows[0]!['series_id'] ?? '');
     expect(seriesId, 'the generated rows carry no series label').not.toBe('');
     expect(
       rows.every((r) => String(r['series_id']) === seriesId),
-      'the thirteen rows do not share one series label',
+      `the ${EXPECTED} rows do not share one series label`,
     ).toBe(true);
     expect(
       rows.every((r) => r['status'] === 'published'),
@@ -325,7 +338,7 @@ test.describe('a recurring set is ONE statement and thirteen ordinary rows', () 
     const bulk = await firings(beforeCreate, { source: 'sessions.insert', rows: EXPECTED });
     expect(
       bulk.length,
-      'creating thirteen sessions did not reach the database as ONE statement',
+      `creating ${EXPECTED} sessions did not reach the database as ONE statement`,
     ).toBe(1);
 
     /* And the trigger sent nothing, because the test project holds no hook.
@@ -343,12 +356,12 @@ test.describe('a recurring set is ONE statement and thirteen ordinary rows', () 
     expect(rows.length, 'the series from the previous test is missing').toBe(EXPECTED);
     /* The middle one, deliberately: a first or last row can be cancelled by an
        off-by-one that a middle row cannot. */
-    const victim = String(rows[6]!['id']);
+    const victim = String(rows[VICTIM]!['id']);
 
     const card = page.locator(`.session-card[data-session="${victim}"]`);
     await expect(card).toBeVisible({ timeout: 15_000 });
     /* ⚠️ THE CARD KNOWS IT BELONGS TO A SET AND STILL ACTS ALONE. */
-    await expect(card.locator('.session-series')).toContainText(`7/${EXPECTED}`);
+    await expect(card.locator('.session-series')).toContainText(`${VICTIM + 1}/${EXPECTED}`);
 
     page.once('dialog', (dialog) => dialog.accept());
     await card.locator('[data-cancel]').click();
@@ -419,6 +432,7 @@ test.describe('a recurring set is ONE statement and thirteen ordinary rows', () 
   test('the submit button works with the caret still in the end-date field', async ({ page }) => {
     await signInAsProf(page);
 
+    await page.fill('#session-title', CARET_TITLE);
     await page.fill('#session-when', '2029-06-06T18:00');
     await page.fill('#session-duration', String(MARKER_DURATION));
     await page.selectOption('#session-status', 'draft');
@@ -455,20 +469,14 @@ test.describe('a recurring set is ONE statement and thirteen ordinary rows', () 
           const { data } = await adminClient()
             .from('sessions')
             .select('id')
-            .eq('duration_minutes', MARKER_DURATION)
-            .gte('starts_at', '2029-06-01T00:00:00Z')
-            .lte('starts_at', '2029-08-01T00:00:00Z');
+            .eq('title_fr', CARET_TITLE)
+            .eq('duration_minutes', MARKER_DURATION);
           return data?.length ?? 0;
         },
         { timeout: 15_000, message: 'the press produced no sessions' },
       )
       .toBe(3);
 
-    await adminClient()
-      .from('sessions')
-      .delete()
-      .eq('duration_minutes', MARKER_DURATION)
-      .gte('starts_at', '2029-06-01T00:00:00Z')
-      .lte('starts_at', '2029-08-01T00:00:00Z');
+    await adminClient().from('sessions').delete().eq('title_fr', CARET_TITLE);
   });
 });

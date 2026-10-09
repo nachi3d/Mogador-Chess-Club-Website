@@ -45,6 +45,33 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ### Fixed
 
+- **Concurrent gate runs and jobs deleted each other's test data.** Test-only;
+  nothing a visitor sees changed. Two CI gates went red this way:
+  - **Run 37904267059** (2026-10-09): every test passed, and webkit's teardown
+    found a pseudo that chromium's `pseudo-auth` had registered 0.6s earlier.
+    Pseudo addresses cannot carry the per-job email domain, and the purge
+    matched every job's `e2e-` prefix.
+  - **Runs 35834910255 + 35834927186** (2026-09-23, the v0.32.0 promotion):
+    `main` and the `dev` back-merge ran at once. `recurring-sessions` found its
+    sessions by shape (duration 47, in 2029), so each run counted 26 and
+    deleted the other's series mid-test. At the time it was read as a webkit
+    flake.
+  - **The fix:** `tests/e2e/helpers/scope.ts` derives a tag from the job's
+    email domain. Pseudos are minted `e2e-<tag>-…`, recurring sessions are
+    titled `e2e-<tag>-…`, and every read and delete filters on the tag.
+    `gate.yml` domains are now `<job>-<run id>-<attempt>`, so the scope is per
+    run as well as per job. `purge.ts` deletes another scope's e2e rows only
+    once they are an hour old (abandoned). `rebuild_requests` has no owner, so
+    the series length varies per run (10–39) and the spec no longer deletes
+    that log. `booking-ui` refuses `e2e-` titled sessions as non-durable.
+  - **Verified by reproduction:** the old spec run twice at once failed with
+    the 09-23 signature (`Expected: 1, Received: 2`), and the new one passed
+    under two scopes at once. The old purge deleted another scope's young
+    pseudo; the new one left it. Detail and the one path not exercised:
+    `docs/reference/testing.md`.
+  - **The general rule is now in CLAUDE.md:** anything a run's cleanup deletes
+    must be identifiable as that run's, and a resource with no owner column
+    cannot be isolated by a domain.
 - **The committed fallback agenda had expired** (newest session 2026-09-12),
   so every credential-less build refused to start. Refreshed from the live
   `sessions` table with the public anon key, as a Cloudflare build reads it:

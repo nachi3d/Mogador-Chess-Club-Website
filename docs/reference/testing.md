@@ -2159,3 +2159,92 @@ The English *note* assertion was not kept: no current session carries a note,
 and a check that runs only when one happens to exist is the conditional pass
 this file warns against. The language is asserted through the date label, which
 every card has.
+
+---
+
+## ⚠️ A run's cleanup deletes only that run's rows — two incidents, one rule
+
+**Read when:** writing a spec that inserts into, or deletes from, any table
+another spec or another job could also write; or a CI failure where a count is
+exactly double, or a row "vanished" mid-test.
+
+### The rule
+
+**Anything a run's cleanup deletes must be identifiable as that run's.** "Run"
+means one job of one gate run, because the test project is shared two ways:
+
+- the six jobs of one gate run in parallel; and
+- **two whole gate runs at once** — every promotion pushes `main` (the release)
+  and `dev` (the back-merge) within seconds, and each push triggers `gate.yml`.
+
+**A resource with no owner column cannot be isolated by a domain.** The
+per-job `E2E_EMAIL_DOMAIN` scoped *users* and nothing else. Anything without an
+email needs the scope carried in a field the spec controls — that is what
+`scopePrefix()` (`tests/e2e/helpers/scope.ts`) is for. Where no such field
+exists, the spec must (a) assert something another run's rows cannot satisfy,
+and (b) never delete rows it cannot attribute.
+
+Abandoned rows — a crashed run's, whose scope will never run again — are
+deleted by `purge.ts` from **any** scope, but only once older than
+`LEAK_AGE_MS` (1 hour: longer than any job, shorter than the gap between
+gates). Age is the only evidence that nobody is using a row.
+
+### Incident 1 — the pseudo that was another job's (gate run 37904267059, 2026-10-09)
+
+Every test passed in all six jobs; the gate went red in **webkit's teardown**:
+`purge(after): 1 e2e user(s) survived deletion — e2e-newz5b5f3@pseudo.mogadorchess.invalid`.
+
+A pseudo account's address is `<pseudo>@pseudo.mogadorchess.invalid`, so it
+cannot carry the job's email domain, and the purge matched pseudos on the bare
+`e2e-` prefix — **every job's**. Chromium's `pseudo-auth.spec.ts:98` registered
+`e2e-new…` between 08:31:03.9 and 08:31:07.1; webkit's teardown deleted its own
+users and re-listed at 08:31:04.5, finding chromium's brand-new account. In a
+different interleaving it would instead have deleted chromium's account
+mid-test, which would read as a sign-in bug.
+
+**Fix:** `e2ePseudo()` mints `e2e-<tag>-…`, where the tag is derived from the
+job's email domain; the purge matches only its own tag (plus abandoned ones).
+
+### Incident 2 — two gates, one series (runs 35834910255 + 35834927186, 2026-09-23)
+
+The v0.32.0 promotion: `main` and the `dev` back-merge pushed 11 seconds
+apart. Both runs' webkit jobs reached `recurring-sessions.spec.ts` at
+08:10:53–08:11:40, and both chromium jobs at ~08:15:50. The spec identified
+"its" sessions **by shape** — duration 47, in 2029 — so each run counted
+`Received: 26` (its thirteen plus the other's), saw two series cards
+(`Expected: 1, Received: 2`), and each run's `beforeAll`/`afterAll` deleted the
+other's series mid-test (`the series cancel deleted rows`, `Received: 0`). It
+also deleted every `rebuild_requests` row after its baseline — the other run's
+firings included.
+
+That gate was read as a webkit flake at the time. It was the same defect as
+incident 1, and the per-job domains could not have prevented it: the two
+webkit jobs had the same domain, and sessions have no owner anyway.
+
+**Fix:** the series and the caret-test sessions are titled
+`e2e-<tag>-serie` / `e2e-<tag>-caret`, and every read and delete filters on the
+title. `rebuild_requests` has no owner and no field a spec controls, so the
+series LENGTH is per run (10–39, from the tag): "exactly one firing of N rows"
+cannot be satisfied by another run's series unless the tags collide on N (1 in
+30) **and** the two runs overlap within seconds — stated, not hidden. The spec
+no longer deletes the log; `purge.ts` prunes rows older than `LEAK_AGE_MS`.
+`gate.yml`'s domains became `<job>-<run id>-<attempt>.mcc-e2e.test`, so users
+are scoped per run too.
+
+### How the fix was verified (2026-10-09)
+
+Against the real test project, one accounts-ON build, a second git worktree
+supplying a second `.env.test` that differed only in `E2E_EMAIL_DOMAIN`:
+
+| | Old code | New code |
+|---|---|---|
+| `recurring-sessions` × 2, concurrently | **both failed** — `Expected: 1, Received: 2` series cards (the 09-23 signature) | **both passed**, 9/9 each, two scopes |
+| a young pseudo of scope B, then scope A's purge | **deleted** | **survived** |
+| an `e2e-` session backdated 2 h, then a purge | not collected (old code had no such sweep) | **deleted** |
+| a young `e2e-<B>-` session, then scope A's purge | — | **survived** |
+| `pseudo-auth` + `recurring-sessions` × 2 scopes, concurrently | — | 23/23 each |
+
+⚠️ **Not exercised: the abandoned-USER sweep.** `auth.users.created_at` cannot be
+backdated through the admin API, so the "older than an hour, any scope" branch
+for users is verified by reading only. It uses the same age guard as the
+session sweep, which was exercised.
