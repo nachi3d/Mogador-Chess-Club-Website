@@ -1,0 +1,47 @@
+{
+  "title_fr": "Le coup tranquille",
+  "title_en": "The quiet move",
+  "slug": "le-coup-tranquille",
+  "fen": "5rk1/pp3p1p/5Pp1/8/q7/8/PP1Q1PPP/4R1K1 w - - 0 1",
+  "solution": [
+    "d2h6",
+    "h6g7"
+  ],
+  "opponentReplies": [
+    "a4d1"
+  ],
+  "onlyMove": true,
+  "hint_fr": "Aucun échec ne marche ici — essayez-les, ils échouent tous. Cherchez plutôt un coup calme qui crée une menace que rien ne peut parer. Quelle case votre pion f6 tient-il déjà ?",
+  "hint_en": "No check works here — try them, they all fail. Look instead for a calm move that creates a threat nothing can stop. Which square does your f6 pawn already control?",
+  "level": "avance",
+  "themes": [
+    "coup-tranquille",
+    "mat",
+    "dame",
+    "pion"
+  ],
+  "claims": [
+    {
+      "kind": "line",
+      "moves": [
+        "d2h6",
+        "a4d1",
+        "h6g7"
+      ],
+      "ends": "mate"
+    },
+    {
+      "kind": "line",
+      "moves": [
+        "d2h6",
+        "g6g5",
+        "h6g7"
+      ],
+      "ends": "mate"
+    },
+    {
+      "kind": "manual",
+      "note": "Exhaustive search: Qh6 is the ONLY mate in 2 and gives no check; after every one of Black's 29 replies Qg7# mates (after ...Kh8, Qf8# too — not the stored reply). The stored ...Qd1 is the counter-attack that looks like a defence and is not."
+    }
+  ]
+}

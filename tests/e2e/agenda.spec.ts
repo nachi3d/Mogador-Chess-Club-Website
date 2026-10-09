@@ -66,47 +66,115 @@ test.describe('the public agenda', () => {
   }
 
   /**
-   * ⚠️ THE MIGRATED ENTRY. `src/content/agenda/2026-09-12.json` was the whole
-   * git collection; migration 0006 inserted it with a FIXED uuid so the
-   * committed fallback and the database agree. If this fails, either the
-   * migration did not run or the fallback was edited — both of which would take
-   * a real session off the public site.
+   * ⚠️ NO DATE IS WRITTEN IN THIS FILE, AND NONE MAY BE ADDED.
+   *
+   * These two tests replaced a pair pinned to the session migration 0006
+   * carried out of git (2026-09-12, "ouverture de la saison"). `fetch-agenda`
+   * bakes only sessions from YESTERDAY onward, so from 2026-09-13 no build that
+   * read a real table could contain it — the tests failed for a reason that had
+   * nothing to do with what they assert, and only an EXPIRED fallback was still
+   * holding them green. A spec that depends on a fixed date is a time bomb.
+   *
+   * So they assert against WHATEVER IS BAKED, and they refuse an empty bake
+   * outright: "every session renders correctly" is vacuously true of none.
+   *
+   * ⚠️ THE CLUB'S CLOCK IS RECOMPUTED HERE, FROM THE RAW INSTANT. The snapshot's
+   * own `date` and `time` were written by the bake's zone conversion, so
+   * comparing the page against them would prove only that the page copies a
+   * field. `startsAt` is the instant the database holds; this file resolves it
+   * in `site.timezone` with its own `Intl` call. A bake that slipped into the
+   * build machine's zone (Cloudflare builds in UTC) prints 14:00 for a 15:00
+   * session, and nothing else on the page would look wrong.
    */
-  test('the session migrated out of the git collection is still published', async ({ page }) => {
-    /**
-     * ⚠️ THE EXPECTED DATE IS READ FROM THE BAKED SNAPSHOT, NOT WRITTEN HERE.
-     *
-     * This test used to pin the literal `2026-09-12`, which is the fixture's
-     * own date — and `fetch-agenda.mjs` bakes only sessions from YESTERDAY
-     * onward (`KEEP_PAST_DAYS = 1`). So from 2026-09-13 the row was correctly
-     * absent from every build and this test failed for a reason that had
-     * nothing to do with the thing it asserts. A date in a fixture is a fuse.
-     *
-     * What it is actually for survives, and is still asserted: the migrated row
-     * is PUBLISHED and reaches the page, and its clock is the CLUB'S — a build
-     * that resolved the instant in the build machine's zone would print 15:00
-     * and nothing else on the page would look wrong.
-     */
+  /**
+   * ⚠️ READ FROM THE SOURCE TEXT, NOT IMPORTED. `site.ts` reads
+   * `import.meta.env`, which does not exist in Playwright's Node transform, so
+   * importing it would crash the file. The snapshot's own `timezone` is not an
+   * alternative: it is what the bake SAYS it used, the thing under test.
+   */
+  const CLUB_ZONE = (() => {
+    const src = readFileSync(join(process.cwd(), 'src/config/site.ts'), 'utf8');
+    const zone = /\btimezone:\s*'([^']+)'/.exec(src)?.[1];
+    if (!zone) throw new Error('could not read site.timezone from src/config/site.ts');
+    return zone;
+  })();
+
+  type BakedSession = { startsAt?: string; date?: string; time?: string; status?: string };
+
+  function bakedSessions(): BakedSession[] {
     const snapshot = JSON.parse(
       readFileSync(join(process.cwd(), 'src/data/agenda.json'), 'utf8'),
-    ) as { sessions?: Array<{ date?: string; time?: string; noteFr?: string; note_fr?: string }> };
-    const baked = (snapshot.sessions ?? []).find((row) =>
-      `${row.noteFr ?? row.note_fr ?? ''}`.includes('ouverture de la saison'),
-    );
-    expect(baked, 'the migrated session is not in the baked agenda at all').toBeTruthy();
+    ) as { sessions?: BakedSession[] };
+    return snapshot.sessions ?? [];
+  }
+
+  /** The instant → what a member of the club reads on the wall clock. */
+  function clubWallClock(startsAt: string) {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: CLUB_ZONE,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    }).formatToParts(new Date(startsAt));
+    const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
+    return { date: `${get('year')}-${get('month')}-${get('day')}`, time: `${get('hour')}:${get('minute')}` };
+  }
+
+  test('a published session is baked and reaches the page', async ({ page }) => {
+    const published = bakedSessions().filter((s) => s.status === 'published');
+    expect(
+      published.length,
+      'the baked agenda holds no published session — an empty agenda is a FAILURE, never a ' +
+        'scheduling fact (see "THE PUBLIC AGENDA IS BAKED" in CLAUDE.md)',
+    ).toBeGreaterThan(0);
 
     await page.goto('/agenda/');
-    const migrated = page.locator('.session', { hasText: 'ouverture de la saison' });
-    await expect(migrated).toHaveCount(1);
-    await expect(migrated.locator('time')).toHaveAttribute('datetime', baked!.date!);
-    await expect(migrated.locator('.session-time')).toHaveText('16:00');
+    const cards = page.locator('.sessions .session[data-status="published"]');
+    await expect(cards).toHaveCount(published.length);
   });
 
-  test('the English agenda carries the English note', async ({ page }) => {
-    await page.goto('/en/agenda/');
-    await expect(page.locator('html')).toHaveAttribute('lang', 'en');
-    await expect(page.locator('.session', { hasText: 'Season opening session' })).toHaveCount(1);
-  });
+  for (const { path, lang, tag } of [
+    { path: '/agenda/', lang: 'fr', tag: 'fr-FR' },
+    { path: '/en/agenda/', lang: 'en', tag: 'en-GB' },
+  ]) {
+    test(`${path} prints every session on the club's clock, in ${lang}`, async ({ page }) => {
+      const baked = bakedSessions().filter((s) => typeof s.startsAt === 'string');
+      expect(baked.length, 'the baked agenda holds no session with an instant to check').toBeGreaterThan(0);
+
+      /* Resolved here, independently of the bake: date, time, and the label a
+         reader of THIS language sees — weekday and month in their words. */
+      const label = new Intl.DateTimeFormat(tag, {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        timeZone: CLUB_ZONE,
+      });
+      const expected = baked
+        .map((s) => {
+          const { date, time } = clubWallClock(s.startsAt!);
+          return { date, time, label: label.format(new Date(s.startsAt!)) };
+        })
+        .sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`));
+
+      await page.goto(path);
+      await expect(page.locator('html')).toHaveAttribute('lang', lang);
+      const rendered = await page.locator('.sessions .session').evaluateAll((cards) =>
+        cards.map((card) => {
+          const time = card.querySelector('.session-when time');
+          return {
+            date: time?.getAttribute('datetime') ?? '',
+            time: card.querySelector('.session-time')?.textContent?.trim() ?? '',
+            label: time?.textContent?.trim() ?? '',
+          };
+        }),
+      );
+      expect(rendered, `the agenda's dates or times are not the club's (${CLUB_ZONE})`).toEqual(expected);
+    });
+  }
 
   /**
    * ⚠️ A CANCELLED SESSION STAYS VISIBLE, WITH ITS STATE (Critical Feature 46's

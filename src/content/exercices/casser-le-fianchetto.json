@@ -1,0 +1,61 @@
+{
+  "title_fr": "Casser le fianchetto",
+  "title_en": "Break the fianchetto",
+  "slug": "casser-le-fianchetto",
+  "fen": "5rk1/5p1p/6pQ/7P/8/8/5PP1/6KR w - - 0 1",
+  "solution": [
+    "h5g6",
+    "g6h7",
+    "h6f6"
+  ],
+  "opponentReplies": [
+    "f8a8",
+    "g8h8"
+  ],
+  "onlyMove": false,
+  "hint_fr": "Sans son fou, le fianchetto n'est plus qu'un pion g6 devant des cases noires vides. Votre pion h5 peut le frapper, et votre tour attend derrière lui. Ne craignez pas d'ouvrir — ni de laisser prendre.",
+  "hint_en": "Without its bishop, the fianchetto is just a g6 pawn in front of empty dark squares. Your h5 pawn can hit it, with your rook waiting behind. Don't be afraid to open lines — or to let something be taken.",
+  "level": "avance",
+  "themes": [
+    "attaque-du-roque",
+    "fianchetto",
+    "colonne-h",
+    "mat",
+    "pion"
+  ],
+  "claims": [
+    {
+      "kind": "line",
+      "moves": [
+        "h5g6",
+        "f8a8",
+        "g6h7",
+        "g8h8",
+        "h6f6"
+      ],
+      "ends": "mate"
+    },
+    {
+      "kind": "line",
+      "moves": [
+        "h5g6",
+        "f7g6",
+        "h6h7"
+      ],
+      "ends": "mate"
+    },
+    {
+      "kind": "line",
+      "moves": [
+        "h5g6",
+        "h7g6",
+        "h6h8"
+      ],
+      "ends": "mate"
+    },
+    {
+      "kind": "manual",
+      "note": "Exhaustive search (every legal reply): hxg6 is the ONLY first move that forces mate in 3. The stored reply ...Ra8 is Black's best defence. onlyMove is false because at move 2 Qxh7+ mates in 2 just as surely as gxh7+."
+    }
+  ]
+}

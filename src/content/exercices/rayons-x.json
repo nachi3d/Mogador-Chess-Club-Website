@@ -1,0 +1,36 @@
+{
+  "title_fr": "Les rayons X",
+  "title_en": "The X-ray",
+  "slug": "rayons-x",
+  "fen": "3r2k1/2q2ppp/8/8/8/8/3Q1PPP/3R2K1 w - - 0 1",
+  "solution": [
+    "d2d8",
+    "d1d8"
+  ],
+  "opponentReplies": [
+    "c7d8"
+  ],
+  "onlyMove": true,
+  "hint_fr": "La case d8 a l'air bien gardée : la tour noire y est, et la dame noire la protège. Mais votre tour voit d8 elle aussi — à travers votre dame. Comptez qui attaque et qui défend, et souvenez-vous de la dernière rangée.",
+  "hint_en": "d8 looks well guarded: Black's rook sits there and Black's queen protects it. But your rook sees d8 too — straight through your queen. Count attackers and defenders, and remember the back rank.",
+  "level": "avance",
+  "themes": [
+    "rayons-x",
+    "mat",
+    "couloir",
+    "sacrifice",
+    "dame"
+  ],
+  "claims": [
+    {
+      "kind": "line",
+      "moves": [
+        "d2d8",
+        "c7d8",
+        "d1d8"
+      ],
+      "ends": "mate"
+    }
+  ],
+  "forcedReplies": true
+}

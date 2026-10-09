@@ -29,7 +29,7 @@ import AxeBuilder from '@axe-core/playwright';
  * than all of them. Keep it a little under the real count, and move it when
  * the collection changes SIZE in either direction.
  */
-const EXERCISE_FLOOR = 24;
+const EXERCISE_FLOOR = 38;
 
 const INDEX = '/exercices/';
 const INDEX_EN = '/en/exercices/';
@@ -84,6 +84,30 @@ test.describe('a level filter', () => {
       await page.goto(href);
       const badge = (await page.locator('.level-badge, [data-level]').first().innerText()).trim();
       expect(badge.toLowerCase(), `${href} is not débutant`).toContain('débutant');
+    }
+  });
+
+  /**
+   * ⚠️ THE AVANCÉ ROUTE EXISTS BECAUSE THE CONTENT DOES — nothing lists it.
+   * Before batch 6 no exercise was `avance`, so `/exercices/niveau/avance/`
+   * 404'd by design (values are derived from the content). This pins the other
+   * half: once the content exists the route is emitted, in both locales, and
+   * holds nothing but avancé exercises.
+   */
+  test('avancé exists in both locales and holds only avancé exercises', async ({ page }) => {
+    for (const [path, word] of [
+      ['/exercices/niveau/avance/', 'avancé'],
+      ['/en/exercices/niveau/avance/', 'advanced'],
+    ] as const) {
+      const response = await page.goto(path);
+      expect(response?.status(), `${path} did not resolve`).toBe(200);
+      const filtered = await cardHrefs(page);
+      expect(filtered.length, `${path} listed no exercise`).toBeGreaterThan(10);
+      for (const href of filtered.slice(0, 4)) {
+        await page.goto(href);
+        const badge = (await page.locator('.level-badge, [data-level]').first().innerText()).trim();
+        expect(badge.toLowerCase(), `${href} is not ${word}`).toContain(word);
+      }
     }
   });
 });

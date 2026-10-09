@@ -1,0 +1,41 @@
+{
+  "title_fr": "L'échec perpétuel",
+  "title_en": "Perpetual check",
+  "slug": "echec-perpetuel",
+  "fen": "6k1/5pp1/8/5P2/8/8/1q2r1PP/3Q3K w - - 0 1",
+  "solution": [
+    "d1d8",
+    "d8h4",
+    "h4d8"
+  ],
+  "opponentReplies": [
+    "g8h7",
+    "h7g8"
+  ],
+  "onlyMove": true,
+  "hint_fr": "Vous êtes perdu : la dame et la tour noires menacent g2, et vous avez bien moins de matériel. Mais le roi noir n'a pas beaucoup d'air. Si vous ne pouvez pas gagner, pouvez-vous l'empêcher de respirer pour toujours ?",
+  "hint_en": "You're lost: Black's queen and rook are aiming at g2, and you're well down on material. But Black's king doesn't have much air. If you can't win, can you stop it from ever catching its breath?",
+  "level": "avance",
+  "themes": [
+    "defense",
+    "echec-perpetuel",
+    "dame"
+  ],
+  "claims": [
+    {
+      "kind": "line",
+      "moves": [
+        "d1d8",
+        "g8h7",
+        "d8h4",
+        "h7g8",
+        "h4d8"
+      ],
+      "ends": "check"
+    },
+    {
+      "kind": "manual",
+      "note": "Stockfish 11 (the vendored engine), MultiPV, depth 22: Qd8+ holds (0.00) and EVERY other first move loses (forced mate or about −63). Qh4+ and the return to d8 are likewise the only non-losing moves; ...Kg8 is Black's only legal reply to Qh4+, and the f5 pawn takes g6 away. The repetition is the draw — no claim kind can assert a repetition, so it is stated here."
+    }
+  ]
+}

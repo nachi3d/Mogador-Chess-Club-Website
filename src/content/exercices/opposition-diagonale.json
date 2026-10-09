@@ -1,0 +1,33 @@
+{
+  "title_fr": "L'opposition, pas la poussée",
+  "title_en": "Opposition, not the push",
+  "slug": "opposition-diagonale",
+  "fen": "8/5k2/8/8/2K1P3/8/8/8 w - - 0 1",
+  "solution": [
+    "c4d5"
+  ],
+  "opponentReplies": [],
+  "onlyMove": true,
+  "hint_fr": "Si vous poussez le pion maintenant, le roi noir vient se planter devant lui et c'est nulle. Votre roi doit passer devant son pion — et pour passer, il lui faut l'opposition. Les rois se font face aussi en diagonale.",
+  "hint_en": "Push the pawn now and Black's king parks in front of it: draw. Your king has to lead the way, and to get past it needs the opposition. Kings can face each other diagonally, too.",
+  "level": "avance",
+  "themes": [
+    "opposition",
+    "finale",
+    "pion",
+    "roi"
+  ],
+  "claims": [
+    {
+      "kind": "line",
+      "moves": [
+        "c4d5"
+      ],
+      "ends": "quiet"
+    },
+    {
+      "kind": "manual",
+      "note": "Syzygy tablebase (tablebase.lichess.ovh), checked 2026-10-08: Kd5 is the ONLY winning move. e5 and the seven other king moves all draw. Checked for every legal move, not sampled."
+    }
+  ]
+}

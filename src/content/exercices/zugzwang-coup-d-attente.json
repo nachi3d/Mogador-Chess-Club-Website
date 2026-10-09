@@ -1,0 +1,32 @@
+{
+  "title_fr": "Zugzwang — le coup d'attente",
+  "title_en": "Zugzwang — the waiting move",
+  "slug": "zugzwang-coup-d-attente",
+  "fen": "8/8/8/p2Kp3/4Pk2/P7/8/8 w - - 0 1",
+  "solution": [
+    "a3a4"
+  ],
+  "opponentReplies": [],
+  "onlyMove": true,
+  "hint_fr": "Si c'était aux Noirs de jouer, ils perdraient : leur roi devrait lâcher e5, ou laisser passer le vôtre. L'ennui, c'est que c'est à vous. Avez-vous un coup qui ne change rien — sauf qui doit jouer ?",
+  "hint_en": "If it were Black to move, Black would lose: the king would have to let go of e5, or let yours through. The trouble is, it's your move. Do you have a move that changes nothing — except whose turn it is?",
+  "level": "avance",
+  "themes": [
+    "zugzwang",
+    "finale",
+    "pion"
+  ],
+  "claims": [
+    {
+      "kind": "line",
+      "moves": [
+        "a3a4"
+      ],
+      "ends": "quiet"
+    },
+    {
+      "kind": "manual",
+      "note": "Syzygy tablebase (tablebase.lichess.ovh), checked 2026-10-08: a4 is the ONLY winning move, and all five king moves LOSE — a mutual zugzwang (trébuchet) decided by the spare tempo. a4 also takes away Black's own spare move ...a4."
+    }
+  ]
+}

@@ -105,7 +105,22 @@ export interface ExerciseLabels {
   readonly move: MoveInputLabels;
   /** The one-time sound invitation (E2). Resolved on the server like the rest. */
   readonly sound: SoundInviteLabels;
+  /** The promotion picker — the question a pawn on the last rank asks. */
+  readonly promotion: PromotionLabels;
 }
+
+export interface PromotionLabels {
+  readonly heading: string;
+  readonly queen: string;
+  readonly rook: string;
+  readonly bishop: string;
+  readonly knight: string;
+  readonly cancel: string;
+}
+
+/** The four choices, in the order every chess program offers them. */
+const PROMOTION_PIECES = ['q', 'r', 'b', 'n'] as const;
+const PROMOTION_LABEL = { q: 'queen', r: 'rook', b: 'bishop', n: 'knight' } as const;
 
 export interface SoundInviteLabels {
   readonly question: string;
@@ -179,6 +194,7 @@ export default function ExerciseView(props: ExerciseViewProps) {
   /** null until the lazily-imported engine chunk has resolved. */
   const [engine, setEngine] = useState<ResolvedExercise | null>(null);
   const judgeRef = useRef<typeof import('@lib/chess/exercise').judgeMove | null>(null);
+  const isPromotionRef = useRef<typeof import('@lib/chess/exercise').isPromotionMove | null>(null);
   /* The notation parser rides in on the same lazy chunk — it needs chess.js
      too, so making it a second dynamic import would only add a round trip. */
   const resolveRef = useRef<typeof import('@lib/chess/notation').resolveMoveText | null>(null);
@@ -227,6 +243,16 @@ export default function ExerciseView(props: ExerciseViewProps) {
   const [shown, setShown] = useState<ExerciseMove | null>(null);
   /** Bumped to push the board back to a position it has drifted from. */
   const [revision, setRevision] = useState(0);
+  /**
+   * ⚠️ A PAWN DRAGGED TO THE LAST RANK IS A QUESTION, NOT A MOVE.
+   *
+   * Set when a pointer move is a promotion; the picker renders while it is
+   * non-null and the board stops listening. The move is judged only once a
+   * piece is chosen — so the under-promotion exercise is actually ABOUT the
+   * choice. A typed move never lands here: its text already names the piece.
+   */
+  const [promoting, setPromoting] = useState<{ from: string; to: string } | null>(null);
+  const promotionFirst = useRef<HTMLButtonElement | null>(null);
   /** Cursor into the full solution list, once solved. */
   const [reviewIndex, setReviewIndex] = useState<number | null>(null);
   /**
@@ -338,6 +364,7 @@ export default function ExerciseView(props: ExerciseViewProps) {
       ]);
       if (!live) return;
       judgeRef.current = engineModule.judgeMove;
+      isPromotionRef.current = engineModule.isPromotionMove;
       resolveRef.current = notationModule.resolveMoveText;
       setEngine(engineModule.resolveExercise(definition));
     })();
@@ -360,11 +387,19 @@ export default function ExerciseView(props: ExerciseViewProps) {
 
   /* ── The reader played a move ──────────────────────────────────────────── */
   const onMove = useCallback(
-    (from: string, to: string) => {
+    (from: string, to: string, promotion?: string) => {
       const judge = judgeRef.current;
       if (!engine || !step || !judge || solved || busy) return;
 
-      const verdict = judge(step, from, to, engine.onlyMove);
+      /* A promotion with no piece named is a pointer move: ask before judging.
+         The pawn stays where it was dropped while the picker is open; cancel
+         puts it back with the same revision bump a refused move uses. */
+      if (!promotion && isPromotionRef.current?.(step.fen, from, to)) {
+        setPromoting({ from, to });
+        return;
+      }
+
+      const verdict = judge(step, from, to, engine.onlyMove, promotion);
 
       if (verdict.kind === 'illegal') {
         /* Unreachable through the board — Chessground is holding `dests` — but
@@ -510,6 +545,29 @@ export default function ExerciseView(props: ExerciseViewProps) {
     [locale, step],
   );
 
+  /* ── The promotion picker ──────────────────────────────────────────────── */
+  const choosePromotion = useCallback(
+    (piece: string) => {
+      const pending = promoting;
+      setPromoting(null);
+      /* Still the POINTER's move — `lastWasText` stays false, so focus is not
+         thrown into the text field afterwards (useMoveSource.ts). */
+      if (pending) onMove(pending.from, pending.to, piece);
+    },
+    [onMove, promoting],
+  );
+
+  const cancelPromotion = useCallback(() => {
+    setPromoting(null);
+    setRevision((prev) => prev + 1);
+  }, []);
+
+  /* Focus the first choice when the picker opens. A button, never the text
+     field: focusing a button raises no virtual keyboard over the board. */
+  useEffect(() => {
+    if (promoting) promotionFirst.current?.focus();
+  }, [promoting]);
+
   const revealHint = useCallback(() => {
     setHintShown(true);
     recordHintUsed(slug);
@@ -528,6 +586,7 @@ export default function ExerciseView(props: ExerciseViewProps) {
     // not take that back. `resetAttempts` clears the counter and nothing else.
     setSolvedBefore((was) => was || solved);
     setReviewIndex(null);
+    setPromoting(null);
     setAttempts(resetAttempts(slug).attempts);
     setRevision((prev) => prev + 1);
   }, [clearTimers, slug, solved]);
@@ -548,7 +607,8 @@ export default function ExerciseView(props: ExerciseViewProps) {
 
   /* Movable only at a step's start position: not while a correct move is being
      answered, not during the shake, and not after the solve. */
-  const interactive = Boolean(engine && step) && !solved && !busy && shown === null;
+  const interactive =
+    Boolean(engine && step) && !solved && !busy && shown === null && promoting === null;
 
   const message =
     feedback === 'correct'
@@ -612,6 +672,43 @@ export default function ExerciseView(props: ExerciseViewProps) {
               : { dests: NO_DESTS })}
           />
         </div>
+
+        {promoting && (
+          <div
+            class="mcc-promotion"
+            role="group"
+            aria-labelledby="mcc-promotion-heading"
+            data-testid="promotion-picker"
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') cancelPromotion();
+            }}
+          >
+            <p class="mcc-promotion-heading" id="mcc-promotion-heading">
+              {labels.promotion.heading}
+            </p>
+            <div class="mcc-promotion-choices">
+              {PROMOTION_PIECES.map((piece, index) => (
+                <button
+                  type="button"
+                  class="mcc-exercise-button mcc-promotion-choice"
+                  data-testid={`promotion-${piece}`}
+                  ref={index === 0 ? promotionFirst : undefined}
+                  onClick={() => choosePromotion(piece)}
+                >
+                  {labels.promotion[PROMOTION_LABEL[piece]]}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              class="mcc-promotion-cancel"
+              data-testid="promotion-cancel"
+              onClick={cancelPromotion}
+            >
+              {labels.promotion.cancel}
+            </button>
+          </div>
+        )}
 
         <p class="mcc-exercise-turn" data-testid="exercise-turn">
           {solved

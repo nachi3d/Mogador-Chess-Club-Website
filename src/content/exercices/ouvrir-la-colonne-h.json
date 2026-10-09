@@ -1,0 +1,46 @@
+{
+  "title_fr": "Ouvrir la colonne h",
+  "title_en": "Open the h-file",
+  "slug": "ouvrir-la-colonne-h",
+  "fen": "6rk/6pp/8/7P/5N2/8/5PP1/2K4R w - - 0 1",
+  "solution": [
+    "f4g6",
+    "h5g6"
+  ],
+  "opponentReplies": [
+    "h7g6"
+  ],
+  "onlyMove": true,
+  "hint_fr": "Votre tour vise déjà h8 — mais deux pions bouchent la colonne, dont le vôtre. Le roi noir n'a aucune case libre. Comment obliger les Noirs à ouvrir eux-mêmes la colonne ?",
+  "hint_en": "Your rook is already aimed at h8 — but two pawns block the file, one of them yours. Black's king has no free square. How do you make Black open the file for you?",
+  "level": "avance",
+  "themes": [
+    "attaque-du-roque",
+    "sacrifice",
+    "colonne-h",
+    "mat",
+    "cavalier"
+  ],
+  "claims": [
+    {
+      "kind": "line",
+      "moves": [
+        "f4g6",
+        "h7g6",
+        "h5g6"
+      ],
+      "ends": "mate"
+    },
+    {
+      "kind": "discovery",
+      "after": [
+        "f4g6",
+        "h7g6"
+      ],
+      "screen": "h5",
+      "by": "h1",
+      "target": "h8"
+    }
+  ],
+  "forcedReplies": true
+}

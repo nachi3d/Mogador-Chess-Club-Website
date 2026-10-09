@@ -1,0 +1,47 @@
+{
+  "title_fr": "L'interception",
+  "title_en": "Interference",
+  "slug": "interception",
+  "fen": "7k/r5pp/8/3N4/1b6/8/1B5P/5RQK w - - 0 1",
+  "solution": [
+    "d5e7",
+    "g1g7"
+  ],
+  "opponentReplies": [
+    "b4e7"
+  ],
+  "onlyMove": true,
+  "hint_fr": "Deux pièces noires défendent tout : la tour garde g7 le long de la septième rangée, le fou garde f8 sur sa diagonale. Leurs deux lignes se croisent sur une case. Que se passe-t-il si vous y posez une pièce ?",
+  "hint_en": "Two black pieces defend everything: the rook guards g7 along the seventh rank, the bishop guards f8 on its diagonal. Their two lines cross on one square. What happens if you put a piece there?",
+  "level": "avance",
+  "themes": [
+    "interception",
+    "mat",
+    "cavalier",
+    "sacrifice"
+  ],
+  "claims": [
+    {
+      "kind": "line",
+      "moves": [
+        "d5e7",
+        "b4e7",
+        "g1g7"
+      ],
+      "ends": "mate"
+    },
+    {
+      "kind": "line",
+      "moves": [
+        "d5e7",
+        "a7e7",
+        "f1f8"
+      ],
+      "ends": "mate"
+    },
+    {
+      "kind": "manual",
+      "note": "Exhaustive search: Ne7 is the ONLY mate in 2. Whichever black piece captures on e7 cuts the OTHER one's line (the two line claims). After the stored ...Bxe7, Qxg7# is the only mate."
+    }
+  ]
+}

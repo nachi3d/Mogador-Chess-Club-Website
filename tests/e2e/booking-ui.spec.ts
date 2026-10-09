@@ -2,6 +2,7 @@ import { test, expect, type Page, type Locator } from '@playwright/test';
 import { isSupabaseConfigured } from './env';
 import { adminClient, createConfirmedUser, deleteUser, e2eEmail } from './helpers/supabase-admin';
 import { AUTH_ENABLED, AUTH_OFF_REASON } from './helpers/auth-mode';
+import { E2E_PREFIX } from './helpers/scope';
 import { followMagicLink, reachAccountPage } from './helpers/auth';
 
 /**
@@ -116,8 +117,13 @@ async function bookablePanel(page: Page): Promise<Panel> {
     /* ⚠️ A FAILED QUERY IS NOT "NOTHING IS DURABLE". Throwing keeps this from
        degrading into a silent skip, which would read as "booking works". */
     if (error) throw new Error(`could not check session durability: ${error.message}`);
+    /* ⚠️ AN `e2e-` TITLE IS NOT DURABLE EITHER. It is another run's scoped
+       session (`helpers/scope.ts`), which that run deletes on its way out and
+       `purge.ts` deletes once abandoned — so it is refused here exactly as a
+       bare row is. */
     const durable = new Set(
       (data ?? [])
+        .filter((r) => !String(r['title_fr'] ?? '').startsWith(E2E_PREFIX))
         .filter((r) => r['title_fr'] !== null || r['note_fr'] !== null || r['note_en'] !== null)
         .map((r) => String(r['id'])),
     );

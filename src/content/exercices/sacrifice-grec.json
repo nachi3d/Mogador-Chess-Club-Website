@@ -1,0 +1,43 @@
+{
+  "title_fr": "Le sacrifice grec",
+  "title_en": "The Greek gift",
+  "slug": "sacrifice-grec",
+  "fen": "4rbk1/5ppp/1q2p3/3pP3/7P/3B1N2/5PP1/2BQ2K1 w - - 0 1",
+  "solution": [
+    "d3h7",
+    "f3g5",
+    "d1h5"
+  ],
+  "opponentReplies": [
+    "g8h7",
+    "h7g8"
+  ],
+  "onlyMove": true,
+  "hint_fr": "Il n'y a plus de cavalier noir en f6 pour garder h7, et votre pion e5 l'empêche d'y revenir. Si le roi noir est arraché à son abri, quelle pièce peut lui donner échec tout de suite — et laquelle arrive ensuite sur la colonne h ?",
+  "hint_en": "There's no black knight on f6 to guard h7 any more, and your e5 pawn stops one from coming back. If the black king gets dragged out of its shelter, which piece can check it straight away — and which one arrives on the h-file after that?",
+  "level": "avance",
+  "themes": [
+    "attaque-du-roque",
+    "sacrifice",
+    "fou",
+    "cavalier",
+    "dame"
+  ],
+  "claims": [
+    {
+      "kind": "line",
+      "moves": [
+        "d3h7",
+        "g8h7",
+        "f3g5",
+        "h7g8",
+        "d1h5"
+      ],
+      "ends": "quiet"
+    },
+    {
+      "kind": "manual",
+      "note": "Stockfish 11 (the vendored engine), MultiPV, depth 22: every stored White move is the only one that keeps a winning advantage — Bxh7+ about +5.7 (next best about +1), Ng5+ +12.1 (next −1.6), Qh5 +13.2 (next −1.5), threatening Qh7#. Declining with 1...Kh8 also loses (+8.1). Not a forced mate, so this is an engine judgement, not a proof."
+    }
+  ]
+}

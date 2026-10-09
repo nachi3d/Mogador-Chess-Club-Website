@@ -264,3 +264,68 @@ Markdown decision for course bodies, and the beginner tutorial
 its progress under `tutorial:<slug>`). **Read it before writing any content.**
 
 ---
+
+---
+
+## Batch 6 — the advanced tier, and how a verdict is proved
+
+**Read when:** writing any exercise whose point is a *verdict* rather than a
+mate — an endgame, a defence, a perpetual — or touching the exercise checks in
+`scripts/check-content.mjs`.
+
+### Three tiers of proof, and the claim says which one was used
+
+`check-content.mjs` proves legality, mates and forced replies. It cannot prove
+"this is the only move that wins", and for half of batch 6 that IS the
+exercise. So each verdict was proved in a workbench outside the build and
+written down as a `manual` claim **naming its source**:
+
+| Tier | Used for | How strong |
+|---|---|---|
+| **Syzygy tablebase** (tablebase.lichess.ovh) | every position of 7 pieces or fewer — opposition, the race, Lucena, Philidor, zugzwang, Réti, underpromotion | exact: win/draw/loss for **every** legal move |
+| **Exhaustive search** (chess.js, every reply) | every forced mate — h-file, fianchetto, rook lift, mate in 3, quiet move, interference, X-ray | exact, and also proves each stored reply's alternatives |
+| **Stockfish 11** (the vendored engine, MultiPV, depth 22) | the two middlegames that are not mates — Greek gift, perpetual | an engine judgement, and the claim says so |
+
+⚠️ **The tablebase overturned two engine readings.** Stockfish 11 called the
+Saavedra finale's king moves "+60, winning slowly" and Philidor's alternatives
+"−0.81"; the tablebase said Kb3 genuinely wins (so Saavedra could not be
+`onlyMove: true` and was replaced) and that Rh5–Rh8 hold as well as Rh3 (so
+Philidor is `onlyMove: false`). **An engine number is not a verdict**; where a
+tablebase exists, ask it.
+
+⚠️ **The manual claims are a review queue on purpose.** They do not fail the
+build, they print. Fourteen of the sixteen carry one (the other two are proved
+entirely by the build), because their truth is a
+property no build step can recompute. That is the honest shape, not a gap to
+close by inventing a claim kind that pretends.
+
+### ⚠️ The side NOT to move must not be in check — now enforced for exercises
+
+The lesson boards had this guard since batch 2; the exercises did not. Batch 6's
+rook-lift draft had a bishop on b2 already giving check to h8 with White to
+move: legal to chess.js, every check green, and Black's only "reply" was a king
+move. The guard was added, watched to fail on that draft, and on its first full
+run **it found a published exercise with the same defect** —
+`mat-dame-soutenue` (batch 5), whose queen on b3 was already checking g8. Fixed
+by moving the queen to b1: same idea, same `Qb8#`, still the only mate, same
+slug so nobody's progress moved.
+
+### The underpromotion needed the picker
+
+`judgeMove` used to ADOPT the expected promotion piece. For the first
+under-promotion exercise that meant a drag "solved" `e8=N` with no choice made,
+and a typed `e8=Q` was called correct. See [`board.md`](./board.md) → the
+promotion picker. **Any future promotion exercise gets the picker for free; do
+not route around it.**
+
+### What did not fit cleanly
+
+- **A quiet move INSIDE a combination** (sacrifice → quiet move → mate, every
+  step unique) was not achieved: in each attempt the deflected defender came
+  back in one move. #11 ships as the quiet queen move (Lolli): `Qh6`, no check,
+  the only mate in 2 — the key move is the quiet one.
+- **Philidor** has no position (searched) where the third-rank rook is the
+  *sole* draw; distant side checks also hold. `onlyMove: false`.
+- **Saavedra** was the first underpromotion candidate and was dropped: the
+  tablebase found king moves that also win. The knight fork that replaced it is
+  the only win.
