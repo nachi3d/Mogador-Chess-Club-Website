@@ -68,6 +68,17 @@ env:
 # users are created and links minted through the admin API — so a subdomain
 # costs nothing and needs to resolve nowhere.
 #
+# ⚠️⚠️ AND THE DOMAIN IS PER *RUN* AS WELL AS PER JOB. Every promotion pushes
+# `main` and the `dev` back-merge seconds apart, so two whole gates share the
+# project — and with `webkit.mcc-e2e.test` in both, each webkit job purged the
+# other's users (runs 35834910255 + 35834927186 also ate each other's
+# sessions). `<job>-<run id>-<attempt>` makes every job of every run distinct.
+# ⚠️ THE DOMAIN ONLY SCOPES USERS. Pseudos and sessions cannot carry it, so
+# `tests/e2e/helpers/scope.ts` derives a tag from it for them — read that file
+# before adding a spec that writes any shared table. A crashed run's domain
+# never comes back, so `purge.ts` also sweeps ANY run's e2e rows once they are
+# an hour old.
+#
 # ⚠️ WHAT THIS DOES NOT FIX: the auth RATE LIMIT is per project, not per domain.
 # `workers: 1` under CI keeps it far below the measured 22-verifications-in-7s
 # ceiling, but if auth specs start failing across jobs at once, that is the
@@ -127,7 +138,7 @@ jobs:
           TEST_SUPABASE_SERVICE_ROLE: ${{ secrets.TEST_SUPABASE_SERVICE_ROLE }}
           TEST_SUPABASE_PASSWORD: ${{ secrets.TEST_SUPABASE_PASSWORD }}
           SUPABASE_PRODUCTION_REF: ${{ secrets.SUPABASE_PRODUCTION_REF }}
-          E2E_EMAIL_DOMAIN: preflight.mcc-e2e.test
+          E2E_EMAIL_DOMAIN: preflight-${{ github.run_id }}-${{ github.run_attempt }}.mcc-e2e.test
         run: |
           umask 077
           {
@@ -225,7 +236,7 @@ jobs:
           TEST_SUPABASE_SERVICE_ROLE: ${{ secrets.TEST_SUPABASE_SERVICE_ROLE }}
           TEST_SUPABASE_PASSWORD: ${{ secrets.TEST_SUPABASE_PASSWORD }}
           SUPABASE_PRODUCTION_REF: ${{ secrets.SUPABASE_PRODUCTION_REF }}
-          E2E_EMAIL_DOMAIN: ${{ matrix.slug }}.mcc-e2e.test
+          E2E_EMAIL_DOMAIN: ${{ matrix.slug }}-${{ github.run_id }}-${{ github.run_attempt }}.mcc-e2e.test
         run: |
           umask 077
           {
@@ -322,7 +333,7 @@ jobs:
           TEST_SUPABASE_SERVICE_ROLE: ${{ secrets.TEST_SUPABASE_SERVICE_ROLE }}
           TEST_SUPABASE_PASSWORD: ${{ secrets.TEST_SUPABASE_PASSWORD }}
           SUPABASE_PRODUCTION_REF: ${{ secrets.SUPABASE_PRODUCTION_REF }}
-          E2E_EMAIL_DOMAIN: sliver.mcc-e2e.test
+          E2E_EMAIL_DOMAIN: sliver-${{ github.run_id }}-${{ github.run_attempt }}.mcc-e2e.test
         run: |
           umask 077
           {

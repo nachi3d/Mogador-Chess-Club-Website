@@ -11,6 +11,7 @@
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { loadE2EEnv } from '../env';
+import { scopePrefix } from './scope';
 
 let admin: SupabaseClient | null = null;
 
@@ -42,13 +43,18 @@ export function e2eEmail(label: string): string {
  * e2e email domain — so `purge.ts` matches on this prefix instead, and nothing
  * without it is ever touched. Every pseudo a spec uses comes from here.
  *
+ * ⚠️ AND THE PREFIX CARRIES THIS RUN'S SCOPE TAG — `e2e-<tag>-`. The bare
+ * `e2e-` let one job's teardown delete, and count as residue, a pseudo another
+ * job had registered half a second earlier. See `helpers/scope.ts`.
+ *
  * ⚠️ AND IT MUST STILL SATISFY `profiles_pseudo_check` (3–20 chars, opening on
- * a letter or digit), so the label is truncated rather than trusted.
+ * a letter or digit). The prefix takes 9 of the 20, so the label is cut to 5
+ * and the random part keeps all 6.
  */
 export function e2ePseudo(label: string): string {
-  const unique = Math.random().toString(36).slice(2, 8);
-  const short = label.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 6);
-  return `e2e-${short}${unique}`.slice(0, 20);
+  const unique = Math.random().toString(36).slice(2, 8).padEnd(6, '0');
+  const short = label.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 5);
+  return `${scopePrefix()}${short}${unique}`;
 }
 
 /**

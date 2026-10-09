@@ -13,11 +13,18 @@
  * The pattern is the e2e email domain. Nothing outside it is ever touched, so
  * this cannot delete a real account even if it were somehow pointed at a
  * populated project — which the interlock in `env.ts` already prevents.
+ *
+ * ⚠️⚠️ WHAT THIS DELETES IS SCOPED TO THIS RUN — READ `helpers/scope.ts`.
+ * Everything here is either THIS run's (its email domain, its pseudo prefix,
+ * its session titles) or ABANDONED (any run's e2e rows, older than
+ * `LEAK_AGE_MS`). Nothing young that belongs to somebody else is touched,
+ * because a concurrent job or a concurrent gate run is using it.
  */
 
 import { adminClient } from './supabase-admin';
 import { loadE2EEnv } from '../env';
 import { PSEUDO_EMAIL_DOMAIN } from '../../../src/lib/pseudo';
+import { E2E_PREFIX, LEAK_AGE_MS, abandonedBefore, scopePrefix } from './scope';
 
 /**
  * ⚠️ THE PSEUDO ACCOUNTS ARE NOT IN THE E2E EMAIL DOMAIN, AND WOULD SURVIVE.
@@ -32,20 +39,38 @@ import { PSEUDO_EMAIL_DOMAIN } from '../../../src/lib/pseudo';
  * makes one, every pseudo it mints starts `e2e-`, and NOTHING ELSE IS MATCHED.
  * A real student called `e2e-…` cannot exist — and the interlock in `env.ts`
  * already makes production unreachable from here.
+ *
+ * ⚠️ AND `e2e-` ALONE IS EVERY RUN'S PREFIX. Matching it deleted, and then
+ * reported as residue, a pseudo chromium registered while webkit's teardown
+ * was running (gate run 37904267059). THIS run's pseudos start
+ * `e2e-<tag>-`; a bare `e2e-` match is only for abandoned ones.
  */
-const E2E_PSEUDO_PREFIX = 'e2e-';
-
-function isE2EPseudoAddress(email: string): boolean {
+function isE2EPseudoAddress(email: string, prefix: string): boolean {
   if (!email.endsWith(`@${PSEUDO_EMAIL_DOMAIN}`)) return false;
-  return email.split('@')[0]?.startsWith(E2E_PSEUDO_PREFIX) === true;
+  return email.split('@')[0]?.startsWith(prefix) === true;
 }
 
-/** Users whose email is inside the e2e domain — or an e2e pseudo account. */
+/** Any run's e2e address: a `mcc-e2e.test` domain or subdomain, or an e2e pseudo. */
+function isAnyE2EAddress(email: string): boolean {
+  const domain = email.split('@')[1] ?? '';
+  return (
+    domain === 'mcc-e2e.test' ||
+    domain.endsWith('.mcc-e2e.test') ||
+    isE2EPseudoAddress(email, E2E_PREFIX)
+  );
+}
+
+/**
+ * THIS run's users — its email domain, or its pseudo prefix — plus any run's
+ * e2e users old enough to be abandoned.
+ */
 async function findE2EUsers(): Promise<Array<{ id: string; email: string }>> {
   const env = loadE2EEnv();
   if (!env) return [];
   const sb = adminClient();
 
+  const prefix = scopePrefix();
+  const cutoff = Date.now() - LEAK_AGE_MS;
   const found: Array<{ id: string; email: string }> = [];
   /* The admin list API is paginated and there is no server-side email filter,
      so we page through and match locally. Bounded to keep a runaway project
@@ -55,9 +80,10 @@ async function findE2EUsers(): Promise<Array<{ id: string; email: string }>> {
     if (error) throw new Error(`purge: listUsers failed — ${error.message}`);
     const users = data?.users ?? [];
     for (const u of users) {
-      if (u.email && (u.email.endsWith(`@${env.emailDomain}`) || isE2EPseudoAddress(u.email))) {
-        found.push({ id: u.id, email: u.email });
-      }
+      if (!u.email) continue;
+      const ours = u.email.endsWith(`@${env.emailDomain}`) || isE2EPseudoAddress(u.email, prefix);
+      const abandoned = isAnyE2EAddress(u.email) && Date.parse(u.created_at) < cutoff;
+      if (ours || abandoned) found.push({ id: u.id, email: u.email });
     }
     if (users.length < 200) break;
   }
@@ -129,13 +155,6 @@ async function findE2EUsers(): Promise<Array<{ id: string; email: string }>> {
 /** Migration 0006's row — untitled, note-bearing, and load-bearing for the suite. */
 const MIGRATED_SESSION_ID = '5e5e0912-0000-4000-8000-000000000912';
 
-/**
- * How old a bare session must be before it counts as abandoned. Comfortably
- * longer than the slowest job in the matrix (webkit, ~20 min) and far shorter
- * than the gap between runs.
- */
-const LEAK_AGE_MS = 60 * 60 * 1000;
-
 async function purgeLeakedSessions(phase: 'before' | 'after'): Promise<void> {
   const sb = adminClient();
   const { error } = await sb
@@ -144,10 +163,38 @@ async function purgeLeakedSessions(phase: 'before' | 'after'): Promise<void> {
     .is('title_fr', null)
     .is('note_fr', null)
     .is('note_en', null)
-    .lt('created_at', new Date(Date.now() - LEAK_AGE_MS).toISOString())
+    .lt('created_at', abandonedBefore())
     .neq('id', MIGRATED_SESSION_ID);
   if (error) {
     throw new Error(`purge(${phase}): could not delete leaked sessions — ${error.message}`);
+  }
+
+  /* ⚠️ AND THE SCOPED ONES. A spec that must tell its sessions from another
+     run's titles them `e2e-<tag>-…` (see `helpers/scope.ts`) — which makes
+     them NOT bare, so the sweep above would never collect a leak. Same age
+     guard: a young one is a concurrent run's, mid-test. `booking-ui`'s
+     `bookablePanel()` refuses these titles too, for the same reason it
+     refuses bare rows. */
+  const { error: titledError } = await sb
+    .from('sessions')
+    .delete()
+    .like('title_fr', `${E2E_PREFIX}%`)
+    .lt('created_at', abandonedBefore());
+  if (titledError) {
+    throw new Error(`purge(${phase}): could not delete leaked e2e sessions — ${titledError.message}`);
+  }
+
+  /* `rebuild_requests` is a diagnostic log with no owner column, so no run
+     can tell its firings from another's — `recurring-sessions.spec.ts` used
+     to delete everything after its baseline, including a concurrent run's
+     rows mid-count. Only abandoned rows go, here, so the table cannot grow a
+     row per run forever. */
+  const { error: logError } = await sb
+    .from('rebuild_requests')
+    .delete()
+    .lt('requested_at', abandonedBefore());
+  if (logError) {
+    throw new Error(`purge(${phase}): could not prune rebuild_requests — ${logError.message}`);
   }
 }
 
