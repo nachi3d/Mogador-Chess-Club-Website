@@ -11,6 +11,8 @@ Per CLAUDE.md → Conventions, this file is updated on **every merge to `dev`**.
 
 ## [Unreleased]
 
+## [0.33.0] — 2026-10-09
+
 ### Added
 
 - **Content batch 6 — sixteen `avancé` exercises, the first of that level.**
@@ -138,6 +140,13 @@ generated `agenda.json` was reused): **282 passed accounts-OFF, 282 passed
 accounts-ON.** `check-content`, `check-contrast`, `astro check`,
 `check-island-controls` and the service-worker build all ran as in
 `npm run build`.
+
+⚠️ **Superseded at the release (2026-10-09).** The TEST project is back and
+the fallback is refreshed, so the real gates ran on this tree: `test:branch`
+for each merge, a local accounts-ON `test:release` (1435 passed), and the CI
+`gate` workflow — the gate of record — green on `dev` at run 37908994883 (five
+projects and the accounts-OFF sliver). The release commit is gated again on CI
+before `main` moves.
 
 ## [0.32.0] — 2026-09-23
 
@@ -7986,7 +7995,8 @@ Foundation only: no real content, no interactive board yet.
   `url()` references unresolved and the fonts silently 404 into a Georgia
   fallback. `scripts/build-fonts.mjs` self-hosts them instead. See CLAUDE.md.
 
-[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.32.0...HEAD
+[Unreleased]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.33.0...HEAD
+[0.33.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.32.0...v0.33.0
 [0.32.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.31.0...v0.32.0
 [0.31.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.30.0...v0.31.0
 [0.30.0]: https://github.com/nachi3d/Mogador-Chess-Club-Website/compare/v0.29.0...v0.30.0
